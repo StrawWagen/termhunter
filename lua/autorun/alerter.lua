@@ -96,7 +96,6 @@ if SERVER then
     hook.Add( "StrawSoundEmitHint", "straw_termalerter_soundhint", soundHintThink )
 
 
-
     -- bl damage
     util._NextBotHook_BlastDamage = util._NextBotHook_BlastDamage or util.BlastDamage
     util.BlastDamage = function( ... )
@@ -162,5 +161,35 @@ if SERVER then
     end
 
     hook.Add( "OnEntityCreated", "straw_termalerter_explosioninfo", explosionHintThink )
+
+    -- sound reading!?!??
+    local function emitSoundThink( soundDat )
+        local entity = soundDat.Entity
+        if not IsValid( entity ) then return end
+        local class = entity:GetClass()
+        if class == "sb_advanced_nextbot_terminator_hunter" then return end
+        local valid = nil
+        if string.StartWith( class, "prop" ) then valid = true end
+        if string.StartWith( class, "player" ) then valid = true end
+        if string.StartWith( class, "func" ) then valid = true end
+        if not valid then return end
+
+        timer.Simple( engine.TickInterval(), function()
+
+            if not IsValid( entity ) then return end
+            local soundLvl = soundDat.SoundLevel
+
+            local pos = entity:GetPos()
+            local soundLvl2 = math.Clamp( soundLvl + -45, 0, math.huge ) -- min 45 db
+            local volume = math.Clamp( soundLvl^1.45, 10, 3000 ) -- exponential?
+
+            terminatorsSendSoundHint( entity, pos, volume )
+
+            --print( entity, pos, volume )
+
+        end )
+    end
+
+    hook.Add( "EntityEmitSound", "straw_termalerter_soundinfo", emitSoundThink )
 
 end

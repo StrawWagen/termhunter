@@ -30,34 +30,82 @@ SWEP.Secondary = {
 	DefaultClip = -1,
 }
 
+local function DoorHitSound( ent )
+	ent:EmitSound("ambient/materials/door_hit1.wav", 100, math.random(80, 120))
+end
+local function BreakSound( ent )
+	local Snd = "physics/wood/wood_furniture_break" .. tostring(math.random(1, 2)) .. ".wav"
+	ent:EmitSound(Snd, 110, math.random(80, 90))
+end
 
-function SWEP:HandleDoor(slashtrace)
-	if CLIENT or not IsValid(slashtrace.Entity) then return end
+function SWEP:MakeDoor( ent )
+	local vel = self:GetForward() * 4800
+	pos = ent:GetPos()
+	ang = ent:GetAngles()
+	mdl = ent:GetModel()
+	ski = ent:GetSkin()
+	ent:SetNotSolid(true)
+	ent:SetNoDraw(true)
+	prop = ents.Create("prop_physics")
+	prop:SetPos(pos)
+	prop:SetAngles(ang)
+	prop:SetModel(mdl)
+	prop:SetSkin(ski or 0)
+	prop:Spawn()
+	prop:SetVelocity( vel )
+	prop:GetPhysicsObject():ApplyForceOffset( vel, self:GetPos() )
+	prop:SetPhysicsAttacker( self )
+	DoorHitSound( prop )
+	BreakSound( prop )
+	print( "door" )
+end
 
-	if slashtrace.Entity:GetClass() == "func_door_rotating" or slashtrace.Entity:GetClass() == "prop_door_rotating" then
-		slashtrace.Entity:EmitSound("ambient/materials/door_hit1.wav", 100, math.random(80, 120))
+function SWEP:HandleDoor( tr )
+	if CLIENT or not IsValid(tr.Entity) then return end
+	local ent = tr.Entity
+	if ent:GetClass() == "func_door_rotating" or ent:GetClass() == "prop_door_rotating" then
+		local HitCount = ent.PunchedCount or 0
+		ent.PunchedCount = HitCount + 1 
 
-		local newname = "TFABash" .. self:EntIndex()
-		self.PreBashName = self:GetName()
-		self:SetName(newname)
+		if HitCount > 6 then
+			BreakSound( ent )
+		end
+		if HitCount >= 8 then
+			self:MakeDoor( ent )
+		elseif HitCount < 8 then
+			DoorHitSound( ent )
 
-		slashtrace.Entity:SetKeyValue("Speed", "500")
-		slashtrace.Entity:SetKeyValue("Open Direction", "Both directions")
-		slashtrace.Entity:SetKeyValue("opendir", "0")
-		slashtrace.Entity:Fire("unlock", "", .01)
-		slashtrace.Entity:Fire("openawayfrom", newname, .01)
+			local newname = "TFABash" .. self:EntIndex()
+			self.PreBashName = self:GetName()
+			self:SetName(newname)
 
-		timer.Simple(0.02, function()
-			if not IsValid(self) or self:GetName() ~= newname then return end
+			if ent.bashCount == nil or not isnumber( ent.bashCount ) then 
+				ent.bashCount = 0 
+			end 
 
-			self:SetName(self.PreBashName)
-		end)
+			ent.bashCount = ent.bashCount + 1
 
-		timer.Simple(0.3, function()
-			if IsValid(slashtrace.Entity) then
-				slashtrace.Entity:SetKeyValue("Speed", "100")
+			if ( ent.bashCount % 3 ) == 2 then
+				ent:Use( self.Owner, self.Owner )
 			end
-		end)
+
+			ent:SetKeyValue("Speed", "500")
+			ent:SetKeyValue("opendir", 0)
+			ent:Fire("unlock", "", .01)
+			ent:Fire("openawayfrom", newname, .01)
+
+			timer.Simple(0.02, function()
+				if not IsValid(self) or self:GetName() ~= newname then return end
+
+				self:SetName(self.PreBashName)
+			end)
+
+			timer.Simple(0.3, function()
+				if IsValid(ent) then
+					ent:SetKeyValue("Speed", "100")
+				end
+			end)
+		end
 	end
 end
 
@@ -100,7 +148,7 @@ function SWEP:DealDamage()
 		start = self.Owner:GetShootPos(),
 		endpos = self.Owner:GetShootPos() + self.Owner:GetAimVector() * self.Range,
 		filter = self.Owner,
-		mask = MASK_SHOT_HULL
+		mask = MASK_SOLID + CONTENTS_HITBOX,
 	} )
 
 	if ( !IsValid( tr.Entity ) ) then
@@ -110,7 +158,7 @@ function SWEP:DealDamage()
 			filter = self.Owner,
 			mins = Vector( -10, -10, -8 ),
 			maxs = Vector( 10, 10, 8 ),
-			mask = MASK_SHOT_HULL
+			mask = MASK_SOLID + CONTENTS_HITBOX,
 		} )
 	end
 
@@ -118,7 +166,11 @@ function SWEP:DealDamage()
 	local scale = phys_pushscale:GetFloat() * 3
 
 	if SERVER and IsValid( tr.Entity ) then
-		if tr.Entity:IsNPC() or tr.Entity:IsPlayer() or tr.Entity:Health() > 0 then
+		local Class = tr.Entity:GetClass()
+		local IsGlass = Class == "func_breakable_surf"
+		if IsGlass then
+			tr.Entity:Fire( "Shatter", tr.HitPos )
+		elseif tr.Entity:IsNPC() or tr.Entity:IsPlayer() or tr.Entity:Health() > 0 then
 			local dmginfo = DamageInfo()
 
 			local attacker = self.Owner

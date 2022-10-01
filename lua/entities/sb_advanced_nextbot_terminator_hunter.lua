@@ -132,15 +132,18 @@ local function PosCanSee( startPos, endPos )
     return not trace.Hit, trace
     
 end
-local function PosCanSee2( startPos, endPos )
+local function PosCanSee2( startPos, endPos, filter )
     if not startPos then return end
     if not endPos then return end
-    
+
+    local filterTbl = table.Copy( filter:GetChildren() )
+    table.insert( filterTbl, filter )
+
     local mask = {
-        filter = self,
+        filter = filterTbl,
         start = startPos,
         endpos = endPos,
-        mask = MASK_OPAQUE
+        mask = MASK_SOLID + CONTENTS_HITBOX,
     }
     local trace = util.TraceLine( mask )
     return not trace.Hit, trace
@@ -310,7 +313,7 @@ function ENT:understandObject( ent )
             if nextValidObservation < CurTime() then -- if this changed while it was far away from us 
                 if self.memorizedStates[ent:GetCreationID()] ~= stateKey then
                     self.notciedChangedEntity = ent:GetPos() 
-                    debugoverlay.Cross( self.notciedChangedEntity, 10, 5, Color( 255, 0, 0 ), true )
+                    --debugoverlay.Cross( self.notciedChangedEntity, 10, 5, Color( 255, 0, 0 ), true )
                 end
             end
         end
@@ -554,16 +557,16 @@ function ENT:NavMeshPathCostGenerator(path,area,from,ladder,elevator,len) --do t
     end
 
 	if area:HasAttributes(NAV_MESH_CROUCH) then
-		dist = dist*5
+		dist = dist*1.5
 	end
 
 	if area:HasAttributes(NAV_MESH_JUMP) then
-		dist = dist*5
+		dist = dist*1.5
 	end
 	
 	if area:HasAttributes(NAV_MESH_AVOID) then
         avoid = true
-		dist = dist*10
+		dist = dist*2
 	end
     if from then
         local nav1Id = from:GetID()
@@ -582,7 +585,7 @@ function ENT:NavMeshPathCostGenerator(path,area,from,ladder,elevator,len) --do t
     end
 
 	if area:HasAttributes(NAV_MESH_TRANSIENT) then
-		dist = dist*5
+		dist = dist*4
 	end
 
 	if area:IsUnderwater() then
@@ -613,7 +616,7 @@ function ENT:ShootBlocker(start,pos,filter)
 		start = start,
 		endpos = pos,
 		filter = filter,
-		mask = MASK_SHOT,
+		mask = MASK_SOLID + CONTENTS_HITBOX,
 		mins = Vector(-6,-6,-20),
 		maxs = Vector(6,6,20),
 	} )
@@ -623,22 +626,29 @@ end
 
 function ENT:tryToOpen( blocker )
     local class = blocker:GetClass()
-		
-    if self:HasWeapon2() and class:StartWith("func_breakable" ) then
+	
+    local OpenTime = self.OpenDoorTime or 0
+    local doorTimeIsGood = CurTime() - OpenTime > 1
+
+    if self:HasWeapon2() and class:StartWith("func_breakable" ) or class == "func_breakable_surf" then
         self:WeaponPrimaryAttack()
-    elseif class=="prop_door_rotating" and blocker:GetInternalVariable("m_eDoorState" )!=2 and (!self.OpenDoorTime or CurTime()-self.OpenDoorTime>1) then
+    elseif class=="prop_door_rotating" and blocker:GetInternalVariable("m_eDoorState" )!=2 and doorTimeIsGood then
         self.OpenDoorTime = CurTime()
         blocker:Use(self,self)
-    elseif class=="func_door_rotating" and blocker:GetInternalVariable("m_toggle_state" )==1 and (!self.OpenDoorTime or CurTime()-self.OpenDoorTime>1) then
+    elseif class=="func_door_rotating" and blocker:GetInternalVariable("m_toggle_state" )==1 and doorTimeIsGood then
         self.OpenDoorTime = CurTime()
         blocker:Use(self,self)
-    elseif class=="func_door" and blocker:GetInternalVariable("m_toggle_state" )==1 and (!self.OpenDoorTime or CurTime()-self.OpenDoorTime>1) then
+    elseif class=="func_door" and blocker:GetInternalVariable("m_toggle_state" )==1 and doorTimeIsGood then
         self.OpenDoorTime = CurTime()
         blocker:Use(self,self)
+    elseif doorTimeIsGood then
+        blocker:Use(self,self)
+
     end
 end
 
 function ENT:OnContact( contact )
+    if contact:IsWorld() then return end
     self:tryToOpen( contact )
 end
 
@@ -654,7 +664,7 @@ function ENT:BehaviourThink()
 		
 		self.LastShootBlocker = blocker
 		
-		if blocker then
+		if blocker and not blocker:IsWorld() then
 			self:tryToOpen( blocker )
 		end
 	else
@@ -788,7 +798,7 @@ local function FindSpot2( self, Options )
             local ValidSpots = Curr:GetHidingSpots( Options.Type )
             table.Add( HidingSpots, ValidSpots )
         else
-            debugoverlay.Cross( Curr:GetCenter(), 2, 10, Color( 255, 0, 0 ), true )
+            --debugoverlay.Cross( Curr:GetCenter(), 2, 10, Color( 255, 0, 0 ), true )
         end
     end
     
@@ -813,7 +823,7 @@ local function FindSpot2( self, Options )
                     Done = true
                     FinalSpot = CurrSpot
                 else 
-                    debugoverlay.Cross( CurrSpot, 2, 10, Color( 255, 0, 0 ), true )
+                    --debugoverlay.Cross( CurrSpot, 2, 10, Color( 255, 0, 0 ), true )
                 end
             elseif Options.Visible then
                 if PosCanSee( SelfPos + Offset, CurrSpot + Offset ) then
@@ -830,7 +840,7 @@ local function FindSpot2( self, Options )
                 end
             end
         else 
-            debugoverlay.Cross( FinalSpot, 20, 10, Color( 255, 255, 255 ), true )
+            --debugoverlay.Cross( FinalSpot, 20, 10, Color( 255, 255, 255 ), true )
         end
     end
     
@@ -843,6 +853,8 @@ local function StartNewMove( self ) -- start new move
 end
 
 local function CanDoNewPath( self, TargPos )
+    local nextNewPath = self.nextNewPath or 0
+    if nextNewPath > CurTime() then return false end
     if self.BlockNewPaths then return false end
     local NewPathDist = 50
     local Dist = self:GetPath():GetLength() or self.DistToEnemy or 0  
@@ -892,6 +904,8 @@ end
 -- do this so we can store extra stuff about new paths
 local function SetupPath2( self, endpos, isUnstuck ) 
 
+    self.nextNewPath = CurTime() + math.Rand( 0.4, 0.6 )
+
     if not isvector( endpos ) then return end
     if self.isUnstucking and not isUnstuck then return end
 
@@ -923,7 +937,7 @@ local function SetupPath2( self, endpos, isUnstuck )
             self:rememberAsUnreachable( area2 )
         end
         
-        debugoverlay.Text( area2:GetCenter(), tostring( score ), 8 )
+        --debugoverlay.Text( area2:GetCenter(), tostring( score ), 8 )
         scoreData.decreasingScores[area2:GetID()] = score
 
         return score
@@ -1024,7 +1038,7 @@ function ENT:ControlPath2( AimMode )
             local nextArea = goal.area
             if not nextArea then goto skipTheShitConnectionFlag end
             if not nextArea:IsValid() then goto skipTheShitConnectionFlag end
-            debugoverlay.Line( myNav:GetCenter(), nextArea:GetCenter(), 8, Color( 255, 255, 0 ) )
+            --debugoverlay.Line( myNav:GetCenter(), nextArea:GetCenter(), 8, Color( 255, 255, 0 ) )
             flagConnectionAsShit( myNav, goal.area )
             ::skipTheShitConnectionFlag::
         end
@@ -1035,9 +1049,7 @@ function ENT:ControlPath2( AimMode )
             local bearing = math.abs( bearing )
             local dropToArea = area1:ComputeAdjacentConnectionHeightChange(area2)
             local score = 5
-            if area2:HasAttributes(NAV_MESH_AVOID) then 
-                score = 0.1 
-            elseif area2:HasAttributes(NAV_MESH_TRANSIENT) then 
+            if area2:HasAttributes(NAV_MESH_TRANSIENT) then 
                 score = 0.1 
             elseif bearing < 45 then
                 score = score*15
@@ -1077,10 +1089,10 @@ function ENT:ControlPath2( AimMode )
             
             local areaSurfaceArea = self.initArea:GetSizeX() * self.initArea:GetSizeY()
             if areaSurfaceArea < 150000 then
-                -- mark this as avoid so we dont make the same mistake again right after!
-                flagForTime( self.initArea, 120, NAV_MESH_AVOID )
+                -- mark this as avoid so we dont make the same mistake again right after! scratch that, nevermind
+                --flagForTime( self.initArea, 120, NAV_MESH_AVOID )
             else -- if we flag big areas with avoid then lag becomes a huge problem
-                flagForTime( self.initArea, 120, NAV_MESH_TRANSIENT )
+                --flagForTime( self.initArea, 120, NAV_MESH_TRANSIENT )
             end
         end
 
@@ -1144,29 +1156,49 @@ function ENT:ControlPath2( AimMode )
         result = self:ControlPath(AimMode)
         local path = self:GetPath()
         local currGoal = path:GetCurrentGoal()
-        if istable( currGoal ) then
-            local goalArea = currGoal.area
-            local nextPathSegment = nil
-            local segsSinceCurrent = nil
-            for _, currSeg in ipairs( path:GetAllSegments() ) do
-                if segsSinceCurrent then
-                    segsSinceCurrent = segsSinceCurrent + 1
-                    if segsSinceCurrent > 4 then
+        if self:IsJumping() then
+            if istable( currGoal ) then
+                local lastSeg = path:LastSegment()
+                local goalArea = currGoal.area
+                local goalZ = currGoal.pos.z
+                local zOld = goalZ
+                local nextPathSegment = nextPathSegment
+                local segsSinceCurrent = 0
+                local oldPathSeg = nil
+                for _, currSeg in ipairs( path:GetAllSegments() ) do
+                    if currSeg == lastSeg then   
                         nextPathSegment = currSeg
-                        break
+                        goto foundNextPathSegment
+                    elseif segsSinceCurrent > 0 then
+                        segsSinceCurrent = segsSinceCurrent + 1
+                        local currZ = currSeg.pos.z 
+                        local segIsLowerThanLast = currZ < zOld
+                        if segIsLowerThanLast and oldPathSeg then
+                            nextPathSegment = oldPathSeg
+                            goto foundNextPathSegment
+                        elseif segsSinceCurrent > 4 then
+                            nextPathSegment = currSeg
+                            goto foundNextPathSegment
+                        end
+                        zOld = currZ
+                        oldPathSeg = currSeg
+                    elseif currSeg.area == goalArea then
+                        segsSinceCurrent = 1
+                    end 
+                end
+
+                ::foundNextPathSegment::
+
+                if nextPathSegment then
+                    --debugoverlay.Cross( nextPathSegment.pos, 10, 10, Color( 255, 255, 255 ), true )
+                    --debugoverlay.Cross( nextPathSegment.pos, 0.5, 20, Color( 255, 255, 255 ), true )
+                    local nextPos = nextPathSegment.pos
+                    local canSeeDest = PosCanSee( self:GetPos(), nextPos + Vector( 0,0,40 ) )
+                    if canSeeDest then
+                        local velTowardsDest = ( self:GetPos() - nextPos ):GetNormalized() * 25
+                        local myVel = self.loco:GetVelocity()
+                        self.loco:SetVelocity( myVel + -velTowardsDest )
                     end
-                elseif currSeg.area == goalArea then
-                    segsSinceCurrent = 1
-                end 
-            end
-            if nextPathSegment then
-                local nextPos = nextPathSegment.pos
-                local destZ = nextPos[3]
-                local canSeeDest = PosCanSee( self:GetPos(), nextPos + Vector( 0,0,10 ) )
-                if self:IsJumping() and canSeeDest then
-                    local velTowardsDest = ( self:GetPos() - nextPos ):GetNormalized() * 25
-                    local myVel = self.loco:GetVelocity()
-                    self.loco:SetVelocity( myVel + -velTowardsDest )
                 end
             end
         end
@@ -1176,6 +1208,7 @@ end
 
 function ENT:validSoundHint( minTime )
     if not self.lastHeardSoundHint then return end
+    if SqrDistLessThan( self.lastHeardSoundHint:DistToSqr( self:GetPos() ), 400 ) then return end
     if minTime > ( self.lastHeardSoundTime or 0 ) then return end
     return true
 
@@ -1183,7 +1216,7 @@ end
 
 -- do this so we can get data about current tasks easily
 function ENT:StartTask2( Task, Data )
-    print( Task )
+    --print( Task )
     self.InvalidAfterwards = nil
     self.BlockNewPaths = nil -- make sure this never persists between tasks
     Data2 = Data or {}
@@ -1569,6 +1602,7 @@ ENT.DeathDropHeight = 2000 --not afraid of heights
 ENT.CheckedNavs = {} -- add this here even if its hacky
 ENT.BadNavAreas = {} -- nav areas that never should be checked
 ENT.LastEnemySpotTime = 0
+ENT.InformRadius = 20000
 
 function ENT:Think() -- true hack
     self:walkArea()
@@ -1633,21 +1667,18 @@ function ENT:Initialize()
                 if self.PreventShooting then
                     doShootingPrevent = true 
                 end 
-
-                if IsValid( enemy ) then
+                if wep:Clip1()<=0 and wep:GetMaxClip1() > 0 then
+                    self:WeaponReload()
+                elseif IsValid( enemy ) then
                     if bit.band( caps, CAP_WEAPON_RANGE_ATTACK1 ) > 0 then
                         if self.IsSeeEnemy and IsValid(enemy) then
                             local shootableVolatile = self:getShootableVolatiles( enemy )
-                            if wep:Clip1()<=0 then
-                                self:WeaponReload()
-                            elseif shootableVolatile then
+                            if shootableVolatile then
                                 --print( shootableVolatile )
                                 self:shootAt( getBestPos( shootableVolatile ) )    
                             else
                                 self:shootAt( self.LastEnemyShootPos, doShootingPrevent )
                             end
-                        elseif wep:Clip1()<wep:GetMaxClip1()/2 then
-                            self:WeaponReload()
                         end
                     --melee
                     elseif bit.band( caps, CAP_INNATE_MELEE_ATTACK1 ) > 0 then
@@ -1657,6 +1688,8 @@ function ENT:Initialize()
                         end
                         self:shootAt( self.LastEnemyShootPos, blockShoot )
                     end
+                elseif wep:Clip1()<wep:GetMaxClip1()/2 then
+                    self:WeaponReload()
                 end
             end,
             StartControlByPlayer = function(self,data,ply)
@@ -1754,7 +1787,7 @@ function ENT:Initialize()
                                 self.EnemyLastDir = DirToPos( self.EnemyLastPos, enemyPos )
                                 self.LastEnemyForward = enemy:GetForward()
                                 self.EnemyLastPos = enemyPos
-                                debugoverlay.Line( enemyPos, enemyPos + ( self.EnemyLastDir * 100 ), 5, Color( 255, 255, 255 ), true )
+                                --debugoverlay.Line( enemyPos, enemyPos + ( self.EnemyLastDir * 100 ), 5, Color( 255, 255, 255 ), true )
                             end
                             if enemy == self then
                                 self:AddEntityRelationship( enemy, D_LI, 0 ) --hardcoded this
@@ -1895,14 +1928,14 @@ function ENT:Initialize()
                     self.EnemyLastHint = nil -- HACK
 
                     local objPos = getBestPos( data.object )
-                    local _,seeTrace = PosCanSee2( self:GetShootPos(), objPos )
-                    debugoverlay.Line( self:GetShootPos(), objPos )
+                    local _,seeTrace = PosCanSee2( self:GetShootPos(), objPos, self )
+                    --debugoverlay.Line( self:GetShootPos(), objPos )
                     local hitTheEnt = seeTrace.HitEntity == data.object
-                    local hitPosNear = SqrDistLessThan( seeTrace.HitPos:DistToSqr( objPos ), 5 )
+                    local hitPosNear = SqrDistLessThan( seeTrace.HitPos:DistToSqr( objPos ), 35 )
                     local canSeeNear = hitTheEnt or hitPosNear 
 
                     local weapDist = self:GetActiveLuaWeapon().Range or math.huge
-                    local distSqr = self:GetShootPos():DistToSqr( objPos )
+                    local distSqr = self:GetShootPos():DistToSqr( seeTrace.HitPos )
                     local canAttack = SqrDistLessThan( distSqr, weapDist )
                     local isNear = SqrDistLessThan( distSqr, 500 )
                     local isClose = SqrDistLessThan( distSqr, 200 )
@@ -2172,6 +2205,9 @@ function ENT:Initialize()
                     Done = true
                     self:TaskComplete( "movement_search" )
                     self:StartTask2( "movement_handler", {Want = 5} )
+                elseif WantInternal <= 90 and self.awarenessUnknown[1] then
+                    self:TaskComplete( "movement_search" )
+                    self:StartTask2( "movement_understandobject" )    
                 elseif self:canGetWeapon() and not self.IsSeeEnemy then 
                     self:TaskComplete( "movement_search" )
                     self:StartTask2( "movement_handler", {nextTask = "movement_search"} )
@@ -2255,9 +2291,7 @@ function ENT:Initialize()
                         local bearing = math.abs( bearing )
                         local dropToArea = area1:ComputeAdjacentConnectionHeightChange(area2)
                         local score = math.Rand( 4, 6 )
-                        if area2:HasAttributes(NAV_MESH_AVOID) then 
-                            score = 0.1 
-                        elseif bearing > 135 then
+                        if bearing > 135 then
                             score = score*15
                         elseif bearing > 90 then
                             score = score*5
@@ -2336,10 +2370,10 @@ function ENT:Initialize()
             OnStart = function(self,data)
                 path = self:GetPath()
                 path:Invalidate()
-                local range1, range2 = 15, 25
+                local range1, range2 = 10, 20
                 local watchCount = self.watchCount or 0
                 if watchCount < 1 then 
-                    range1, range2 = 50, 70
+                    range1, range2 = 40, 60
                 end
                 data.giveUpWatchingTime = CurTime() + math.random( range1, range2 )
             end,
@@ -2348,7 +2382,7 @@ function ENT:Initialize()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
                 local enemyBearingToMeAbs = math.huge
                 local goodEnemy = nil
-                if IsValid( enemy ) then
+                if IsValid( enemy ) and isfunction( enemy.GetShootPos ) then
                     data.dirToEnemy = ( self:GetShootPos() - enemy:GetShootPos() ):GetNormalized()
                     goodEnemy = self.IsSeeEnemy
                     enemyBearingToMeAbs = self:enemyBearingToMe()
@@ -2379,8 +2413,8 @@ function ENT:Initialize()
                     if enemyBearingToMeAbs < 15 then
                         -- don't do this forever!
                         local watchCount = self.watchCount or 0
-                        self.watchCount = watchCount + 0.2
-                        if self.watchCount > 5 then
+                        self.watchCount = watchCount + 0.4
+                        if self.watchCount > 4 then
                             self.boredOfWatching = true
                         end
                         self:TaskComplete( "movement_watch" )
@@ -2403,7 +2437,7 @@ function ENT:Initialize()
                 elseif data.giveUpWatchingTime < CurTime() then
                     local watchCount = self.watchCount or 0
                     self.watchCount = watchCount + 1
-                    if self.watchCount > 8 then
+                    if self.watchCount > 4 then
                         self.boredOfWatching = true
                     end
                     self:TaskComplete( "movement_watch" )
@@ -2505,7 +2539,7 @@ function ENT:Initialize()
                     end
                     stalkPos = findValidNavResult( scoreData, self:GetPos(), math.Rand( 2500, 3500 ), scoreFunction )
                     if stalkPos then
-                        debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
+                        --debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
                         SetupFlankingPath( self, stalkPos, result.area, aimResult.area )
                     end
 
@@ -2567,7 +2601,7 @@ function ENT:Initialize()
                 local pathEndNav = getNearestPosOnNav( self:GetPath():GetEnd() ).area
                 local enemySeesDestination = nil 
                 if pathEndNav:IsValid() and enemyNav:IsValid() then
-                    enemySeesDestination = PosCanSee( pathEndNav:GetCenter(), enemyPos )
+                    enemySeesDestination = PosCanSee2( pathEndNav:GetCenter(), enemyPos, self )
                 end
                 local watch = enemyBearingToMeAbs > 10 and IsValid( enemy ) and self.IsSeeEnemy and self.WasHidden and not self.boredOfWatching and maxHealth and self.DistToEnemy > 1000
                 local ambush = enemyBearingToMeAbs > 100 and IsValid( enemy ) and not exposed
@@ -2866,7 +2900,7 @@ function ENT:Initialize()
                     local GoodPos = nil
                     local canDoNewPath = data.minNewPathTime < CurTime()
 
-                    local FinishedOrInvalid = ( Result == true or not self:PathIsValid() or not PosCanSee( self:EyePos(), Enemy:EyePos() ) ) and canDoNewPath
+                    local FinishedOrInvalid = ( Result == true or not self:PathIsValid() or not PosCanSee2( self:EyePos(), Enemy:EyePos(), self ) ) and canDoNewPath
                     
                     if FinishedOrInvalid or self.NextPathAtt < CurTime() then
                         
@@ -2887,10 +2921,9 @@ function ENT:Initialize()
                             local AdjArea = table.Random( AdjAreas )
                             if not AdjArea then goto SkipRemainingCriteria end
                             if not AdjArea:IsCompletelyVisible( MyNavArea ) then goto SkipRemainingCriteria end -- dont go behind corners!
-                            if AdjArea:HasAttributes( NAV_MESH_AVOID ) then goto SkipRemainingCriteria end -- avoid attrib AVOID
                             if AdjArea:HasAttributes( NAV_MESH_JUMP ) then goto SkipRemainingCriteria end -- avoid attrib JUMP
                             local PathPos = AdjArea:GetRandomPoint()
-                            if not PosCanSee( PathPos, Enemy:EyePos() ) then goto SkipRemainingCriteria end
+                            if not PosCanSee2( PathPos, Enemy:EyePos(), self ) then goto SkipRemainingCriteria end
                             if SqrDistGreaterThan( self:GetPos():DistToSqr( PathPos ), MaxDuelDist ) then goto SkipRemainingCriteria end
     
                             GoodPos = true
@@ -2955,15 +2988,12 @@ function ENT:Initialize()
                 local scoreFunction = function( scoreData, area1, area2 )
                     local ang = scoreData.forward
                     local dropToArea = area2:ComputeAdjacentConnectionHeightChange(area1)
-                    local score = area2:GetCenter():DistToSqr( scoreData.startPos ) * math.Rand( 0.6, 1.4 )
+                    local score = area2:GetCenter():DistToSqr( scoreData.startPos ) * math.Rand( 0.8, 1.2 )
                     if scoreData.self.walkedAreas[area2:GetID()] then
                         score = score*0.3
                     end
                     if not area2:IsPotentiallyVisible( scoreData.startArea ) then
                         score = score*10
-                    end
-                    if area2:HasAttributes(NAV_MESH_AVOID) then 
-                        score = 0.1
                     end
                     if not scoreData.canDoUnderWater and area2:IsUnderwater() then
                         score = score * 0.01
@@ -2978,7 +3008,7 @@ function ENT:Initialize()
 
                 end
 
-                wanderPos = findValidNavResult( scoreData, self:GetPos(), math.random( 3500 ), scoreFunction )
+                wanderPos = findValidNavResult( scoreData, self:GetPos(), math.random( 2000, 3500 ), scoreFunction )
                 
                 if wanderPos then
                     SetupPath2( self, wanderPos )
@@ -3015,7 +3045,7 @@ function ENT:Initialize()
                     end
                 else -- no want, end the inertia
                     self:TaskComplete( "movement_inertia" )
-                    self:StartTask2( "movement_handler" )
+                    self:StartTask2( "movement_searchlastdir" )
                 end
             end,
             StartControlByPlayer = function(self,data,ply)
@@ -3028,10 +3058,12 @@ function ENT:Initialize()
         ["inform_handler"] = {
             OnStart = function(self,data)
                 data.Inform = function(enemy,pos)
-                    for k,v in ipairs(ents.FindByClass(self:GetClass())) do
-                        if v==self or v.m_InformGroup!=self.m_InformGroup or self:GetRangeTo(v)>self.InformRadius then continue end
+                    for _,ent in ipairs(ents.FindByClass(self:GetClass())) do
+                        if ent==self or SqrDistGreaterThan( self:GetPos():DistToSqr(ent:GetPos()), self.InformRadius ) then continue end
                         
-                        v:RunTask("InformReceive",enemy,pos)
+                        ent.lastHeardSoundHint = pos
+                        ent.lastHeardSoundTime = CurTime()
+                        ent:RunTask("InformReceive",enemy,pos)
                     end
                 end
             end,
@@ -3040,20 +3072,11 @@ function ENT:Initialize()
             
                 if self.IsSeeEnemy and (!data.EnemyPosInform or CurTime()>=data.EnemyPosInform) then
                     data.EnemyPosInform = CurTime()+5
-                    
                     data.Inform(self:GetEnemy(),self:EntShootPos(self:GetEnemy()))
                 end
             end,
             InformReceive = function(self,data,enemy,pos)
-                self:SetEntityRelationship(enemy,D_HT,1)
                 self:UpdateEnemyMemory(enemy,pos)
-                
-                if self:IsTaskActive("movement_randomwalk" ) then
-                    self:TaskFail( "movement_randomwalk" )
-                    
-                    self.CustomPosition = pos
-                    self:StartTask2( "movement_wait" )
-                end
             end,
             OnKilled = function(self,data,dmg)
             end,
@@ -3070,4 +3093,5 @@ function ENT:SetupTasks()
 	self:StartTask("playercontrol_handler" )
     self:StartTask("awareness_handler" )
     self:StartTask("reallystuck_handler")
+    self:StartTask("inform_handler")
 end
