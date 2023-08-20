@@ -1,0 +1,8 @@
+"VertexlitGeneric"
+{
+	"$basetexture" "models/terminator/arnold/Arnold_body_damaged_1"
+	"$bumpmap" "models/terminator/arnold/Arnold_body_damaged_1_BM"
+	"$normalmap" "models/terminator/arnold/Arnold_body_damaged_1_BM"
+	"$alphatest" 1
+	"$nocull" 1
+}
