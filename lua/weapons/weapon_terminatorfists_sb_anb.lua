@@ -175,7 +175,7 @@ function SWEP:HandleDoor( tr )
         local HitCount = door.PunchedCount or 0
         door.PunchedCount = HitCount + 1
 
-        if util.CanBashDoor( door ) == false then
+        if terminator_Extras.CanBashDoor( door ) == false then
             DoorHitSound( door )
         else
             if HitCount > 4 then

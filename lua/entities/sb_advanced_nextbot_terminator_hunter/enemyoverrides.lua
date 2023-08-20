@@ -108,7 +108,7 @@ local function shouldNotSeeEnemy( me, enemy )
         randNoZ.z = 0
         local potentialPos = enemy:GetPos() + ( randNoZ * 500 )
 
-        if util.PosCanSee( enemy:GetShootPos(), potentialPos ) then
+        if terminator_Extras.PosCanSee( enemy:GetShootPos(), potentialPos ) then
             me:UpdateEnemyMemory( enemy, potentialPos )
             me.EnemyLastPos = potentialPos
             me.EnemyLastHint = potentialPos

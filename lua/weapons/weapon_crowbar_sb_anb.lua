@@ -6,7 +6,7 @@ end
 
 SWEP.PrintName = "#HL2_Crowbar"
 SWEP.Spawnable = false
-SWEP.Author = "Shadow Bonnie (RUS)"
+SWEP.Author = "Straw"
 SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_crowbar.mdl"
@@ -25,7 +25,7 @@ SWEP.Secondary = {
     DefaultClip = -1,
 }
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 SWEP.PickupSound = "weapons/crowbar/crowbar_impact2.wav"
 SWEP.Range = 2200
@@ -53,7 +53,7 @@ function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end
 
     local owner = self:GetOwner()
-    if not util.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
+    if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     if not owner.NothingOrBreakableBetweenEnemy then return end
 

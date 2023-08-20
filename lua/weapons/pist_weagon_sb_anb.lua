@@ -78,7 +78,7 @@ SWEP.Secondary.Recoil = 0.0 // How much we should punch the view
 SWEP.Secondary.Delay = 0.05 // How long time before you can fire again 
 SWEP.Secondary.Force = 1000000 // The force of the shot 
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 //SWEP:Initialize\\ 
 function SWEP:Initialize()

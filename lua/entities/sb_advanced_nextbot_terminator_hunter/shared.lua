@@ -179,7 +179,7 @@ local function getNearestNav( pos )
     return navArea
 end
 
-util.getNearestPosOnNav = function( pos )
+terminator_Extras.getNearestPosOnNav = function( pos )
     local result = { pos = nil, area = NULL }
     if not pos then return result end
     local navFound = getNearestNav( pos )
@@ -208,7 +208,7 @@ local function DistToSqr2D( pos1, pos2 )
     return product:Length2DSqr()
 end
 
-util.PosCanSee = function( startPos, endPos )
+terminator_Extras.PosCanSee = function( startPos, endPos )
     if not startPos then return end
     if not endPos then return end
 
@@ -222,7 +222,7 @@ util.PosCanSee = function( startPos, endPos )
 
 end
 
-util.PosCanSeeComplex = function( startPos, endPos, filter, mask )
+terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     if not startPos then return end
     if not endPos then return end
 
@@ -285,7 +285,7 @@ function ENT:getBestPos( ent )
 
     --debugoverlay.Cross( pos, 5, 5 )
 
-    if pos and ent:GetClass() ~= "func_breakable_surf" and util.PosCanSee( shootPos, pos ) then
+    if pos and ent:GetClass() ~= "func_breakable_surf" and terminator_Extras.PosCanSee( shootPos, pos ) then
         return pos
 
     end
@@ -333,7 +333,7 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
     local cur = nil
     if isvector( start ) then
         pos = start
-        res = util.getNearestPosOnNav( pos )
+        res = terminator_Extras.getNearestPosOnNav( pos )
         cur = res.area
 
     elseif start and start.IsValid and start:IsValid() then
@@ -601,7 +601,7 @@ function ENT:understandObject( ent )
     local class = ent:GetClass()
     local memory, _ = self:getMemoryOfObject( ent )
 
-    local isLockedDoor = class == "prop_door_rotating" and ent:GetInternalVariable( "m_bLocked" ) ~= false and ent:IsSolid() and util.CanBashDoor( ent )
+    local isLockedDoor = class == "prop_door_rotating" and ent:GetInternalVariable( "m_bLocked" ) ~= false and ent:IsSolid() and terminator_Extras.CanBashDoor( ent )
 
     if isLockedDoor then
         -- locked doors create navmesh blocker flags under them even though we can bash them down
@@ -724,7 +724,7 @@ function ENT:getShootableVolatiles( enemy )
 
         local pos = self:getBestPos( currVolatile )
         if SqrDistGreaterThan( pos:DistToSqr( enemy:GetPos() ), 300 ) then continue end
-        if not util.PosCanSee( self:GetShootPos(), pos ) then continue end
+        if not terminator_Extras.PosCanSee( self:GetShootPos(), pos ) then continue end
 
         return currVolatile
 
@@ -827,7 +827,7 @@ function ENT:GetDisrespectingEnt()
             local disrespectBestPos = potentialDisrespect:NearestPoint( myShootPos )
             local close = SqrDistLessThan( disrespectBestPos:DistToSqr( myShootPos ), disrespectorRange ) or SqrDistLessThan( disrespectBestPos:DistToSqr( myPos ), disrespectorRange )
             if close then
-                local clear, trace = util.PosCanSeeComplex( myShootPos, disrespectBestPos, self )
+                local clear, trace = terminator_Extras.PosCanSeeComplex( myShootPos, disrespectBestPos, self )
                 if clear or ( IsValid( trace.Entity ) and trace.Entity == disrespector ) then
                     disrespector = potentialDisrespect
                     break
@@ -992,7 +992,7 @@ function ENT:tryToOpen( blocker, blockerTrace )
         if blocker:GetInternalVariable( "m_bLocked" ) == true and isFists and range and traceDistanceSqr < range^2 then
             self:WeaponPrimaryAttack()
 
-        elseif ( doorIsStale and isFists and util.CanBashDoor( blocker ) ) or doorIsVeryStale then
+        elseif ( doorIsStale and isFists and terminator_Extras.CanBashDoor( blocker ) ) or doorIsVeryStale then
             self:WeaponPrimaryAttack()
 
         elseif blocker:GetInternalVariable( "m_eDoorState" ) ~= 2 then -- door is not open
@@ -1207,14 +1207,14 @@ local function FindSpot2( self, Options )
         local DistSqrToCurr = CurrSpot:DistToSqr( pos )
         if SqrDistGreaterThan( DistSqrToCurr, Options.MinRadius ) then
             if not Options.Visible then
-                if not util.PosCanSee( pos + Offset, CurrSpot + Offset ) then
+                if not terminator_Extras.PosCanSee( pos + Offset, CurrSpot + Offset ) then
                     Done = true
                     FinalSpot = CurrSpot
                 --else 
                     --debugoverlay.Cross( CurrSpot, 2, 10, Color( 255, 0, 0 ), true )
                 end
             elseif Options.Visible then
-                if util.PosCanSee( SelfPos + Offset, CurrSpot + Offset ) then
+                if terminator_Extras.PosCanSee( SelfPos + Offset, CurrSpot + Offset ) then
                     Done = true
                     FinalSpot = CurrSpot
                 end
@@ -1282,7 +1282,7 @@ function ENT:SetupPath2( endpos, isUnstuck )
     if not isvector( endpos ) then return end
     if self.isUnstucking and not isUnstuck then return end
 
-    local endArea = util.getNearestPosOnNav( endpos )
+    local endArea = terminator_Extras.getNearestPosOnNav( endpos )
 
     local reachable = self:areaIsReachable( endArea.area )
     if not reachable then
@@ -1445,7 +1445,7 @@ function ENT:canHitEnt( ent )
 
     end
 
-    local _, hitTrace = util.PosCanSeeComplex( self:GetShootPos(), behindObj, self, mask )
+    local _, hitTrace = terminator_Extras.PosCanSeeComplex( self:GetShootPos(), behindObj, self, mask )
     --debugoverlay.Cross( hitTrace.HitPos, 10, 10 )
 
     local closenessSqr = self:GetShootPos():DistToSqr( objPos )
@@ -2179,7 +2179,7 @@ function ENT:walkArea()
         if scoreData.currentWalked[area2:GetID()] then
             score = 1
 
-        elseif scoreData.InitialArea:IsCompletelyVisible( area2 ) or util.PosCanSee( areaCenter + offset25z, scoreData.checkOrigin ) then
+        elseif scoreData.InitialArea:IsCompletelyVisible( area2 ) or terminator_Extras.PosCanSee( areaCenter + offset25z, scoreData.checkOrigin ) then
             scoreData.currentWalked[area2:GetID()] = true
             scoreData.self:markAsWalked( area2 )
             score = math.abs( 1000 + -areaCenter:Distance( scoreData.checkOrigin ) )
@@ -2481,6 +2481,7 @@ function ENT:OnTakeDamage( Damage )
     self.lastDamagedTime = _CurTime()
     local DmgType = Damage:GetDamageType()
     local attacker = Damage:GetAttacker()
+    local BgDamage = 0
 
     local class = attacker:GetClass()
 
@@ -2987,7 +2988,7 @@ function ENT:Initialize()
                             if IsValid( pickedPlayer ) then
                                 local isLinkedPlayer = pickedPlayer == self.linkedPlayer
                                 local alive = pickedPlayer:Health() > 0
-                                if alive and util.PosCanSee( self:GetShootPos(), self:EntShootPos( pickedPlayer ) ) then
+                                if alive and terminator_Extras.PosCanSee( self:GetShootPos(), self:EntShootPos( pickedPlayer ) ) then
                                     self:UpdateEnemyMemory( pickedPlayer, pickedPlayer:GetPos() )
 
                                 elseif isLinkedPlayer and alive then -- HACK
@@ -3602,7 +3603,7 @@ function ENT:Initialize()
                 end
 
                 if self:EnemyIsLethalInMelee() then
-                    local result = util.getNearestPosOnNav( self:GetEnemy():GetPos() )
+                    local result = terminator_Extras.getNearestPosOnNav( self:GetEnemy():GetPos() )
                     if result and IsValid( result.area ) then
                         self:SetupFlankingPath( data.Wep:GetPos(), result.area, self.DistToEnemy * 0.8 )
 
@@ -3748,7 +3749,7 @@ function ENT:Initialize()
 
                         -- only do this when sound is confirmed from something dangerous, and there is another hunter pathing
                         if data.Valuable and otherHuntersHalfwayPoint then
-                            local result = util.getNearestPosOnNav( otherHuntersHalfwayPoint )
+                            local result = terminator_Extras.getNearestPosOnNav( otherHuntersHalfwayPoint )
                             if result.area:IsValid() then
                                 local flankBubble = myPos:Distance( otherHuntersHalfwayPoint ) * 0.7
                                 -- create path, avoid simplest path
@@ -3799,7 +3800,7 @@ function ENT:Initialize()
                 end
 
                 local nearPathEnd = self:primaryPathIsValid() and self:GetPath():GetLength() < 75
-                local closeToSoundAndVis = SqrDistLessThan( ( myPos - soundPos ):Length2DSqr(), 100 ) and util.PosCanSee( self:GetShootPos(), soundPos )
+                local closeToSoundAndVis = SqrDistLessThan( ( myPos - soundPos ):Length2DSqr(), 100 ) and terminator_Extras.PosCanSee( self:GetShootPos(), soundPos )
                 local reachedSound = result == true or closeToSoundAndVis
 
                 local doWep, wep = self:canGetWeapon()
@@ -3882,7 +3883,7 @@ function ENT:Initialize()
 
                 -- focus search on where a "hint" was, or first operation, focus our search on where the code says we should be
                 if needsToDoANearbySearch then
-                    local result = util.getNearestPosOnNav( data.searchCenter )
+                    local result = terminator_Extras.getNearestPosOnNav( data.searchCenter )
                     if result and result.pos then
                         --debugoverlay.Cross( result.pos, 100, 10, Color( 255,255,0 ), true )
                         pickedSearchCenter = result.pos
@@ -3946,7 +3947,7 @@ function ENT:Initialize()
                     rand2DOffset = rand2DOffset * math.random( 300, 600 )
 
                     local newSearchCenter = data.searchCenter + rand2DOffset
-                    local result = util.getNearestPosOnNav( newSearchCenter )
+                    local result = terminator_Extras.getNearestPosOnNav( newSearchCenter )
                     if not result.area or not result.area.IsValid or not result.area:IsValid() then
                         -- nope, this pos is out of the navmesh, stay here!
                         newSearchCenter = data.searchCenter
@@ -4028,13 +4029,13 @@ function ENT:Initialize()
                     self:StartTask2( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
                 elseif self:CanBashLockedDoor( nil, hateLockedDoorDist ) then
                     self:BashLockedDoor( "movement_search" )
-                elseif not result and util.PosCanSee( MyPos, HidingToCheck ) and SqrDistLessThan( DistToHideSqr, 300 ) then
+                elseif not result and terminator_Extras.PosCanSee( MyPos, HidingToCheck ) and SqrDistLessThan( DistToHideSqr, 300 ) then
                     waitTime = 0
                     Continue = true
                 elseif data.nextForcedSearch < _CurTime() then
                     Continue = true
                 elseif result then
-                    if not util.PosCanSee( MyPos, HidingToCheck ) or SqrDistLessThan( DistToHideSqr, 300 ) then
+                    if not terminator_Extras.PosCanSee( MyPos, HidingToCheck ) or SqrDistLessThan( DistToHideSqr, 300 ) then
                         BadArea = true
                     end
                     Continue = true
@@ -4441,7 +4442,7 @@ function ENT:Initialize()
                 local hp = self:Health()
                 local maxHp = self:GetMaxHealth()
 
-                local result = util.getNearestPosOnNav( enemyPos )
+                local result = terminator_Extras.getNearestPosOnNav( enemyPos )
 
                 if enemyPos and result.area:IsValid() then
 
@@ -4587,7 +4588,7 @@ function ENT:Initialize()
                 local myPos = self:GetPos()
                 local tooDangerousToApproach = self:EnemyIsLethalInMelee()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
-                local enemyNav = util.getNearestPosOnNav( enemyPos ).area
+                local enemyNav = terminator_Extras.getNearestPosOnNav( enemyPos ).area
                 local reachable = self:areaIsReachable( enemyNav )
 
                 if data.InvalidAfterwards then
@@ -4662,18 +4663,18 @@ function ENT:Initialize()
                 end
 
                 local myPath = self:GetPath()
-                local pathEndNav = util.getNearestPosOnNav( myPath:GetEnd() ).area
+                local pathEndNav = terminator_Extras.getNearestPosOnNav( myPath:GetEnd() ).area
                 local enemySeesDestination = nil
 
                 if pathEndNav:IsValid() and enemyNav:IsValid() then
                     local enemOffsetted = enemyPos + vecFiftyZ
-                    enemySeesDestination = util.PosCanSeeComplex( pathEndNav:GetCenter() + vecFiftyZ, enemOffsetted, self )
+                    enemySeesDestination = terminator_Extras.PosCanSeeComplex( pathEndNav:GetCenter() + vecFiftyZ, enemOffsetted, self )
                     if self:PathIsValid() then
                         local segments = self:getCachedPathSegments()
                         local middleIndex = math.Round( #segments / 2 )
                         local middleSegment = segments[middleIndex]
                         if middleSegment.area.IsValid and middleSegment.area:IsValid() then
-                            enemySeesMiddle = util.PosCanSeeComplex( middleSegment.area:GetCenter() + vecFiftyZ, enemOffsetted, self )
+                            enemySeesMiddle = terminator_Extras.PosCanSeeComplex( middleSegment.area:GetCenter() + vecFiftyZ, enemOffsetted, self )
 
                         end
                     end
@@ -4874,7 +4875,7 @@ function ENT:Initialize()
                     flankBubble = self:GetPos():Distance( otherHuntersHalfwayPoint ) * 0.7
 
                 end
-                local result = util.getNearestPosOnNav( flankAroundPos )
+                local result = terminator_Extras.getNearestPosOnNav( flankAroundPos )
 
                 if enemyPos and result.area:IsValid() and self:areaIsReachable( result.area ) then
                     -- flank em!
@@ -5025,7 +5026,7 @@ function ENT:Initialize()
                     -- end here if this would place us closer to the enemy vs last time
                     if SqrDistGreaterThan( lastInterceptDist2, currDist2 + 50 ) then goto terminatorInterceptNewPathFail end
 
-                    local gotoResult = util.getNearestPosOnNav( predictedPos )
+                    local gotoResult = terminator_Extras.getNearestPosOnNav( predictedPos )
                     if not gotoResult then data.Unreachable = true goto terminatorInterceptNewPathFail end
 
                     local reachable = self:areaIsReachable( gotoResult.area )
@@ -5042,7 +5043,7 @@ function ENT:Initialize()
 
                     end
 
-                    local interceptResult = util.getNearestPosOnNav( flankAroundPos )
+                    local interceptResult = terminator_Extras.getNearestPosOnNav( flankAroundPos )
 
                     if interceptResult.area:IsValid() then
                         self:SetupFlankingPath( gotoResult.pos, interceptResult.area, flankBubble )
@@ -5114,7 +5115,7 @@ function ENT:Initialize()
                     local newPosToGoto = data.lastApproachPos and approachPos ~= data.lastApproachPos
                     local newPath = not self:primaryPathIsValid() or newPosToGoto or ( self:primaryPathIsValid() and CanDoNewPath( self, approachPos ) )
                     if newPath and nextNewPathIsGood( self ) then
-                        local snappedResult = util.getNearestPosOnNav( approachPos )
+                        local snappedResult = terminator_Extras.getNearestPosOnNav( approachPos )
                         local posOnNav = snappedResult.pos
 
                         local reachable = self:areaIsReachable( snappedResult.area )
@@ -5193,7 +5194,7 @@ function ENT:Initialize()
                     local newPosToGoto = data.lastApproachPos and approachPos ~= data.lastApproachPos
                     local newPath = not self:primaryPathIsValid() or newPosToGoto or ( self:primaryPathIsValid() and CanDoNewPath( self, approachPos ) )
                     if newPath and nextNewPathIsGood( self ) then
-                        local snappedResult = util.getNearestPosOnNav( approachPos )
+                        local snappedResult = terminator_Extras.getNearestPosOnNav( approachPos )
                         local posOnNav = snappedResult.pos
 
                         local reachable = self:areaIsReachable( snappedResult.area )
@@ -5267,7 +5268,7 @@ function ENT:Initialize()
                 if enemyPos then
                     local newPath = not self:primaryPathIsValid() or ( self:primaryPathIsValid() and CanDoNewPath( self, enemyPos ) )
                     if newPath and not self.isUnstucking and not data.Unreachable then -- HACK
-                        local result = util.getNearestPosOnNav( enemyPos )
+                        local result = terminator_Extras.getNearestPosOnNav( enemyPos )
                         local reachable = self:areaIsReachable( result.area )
                         if not reachable then data.Unreachable = true return end
                         local posOnNav = result.pos
@@ -5441,7 +5442,7 @@ function ENT:Initialize()
                         end
                     end
 
-                    local FinishedOrInvalid = ( Result == true or not self:primaryPathIsValid() or not util.PosCanSeeComplex( self:EyePos(), enemy:EyePos(), self ) ) and canDoNewPath
+                    local FinishedOrInvalid = ( Result == true or not self:primaryPathIsValid() or not terminator_Extras.PosCanSeeComplex( self:EyePos(), enemy:EyePos(), self ) ) and canDoNewPath
 
                     local newPathIsGood = FinishedOrInvalid or reallyCloseToEnemy or data.NextPathAtt < _CurTime()
 
@@ -5463,7 +5464,7 @@ function ENT:Initialize()
                             if not area:IsCompletelyVisible( MyNavArea ) then continue end -- dont go behind corners!
                             if area:HasAttributes( NAV_MESH_JUMP ) then continue end -- avoid attrib JUMP
                             local PathPos = area:GetRandomPoint()
-                            if not util.PosCanSeeComplex( PathPos + plus25Z, self:EntShootPos( enemy ), self ) then continue end
+                            if not terminator_Extras.PosCanSeeComplex( PathPos + plus25Z, self:EntShootPos( enemy ), self ) then continue end
                             if SqrDistGreaterThan( self:GetPos():DistToSqr( PathPos ), MaxDuelDist ) then continue end
 
                             GoodPos = true
@@ -5511,7 +5512,7 @@ function ENT:Initialize()
                         local tooAngryToQuit = enemy.isTerminatorHunterKiller or self:IsReallyAngry()
 
                         -- i got close! im not giving up.
-                        if self.DistToEnemy < 75 and util.PosCanSeeComplex( self:GetShootPos(), self:EntShootPos( enemy ), self ) then
+                        if self.DistToEnemy < 75 and terminator_Extras.PosCanSeeComplex( self:GetShootPos(), self:EntShootPos( enemy ), self ) then
                             data.quitTime = _CurTime() + 10
 
                         end
@@ -5558,7 +5559,7 @@ function ENT:Initialize()
                             local PathPos = whereToInterceptTr.HitPos
 
                             --debugoverlay.Cross( PathPos, 10, 1, Color( 255,255,0 ) )
-                            local interceptResult = util.getNearestPosOnNav( PathPos )
+                            local interceptResult = terminator_Extras.getNearestPosOnNav( PathPos )
                             local timeAdd = math.Clamp( velProduct / 200, 0.1, 1 )
 
                             data.NextPathAtt = _CurTime() + timeAdd
@@ -6267,7 +6268,7 @@ function ENT:Initialize()
                             local distance = checkPos:Distance( myPos ) * data.distanceWeight
                             local canSeeTargetMul = 1
                             if data.requiredTarget then
-                                local _, canSeeTr = util.PosCanSeeComplex( checkPos, data.requiredTarget, self )
+                                local _, canSeeTr = terminator_Extras.PosCanSeeComplex( checkPos, data.requiredTarget, self )
                                 local canSee = SqrDistLessThan( canSeeTr.HitPos:DistToSqr( data.requiredTarget ), 150 )
                                 if canSee then
                                     canSeeTargetMul = 8
@@ -6291,7 +6292,7 @@ function ENT:Initialize()
                     data.bestPos = data.scoredPerchables[ data.bestPosScore ]
 
                     if data.requiredTarget and data.bestPos then
-                        local _, canSeeTr = util.PosCanSeeComplex( data.bestPos, data.requiredTarget, self )
+                        local _, canSeeTr = terminator_Extras.PosCanSeeComplex( data.bestPos, data.requiredTarget, self )
                         local canSee = SqrDistLessThan( canSeeTr.HitPos:DistToSqr( data.requiredTarget ), 200 )
                         if not canSee then
                             self:TaskFail( "movement_perch" )

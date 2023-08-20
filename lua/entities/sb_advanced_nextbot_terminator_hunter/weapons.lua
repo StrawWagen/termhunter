@@ -345,7 +345,7 @@ function ENT:CanWeaponPrimaryAttack()
     end )
     if noErrors == false then
         -- this makes me SICK!
-        Terminator_OverrideWeaponWeight( wep:GetClass(), -100 )
+        terminator_Extras.OverrideWeaponWeight( wep:GetClass(), -100 )
         wep.terminatorCrappyWeapon = true
         print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
         ErrorNoHaltWithStack( result )
@@ -422,7 +422,7 @@ function ENT:WeaponPrimaryAttack()
     end )
     if noErrors == false then
         -- disgustang
-        Terminator_OverrideWeaponWeight( wep:GetClass(), -100 )
+        terminator_Extras.OverrideWeaponWeight( wep:GetClass(), -100 )
         wep.terminatorCrappyWeapon = true
         print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
         ErrorNoHaltWithStack( theError )
@@ -597,7 +597,7 @@ function ENT:CanPickupWeapon(wep)
     local class = wep:GetClass()
     if class == crateClass and self.HasFists then
         local wepPos = wep:GetPos()
-        local result = util.getNearestPosOnNav( wepPos )
+        local result = terminator_Extras.getNearestPosOnNav( wepPos )
         if result.area and result.area.IsValid and result.area:IsValid() and result.pos:DistToSqr( wepPos ) < cratesMaxDistFromGround then
             return true
 
@@ -623,7 +623,7 @@ function ENT:GetWeightOfWeapon( wep )
     if class == crateClass then
         return 1
     end
-    return Terminator_EngineAnalogWeights[class] or wep:GetWeight()
+    return terminator_Extras.EngineAnalogWeights[class] or wep:GetWeight()
 
 end
 
@@ -771,7 +771,7 @@ function ENT:FindWeapon()
         local wepWeight = self:GetWeightOfWeapon( potentialWeap )
 
         if not wep or wepWeight > weight + 1 then
-            local _, tr = util.PosCanSeeComplex( self:GetShootPos(), potentialWeap:WorldSpaceCenter(), self )
+            local _, tr = terminator_Extras.PosCanSeeComplex( self:GetShootPos(), potentialWeap:WorldSpaceCenter(), self )
             if tr.Fraction > 0.25 then
                 wep = potentialWeap
                 weight = wepWeight + ( -tr.Fraction * 5 )
@@ -826,7 +826,7 @@ function ENT:JudgeWeapon()
     local trackedDamageScaled = trackedDamageDealt * 2 
 
     if offsettedAttackAttempts > trackedDamageScaled then
-        Terminator_OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + -5 )
+        terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + -5 )
         self:DropWeapon()
         myWeapon.terminatorCrappyWeapon = true
         print( "Terminator spits in the face of a useless weapon\nphTOOEY!" )
@@ -835,7 +835,7 @@ function ENT:JudgeWeapon()
     if not myWeapon.terminator_ReallyLikesThisOne and trackedDamageDealt > math.max( trackedAttackAttempts * 25, 250 ) then
         -- i like this one!
         myWeapon.terminator_ReallyLikesThisOne = true
-        Terminator_OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + 15 )
+        terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + 15 )
 
     end
 end

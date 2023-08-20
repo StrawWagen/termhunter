@@ -1,5 +1,3 @@
-if not SERVER then return end
-
 local function sqrDistLessThan( Dist1, Dist2 )
     Dist2 = Dist2 ^ 2
     return Dist1 < Dist2

@@ -25,7 +25,7 @@ SWEP.Spawnable        = false
 SWEP.ShootSound = Sound( "NPC_CScanner.TakePhoto" )
 SWEP.terminator_IgnoreWeaponUtility = true
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 --
 -- Initialize Stuff

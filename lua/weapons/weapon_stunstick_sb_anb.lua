@@ -14,7 +14,7 @@ SWEP.ViewModel = "models/weapons/c_stunstick.mdl"
 SWEP.WorldModel = "models/weapons/w_stunbaton.mdl"
 SWEP.Weight = 6
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 SWEP.PickupSound = "weapons/stunstick/spark3.wav"
 SWEP.Range = 1800

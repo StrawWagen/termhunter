@@ -15,7 +15,7 @@ SWEP.ViewModel = "models/weapons/c_stunstick.mdl"
 SWEP.WorldModel = "models/weapons/w_stunbaton.mdl"
 SWEP.Weight = 6
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 SWEP.PickupSound = "Grenade.ImpactSoft"
 SWEP.Range = 1800
@@ -35,7 +35,7 @@ end
 function SWEP:CanPrimaryAttack()
 
     if self:GetNextPrimaryFire() > CurTime() then return false end
-    if not util.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
+    if not terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     return true
 
@@ -85,7 +85,7 @@ function SWEP:terminatorAimingFunc()
     local enemShootPos = owner:EntShootPos( enemy )
 
     -- sanity check
-    local weCanJustSeeThem, weCanJustSeeThemResult = util.PosCanSee( myShootPos, enemShootPos )
+    local weCanJustSeeThem, weCanJustSeeThemResult = terminator_Extras.PosCanSee( myShootPos, enemShootPos )
     if weCanJustSeeThem then
         return enemy:GetPos() -- aim for the feet
 
@@ -122,7 +122,7 @@ function SWEP:terminatorAimingFunc()
 
         local score = hitPos:DistToSqr( enemShootPos )
 
-        if not util.PosCanSee( hitPos, enemShootPos ) then continue end
+        if not terminator_Extras.PosCanSee( hitPos, enemShootPos ) then continue end
         if score < 20^2 then return enemShootPos end
 
         results[score] = hitPos

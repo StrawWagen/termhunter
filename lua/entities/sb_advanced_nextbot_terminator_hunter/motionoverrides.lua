@@ -304,7 +304,7 @@ function ENT:GetNextPathArea( refArea, offset, visCheck )
     for _, pathPoint in ipairs( pathSegs ) do -- find the real next area
         if isNextArea == true and pathPoint.area ~= myPathPoint.area then
             -- stop when next is not visible
-            if visCheck and goalArea and not util.PosCanSeeComplex( myShootPos, pathPoint.pos + vector_up * 25, self ) then
+            if visCheck and goalArea and not terminator_Extras.PosCanSeeComplex( myShootPos, pathPoint.pos + vector_up * 25, self ) then
                 break
 
             end
@@ -648,9 +648,9 @@ local function GetJumpBlockState( self, dir, goal )
             vertConfig.start = newStartPos
 
             if vertResult.Hit and not self:hitBreakable( vertConfig, vertResult ) then
-                local color = Color( 255, 255, 255, 25 )
-                if vertResult.Hit then color = Color( 255,0,0, 25 ) end
-                debugoverlay.Box( vertResult.HitPos, vertConfig.mins, vertConfig.maxs, 4, color )
+                --local color = Color( 255, 255, 255, 25 )
+                --if vertResult.Hit then color = Color( 255,0,0, 25 ) end
+                --debugoverlay.Box( vertResult.HitPos, vertConfig.mins, vertConfig.maxs, 4, color )
                 return 2 -- step back bot!
             end
 
@@ -661,9 +661,9 @@ local function GetJumpBlockState( self, dir, goal )
 
             local hitThingWeCanBreak = self:hitBreakable( dirConfig, dirResult )
 
-            local color = Color( 255, 255, 255, 25 )
-            if dirResult.Hit then color = Color( 255,0,0, 25 ) end
-            debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 1, color )
+            --local color = Color( 255, 255, 255, 25 )
+            --if dirResult.Hit then color = Color( 255,0,0, 25 ) end
+            --debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 1, color )
 
             -- final check!
             goalWithOverriddenZ.z = math.max( dirConfig.start.z, goal.z + 20 )
@@ -1157,7 +1157,7 @@ function ENT:MoveAlongPath( lookatgoal )
         local distAhead = myPos:DistToSqr( currSegment.pos )
 
         -- blegh
-        local catchupAfterAJump = aheadSegment.type ~= 0 and distAhead < myPos:DistToSqr( aheadSegment.pos ) and aheadSegment.length^2 < distAhead and util.PosCanSee( self:GetShootPos(), currSegment.pos )
+        local catchupAfterAJump = aheadSegment.type ~= 0 and distAhead < myPos:DistToSqr( aheadSegment.pos ) and aheadSegment.length^2 < distAhead and terminator_Extras.PosCanSee( self:GetShootPos(), currSegment.pos )
 
         -- don't backtrack, we're already here!
         if catchupAfterAJump then
@@ -1206,7 +1206,7 @@ function ENT:MoveAlongPath( lookatgoal )
         product.z = 0
 
         -- doing drop down, please approach the dropdown
-        if droptype and util.PosCanSeeComplex( myPos, currSegment.pos, self ) then
+        if droptype and terminator_Extras.PosCanSeeComplex( myPos, currSegment.pos, self ) then
             --debugoverlay.Line( myPos, currSegment.pos, 0.2 )
             product1 = myPos - currSegment.pos
             product1.z = 0

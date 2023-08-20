@@ -27,7 +27,7 @@ SWEP.Secondary = {
     DefaultClip = -1,
 }
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 function SWEP:Initialize()
     self:SetHoldType("rpg")
@@ -47,7 +47,7 @@ end
 
 function SWEP:CanPrimaryAttack()
     local owner = self:GetOwner()
-    if not util.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
+    if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     if not owner.NothingOrBreakableBetweenEnemy then return end
 

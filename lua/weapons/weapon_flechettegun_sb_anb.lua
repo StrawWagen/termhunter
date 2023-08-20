@@ -30,14 +30,14 @@ SWEP.DrawAmmo            = false
 SWEP.DrawCrosshair        = true
 SWEP.UseHands            = true
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 if ( !IsMounted( "ep2" ) ) then return end
 
 AddCSLuaFile()
 
 SWEP.PrintName = "#GMOD_FlechetteGun"
-SWEP.Author = "garry"
+SWEP.Author = "garry" --thanks garry! -straw
 SWEP.Purpose = "Shoot flechettes with primary attack."
 
 SWEP.Slot = 1

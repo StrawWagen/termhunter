@@ -30,7 +30,7 @@ SWEP.DrawAmmo            = false
 SWEP.DrawCrosshair        = true
 SWEP.UseHands            = true
 
-Terminator_SetupAnalogWeight( SWEP )
+terminator_Extras.SetupAnalogWeight( SWEP )
 
 --[[---------------------------------------------------------
     Reload does nothing
