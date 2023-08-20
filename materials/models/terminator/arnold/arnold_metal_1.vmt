@@ -1,9 +1,0 @@
-"VertexlitGeneric"
-{
-	"$basetexture" "models/terminator/arnold/Arnold_metal_1"
-	"$bumpmap" "models/terminator/arnold/Arnold_metal_1_BM"
-	"$normalmap" "models/terminator/arnold/Arnold_metal_1_BM"
-	"$envmap" "env_cubemap"
-	"$envmaptint" "[ .45 .45 .45 ]"
-	"$normalmapalphaenvmapmask" "1"
-}

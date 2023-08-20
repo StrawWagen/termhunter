@@ -1,8 +1,0 @@
-"VertexlitGeneric"
-{
-	"$basetexture" "models/terminator/arnold/Arnold_redeye"
-	"$bumpmap" "models/terminator/arnold/Arnold_redeye_BM"
-	"$normalmap" "models/terminator/arnold/Arnold_redeye_BM"
-	"$selfillum" 1
-	"$selfillumtint" "[ 1.0 .0 .0]"
-}
