@@ -81,7 +81,7 @@ local function shouldNotSeeEnemy( me, enemy )
     local mimicBite = 0
     if enemy.gleeIsMimic then
         local velLenSqr = enemy:GetVelocity():LengthSqr()
-        local theMimicPropOnTop = ply.theMimicPropOnTop
+        local theMimicPropOnTop = enemy.theMimicPropOnTop
         local currPos = theMimicPropOnTop:GetPos()
         local oldPos = theMimicPropOnTop.terminator_OldSpottedPos or currPos
         theMimicPropOnTop.terminator_OldSpottedPos = currPos
