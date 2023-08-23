@@ -168,6 +168,9 @@ local function shouldNotSeeEnemy( me, enemy )
     if enemDistSqr < 75^2 and not enemy.gleeIsMimic then
         return
 
+    elseif enemDistSqr < 45^2 then
+        return
+
     -- NOT visible
     elseif randomSeed < seen or trulyInvisible then
         return true
