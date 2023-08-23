@@ -1935,7 +1935,7 @@ function ENT:StartTask2( Task, Data, Reason )
         --error( "task started with no reason" )
 
     --end
-    print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
+    --print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
     --if istable( Data ) then
     --    PrintTable( Data )
 
