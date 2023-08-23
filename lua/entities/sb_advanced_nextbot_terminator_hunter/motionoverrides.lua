@@ -1816,14 +1816,6 @@ end)
 
 
 -- flanking!
-local function bearingToPos( pos1, ang1, pos2, ang2 )
-    local localPos = WorldToLocal( pos1, ang1, pos2, ang2 )
-    local bearing = 180 / math.pi * math.atan2( localPos.y, localPos.x )
-
-    return bearing
-
-end
-
 local hunterIsFlanking
 local flankingAvoidAreas
 
@@ -1902,7 +1894,7 @@ function ENT:FlankAroundEasyEntraceToThing( bubbleStart, thing )
         end
     end
 
-    self:AddAreasToFlank( secondBubbleAreasClipped, 100 )
+    self:AddAreasToFlank( secondBubbleAreasClipped, 50 )
 end
 
 function ENT:endFlankPath()
@@ -1912,6 +1904,7 @@ function ENT:endFlankPath()
     flankingAvoidAreas = nil
 end
 
+--TODO: dynamically check if a NAV_TRANSIENT areas are supported by terrain, then cache the results 
 --local function isCachedTraversable( area )
 
 function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )

@@ -1299,6 +1299,7 @@ function ENT:SetupPath2( endpos, isUnstuck )
 
     if pathDestinationIsAnOrphan ~= true then -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
         StartNewMove( self )
+        local oldTime = SysTime()
         self:SetupPath( endpos )
         self.PathEndPos = endpos
 
@@ -2793,7 +2794,7 @@ function ENT:Initialize()
                 if nextCache < _CurTime() then
                     local myPos = self:GetPos()
                     local currentNav = navmesh.GetNearestNavArea( myPos, false, 50, false, false, -2 )
-                    local size = 40
+                    local size = 80
 
                     --debugoverlay.Cross( myPos, 10, 10, Color( 255,255,255 ), true )
 
@@ -5204,6 +5205,7 @@ function ENT:Initialize()
                         local otherHuntersHalfwayPoint = self:GetOtherHuntersProbableEntrance()
                         if otherHuntersHalfwayPoint then
                             local flankBubble = self:GetPos():Distance( otherHuntersHalfwayPoint ) * 0.5
+                            flankBubble = math.Clamp( flankBubble, 0, 3000 )
                             self:SetupFlankingPath( posOnNav, snappedResult.area, flankBubble )
                             if not self:primaryPathIsValid() then data.Unreachable = true return end
 

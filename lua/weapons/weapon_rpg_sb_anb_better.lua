@@ -129,10 +129,10 @@ function SWEP:CreateMissile( pos, owner )
 
             local missileTargetPos2 = missileTargetPos
             local missilePos = missile:GetPos()
-            
+
             if not owner:GetEnemy().InVehicle or not owner:GetEnemy():InVehicle() then
                 local dirToTarget = ( missileTargetPos - ownerShootPos ):GetNormalized()
-                local myDistToTarget = ownerShootPos:Distance( missileTargetPos ) 
+                local myDistToTarget = ownerShootPos:Distance( missileTargetPos )
                 local wayBehindTargetPos = missileTargetPos + dirToTarget * ( myDistToTarget + -150 )
 
                 if missilePos:DistToSqr( wayBehindTargetPos ) < missilePos:DistToSqr( owner:GetShootPos() ) then
