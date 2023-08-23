@@ -55,6 +55,7 @@ local function shouldNotSeeEnemy( me, enemy )
     if not a then return end
     if a == 255 then return end -- dont waste any more performance
     if a > maxSeen then return end
+    if not me:CanSeePosition( enemy ) then return end
 
     local seen = math.abs( a - maxSeen )
     local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )
@@ -74,12 +75,23 @@ local function shouldNotSeeEnemy( me, enemy )
 
     end
 
-    local isAnOldEnemy = me:GetEnemy() == enemy
+    local getEnemyResult = me:GetEnemy()
+    local isAnOldEnemy = getEnemyResult == enemy
     local oldEnemyThatISee = isAnOldEnemy and me.IsSeeEnemy
+    local mimicThatDidntMove = nil
+
     local doRandomSuspicious = nil
+    local investigateRadius = nil
 
     local mimicBite = 0
     if enemy.gleeIsMimic then
+
+        local lastPos = me:GetLastEnemyPosition( enemy )
+        if lastPos and me:Visible( enemy ) then
+            mimicThatDidntMove = lastPos:DistToSqr( enemy:GetPos() ) < 300^2
+
+        end
+
         local velLenSqr = enemy:GetVelocity():LengthSqr()
         local theMimicPropOnTop = enemy.theMimicPropOnTop
         local currPos = theMimicPropOnTop:GetPos()
@@ -88,12 +100,12 @@ local function shouldNotSeeEnemy( me, enemy )
 
         if velLenSqr > 75^2 or oldEnemyThatISee then
             -- hey, why is that moving....
-            mimicBite = mimicBite + 50
-            doRandomSuspicious = true
+            mimicBite = mimicBite + 150
 
         elseif velLenSqr > 40^2 then
-            mimicBite = mimicBite + 25
+            mimicBite = mimicBite + 50
             doRandomSuspicious = true
+            investigateRadius = 50
 
         elseif enemDistSqr < 1000^2 then
             mimicBite = mimicBite + -150
@@ -106,16 +118,21 @@ local function shouldNotSeeEnemy( me, enemy )
 
         local distBetweenPos = ( oldPos - currPos ):LengthSqr()
         if distBetweenPos > 80^2 then
-            mimicBite = mimicBite + 50
-            doRandomSuspicious = true
+            mimicBite = mimicBite + 150
 
         elseif distBetweenPos > 40^2 then
-            mimicBite = mimicBite + 25
+            mimicBite = mimicBite + 150
             doRandomSuspicious = true
 
         elseif distBetweenPos > 10^2 then
-            mimicBite = mimicBite + 10
+            mimicBite = mimicBite + 50
             doRandomSuspicious = true
+            investigateRadius = 50
+
+        elseif distBetweenPos > 3^2 then
+            mimicBite = mimicBite + 25
+            doRandomSuspicious = true
+            investigateRadius = 250
 
         end
     end
@@ -123,15 +140,22 @@ local function shouldNotSeeEnemy( me, enemy )
     local trulyInvisible = a < 15 and not enemy.gleeIsMimic
     local randomSeed = math.random( 0, maxSeen ) + weapBite + mimicBite
 
+
+    local obviousEnemy = oldEnemyThatISee and randomSeed > seen * 0.1 
     -- i see enemy, make the chance of losing them really small
-    if oldEnemyThatISee and randomSeed > seen * 0.1 then return end
+    if obviousEnemy or mimicThatDidntMove then return end
 
-    doRandomSuspicious = doRandomSuspicious or enemDistSqr < 3000^2 and math.random( 0, maxSeen ) > seen * 0.9 and not enemy.gleeIsMimic
+    local seedIsGreater = math.random( 0, maxSeen ) > seen * 0.9
 
-    if doRandomSuspicious then
+    local investigateNearby = doRandomSuspicious or ( enemDistSqr < 3000^2 and seedIsGreater and not enemy.gleeIsMimic )
+
+    if investigateNearby then
+        investigateRadius = investigateRadius or 500
+
         local randNoZ = VectorRand()
         randNoZ.z = 0
-        local potentialPos = enemy:GetPos() + ( randNoZ * 500 )
+
+        local potentialPos = enemy:GetPos() + ( randNoZ * investigateRadius )
 
         if terminator_Extras.PosCanSee( enemy:GetShootPos(), potentialPos ) then
             me:UpdateEnemyMemory( enemy, potentialPos )

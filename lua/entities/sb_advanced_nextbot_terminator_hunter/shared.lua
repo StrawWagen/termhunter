@@ -1935,7 +1935,7 @@ function ENT:StartTask2( Task, Data, Reason )
         --error( "task started with no reason" )
 
     --end
-    --print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
+    print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
     --if istable( Data ) then
     --    PrintTable( Data )
 
@@ -2989,7 +2989,7 @@ function ENT:Initialize()
                             if IsValid( pickedPlayer ) then
                                 local isLinkedPlayer = pickedPlayer == self.linkedPlayer
                                 local alive = pickedPlayer:Health() > 0
-                                if alive and terminator_Extras.PosCanSee( self:GetShootPos(), self:EntShootPos( pickedPlayer ) ) then
+                                if alive and self:ShouldBeEnemy( pickedPlayer ) and terminator_Extras.PosCanSee( self:GetShootPos(), self:EntShootPos( pickedPlayer ) ) then
                                     self:UpdateEnemyMemory( pickedPlayer, pickedPlayer:GetPos() )
 
                                 elseif isLinkedPlayer and alive then -- HACK
