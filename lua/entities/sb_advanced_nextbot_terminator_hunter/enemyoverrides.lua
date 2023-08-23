@@ -76,16 +76,24 @@ local function shouldNotSeeEnemy( me, enemy )
 
     local isAnOldEnemy = me:GetEnemy() == enemy
     local oldEnemyThatISee = isAnOldEnemy and me.IsSeeEnemy
+    local doRandomSuspicious = nil
 
     local mimicBite = 0
     if enemy.gleeIsMimic then
         local velLenSqr = enemy:GetVelocity():LengthSqr()
-        if velLenSqr > 100^2 or oldEnemyThatISee then
+        local theMimicPropOnTop = ply.theMimicPropOnTop
+        local currPos = theMimicPropOnTop:GetPos()
+        local oldPos = theMimicPropOnTop.terminator_OldSpottedPos or currPos
+        theMimicPropOnTop.terminator_OldSpottedPos = currPos
+
+        if velLenSqr > 75^2 or oldEnemyThatISee then
             -- hey, why is that moving....
             mimicBite = mimicBite + 50
+            doRandomSuspicious = true
 
         elseif velLenSqr > 40^2 then
             mimicBite = mimicBite + 25
+            doRandomSuspicious = true
 
         elseif enemDistSqr < 1000^2 then
             mimicBite = mimicBite + -150
@@ -93,6 +101,21 @@ local function shouldNotSeeEnemy( me, enemy )
         -- far away and mimic, don't see them
         else
             return true
+
+        end
+
+        local distBetweenPos = ( oldPos - currPos ):LengthSqr()
+        if distBetweenPos > 80^2 then
+            mimicBite = mimicBite + 50
+            doRandomSuspicious = true
+
+        elseif distBetweenPos > 40^2 then
+            mimicBite = mimicBite + 25
+            doRandomSuspicious = true
+
+        elseif distBetweenPos > 10^2 then
+            mimicBite = mimicBite + 10
+            doRandomSuspicious = true
 
         end
     end
@@ -103,7 +126,9 @@ local function shouldNotSeeEnemy( me, enemy )
     -- i see enemy, make the chance of losing them really small
     if oldEnemyThatISee and randomSeed > seen * 0.1 then return end
 
-    if enemDistSqr < 3000^2 and math.random( 0, maxSeen ) > seen * 0.9 and not enemy.gleeIsMimic then
+    doRandomSuspicious = doRandomSuspicious or enemDistSqr < 3000^2 and math.random( 0, maxSeen ) > seen * 0.9 and not enemy.gleeIsMimic
+
+    if doRandomSuspicious then
         local randNoZ = VectorRand()
         randNoZ.z = 0
         local potentialPos = enemy:GetPos() + ( randNoZ * 500 )

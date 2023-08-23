@@ -1656,7 +1656,7 @@ function ENT:OnLandOnGround( ent )
     if fallHeight > 2000 or fellOnSky and fallHeight > 500 then
         self:LethalFallDamage()
         killScale = 100
-        killBoxScale = 20
+        killBoxScale = 8
 
     elseif fallHeight >= 50 and self.ReallyStrong then
         local layer = self:AddGesture( self:TranslateActivity( ACT_LAND ) )
