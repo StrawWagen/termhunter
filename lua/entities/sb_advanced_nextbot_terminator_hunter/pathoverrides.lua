@@ -203,7 +203,6 @@ end
 
 function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
     if not IsValid( from ) then return 0 end
-    if not self.loco:IsAreaTraversable( area ) then return -1 end
 
     local dist = 0
     local addedCost = 0

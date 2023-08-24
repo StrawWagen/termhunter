@@ -156,16 +156,6 @@ local function getNearestNav( pos )
     return navArea
 end
 
-terminator_Extras.getNearestPosOnNav = function( pos )
-    local result = { pos = nil, area = NULL }
-    if not pos then return result end
-    local navFound = getNearestNav( pos )
-    if not navFound then return result end
-    if not navFound:IsValid() then return result end
-    result = { pos = navFound:GetClosestPointOnArea( pos ), area = navFound }
-    return result
-end
-
 local function SqrDistGreaterThan( Dist1, Dist2 )
     return Dist1 > Dist2 ^ 2
 end
@@ -406,7 +396,7 @@ function ENT:AreaIsOrphan( potentialOrphan )
 
     end
 
-    local checkRadius = 800
+    local checkRadius = 700
 
     local _, _, escaped = findValidNavResult( scoreData, potentialOrphan, checkRadius, scoreFunction, 30 )
 
@@ -1069,7 +1059,7 @@ local vecFiftyZ = Vector( 0,0,50 )
 -- some of the oldest code in this file right here
 local function FindSpot2( self, Options )
     local pos = Options.Pos
-    local Checked = self.CheckedNavs
+    local Checked = self.SearchCheckedNavs
     local SelfPos = self:GetPos()
 
     local Areas = navmesh.Find( pos, Options.Radius, Options.Stepdown, Options.Stepup )
@@ -1126,20 +1116,26 @@ local function FindSpot2( self, Options )
         if not Done then
             local currSpotNav = getNearestNav( CurrSpot )
             if currSpotNav and currSpotNav:IsValid() then
-                table.insert( self.CheckedNavs, currSpotNav:GetID(), true )
+                table.insert( self.SearchCheckedNavs, currSpotNav:GetID(), true )
             end
         --else 
             --debugoverlay.Cross( FinalSpot, 20, 10, Color( 255, 255, 255 ), true )
         end
     end
 
-    if Done and FinalSpot then return FinalSpot 
-    else return nil end
+    if Done and FinalSpot then
+        return FinalSpot
+
+    else
+        return nil
+
+    end
 end
-local function StartNewMove( self ) -- start new move
-    self.ExtraPathData = {}
+-- set these vars for the unstucker
+local function StartNewMove( self )
     self.LastMovementStart = _CurTime()
     self.LastMovementStartPos = self:GetPos()
+
 end
 
 local function nextNewPathIsGood( self )
@@ -1176,10 +1172,8 @@ end
 
 -- do this so we can store extra stuff about new paths
 function ENT:SetupPath2( endpos, isUnstuck )
-    local nextPath = self.nextNewPath or 0
-
     -- unstucking paths are VIP
-    if nextPath > _CurTime() and not isUnstuck then return end
+    if not isUnstuck and not nextNewPathIsGood( self ) then return end
     self.nextNewPath = _CurTime() + math.Rand( 0.05, 0.1 )
 
     if not isvector( endpos ) then return end
@@ -1214,7 +1208,7 @@ function ENT:SetupPath2( endpos, isUnstuck )
         else
             local setupPath2NoNavs = self.setupPath2NoNavs or 0
             -- aha, im not on the navmesh! that's why!
-            if not navmesh.GetNearestNavArea( self:GetPos(), false, 25, false, false, -2 ) and self:IsOnGround() then
+            if not navmesh.GetNearestNavArea( self:GetPos(), false, 45, false, false, -2 ) and self:IsOnGround() then
                 self.setupPath2NoNavs = setupPath2NoNavs + 1
 
             end
@@ -1231,16 +1225,17 @@ function ENT:SetupPath2( endpos, isUnstuck )
 
     end
 
-    if not self:OnGround() then return end -- don't member as unreachable when we're in the air
+    if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
 
     --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
 
     local scoreData = {}
     scoreData.decreasingScores = {}
     scoreData.droppedDownAreas = {}
-    wasABlockedArea = nil
     scoreData.areasToUnreachable = {}
+    wasABlockedArea = nil
 
+    -- find areas around the path's end that we can't reach
     local scoreFunction = function( scoreData, area1, area2 )
         local score = scoreData.decreasingScores[area1:GetID()] or 10000
         local droppedDown = scoreData.droppedDownAreas[area1:GetID()]
@@ -1269,7 +1264,7 @@ function ENT:SetupPath2( endpos, isUnstuck )
     end
     findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
 
-    -- make this work well with locked doors
+    -- if there was a locked door, don't remember as unreachable!
     if not wasABlockedArea then
         self:rememberAsUnreachable( endArea.area )
 
@@ -2045,13 +2040,16 @@ function ENT:walkArea()
     local _ = findValidNavResult( scoreData, self:GetPos(), 1000, scoreFunction )
 end
 
+-- did we already try, and fail, to path there?
 function ENT:areaIsReachable( area )
     if not area then return end
     if not IsValid( area ) then return end
     if self.unreachableAreas[area:GetID()] then return end
     return true
+
 end
 
+-- don't build paths to these areas!
 function ENT:rememberAsUnreachable( area )
     if not area then return end
     if not area:IsValid() then return end
@@ -2065,6 +2063,7 @@ function ENT:rememberAsUnreachable( area )
     return true
 end
 
+-- undo the above
 function ENT:rememberAsReachable( area )
     if not area then return end
     if not area:IsValid() then return end
@@ -2139,26 +2138,27 @@ end )
 ENT.JumpHeight = 70 * 3.5
 ENT.MaxJumpToPosHeight = ENT.JumpHeight
 ENT.DefaultStepHeight = 18
-ENT.StandingStepHeight = ENT.DefaultStepHeight * 1.5 -- used in crouch toggle in motionoverrides
+-- allow us to have different step height when couching/standing
+-- stops bot from sticking to ceiling with big step height
+-- see crouch toggle in motionoverrides
+ENT.StandingStepHeight = ENT.DefaultStepHeight * 1.5
 ENT.CrouchingStepHeight = ENT.DefaultStepHeight
 ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
 ENT.DoMetallicDamage = true
 ENT.SpawnHealth = 900
 ENT.AimSpeed = 480
-ENT.PathStuckJumpTime = 0.6
 ENT.WalkSpeed = 130
 ENT.MoveSpeed = 300
 ENT.RunSpeed = 550 -- bit faster than players
 ENT.AccelerationSpeed = 3000
-ENT.DeathDropHeight = 1800 --not afraid of heights
-ENT.CheckedNavs = {} -- add this here even if its hacky
-ENT.BadNavAreas = {} -- nav areas that never should be checked
+ENT.DeathDropHeight = 2000 --not afraid of heights
 ENT.LastEnemySpotTime = 0
 ENT.InformRadius = 20000
 
 ENT.duelEnemyTimeoutMul = 1
 
+-- translated to TERM_MODEL
 ENT.Models = { "terminator" }
 
 ENT.ReallyStrong = true
@@ -2232,6 +2232,10 @@ function ENT:Initialize()
     self.heardThingCounts = {}
     self.awarnessLockedDoors = {}
     self.awarenessSubstantialStuff = {}
+
+    -- search stuff
+    self.SearchCheckedNavs = {} -- add this here even if its hacky
+    self.SearchBadNavAreas = {} -- nav areas that never should be checked
 
     self.lastGroundLeavingPos = self:GetPos()
 
@@ -3638,11 +3642,11 @@ function ENT:Initialize()
                 end
 
                 if Done then
-                    self.CheckedNavs = self.BadNavAreas
+                    self.SearchCheckedNavs = self.SearchBadNavAreas
                 end
                 if Continue then
-                    if not istable( self.CheckedNavs ) then
-                        self.CheckedNavs = self.BadNavAreas
+                    if not istable( self.SearchCheckedNavs ) then
+                        self.SearchCheckedNavs = self.SearchBadNavAreas
                     end
                     self:TaskFail( "movement_search" )
                     if not isnumber( CheckNavId ) then
@@ -3671,12 +3675,12 @@ function ENT:Initialize()
                             searchedNearCenter = searchedNearCenter
 
                         }, "i still want to keep searching" )
-                        table.insert( self.CheckedNavs, CheckNavId, true )
+                        table.insert( self.SearchCheckedNavs, CheckNavId, true )
 
                     end
                 end
                 if BadArea then
-                    table.insert( self.BadNavAreas, CheckNavId, true )
+                    table.insert( self.SearchBadNavAreas, CheckNavId, true )
                 end
             end,
             StartControlByPlayer = function( self, data, ply )

@@ -84,3 +84,17 @@ terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     return not trace.Hit, trace
 
 end
+
+terminator_Extras.getNearestPosOnNav = function( pos )
+    local result = { pos = nil, area = NULL }
+    if not pos then return result end
+
+    local navFound = getNearestNav( pos )
+
+    if not navFound then return result end
+    if not navFound:IsValid() then return result end
+
+    result = { pos = navFound:GetClosestPointOnArea( pos ), area = navFound }
+    return result
+
+end
