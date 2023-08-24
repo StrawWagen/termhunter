@@ -1490,15 +1490,15 @@ local function HunterIsStuck( self ) -- different from base stuck, this one will
     local HasAcceleration = self.loco:GetAcceleration()
     if HasAcceleration <= 0 then return end
 
-    local MyPos = self:GetPos()
+    local myPos = self:GetPos()
     local StartPos = self.LastMovementStartPos or vec_zero
     local GoalPos = self.PathEndPos or vec_zero
     local NotMoving
     if self.terminator_HandlingLadder and self.StuckPos5 and self.StuckPos3 then
-        NotMoving = MyPos:DistToSqr( self.StuckPos5 ) < 20^2 and MyPos:DistToSqr( self.StuckPos3 ) < 20^2
+        NotMoving = myPos:DistToSqr( self.StuckPos5 ) < 20^2 and myPos:DistToSqr( self.StuckPos3 ) < 20^2
 
     else
-        NotMoving = DistToSqr2D( MyPos, self.StuckPos5 ) < 20^2 and DistToSqr2D( MyPos, self.StuckPos3 ) < 20^2
+        NotMoving = DistToSqr2D( myPos, self.StuckPos5 ) < 20^2 and DistToSqr2D( myPos, self.StuckPos3 ) < 20^2
 
     end
 
@@ -1514,12 +1514,12 @@ local function HunterIsStuck( self ) -- different from base stuck, this one will
 
     end
 
-    local FarFromStart = DistToSqr2D( MyPos, StartPos ) > 15^2
+    local FarFromStart = DistToSqr2D( myPos, StartPos ) > 15^2
     local FarFromStartAndNew = FarFromStart or ( self.LastMovementStart + 1 < _CurTime() )
-    local FarFromEnd = DistToSqr2D( MyPos, GoalPos ) > 15^2
+    local FarFromEnd = DistToSqr2D( myPos, GoalPos ) > 15^2
     local IsPath = self:PathIsValid()
 
-    local NotMovingAndSameBlocker = self.StuckEnt1 and ( self.StuckEnt1 == self.StuckEnt2 ) and ( self.StuckEnt1 == self.StuckEnt4 ) and DistToSqr2D( MyPos, self.StuckPos2 ) < 20^2 and DistToSqr2D( MyPos, self.StuckPos3 ) < 20^2
+    local NotMovingAndSameBlocker = self.StuckEnt1 and ( self.StuckEnt1 == self.StuckEnt2 ) and ( self.StuckEnt1 == self.StuckEnt4 ) and DistToSqr2D( myPos, self.StuckPos2 ) < 20^2 and DistToSqr2D( myPos, self.StuckPos3 ) < 20^2
 
     local nextPosUpdate = self.nextPosUpdate or 0
 
@@ -1533,7 +1533,7 @@ local function HunterIsStuck( self ) -- different from base stuck, this one will
         self.StuckPos4 = self.StuckPos3
         self.StuckPos3 = self.StuckPos2
         self.StuckPos2 = self.StuckPos1
-        self.StuckPos1 = MyPos
+        self.StuckPos1 = myPos
 
         self.StuckEnt4 = self.StuckEnt3
         self.StuckEnt3 = self.StuckEnt2
@@ -1801,14 +1801,14 @@ function ENT:StartTask2( Task, Data, Reason )
         --error( "task started with no reason" )
 
     --end
-    --print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
+    print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
     --if istable( Data ) then
     --    PrintTable( Data )
 
     --end
     self.BlockNewPaths = nil -- make sure this never persists between tasks
     Data2 = Data or {}
-    Data2.startTime = _CurTime()
+    Data2.taskStartTime = _CurTime()
     self:StartTask( Task, Data2 )
 
     if GetConVar( "sv_cheats" ):GetBool() ~= true then return end
@@ -1835,7 +1835,7 @@ end
 function ENT:canIntercept( data )
     local interceptTime = self.lastInterceptTime or 0
     local closeToEnd = self.lastInterceptPos and SqrDistGreaterThan( self.lastInterceptPos:DistToSqr( self:GetPath():GetEnd() ), 800 )
-    local intercept = interceptTime > ( data.startTime + -1 ) and not self.IsSeeEnemy and not ( data.startTime + 1 > _CurTime() ) and closeToEnd
+    local intercept = interceptTime > ( data.taskStartTime + -1 ) and not self.IsSeeEnemy and not ( data.taskStartTime + 1 > _CurTime() ) and closeToEnd
 
     return intercept
 
@@ -2295,6 +2295,7 @@ function ENT:Initialize()
                                 doShootingPrevent = nil
 
                             end
+                            print( "aiming!" )
                             self:shootAt( wep:terminatorAimingFunc(), doShootingPrevent )
                             self.lastShootingType = "aimingfuncranged"
 
@@ -3367,7 +3368,7 @@ function ENT:Initialize()
 
                 local nearPathEnd = self:primaryPathIsValid() and self:GetPath():GetLength() < 75
                 local closeToSoundAndVis = SqrDistLessThan( ( myPos - soundPos ):Length2DSqr(), 100 ) and terminator_Extras.PosCanSee( self:GetShootPos(), soundPos )
-                local reachedSound = result == true or closeToSoundAndVis
+                local reachedSound = result == true or closeToSoundAndVis or nearPathEnd
 
                 local doWep, wep = self:canGetWeapon()
                 local wepIsFurther = nil
@@ -3397,7 +3398,7 @@ function ENT:Initialize()
                 elseif data.Unreachable then
                     Done = true
                     self:TaskFail( "movement_followsound" )
-                    self:StartTask2( "movement_search", { Want = searchWant, searchCenter = soundPos }, "cant reach the sound" )
+                    self:StartTask2( "movement_search", { searchWant = searchWant, searchCenter = soundPos }, "cant reach the sound" )
                     --debugoverlay.Cross( soundPos, 100, 10, Color( 0,255,255 ), true )
                 elseif IsValid( toBashAfterSound ) then
                     Done = true
@@ -3406,7 +3407,7 @@ function ENT:Initialize()
                 elseif reachedSound then
                     Done = true
                     self:TaskComplete( "movement_followsound" )
-                    self:StartTask2( "movement_search", { Want = searchWant, searchCenter = soundPos }, "look for what made the sound" )
+                    self:StartTask2( "movement_search", { searchWant = searchWant, searchCenter = soundPos }, "look for what made the sound" )
                     --debugoverlay.Cross( soundPos, 100, 10, Color( 0,255,255 ), true )
                 elseif not data.Sound then
                     Done = true
@@ -3430,22 +3431,22 @@ function ENT:Initialize()
         ["movement_search"] = {
             OnStart = function( self, data )
                 --debugoverlay.Cross( self:GetPos(), 50,1, Color(255,255,255), true )
-                if not isnumber( data.Radius ) then
-                    data.Radius = 5000
+                if not isnumber( data.searchRadius ) then
+                    data.searchRadius = 5000
 
                 end
-                if not isnumber( data.Want ) then
-                    data.Want = 50
+                if not isnumber( data.searchWant ) then
+                    data.searchWant = 50
 
                 end
                 if not isnumber( data.Time ) then
                     data.Time = 0
 
                 end
-                --print( "Search!" .. data.Want .. " " .. data.Radius )
+                --print( "Search!" .. data.searchWant .. " " .. data.searchRadius )
                 local toPick = { nil, data.searchCenter, self.EnemyLastPos, self:GetPos() }
                 local pickedSearchCenter = PickRealVec( toPick )
-                local needsToDoANearbySearch = data.searchCenter and not data.searchedNearCenter and data.Want > 0
+                local needsToDoANearbySearch = data.searchCenter and not data.searchedNearCenter and data.searchWant > 0
 
                 -- focus search on where a "hint" was, or first operation, focus our search on where the code says we should be
                 if needsToDoANearbySearch then
@@ -3459,22 +3460,25 @@ function ENT:Initialize()
                 end
 
                 data.nextForcedSearch = _CurTime() + 10
-                data.Want = data.Want + -1
+                data.searchWant = data.searchWant + -1
                 data.Time = _CurTime() + data.Time
 
-                local Options = {
-                    Type = 1,
-                    Pos = pickedSearchCenter,
-                    Radius = data.Radius,
-                    MinRadius = 1,
-                    Stepup = 200,
-                    Stepdown = 200,
-                    AllowWet = self:isUnderWater()
+                if not data.hidingToCheck then
+                    local Options = {
+                        Type = 1,
+                        Pos = pickedSearchCenter,
+                        Radius = data.searchRadius,
+                        MinRadius = 1,
+                        Stepup = 200,
+                        Stepdown = 200,
+                        AllowWet = self:isUnderWater()
 
-                }
-                data.HidingToCheck = FindSpot2( self, Options )
+                    }
+                    data.hidingToCheck = FindSpot2( self, Options )
 
-                if data.HidingToCheck == nil then
+                end
+
+                if data.hidingToCheck == nil then
                     if needsToDoANearbySearch then
                         data.tryAndSearchNearbyAfterwards = true
                         return
@@ -3485,7 +3489,7 @@ function ENT:Initialize()
 
                     end
                 end
-                local checkNav = terminator_Extras.getNearestNav( data.HidingToCheck )
+                local checkNav = terminator_Extras.getNearestNav( data.hidingToCheck )
                 if not checkNav or not checkNav:IsValid() then
                     if needsToDoANearbySearch then
                         data.tryAndSearchNearbyAfterwards = true
@@ -3525,9 +3529,9 @@ function ENT:Initialize()
                     self:TaskFail( "movement_search" )
                     self:StartTask2( "movement_search", {
                         doneCount = doneCount,
-                        Want = data.Want + -1,
+                        searchWant = data.searchWant + -1,
                         searchCenter = newSearchCenter,
-                        searchedNearCenter = searchedNearCenter,
+                        searchedNearCenter = data.searchedNearCenter,
                         hateLockedDoorDist = 2000
 
                     },
@@ -3544,13 +3548,13 @@ function ENT:Initialize()
 
                 if data.Time > _CurTime() then return end
 
-                local MyPos = self:GetPos()
-                local HidingToCheck = data.HidingToCheck or vec_zero
+                local myPos = self:GetPos()
+                local hidingToCheck = data.hidingToCheck or vec_zero
                 local CheckNavId = data.CheckNavId
-                local DistToHideSqr = MyPos:DistToSqr( HidingToCheck )
+                local DistToHideSqr = myPos:DistToSqr( hidingToCheck )
 
-                if not self:primaryPathIsValid() or CanDoNewPath( self, HidingToCheck ) then
-                    self:SetupPath2( HidingToCheck )
+                if not self:primaryPathIsValid() or CanDoNewPath( self, hidingToCheck ) then
+                    self:SetupPath2( hidingToCheck )
                     -- search failed, try and get somewhere close!
                     if data.searchCenter and not self:primaryPathIsValid() then
                         data.tryAndSearchNearbyAfterwards = true
@@ -3560,16 +3564,16 @@ function ENT:Initialize()
                 end
 
                 local result = self:ControlPath2( not self.IsSeeEnemy )
-                local Done = false
-                local Continue = false
-                local BadArea = false
+                local Done = false -- break the search and forget all the spots we already searched
+                local Continue = false -- do another search
+                local BadArea = false -- unreachable
                 local waitTime = math.random( 0.2, 0.4 )
-                local WantInternal = data.Want or 0
+                local searchWantInternal = data.searchWant or 0
                 local doneCount = data.doneCount or 0
-                local hateLockedDoorDist = data.hateLockedDoorDist or 350 
-                local needsToDoANearbySearch = data.searchCenter and not data.searchedNearCenter and data.Want > 0
+                local hateLockedDoorDist = data.hateLockedDoorDist or 350
+                local needsToDoANearbySearch = data.searchCenter and not data.searchedNearCenter and data.searchWant > 0
 
-                if WantInternal <= 0 then
+                if searchWantInternal <= 0 then
                     Done = true
                     self:TaskComplete( "movement_search" )
                     if math.random( 0, 100 ) > 80 and not self:IsMeleeWeapon( self:GetWeapon() ) then
@@ -3590,18 +3594,32 @@ function ENT:Initialize()
                     self:TaskFail( "movement_search" )
                     self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
                     Done = true
+                elseif self:validSoundHint() and self.lastHeardSoundHint.time > data.taskStartTime and myPos:DistToSqr( self.lastHeardSoundHint.source ) < myPos:DistToSqr( hidingToCheck ) then
+                    self:TaskComplete( "movement_search" )
+                    self:StartTask2( "movement_search", {
+                        doneCount = doneCount,
+                        searchRadius = data.searchRadius,
+                        hidingToCheck = self.lastHeardSoundHint.source,
+                        searchWant = data.searchWant,
+                        Time = 0,
+                        searchCenter = data.searchCenter,
+                        searchedNearCenter = data.searchedNearCenter
+
+                    }, "i heard something nearby, i will search there!" )
+
                 elseif self:validSoundHint() and CanDoNewPath( self, self.lastHeardSoundHint.source ) then
                     self:TaskComplete( "movement_search" )
                     self:StartTask2( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
+
                 elseif self:CanBashLockedDoor( nil, hateLockedDoorDist ) then
                     self:BashLockedDoor( "movement_search" )
-                elseif not result and terminator_Extras.PosCanSee( MyPos, HidingToCheck ) and SqrDistLessThan( DistToHideSqr, 300 ) then
+                elseif not result and terminator_Extras.PosCanSee( myPos, hidingToCheck ) and SqrDistLessThan( DistToHideSqr, 300 ) then
                     waitTime = 0
                     Continue = true
                 elseif data.nextForcedSearch < _CurTime() then
                     Continue = true
                 elseif result then
-                    if not terminator_Extras.PosCanSee( MyPos, HidingToCheck ) or SqrDistLessThan( DistToHideSqr, 300 ) then
+                    if not terminator_Extras.PosCanSee( myPos, hidingToCheck ) or SqrDistLessThan( DistToHideSqr, 300 ) then
                         BadArea = true
                     end
                     Continue = true
@@ -3626,25 +3644,24 @@ function ENT:Initialize()
                         return
 
                     else
-                        local newRadius = data.Radius + 200
+                        local newRadius = data.searchRadius + 200
                         doneCount = doneCount + 1
 
-                        local searchedNearCenter = data.searchedNearCenter
                         if not data.searchCenter then
                             data.searchedNearCenter = true
 
-                        elseif searchedNearCenter ~= true then
-                            searchedNearCenter = self:GetPos():DistToSqr( data.searchCenter ) < 1000^2
+                        elseif data.searchedNearCenter ~= true then
+                            data.searchedNearCenter = self:GetPos():DistToSqr( data.searchCenter ) < 1000^2
 
                         end
 
                         self:StartTask2( "movement_search", {
                             doneCount = doneCount,
-                            Radius = newRadius,
-                            Want = data.Want,
+                            searchRadius = newRadius,
+                            searchWant = data.searchWant,
                             Time = waitTime,
                             searchCenter = data.searchCenter,
-                            searchedNearCenter = searchedNearCenter
+                            searchedNearCenter = data.searchedNearCenter
 
                         }, "i still want to keep searching" )
                         table.insert( self.SearchCheckedNavs, CheckNavId, true )
@@ -3742,7 +3759,7 @@ function ENT:Initialize()
 
                     else
                         self:TaskFail( "movement_searchlastdir" )
-                        self:StartTask2( "movement_search", { Want = 60, searchCenter = self.EnemyLastPos or nil }, "nope try normal searching" )
+                        self:StartTask2( "movement_search", { searchWant = 60, searchCenter = self.EnemyLastPos or nil }, "nope try normal searching" )
                         return
 
                     end
@@ -3765,7 +3782,7 @@ function ENT:Initialize()
                 elseif newSearch and data.Want <= 0 then
                     if not data.wasNormalSearch then
                         self:TaskComplete( "movement_searchlastdir" )
-                        self:StartTask2( "movement_search", { Want = 60, Time = 1.5, searchCenter = self.EnemyLastPos or nil }, "im all done searching" )
+                        self:StartTask2( "movement_search", { searchWant = 60, Time = 1.5, searchCenter = self.EnemyLastPos or nil }, "im all done searching" )
 
                     else
                         self:TaskComplete( "movement_searchlastdir" )
@@ -4728,7 +4745,7 @@ function ENT:Initialize()
                 -- bad path
                 elseif result == false and givenItAChance then
                     self:TaskFail( "movement_approachforcedcheckposition" )
-                    self:StartTask2( "movement_search", { Want = 80 }, "my path doesn't exist" )
+                    self:StartTask2( "movement_search", { searchWant = 80 }, "my path doesn't exist" )
                     self.PreventShooting = nil
                 end
             end,
@@ -4811,7 +4828,7 @@ function ENT:Initialize()
                 -- bad path
                 elseif result == false and givenItAChance then
                     self:TaskFail( "movement_approachlastseen" )
-                    self:StartTask2( "movement_search", { Want = 80 }, "something failed" )
+                    self:StartTask2( "movement_search", { searchWant = 80 }, "something failed" )
                     self.PreventShooting = nil
                 end
             end,
@@ -4871,7 +4888,7 @@ function ENT:Initialize()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i cant get to them" )
                 elseif data.Unreachable and not GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
-                    self:StartTask2( "movement_search", { Want = 3 }, "i cant get there, and they're gone" )
+                    self:StartTask2( "movement_search", { searchWant = 3 }, "i cant get there, and they're gone" )
                 elseif self.IsSeeEnemy and self.DistToEnemy < distToExit then
                     if data.baitcrouching then
                         enemy.terminator_CantConvinceImFriendly = true
@@ -4886,7 +4903,7 @@ function ENT:Initialize()
                     self:StartTask2( "movement_approachlastseen", nil, "where did they go" )
                 elseif result == false then
                     self:TaskFail( "movement_followenemy" )
-                    self:StartTask2( "movement_search", { Want = 80 }, "my path failed" )
+                    self:StartTask2( "movement_search", { searchWant = 80 }, "my path failed" )
                 elseif not GoodEnemy and not self:primaryPathIsValid() then
                     self:TaskFail( "movement_followenemy" )
                     self:StartTask2( "movement_approachlastseen", nil, "they're gone and im done" )
@@ -4959,7 +4976,7 @@ function ENT:Initialize()
 
                         else
                             self:TaskComplete( "movement_duelenemy_near" )
-                            self:StartTask2( "movement_search", { searchCenter = self.EnemyLastPos, Want = 10, Radius = 2000 }, "my enemy is gone and i cant get to where they were" )
+                            self:StartTask2( "movement_search", { searchCenter = self.EnemyLastPos, searchWant = 10, searchRadius = 2000 }, "my enemy is gone and i cant get to where they were" )
 
                         end
                     end

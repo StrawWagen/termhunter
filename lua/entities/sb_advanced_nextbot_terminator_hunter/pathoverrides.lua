@@ -110,19 +110,25 @@ function ENT:primaryPathIsValid()
 end
 
 -- flanking!
+local flankingDest
 local hunterIsFlanking
 local flankingAvoidAreas
 
 function ENT:AddAreasToFlank( areas, mul )
     for _, avoid in ipairs( areas ) do
-        flankingAvoidAreas[ avoid:GetID() ] = mul
-        --debugoverlay.Cross( avoid:GetCenter(), 10, 10, color_white, true )
+        if avoid ~= flankingDest then
+            flankingAvoidAreas[ avoid:GetID() ] = mul
+            --debugoverlay.Cross( avoid:GetCenter(), 10, 10, color_white, true )
 
+        end
     end
 end
 
 function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius )
     if not isvector( destination ) then return end
+    -- lagspike if we try to flank around area that contains the destination
+    flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
+    if not flankingDest then return false end
     flankingAvoidAreas = flankingAvoidAreas or {}
     hunterIsFlanking = true
 
@@ -168,7 +174,7 @@ function ENT:FlankAroundEasyEntraceToThing( bubbleStart, thing )
     local offsetDirection = terminator_Extras.dirToPos( bubbleStart, bubbleDestination )
     local offsetDistance = bubbleStart:Distance( bubbleDestination )
 
-    local secondBubbleAreas = navmesh.Find( bubbleDestination, math.Clamp( offsetDistance * 0.5, 100, 500 ), self.JumpHeight, self.JumpHeight )
+    local secondBubbleAreas = navmesh.Find( bubbleDestination, math.Clamp( offsetDistance * 0.5, 100, 400 ), self.JumpHeight, self.JumpHeight )
     local secondBubbleAreasClipped = {}
 
     local bitInFrontOffset = offsetDirection * 100
@@ -201,14 +207,16 @@ end
 --TODO: dynamically check if a NAV_TRANSIENT areas are supported by terrain, then cache the results 
 --local function isCachedTraversable( area )
 
+local _IsValid = IsValid
+
 function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
-    if not IsValid( from ) then return 0 end
+    if not _IsValid( from ) then return 0 end
 
     local dist = 0
     local addedCost = 0
     local costSoFar = from:GetCostSoFar() or 0
 
-    if IsValid( ladder ) then
+    if _IsValid( ladder ) then
         local cost = ladder:GetLength()
         return cost
     elseif len > 0 then
