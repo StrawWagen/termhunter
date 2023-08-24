@@ -3,6 +3,7 @@ local MEMORY_WEAPONIZEDNPC = 32
 
 function ENT:EntShootPos( ent, random )
     local hitboxes = {}
+    if not IsValid( ent ) then return end
     local sets = ent:GetHitboxSetCount()
 
     local isCrouchingPlayer = ent:IsPlayer() and ent:Crouching()

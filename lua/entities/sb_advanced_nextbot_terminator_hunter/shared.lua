@@ -34,7 +34,9 @@ elseif SERVER then
 
 end
 
-local LineOfSightMask = MASK_BLOCKLOS
+LineOfSightMask = MASK_BLOCKLOS
+terminator_Extras.LineOfSightMask = LineOfSightMask
+
 ENT.TERM_FISTS = "weapon_terminatorfists_sb_anb"
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 ENT.ARNOLD_MODEL = ARNOLD_MODEL
@@ -1776,7 +1778,7 @@ function ENT:ControlPath2( AimMode )
         end
     else
         local wep = self:GetWeapon() 
-        if wep and wep.worksWithoutSightline and AimMode == true then
+        if wep and wep.worksWithoutSightline and IsValid( self:GetEnemy() ) and AimMode == true then
             AimMode = nil
 
         end
@@ -1929,7 +1931,7 @@ function ENT:EnemyAcquired( currentTask )
             local tolerance = self:campingTolerance()
             self:StartTask2( "movement_camp", { maxNoSeeing = tolerance }, "ea, camp or perch, camped because too close or random" )
         else
-            self:StartTask2( "movement_perch", { requiredTarget = enemPos, perchRadius = math.sqrt( distToEnemySqr ), distanceWeight = 0.01 }, "ea, camp or perch, perch" )
+            self:StartTask2( "movement_perch", { requiredTarget = enemPos, cutFarther = true, perchRadius = math.sqrt( distToEnemySqr ), distanceWeight = 0.01 }, "ea, camp or perch, perch" )
         end
     elseif canRushKiller then
         self:TaskComplete( currentTask )
@@ -2282,10 +2284,10 @@ function ENT:Initialize()
                         local shootableVolatile = self:getShootableVolatiles( enemy )
 
                         if shootableVolatile then
-                            --print( shootableVolatile )
                             self:shootAt( self:getBestPos( shootableVolatile ), doShootingPrevent )
                             self.lastShootingType = "shootvolatile"
 
+                        -- does the weapon know better than us?
                         elseif wep.terminatorAimingFunc then
                             if wep.worksWithoutSightline then
                                 doShootingPrevent = nil
@@ -3877,16 +3879,17 @@ function ENT:Initialize()
                 end
 
                 local beingFooled = IsValid( enemy.terminator_crouchingbaited ) and enemy.terminator_crouchingbaited ~= self and enemy.terminator_crouchingbaited.IsSeeEnemy
+                -- and and and
                 local canFool = goodEnemy
                 and enemyBearingToMeAbs < lookingAtBearing
-                and not IsValid( enemy.terminator_crouchingbaited )
-                and not enemy.isTerminatorHunterKiller
-                and not self:EnemyIsLethalInMelee()
-                and not enemy.terminator_CantConvinceImFriendly
-                and enemy:IsOnGround()
+                and not IsValid( enemy.terminator_crouchingbaited ) -- another one of us is getting em
+                and not enemy.isTerminatorHunterKiller -- they are mean!
+                and not self:EnemyIsLethalInMelee() -- they are meaner!
+                and not enemy.terminator_CantConvinceImFriendly -- already tried to do it to em
+                and enemy:IsOnGround() -- not crouch jumping
                 and enemy.Crouching and enemy:Crouching()
                 and enemy.GetVelocity and enemy:GetVelocity():Length2DSqr() < 75
-                and math.random( 0, 100 ) > 85
+                and math.random( 0, 100 ) > 85 -- dont do it first opportunity
 
                 -- trick them into thinking we're friendly via the universal language of crouching
                 if canFool then
@@ -3910,6 +3913,7 @@ function ENT:Initialize()
 
                 self:HandleFakeCrouching( data, enemy )
 
+                -- don't watch too much
                 local maxWatches = 4 -- should be 4!
 
                 -- the player looked at us earlier and is still looking
@@ -4382,12 +4386,12 @@ function ENT:Initialize()
                     if self.WasHidden and ( data.PerchWhenHidden or shouldPerchBecauseTheyTooDeadly ) then
                         local whereWeNeedToSee = data.PerchWhenHiddenPos or self.EnemyLastPos
                         self:TaskComplete( "movement_stalkenemy" )
-                        self:StartTask2( "movement_perch", { requiredTarget = whereWeNeedToSee, perchRadius = self:GetRangeTo( whereWeNeedToSee ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
+                        self:StartTask2( "movement_perch", { requiredTarget = whereWeNeedToSee, cutFarther = true, perchRadius = self:GetRangeTo( whereWeNeedToSee ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
 
                     -- if bot is low health then it does perching
                     elseif ratio < 0.5 and data.stalksSinceLastSeen > 2 then
                         self:TaskComplete( "movement_stalkenemy" )
-                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5, distanceWeight = 0.01 }, "time to snipe!" )
+                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, cutFarther = true, perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5, distanceWeight = 0.01 }, "time to snipe!" )
 
                     elseif ( data.stalksSinceLastSeen or 0 ) < ( ratio * 5 ) then
                         local newDat = {}
@@ -5668,15 +5672,9 @@ function ENT:Initialize()
                     self:TaskComplete( "movement_camp" )
                     if data.wasEnemy or enemyMovedReallyFar then
                         local perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5
-                        local requiredNavarea = terminator_Extras.getNearestNav( self.EnemyLastPos )
-                        -- they are somewhere we can path to, clamp the radius to make this faster!
-                        if requiredNavarea and IsValid( requiredNavarea ) and self:areaIsReachable( requiredNavarea ) then
-                            perchRadius = math.Clamp( perchRadius, 0, 3000 )
-
-                        end
 
                         -- start a new perching where we pick a pos with tighter criteria
-                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, perchRadius = perchRadius, distanceWeight = 0.1 }, "i lost sight of them" )
+                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, cutFarther = true, perchRadius = perchRadius, distanceWeight = 0.1 }, "i lost sight of them" )
 
                     else
                         self:StartTask2( "movement_handler", nil, "im all done standing here" )
@@ -5795,6 +5793,21 @@ function ENT:Initialize()
                 data.perchRadius = data.perchRadius or 10000
                 data.distanceWeight = data.distanceWeight or 1 
                 data.potentialPerchables = navmesh.Find( self:GetPos(), data.perchRadius, self.loco:GetMaxJumpHeight(), self.loco:GetMaxJumpHeight() )
+                -- cut potential perchables that take me farther away from the enemy
+                if data.cutFarther and data.requiredTarget then
+                    local myPos = self:GetPos()
+                    local myDistToTarget = myPos:DistToSqr( data.requiredTarget )
+                    local perchablesOld = table.Copy( data.potentialPerchables )
+                    data.potentialPerchables = {}
+
+                    for _, perchableArea in ipairs( perchablesOld ) do
+                        if perchableArea:GetCenter():DistToSqr( data.requiredTarget ) < myDistToTarget then
+                            table.insert( data.potentialPerchables, perchableArea )
+
+                        end
+                    end
+                end
+
                 data.scoredPerchables = {}
                 data.nookOverrideDirections = {
                     -- cardinal directions with a bias downwards

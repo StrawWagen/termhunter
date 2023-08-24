@@ -100,7 +100,7 @@ terminator_Extras.PosCanSee = function( startPos, endPos )
     local mask = {
         start = startPos,
         endpos = endPos,
-        mask = LineOfSightMask
+        mask = terminator_Extras.LineOfSightMask
     }
     local trace = util.TraceLine( mask )
     return not trace.Hit, trace

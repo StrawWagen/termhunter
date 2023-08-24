@@ -67,13 +67,6 @@ function SWEP:terminatorAimingFunc()
     local owner = self:GetOwner()
     local enemy = owner:GetEnemy()
     local myShootPos = owner:GetShootPos()
-    -- sanity again
-    if not IsValid( enemy ) then
-        -- drift towards looking directly ahead
-        local inFrontOfMe = ( owner:GetForward() * flattenVec ):GetNormalized()
-        return myShootPos + inFrontOfMe * 100
-
-    end
     local enemShootPos = owner:EntShootPos( enemy )
 
     -- sanity check
