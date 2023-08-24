@@ -1,5 +1,3 @@
-ErrorNoHaltWithStack("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-
 terminator_Extras.CanBashDoor = function( door )
     if door:GetClass() ~= "prop_door_rotating" then return nil end
     local nextCheck = door.nextDoorSmashValidityCheck or 0
