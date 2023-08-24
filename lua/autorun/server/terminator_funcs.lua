@@ -53,6 +53,15 @@ terminator_Extras.dirToPos = function( startPos, endPos )
 
 end
 
+local nookDirections = {
+    Vector( 1, 0, 0 ),
+    Vector( -1, 0, 0 ),
+    Vector( 0, 1, 0 ),
+    Vector( 0, -1, 0 ),
+    Vector( 0, 0, 1 ),
+    Vector( 0, 0, -1 ),
+}
+
 terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     local directions = overrideDirections or nookDirections
     distance = distance or 800

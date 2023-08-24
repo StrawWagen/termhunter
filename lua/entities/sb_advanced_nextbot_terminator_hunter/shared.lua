@@ -73,15 +73,6 @@ local _CurTime = CurTime
 
 --utility functions begin
 
-local nookDirections = {
-    Vector( 1, 0, 0 ),
-    Vector( -1, 0, 0 ),
-    Vector( 0, 1, 0 ),
-    Vector( 0, -1, 0 ),
-    Vector( 0, 0, 1 ),
-    Vector( 0, 0, -1 ),
-}
-
 local function PickRealVec( toPick )
     -- ipairs breaks if nothing is stored in any index, thanks ipairs!!!!!
     for index = 1, table.maxn( toPick ) do
@@ -2300,7 +2291,6 @@ function ENT:Initialize()
                                 doShootingPrevent = nil
 
                             end
-                            print( "aiming!" )
                             self:shootAt( wep:terminatorAimingFunc(), doShootingPrevent )
                             self.lastShootingType = "aimingfuncranged"
 
@@ -5941,7 +5931,7 @@ function ENT:Initialize()
             end,
             BehaveUpdate = function( self, data, interval )
 
-                if self.IsSeeEnemy and ( !data.EnemyPosInform or _CurTime() >= data.EnemyPosInform ) then
+                if IsValid( self:GetEnemy() ) and self.IsSeeEnemy and ( !data.EnemyPosInform or _CurTime() >= data.EnemyPosInform ) then
                     data.EnemyPosInform = _CurTime() +  math.Rand( 3, 5 )
                     data.Inform( self:GetEnemy(), self:EntShootPos( self:GetEnemy() ), self:GetPos() )
                 end
