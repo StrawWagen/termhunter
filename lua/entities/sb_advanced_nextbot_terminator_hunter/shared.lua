@@ -1835,7 +1835,12 @@ end
 function ENT:canIntercept( data )
     local interceptTime = self.lastInterceptTime or 0
     local closeToEnd = self.lastInterceptPos and SqrDistGreaterThan( self.lastInterceptPos:DistToSqr( self:GetPath():GetEnd() ), 800 )
-    local intercept = interceptTime > ( data.taskStartTime + -1 ) and not self.IsSeeEnemy and not ( data.taskStartTime + 1 > _CurTime() ) and closeToEnd
+    local freshIntercept = true
+    if data.taskStartTime then
+        freshIntercept = interceptTime > ( data.taskStartTime + -1 ) and ( data.taskStartTime + 1 ) <= _CurTime()
+
+    end
+    local intercept = freshIntercept and not self.IsSeeEnemy and closeToEnd
 
     return intercept
 
