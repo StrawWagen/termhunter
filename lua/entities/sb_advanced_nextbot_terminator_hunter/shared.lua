@@ -4594,7 +4594,7 @@ function ENT:Initialize()
                     if predictionTr.StartSolid or predictionTr.Entity:IsPlayer() then goto terminatorInterceptNewPathFail end
                     local predictedPos = predictionTr.HitPos
 
-                    --debugoverlay.Line( predictedTraceStart, predictedTraceStart + predictedRelativeEnd, 20, Color( 255,255,255 ), true )
+                    --debugoverlay.Line( predictedTraceStart, predictedPos, 20, Color( 255,255,255 ), true )
                     -- bring it down the the ground
                     local floorTraceDat = {
                         start = predictedPos,
@@ -4645,6 +4645,9 @@ function ENT:Initialize()
                 end
                 ::terminatorInterceptNewPathFail::
 
+                local myPos = self:GetPos()
+                local pathIsMostlyDone = self:primaryPathIsValid() and SqrDistLessThan( myPos:DistToSqr( self:GetPath():GetEnd() ), self:GetPath():GetLength() / 2 )
+
                 local result = self:ControlPath2( not self.IsSeeEnemy )
                 -- get WEAP
                 if self:canGetWeapon() then
@@ -4654,7 +4657,7 @@ function ENT:Initialize()
                     --print( "unreach" )
                     self:TaskFail( "movement_intercept" )
                     self:StartTask2( "movement_handler", nil, "can't reach there" ) -- exit
-                elseif self.IsSeeEnemy then
+                elseif self.IsSeeEnemy and pathIsMostlyDone then
                     self:EnemyAcquired( "movement_intercept" )
                 elseif result then
                     self:TaskComplete( "movement_intercept" )
@@ -4809,6 +4812,9 @@ function ENT:Initialize()
                 elseif self:CanBashLockedDoor( approachPos, 800 ) then
                     self:BashLockedDoor( "movement_approachlastseen" )
                 -- cant get to them
+                elseif self:canIntercept( data ) then
+                    self:TaskFail( "movement_approachlastseen" )
+                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
                 elseif data.Unreachable and givenItAChance then
                     self:TaskFail( "movement_approachlastseen" )
                     self:StartTask2( "movement_stalkenemy", { PerchWhenHidden = true, PerchWhenHiddenPos = approachPos }, "i cant get to the pos" )

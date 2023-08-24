@@ -160,7 +160,7 @@ end
 function ENT:flankAroundCorridorBetween( bubbleStart, bubbleDestination )
     local offsetDirection = terminator_Extras.dirToPos( bubbleStart, bubbleDestination )
     local offsetDistance = bubbleStart:Distance( bubbleDestination )
-    local bubbleRadius = math.Clamp( offsetDistance * 0.45, 0, 2000 )
+    local bubbleRadius = math.Clamp( offsetDistance * 0.45, 0, 4000 )
     local offset = offsetDirection * ( offsetDistance * 0.6 )
     local bubbleCenter = bubbleStart + offset
 
