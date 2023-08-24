@@ -22,6 +22,7 @@ elseif SERVER then
     include( "weapons.lua" )
     include( "taskoverride.lua" )
     include( "motionoverrides.lua" )
+    include( "pathoverrides.lua" )
     include( "enemyoverrides.lua" )
 
 end
