@@ -126,36 +126,6 @@ function ENT:enemyBearingToMeAbs()
 
 end
 
-local function getNearestNavFloor( pos )
-    if not pos then return NULL end
-    local Dat = {
-        start = pos,
-        endpos = pos + negativeFiveHundredZ,
-        mask = MASK_SOLID
-    }
-    local Trace = util.TraceLine( Dat )
-    if not Trace.HitWorld then return NULL end
-    local navArea = navmesh.GetNearestNavArea( Trace.HitPos, false, 2000, false, true, -2 )
-    if not navArea then return NULL end
-    if not navArea:IsValid() then return NULL end
-    return navArea
-end
-
-local function getNearestNav( pos )
-    if not pos then return NULL end
-    local Dat = {
-        start = pos,
-        endpos = pos + negativeFiveHundredZ,
-        mask = MASK_SOLID
-    }
-    local Trace = util.TraceLine( Dat )
-    if not Trace.Hit then return NULL end
-    local navArea = navmesh.GetNearestNavArea( pos, false, 2000, false, true, -2 )
-    if not navArea then return NULL end
-    if not navArea:IsValid() then return NULL end
-    return navArea
-end
-
 local function SqrDistGreaterThan( Dist1, Dist2 )
     return Dist1 > Dist2 ^ 2
 end
@@ -207,7 +177,7 @@ function ENT:getBestPos( ent )
 
     local obj = ent:GetPhysicsObject()
     if IsValid( obj ) then
-        center = obj:GetMassCenter()
+        local center = obj:GetMassCenter()
         if center ~= vec_zero then
             pos = ent:LocalToWorld( center )
         end
@@ -350,7 +320,6 @@ end
 
 -- detect small areas that don't have incoming connections! stops huuuuge lagspikes on big maps
 function ENT:AreaIsOrphan( potentialOrphan )
-
     local checkedSurfaceArea = 0
     local unConnectedAreasSequential = {}
     local unConnectedAreas = {}
@@ -1114,7 +1083,7 @@ local function FindSpot2( self, Options )
             end
         end
         if not Done then
-            local currSpotNav = getNearestNav( CurrSpot )
+            local currSpotNav = terminator_Extras.getNearestNav( CurrSpot )
             if currSpotNav and currSpotNav:IsValid() then
                 table.insert( self.SearchCheckedNavs, currSpotNav:GetID(), true )
             end
@@ -1623,7 +1592,7 @@ function ENT:GetTrueCurrentNavArea()
     local area = NULL
     local nextTrueAreaCache = self.nextTrueAreaCache or 0
     if nextTrueAreaCache < _CurTime() then
-        area = getNearestNavFloor( self:GetPos() )
+        area = terminator_Extras.getNearestNavFloor( self:GetPos() )
         self.nextTrueAreaCache = _CurTime() + 0.08
 
     end
@@ -2223,20 +2192,22 @@ function ENT:Initialize()
     self.isTerminatorHunterBased = true
     self.isTerminatorHunterChummy = true -- are we pals with terminators?
 
-    self.walkedAreas = {}
-    self.walkedAreaTimes = {}
+    self.walkedAreas = {} -- useful table of areas we have been / have seen, for searching/wandering
+    self.walkedAreaTimes = {} -- times we walked/saw them
     self.unreachableAreas = {}
     self.awarenessBash = {}
     self.awarenessMemory = {}
     self.awarenessUnknown = {}
-    self.heardThingCounts = {}
-    self.awarnessLockedDoors = {}
+    self.awarnessLockedDoors = {} -- locked doors are evil, catalog them so we can destroy them
     self.awarenessSubstantialStuff = {}
+
+    self.heardThingCounts = {} -- so we can ignore stuff that's distracted us alot
 
     -- search stuff
     self.SearchCheckedNavs = {} -- add this here even if its hacky
     self.SearchBadNavAreas = {} -- nav areas that never should be checked
 
+    -- used for jumping fall damage/effects
     self.lastGroundLeavingPos = self:GetPos()
 
     self.LineOfSightMask = LineOfSightMask
@@ -2255,6 +2226,7 @@ function ENT:Initialize()
     self:DoHardcodedRelations()
     self:SetFriendly( false )
 
+    -- for stuff based on this
     self:AdditionalInitialize()
 
     self.TaskList = {
@@ -3513,7 +3485,7 @@ function ENT:Initialize()
 
                     end
                 end
-                local checkNav = getNearestNav( data.HidingToCheck )
+                local checkNav = terminator_Extras.getNearestNav( data.HidingToCheck )
                 if not checkNav or not checkNav:IsValid() then
                     if needsToDoANearbySearch then
                         data.tryAndSearchNearbyAfterwards = true
@@ -4955,7 +4927,7 @@ function ENT:Initialize()
                 local enemyPos = self.EnemyLastPos or self:GetLastEnemyPosition( enemy ) or nil
                 local _ = self:ControlPath2( not self.IsSeeEnemy )
                 local MaxDuelDist = self.DuelEnemyDist + 200
-                local enemyNavArea = getNearestNav( enemyPos ) or NULL
+                local enemyNavArea = terminator_Extras.getNearestNav( enemyPos ) or NULL
 
                 local badEnemy = nil
                 local badEnemyCounts = data.badEnemyCounts or 0
@@ -5678,7 +5650,7 @@ function ENT:Initialize()
                     self:TaskComplete( "movement_camp" )
                     if data.wasEnemy or enemyMovedReallyFar then
                         local perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5
-                        local requiredNavarea = getNearestNav( self.EnemyLastPos )
+                        local requiredNavarea = terminator_Extras.getNearestNav( self.EnemyLastPos )
                         -- they are somewhere we can path to, clamp the radius to make this faster!
                         if requiredNavarea and IsValid( requiredNavarea ) and self:areaIsReachable( requiredNavarea ) then
                             perchRadius = math.Clamp( perchRadius, 0, 3000 )
