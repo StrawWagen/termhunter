@@ -7,14 +7,6 @@ local function TraceHit( tr )
     return tr.Hit-- or !tr.HitNoDraw and tr.HitTexture!="**empty**"
 end
 
-local function DirToPos( startPos, endPos )
-    if not startPos then return end
-    if not endPos then return end
-
-    return ( endPos - startPos ):GetNormalized()
-
-end
-
 local _CurTime = CurTime
 
 -- should we assume that we will break this upon doing our path?
@@ -241,6 +233,61 @@ function ENT:isUnderWater()
     if not currentNavArea then return false end
     if not currentNavArea:IsValid() then return false end
     return currentNavArea:IsUnderwater()
+
+end
+
+local vectorPositive125Z = Vector( 0,0,125 )
+
+function ENT:confinedSlope( area1, area2 )
+    if not area1 and area1:IsValid() then return end
+    local ConfinedSlope = nil
+    local HistoricArea1 = self.HistoricCSlopeArea1Id or -1
+    if HistoricArea1 ~= area1:GetID() then
+        self.HistoricCSlopeArea1Id = area1:GetID()
+        self.IsConfined1 = self:isConfinedSlope( area1 )
+    end
+    if self.IsConfined1 then
+        ConfinedSlope = true
+        --print( ConfinedSlope )
+    end
+
+    if not area2 or not area2:IsValid() or area1 == area2 then return ConfinedSlope end
+    local difference = math.abs( area1:GetCenter().z - area2:GetCenter().z )
+    if difference < 5 then return end
+
+    local HistoricArea2 = self.HistoricCSlopeArea2Id or -1
+    if HistoricArea2 ~= area2:GetID() then
+        self.HistoricCSlopeArea2Id = area2:GetID()
+        self.IsConfined2 = self:isConfinedSlope( area2 )
+    end
+    if self.IsConfined2 then
+        ConfinedSlope = true
+    end
+    return ConfinedSlope
+end
+
+function ENT:isConfinedSlope( area )
+    if not area then return end
+    local myShootPos = self:GetShootPos()
+    local areaCenterOffsetted = area:GetCenter() + vectorPositive125Z
+    local endZ = math.max( myShootPos.z, areaCenterOffsetted.z )
+    local traceCheckPos = Vector( areaCenterOffsetted.x, areaCenterOffsetted.y, endZ )
+    local traceData = {
+        start = areaCenterOffsetted,
+        endpos = traceCheckPos,
+        mask = MASK_SOLID_BRUSHONLY,
+    }
+    trace = util.TraceLine( traceData )
+
+    --debugoverlay.Line( areaC, trace.HitPos )
+    if not trace.Hit then return end
+    if trace.HitPos.z >= myShootPos.z then return end
+
+    local normal = trace.HitNormal
+    local angle = normal:Angle()
+    if math.cos( angle.p ) < 0 then return end
+
+    return true
 
 end
 
@@ -664,9 +711,9 @@ function ENT:EntIsInMyWay( ent, tolerance, aheadSegment )
     end
     if not istable( segmentAheadOfMe ) then return end -- we tried
 
-    local angleToAhead = DirToPos( myPos, segmentAheadOfMe.pos ):Angle()
+    local angleToAhead = terminator_Extras.dirToPos( myPos, segmentAheadOfMe.pos ):Angle()
     local entsNearestPosToMe = ent:NearestPoint( self:GetShootPos() )
-    local bearingToEnt = util.terminator_BearingToPos( myPos, angleToAhead, entsNearestPosToMe, angleToAhead )
+    local bearingToEnt = terminator_Extras.BearingToPos( myPos, angleToAhead, entsNearestPosToMe, angleToAhead )
     bearingToEnt = math.abs( bearingToEnt )
 
     if bearingToEnt > tolerance then
@@ -1300,7 +1347,7 @@ end
 function ENT:GotoPosSimple( pos, distance )
     if distance ~= math.huge and self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
-        local dir = DirToPos( myPos, pos )
+        local dir = terminator_Extras.dirToPos( myPos, pos )
         local jumpstate, _, jumpingHeight = GetJumpBlockState( self, dir, pos, false )
         if self.loco:IsOnGround() and ( jumpstate == 1 or jumpstate == 2 ) then
             jumpingHeight = jumpingHeight or 64

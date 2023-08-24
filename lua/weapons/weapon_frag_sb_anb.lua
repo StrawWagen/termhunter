@@ -24,14 +24,6 @@ SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.worksWithoutSightline = true
 
-local function DirToPos( startPos, endPos )
-    if not startPos then return end
-    if not endPos then return end
-
-    return ( endPos - startPos ):GetNormalized()
-
-end
-
 function SWEP:CanPrimaryAttack()
 
     if self:GetNextPrimaryFire() > CurTime() then return false end
@@ -104,7 +96,7 @@ function SWEP:terminatorAimingFunc()
 
     self.nextTerminatorAimingFuncResultCache = CurTime() + 0.15
 
-    local dir = DirToPos( myShootPos, enemShootPos )
+    local dir = terminator_Extras.dirToPos( myShootPos, enemShootPos )
     local dist = owner.DistToEnemy
     local results = {}
 

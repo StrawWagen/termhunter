@@ -152,7 +152,7 @@ function ENT:flankAroundArea( bubbleArea, bubbleRadius )
 end
 
 function ENT:flankAroundCorridorBetween( bubbleStart, bubbleDestination )
-    local offsetDirection = DirToPos( bubbleStart, bubbleDestination )
+    local offsetDirection = terminator_Extras.dirToPos( bubbleStart, bubbleDestination )
     local offsetDistance = bubbleStart:Distance( bubbleDestination )
     local bubbleRadius = math.Clamp( offsetDistance * 0.45, 0, 2000 )
     local offset = offsetDirection * ( offsetDistance * 0.6 )
@@ -165,7 +165,7 @@ end
 
 function ENT:FlankAroundEasyEntraceToThing( bubbleStart, thing )
     local bubbleDestination = thing:GetPos()
-    local offsetDirection = DirToPos( bubbleStart, bubbleDestination )
+    local offsetDirection = terminator_Extras.dirToPos( bubbleStart, bubbleDestination )
     local offsetDistance = bubbleStart:Distance( bubbleDestination )
 
     local secondBubbleAreas = navmesh.Find( bubbleDestination, math.Clamp( offsetDistance * 0.5, 100, 500 ), self.JumpHeight, self.JumpHeight )

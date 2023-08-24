@@ -19,11 +19,18 @@ if CLIENT then
     return
 
 elseif SERVER then
+    -- gun stuff
     include( "weapons.lua" )
+    -- task stuff
     include( "taskoverride.lua" )
+    -- motion, interacting with stuff that blocks motion
     include( "motionoverrides.lua" )
+    -- pathing, flanking support
     include( "pathoverrides.lua" )
+    -- enemyoverrides, crouching to look at enemies, hating killers, etc 
     include( "enemyoverrides.lua" )
+    -- damage shows on bot's model, also modifies damage amount taken for like cballs.
+    include( "prettydamage.lua" )
 
 end
 
@@ -61,7 +68,6 @@ local vector6000ZUp = Vector( 0, 0, 6000 )
 local vector1000ZDown = Vector( 0, 0, -1000 )
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 local plus25Z = Vector( 0,0,25 )
-local vectorPositive125Z = Vector( 0,0,125 )
 
 local _CurTime = CurTime
 
@@ -76,7 +82,7 @@ local nookDirections = {
     Vector( 0, 0, -1 ),
 }
 
-function PickRealVec( toPick )
+local function PickRealVec( toPick )
     -- ipairs breaks if nothing is stored in any index, thanks ipairs!!!!!
     for index = 1, table.maxn( toPick ) do
         local picked = toPick[ index ]
@@ -92,41 +98,11 @@ local function hasReasonableHealth( ent )
     return entsHp > 0 and entsHp < 300
 
 end
-local function GetNookScore( pos, distance, overrideDirections )
-    local directions = overrideDirections or nookDirections
-    distance = distance or 800
-    local facesBlocked = 0
-    for _, direction in ipairs( directions ) do
-        local traceData = {
-            start = pos,
-            endpos = pos + direction * distance,
-            mask = MASK_SOLID_BRUSHONLY,
-
-        }
-
-        local trace = util.TraceLine( traceData )
-        if not trace.Hit then continue end
-
-        facesBlocked = facesBlocked + math.abs( trace.Fraction - 1 )
-
-    end
-
-    return facesBlocked
-
-end
-
-util.terminator_BearingToPos = function( pos1, ang1, pos2, ang2 )
-    local localPos = WorldToLocal( pos1, ang1, pos2, ang2 )
-    local bearing = 180 / math.pi * math.atan2( localPos.y, localPos.x )
-
-    return bearing
-
-end
 
 function ENT:campingTolerance()
     local myPos = self:GetPos()
     -- lower is better
-    local nookScore = GetNookScore( myPos + plus25Z, 6000 )
+    local nookScore = terminator_Extras.GetNookScore( myPos + plus25Z, 6000 )
     local tolerance
     if nookScore < 3 then-- 3 score is a really good spot
         tolerance = 4000 / nookScore
@@ -146,7 +122,7 @@ function ENT:enemyBearingToMeAbs()
     local myPos = self:GetPos()
     local enemyPos = enemy:GetPos()
     local enemyAngle = enemy:EyeAngles()
-    return math.abs( util.terminator_BearingToPos( myPos, enemyAngle, enemyPos, enemyAngle ) )
+    return math.abs( terminator_Extras.BearingToPos( myPos, enemyAngle, enemyPos, enemyAngle ) )
 
 end
 
@@ -209,60 +185,6 @@ local function DistToSqr2D( pos1, pos2 )
     return product:Length2DSqr()
 end
 
-terminator_Extras.PosCanSee = function( startPos, endPos )
-    if not startPos then return end
-    if not endPos then return end
-
-    local mask = {
-        start = startPos,
-        endpos = endPos,
-        mask = LineOfSightMask
-    }
-    local trace = util.TraceLine( mask )
-    return not trace.Hit, trace
-
-end
-
-terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
-    if not startPos then return end
-    if not endPos then return end
-
-    local filterTbl = {}
-    local collisiongroup = nil
-
-    if IsValid( filter ) then
-        filterTbl = table.Copy( filter:GetChildren() )
-        table.insert( filterTbl, filter )
-
-        collisiongroup = filter:GetCollisionGroup()
-
-    end
-
-    if not mask then
-        mask = bit.bor( CONTENTS_SOLID, CONTENTS_HITBOX )
-
-    end
-
-    local traceData = {
-        filter = filterTbl,
-        start = startPos,
-        endpos = endPos,
-        mask = mask,
-        collisiongroup = collisiongroup,
-    }
-    local trace = util.TraceLine( traceData )
-    return not trace.Hit, trace
-
-end
-
-local function DirToPos( startPos, endPos )
-    if not startPos then return end
-    if not endPos then return end
-
-    return ( endPos - startPos ):GetNormalized()
-
-end
-
 -- accurate method that does not require laggy :distance, still slower than :distance
 local function distBetweenTwoAreas( area1, area2 )
     local dir = area1:GetCenter() - area2:GetCenter()
@@ -311,7 +233,7 @@ local function getUsefulPositions( area )
     if area:GetSizeX() > 25 and area:GetSizeY() > 25 then
         for cornerId = 0, 3 do
             local corner = area:GetCorner( cornerId )
-            local cornerBroughtInAbit = corner + ( DirToPos( corner, center ) * 20 )
+            local cornerBroughtInAbit = corner + ( terminator_Extras.dirToPos( corner, center ) * 20 )
             table.insert( out, cornerBroughtInAbit )
 
         end
@@ -885,6 +807,7 @@ local function hullmax( ref )
     return hullmaxOtherwise
 
 end
+
 function ENT:ShootBlockerWorld( start, pos, filter )
 
     local nextWorldBlockerCheck = self.nextWorldBlockerCheck or 0
@@ -1139,27 +1062,6 @@ function ENT:flagConnectionAsShit( area1, area2 )
     end )
 end
 
-local function restoreFlag( data )
-    local flag = data.Flag
-    local navId = data.Id
-    if not flag then return end
-    if not navId then return end
-    local nav = navmesh.GetNavAreaByID( navId )
-    if not nav then return end
-    if not nav:IsValid() then return end
-    local oldAtt = nav:GetAttributes()
-    local newAtt = oldAtt + -flag
-    nav:SetAttributes( newAtt )
-end
-
-local function restoreAllNavFlags()
-    for _, data in pairs( navExtraDataHunter ) do
-        restoreFlag( data )
-    end
-end
-
-hook.Add( "ShutDown", "strawTermHunterRestoreFlags", restoreAllNavFlags )
-
 -- add constraints 
 
 local vecFiftyZ = Vector( 0,0,50 )
@@ -1300,7 +1202,6 @@ function ENT:SetupPath2( endpos, isUnstuck )
 
     if pathDestinationIsAnOrphan ~= true then -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
         StartNewMove( self )
-        local oldTime = SysTime()
         self:SetupPath( endpos )
         self.PathEndPos = endpos
 
@@ -1438,7 +1339,7 @@ end
 
 function ENT:canHitEnt( ent )
     local objPos = self:getBestPos( ent )
-    local behindObj = objPos + DirToPos( self:GetShootPos(), objPos ) * 40
+    local behindObj = objPos + terminator_Extras.dirToPos( self:GetShootPos(), objPos ) * 40
 
     -- use fist's mask!
     local mask = nil
@@ -1757,7 +1658,7 @@ function ENT:ControlPath2( AimMode )
         scoreData.bearingPos = self.startUnstuckPos
 
         if self:PathIsValid() then
-            scoreData.dirToEnd = DirToPos( self:GetPos(), self:GetPath():GetEnd() )
+            scoreData.dirToEnd = terminator_Extras.dirToPos( self:GetPos(), self:GetPath():GetEnd() )
             local goalArea = self:GetNextPathArea( myNav )
             if not goalArea then goto skipTheShitConnectionFlag end
             if not goalArea:IsValid() then goto skipTheShitConnectionFlag end
@@ -1781,7 +1682,7 @@ function ENT:ControlPath2( AimMode )
 
             local scoreFunction = function( scoreData, area1, area2 ) -- find an area that is at least in the opposite direction of our current path
                 local dirToEnd = scoreData.dirToEnd:Angle()
-                local bearing = util.terminator_BearingToPos( scoreData.bearingPos, dirToEnd, area2:GetCenter(), dirToEnd )
+                local bearing = terminator_Extras.BearingToPos( scoreData.bearingPos, dirToEnd, area2:GetCenter(), dirToEnd )
                 bearing = math.abs( bearing )
                 bearing = bearing + randOffset
                 local dropToArea = math.abs( area1:ComputeAdjacentConnectionHeightChange( area2 ) )
@@ -2102,58 +2003,6 @@ function ENT:markAsWalked( area )
     end )
 end
 
-function ENT:isConfinedSlope( area )
-    if not area then return end
-    local myShootPos = self:GetShootPos()
-    local areaCenterOffsetted = area:GetCenter() + vectorPositive125Z
-    local endZ = math.max( myShootPos.z, areaCenterOffsetted.z )
-    local traceCheckPos = Vector( areaCenterOffsetted.x, areaCenterOffsetted.y, endZ )
-    local traceData = {
-        start = areaCenterOffsetted,
-        endpos = traceCheckPos,
-        mask = MASK_SOLID_BRUSHONLY,
-    }
-    trace = util.TraceLine( traceData )
-
-    --debugoverlay.Line( areaC, trace.HitPos )
-    if not trace.Hit then return end
-    if trace.HitPos.z >= myShootPos.z then return end
-
-    local normal = trace.HitNormal
-    local angle = normal:Angle()
-    if math.cos( angle.p ) < 0 then return end
-
-    return true
-end
-
-function ENT:confinedSlope( area1, area2 )
-    if not area1 and area1:IsValid() then return end
-    local ConfinedSlope = nil
-    local HistoricArea1 = self.HistoricCSlopeArea1Id or -1
-    if HistoricArea1 ~= area1:GetID() then
-        self.HistoricCSlopeArea1Id = area1:GetID()
-        self.IsConfined1 = self:isConfinedSlope( area1 )
-    end
-    if self.IsConfined1 then
-        ConfinedSlope = true
-        --print( ConfinedSlope )
-    end
-
-    if not area2 or not area2:IsValid() or area1 == area2 then return ConfinedSlope end
-    local difference = math.abs( area1:GetCenter().z - area2:GetCenter().z )
-    if difference < 5 then return end
-
-    local HistoricArea2 = self.HistoricCSlopeArea2Id or -1
-    if HistoricArea2 ~= area2:GetID() then
-        self.HistoricCSlopeArea2Id = area2:GetID()
-        self.IsConfined2 = self:isConfinedSlope( area2 )
-    end
-    if self.IsConfined2 then
-        ConfinedSlope = true
-    end
-    return ConfinedSlope
-end
-
 local offset25z = Vector( 0, 0, 25 )
 
 -- very useful for searching!
@@ -2283,267 +2132,6 @@ hook.Add( "PostCleanupMap", "terminator_clear_playerstatuses", function()
 
     end
 end )
-
---cool dmage system stuff
-ENT.BGrpHealth = {}
-ENT.OldBGrpSteps = {}
-ENT.MedCal = 4
-ENT.HighCal = 80
-
-ENT.BGrpMaxHealth = {
-    [0] = 30,
-    [1] = 150,
-    [2] = 300,
-    [3] = 100,
-    [4] = 100,
-    [5] = 120,
-    [6] = 120,
-}
-ENT.BodyGroups = { 
-    ["Glasses"] = 0,
-    ["Head"] = 1,
-    ["Torso"] = 2,
-    ["RArm"] = 3,
-    ["LArm"] = 4,
-    ["RLeg"] = 5,
-    ["LLeg"] = 6,
-}
-ENT.HitTranslate = {
-    [1] = { 0, 1 },
-    [2] = { 2 },
-    [3] = { 2 },
-    [4] = { 4 },
-    [5] = { 3 },
-    [6] = { 6 },
-    [7] = { 5 },
-}
-ENT.GroupSteps = {
-    [0] = { [4] = 1, [3] = 2, [3] = 2, [2] = 2, [1] = 3 },
-    [1] = { [3] = 0, [2] = 1, [1] = 2 },
-    [2] = { [3] = 0, [2] = 0, [1] = 1 },
-    [3] = { [3] = 0, [2] = 0, [1] = 1 },
-    [4] = { [3] = 0, [2] = 0, [1] = 1 },
-    [5] = { [3] = 0, [2] = 0, [1] = 1 },
-    [6] = { [3] = 0, [2] = 0, [1] = 1 },
-    --[1] = { 0, 1, 2 },
-}
-
-ENT.Rics = {
-    "weapons/fx/rics/ric3.wav",
-    "weapons/fx/rics/ric5.wav",
-}
-ENT.Chunks = {
-    "physics/body/body_medium_break2.wav",
-    "physics/body/body_medium_break3.wav",
-    "physics/body/body_medium_break4.wav",
-}
-ENT.Whaps = {
-    "physics/body/body_medium_impact_hard1.wav",
-    "physics/body/body_medium_impact_hard2.wav",
-    "physics/body/body_medium_impact_hard3.wav",
-}
-ENT.Hits = {
-    "physics/metal/metal_sheet_impact_hard8.wav",
-    "physics/metal/metal_sheet_impact_hard7.wav",
-    "physics/metal/metal_sheet_impact_hard6.wav",
-    "physics/metal/metal_sheet_impact_hard2.wav",
-}
-ENT.Creaks = {
-    "physics/metal/metal_box_strain1.wav",
-    "physics/metal/metal_box_strain2.wav",
-    "physics/metal/metal_box_strain3.wav",
-    "physics/metal/metal_box_strain4.wav",
-}
-
-local function BodyGroupDamageThink( self, Group, Damage, Pos, Silent )
-    if not isnumber( Group ) then return end
-    if self:GetModel() ~= ARNOLD_MODEL then return end
-    local CurrHSteps = self.GroupSteps[Group]
-    if not istable( CurrHSteps ) then return end
-
-    if not isnumber( self.BGrpHealth[Group] ) then
-        self.BGrpHealth[Group] = self.BGrpMaxHealth[Group]
-        self.OldBGrpSteps[Group] = 10
-    end
-
-    self.BGrpHealth[Group] = math.Clamp( self.BGrpHealth[Group] + -Damage, 1, math.huge )
-
-    local Steps = table.Count( self.GroupSteps[Group] )
-    local CurrStep = math.ceil( ( self.BGrpHealth[Group] / self.BGrpMaxHealth[Group] ) * Steps )
-    local OldStep = self.OldBGrpSteps[Group]
-
-    if OldStep <= CurrStep then return end
-    self.OldBGrpSteps[Group] = CurrStep
-    if Group ~= 0 then
-        if not Silent then
-            self:EmitSound( table.Random( self.Whaps ), 75, math.random( 85, 90 ) )
-            self:EmitSound( table.Random( self.Chunks ), 75, math.random( 115, 120 ) )
-
-        end
-        local Data = EffectData()
-        Data:SetOrigin( Pos )
-        Data:SetColor( 0 )
-        Data:SetScale( 1 )
-        Data:SetRadius( 1 )
-        Data:SetMagnitude( 1 )
-        util.Effect( "BloodImpact", Data )
-    end
-    if not isnumber( CurrHSteps[CurrStep] ) then return end
-    self:SetBodygroup( Group, self.GroupSteps[Group][CurrStep] )
-
-end
-local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent )
-    if istable( ToBGs ) then
-        local var = 0
-        local Count = table.Count( ToBGs )
-        while var < Count do
-            var = var + 1
-            local BGroup = ToBGs[var]
-            BodyGroupDamageThink( self, BGroup, BgDamage, Damage:GetDamagePosition(), Silent )
-        end
-    end
-end
-local function MedCalRics( self )
-    self:EmitSound( table.Random( self.Rics ), 75, math.random( 92, 100 ), 1, CHAN_AUTO )
-end
-local function MedDamage( self, Damage )
-    self:EmitSound( table.Random( self.Hits ), 85, math.random( 105, 110 ), 1, CHAN_AUTO )
-    if Damage:IsBulletDamage() then
-        self:EmitSound( table.Random( self.Rics ), 85, math.random( 75, 80 ), 1, CHAN_AUTO )
-    end
-end
-function ENT:CatDamage()
-    self:EmitSound( table.Random( self.Creaks ), 85, 150, 1, CHAN_AUTO )
-    self:EmitSound( table.Random( self.Hits ), 85, 80, 1, CHAN_AUTO )
-end
-
--- dmg with bodygroup data
-
-local function OnDamaged( self, Hitgroup, Damage )
-
-    if not self.isTerminatorHunterBased then return end
-    self:MakeFeud( Damage:GetAttacker() )
-
-    if not self.DoMetallicDamage then return end
-    self.lastDamagedTime = _CurTime()
-    local ToBGs = nil
-    local BgDmg = false
-    local BgDamage = 0
-    local DamageG = Damage:GetDamage()
-
-    if not Damage:IsExplosionDamage() then
-        if DamageG >= self.HighCal then
-            BgDmg = true
-            BgDamage = Damage:GetDamage()
-            Damage:SetDamage( DamageG / 3.5 )
-            MedDamage( self, Damage )
-        elseif DamageG > self.MedCal then
-            BgDmg = true
-            BgDamage = Damage:GetDamage() / 3
-            Damage:SetDamage( 1 )
-            if Damage:IsBulletDamage() then
-                MedCalRics( self )
-            end
-        else
-            BgDmg = true
-            BgDamage = Damage:GetDamage() / 13
-            Damage:SetDamage( 0 )
-        end
-    elseif DamageG > 60 then
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-        Damage:SetDamage( math.Clamp( DamageG, 0, 100 ) )
-        BgDamage = 40
-        self:CatDamage()
-    end
-
-    if BgDmg then
-        if self:GetModel() ~= ARNOLD_MODEL then return end
-        ToBGs = self.HitTranslate[Hitgroup] -- get bodygroups to do stuff to
-
-        if not istable( ToBGs ) then return end
-
-        local Data = EffectData()
-        Data:SetOrigin( Damage:GetDamagePosition() )
-        Data:SetScale( 1 )
-        Data:SetRadius( 1 )
-        Data:SetMagnitude( 1 )
-        util.Effect( "Sparks", Data )
-    end
-
-    BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-end
-
-hook.Add( "ScaleNPCDamage", "sb_anb_straw_terminator_damage", OnDamaged )
-
--- dmg w/o bodygroup data
-
-function ENT:OnTakeDamage( Damage )
-    if not self.DoMetallicDamage then return end
-    self.lastDamagedTime = _CurTime()
-    local DmgType = Damage:GetDamageType()
-    local attacker = Damage:GetAttacker()
-    local BgDamage = 0
-
-    local class = attacker:GetClass()
-
-    if class == "func_door_rotating" or class == "func_door" then
-        Damage:ScaleDamage( 0 )
-        self.overrideMiniStuck = true
-
-    end
-
-    if Damage:IsDamageType( DMG_ACID ) then --acid!
-        Damage:ScaleDamage( 0 )
-        BgDamage = 40
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-
-    elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 300 then --combine ball!
-        Damage:SetDamage( 300 )
-        BgDamage = 140
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-
-        local potentialBall = Damage:GetInflictor()
-
-        if string.find( potentialBall:GetClass(), "ball" ) then
-            potentialBall:Fire( "Explode" )
-        end
-
-        self:CatDamage()
-        self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
-
-    elseif Damage:IsDamageType( DMG_SHOCK ) then
-        Damage:ScaleDamage( 0.5 )
-        BgDamage = 140
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-
-    elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or Damage:IsDamageType( DMG_DIRECT ) then -- fire damage!
-        Damage:ScaleDamage( 0 )
-        BgDamage = 1
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, 6 ) )
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-
-    elseif Damage:IsDamageType( DMG_CLUB ) then -- likely another terminator punching us!
-        local DamageDamage = Damage:GetDamage()
-        BgDamage = DamageDamage / 2
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, 6 ) )
-        table.remove( ToBGs, math.random( 0, 6 ) )
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
-
-    end
-end
-
 
 
 -- custom values for the nextbot base to use
@@ -3043,7 +2631,7 @@ function ENT:Initialize()
                             end
                             if self.IsSeeEnemy or posCheatsLeft > 0 then
                                 self.NothingOrBreakableBetweenEnemy = self:ClearOrBreakable( self:GetShootPos(), self:EntShootPos( enemy ) )
-                                self.EnemyLastDir = DirToPos( self.EnemyLastPos, enemyPos )
+                                self.EnemyLastDir = terminator_Extras.dirToPos( self.EnemyLastPos, enemyPos )
                                 self.LastEnemyForward = enemy:GetForward()
                                 self.EnemyLastPos = enemyPos
                                 self:RegisterForcedEnemyCheckPos( enemy )
@@ -4704,7 +4292,7 @@ function ENT:Initialize()
                 local pathGoal = self:GetPath():GetCurrentGoal()
                 local posImHeadingTo
                 if pathGoal then
-                    dirToGoal = DirToPos( myPos, pathGoal.pos )
+                    dirToGoal = terminator_Extras.dirToPos( myPos, pathGoal.pos )
                     posImHeadingTo = myPos + dirToGoal * 100
 
                 end
@@ -5697,7 +5285,7 @@ function ENT:Initialize()
                 elseif data.Want > 0 then
                     if result == true then
                         self:TaskComplete( "movement_inertia" )
-                        self:StartTask2( "movement_inertia", { Want = data.Want, Dir = DirToPos( data.PathStart, self:GetPos() ) }, "i still want to wander" )
+                        self:StartTask2( "movement_inertia", { Want = data.Want, Dir = terminator_Extras.dirToPos( data.PathStart, self:GetPos() ) }, "i still want to wander" )
                     else
                         self:TaskComplete( "movement_inertia" )
                         self:StartTask2( "movement_inertia", { Want = data.Want, Dir = -self:GetForward() }, "i want to wander behind me" )
@@ -5780,7 +5368,7 @@ function ENT:Initialize()
                     else
                         foundSomewhereNotBeen = true
                     end
-                    if math.abs( util.terminator_BearingToPos( scoreData.startPos, scoreData.forward, area2:GetCenter(), scoreData.forward ) ) < 22.5 then
+                    if math.abs( terminator_Extras.BearingToPos( scoreData.startPos, scoreData.forward, area2:GetCenter(), scoreData.forward ) ) < 22.5 then
                         score = score^1.5
                     end
                     if not scoreData.canDoUnderWater and area2:IsUnderwater() then
@@ -5892,7 +5480,7 @@ function ENT:Initialize()
                             self.bigInertiaPreserveBeenAreas = nil
 
                         else
-                            self:StartTask2( "movement_biginertia", { Want = want, dir = DirToPos( data.PathStart, self:GetPos() ), beenAreas = data.beenAreas }, "i still want to wander" )
+                            self:StartTask2( "movement_biginertia", { Want = want, dir = terminator_Extras.dirToPos( data.PathStart, self:GetPos() ), beenAreas = data.beenAreas }, "i still want to wander" )
                             self.bigInertiaPreserveBeenAreas = data.beenAreas
 
                         end
@@ -6167,7 +5755,7 @@ function ENT:Initialize()
                             local trace = util.TraceLine( dat )
                             local flooredPos = trace.HitPos
                             checkPos = flooredPos + plus25Z
-                            local nookScore = GetNookScore( checkPos, 6000, nookOverrideDirections )
+                            local nookScore = terminator_Extras.GetNookScore( checkPos, 6000, nookOverrideDirections )
                             local distance = checkPos:Distance( myPos )
                             local zOffset = checkPos.z - myPos.z
 
@@ -6189,7 +5777,7 @@ function ENT:Initialize()
                     local result = self:ControlPath2( not self.IsSeeEnemy )
                     if result == true then
                         self:TaskComplete( "movement_placeweapon" )
-                        self:StartTask2( "movement_camp", { maxNoSeeing = 800 / GetNookScore( data.bestPos, 6000 ) } )
+                        self:StartTask2( "movement_camp", { maxNoSeeing = 800 / terminator_Extras.GetNookScore( data.bestPos, 6000 ) } )
 
                     elseif result == false then
                         self:TaskComplete( "movement_placeweapon" )
@@ -6267,7 +5855,7 @@ function ENT:Initialize()
                             local trace = util.TraceLine( dat )
                             local flooredPos = trace.HitPos
                             checkPos = flooredPos + plus25Z
-                            local nookScore = GetNookScore( checkPos, 6000, data.nookOverrideDirections )
+                            local nookScore = terminator_Extras.GetNookScore( checkPos, 6000, data.nookOverrideDirections )
                             local distance = checkPos:Distance( myPos ) * data.distanceWeight
                             local canSeeTargetMul = 1
                             if data.requiredTarget then
@@ -6374,7 +5962,7 @@ function ENT:Initialize()
 
                 -- they arent moving, just go the opposite side of them!
                 if velLeng < 5^2 then
-                    local enemDir = -DirToPos( enemy:GetPos(), senderpos )
+                    local enemDir = -terminator_Extras.dirToPos( enemy:GetPos(), senderpos )
                     self.lastInterceptDir = enemDir
 
                 -- they moving fast in one direction!
@@ -6384,7 +5972,7 @@ function ENT:Initialize()
 
                 -- they are moving a bit, go left or right
                 else
-                    local enemDir = DirToPos( self:GetPos(), enemy:GetPos() )
+                    local enemDir = terminator_Extras.dirToPos( self:GetPos(), enemy:GetPos() )
                     local upOrDown = { 1, -1 }
                     self.lastInterceptDir = enemDir:Cross( Vector( 0, 0, table.Random( upOrDown ) ) )
 
