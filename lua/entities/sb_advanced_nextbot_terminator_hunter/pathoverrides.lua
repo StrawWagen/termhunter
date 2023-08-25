@@ -217,7 +217,8 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
     local costSoFar = from:GetCostSoFar() or 0
 
     if _IsValid( ladder ) then
-        local cost = ladder:GetLength()
+        local cost = ladder:GetLength() * 4
+        cost = cost + 400
         return cost
     elseif len > 0 then
         dist = len
