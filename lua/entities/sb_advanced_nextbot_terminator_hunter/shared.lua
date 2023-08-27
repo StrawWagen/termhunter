@@ -814,6 +814,7 @@ end
 
 function ENT:Use2( toUse )
     if toUse:IsVehicle() then return end
+    hook.Run( "TerminatorUse", self, toUse )
     toUse:Use( self, self )
     toUse.usedByTerm = true
     local time = _CurTime()
