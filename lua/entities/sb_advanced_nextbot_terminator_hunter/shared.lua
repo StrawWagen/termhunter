@@ -199,6 +199,59 @@ local function getUsefulPositions( area )
 
 end
 
+local ladderOffset = 800000
+
+local function AreaOrLadderGetID( areaOrLadder )
+    if areaOrLadder.GetTop then
+        -- never seen a navmesh with 800k areas
+        return areaOrLadder:GetID() + ladderOffset
+
+    else
+        return areaOrLadder:GetID()
+
+    end
+end
+
+local function getNavAreaOrLadderById( areaOrLadderID )
+    local area = navmesh.GetNavAreaByID( areaOrLadderID )
+    if area then
+        return area
+
+    end
+    local ladder = navmesh.GetNavLadderByID( areaOrLadderID + -ladderOffset )
+    if ladder then
+        return ladder
+
+    end
+end
+
+local function AreaOrLadderGetCenter( areaOrLadder )
+    if areaOrLadder.GetTop then
+        return ( areaOrLadder:GetTop() + areaOrLadder:GetBottom() ) / 2
+
+    else
+        return areaOrLadder:GetCenter()
+
+    end
+end
+
+local function AreaOrLadderGetAdjacentAreas( areaOrLadder )
+    local adjacents = {}
+    if areaOrLadder.GetTop then -- is ladder
+        table.Add( adjacents, areaOrLadder:GetBottomArea() )
+        table.Add( adjacents, areaOrLadder:GetTopForwardArea() )
+        table.Add( adjacents, areaOrLadder:GetTopBehindArea() )
+        table.Add( adjacents, areaOrLadder:GetTopRightArea() )
+        table.Add( adjacents, areaOrLadder:GetTopLeftArea() )
+
+    else
+        adjacents = table.Add( areaOrLadder:GetAdjacentAreas(), areaOrLadder:GetLadders() )
+
+    end
+    return adjacents
+
+end
+
 -- iterative function that finds connected area with the best score
 -- areas with highest return from scorefunc are selected
 -- areas that return 0 score from scorefunc are ignored
@@ -213,12 +266,12 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
         cur = res.area
 
     elseif start and start.IsValid and start:IsValid() then
-        pos = start:GetCenter()
+        pos = AreaOrLadderGetCenter( start )
         cur = start
 
     end
     if not cur or not cur:IsValid() then return nil, NULL, nil end
-    local curId = cur:GetID()
+    local curId = AreaOrLadderGetID( cur )
 
     noMoreOptionsMin = noMoreOptionsMin or 8
 
@@ -226,9 +279,15 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
     local closed = {}
     local openedSequential = {}
     local closedSequential = {}
-    local distances = { [curId] = cur:GetCenter():Distance( pos ) }
+    local distances = { [curId] = AreaOrLadderGetCenter( cur ):Distance( pos ) }
     local scores = { [curId] = 1 }
     local opCount = 0
+    local isLadder = {}
+
+    if cur.GetTop then
+        isLadder[curId] = true
+
+    end
 
     while not table.IsEmpty( opened ) do
         local bestScore = 0
@@ -243,7 +302,7 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
 
             end
         end
-        if not bestArea then 
+        if not bestArea then
             _, bestArea = table.Random( opened )
 
         end
@@ -261,7 +320,7 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
         end
         table.insert( closedSequential, areaId )
 
-        local area = navmesh.GetNavAreaByID( areaId )
+        local area = getNavAreaOrLadderById( areaId )
         local myDist = distances[areaId]
         local noMoreOptions = #openedSequential == 1 and #closedSequential >= noMoreOptionsMin
 
@@ -272,7 +331,7 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
             for _, currClosedId in ipairs( closedSequential ) do
                 local currClosedScore = scores[currClosedId]
 
-                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore then
+                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and not isLadder[ areaId ] then
                     bestClosedScore = currClosedScore
                     bestClosedAreaId = currClosedId
 
@@ -281,27 +340,40 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
             local bestClosedArea = navmesh.GetNavAreaByID( bestClosedAreaId )
             return bestClosedArea:GetCenter(), bestClosedArea, nil
 
-        elseif myDist > radius then
+        elseif myDist > radius and not area.GetTop then
             return area:GetCenter(), area, true
 
         end
 
-        local adjacents = area:GetAdjacentAreas()
+        local adjacents = AreaOrLadderGetAdjacentAreas( area )
 
         for _, adjArea in ipairs( adjacents ) do
-            local adjID = adjArea:GetID()
+            local adjID = AreaOrLadderGetID( adjArea )
 
             if not closed[adjID] then
 
-                local theScore = scoreFunc( data, area, adjArea )
+                local theScore = 0
+                if area.GetTop or adjArea.GetTop then
+                    -- just let the algorithm pass through this
+                    theScore = scores[areaId]
+
+                else
+                    theScore = scoreFunc( data, area, adjArea )
+
+                end
                 if theScore <= 0 then continue end
 
-                local adjDist = area:GetCenter():Distance( adjArea:GetCenter() )
+                local adjDist = AreaOrLadderGetCenter( area ):Distance( AreaOrLadderGetCenter( adjArea ) )
                 local distance = myDist + adjDist
 
                 distances[adjID] = distance
                 scores[adjID] = theScore
                 opened[adjID] = true
+
+                if adjArea.GetTop then
+                    isLadder[adjID] = true
+
+                end
 
                 table.insert( openedSequential, adjID )
 
