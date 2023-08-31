@@ -7,7 +7,7 @@ local maxWeaponsToDrop = CreateConVar( "terminator_playerdropweapons_count", "5"
 local function setDropWeapons( ply, attacker, _ )
     if not attacker or attacker.isTerminatorHunterBased ~= true then return end
     if GAMEMODE.IsReallyHuntersGlee == true then return end
-    if not doDropWeapons:GetBool() then return end 
+    if not doDropWeapons:GetBool() then return end
 
     local weapsToDrop = ply:GetWeapons()
     ply.terminator_droppedweapons = ply.terminator_droppedweapons or {}

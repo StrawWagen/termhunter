@@ -331,7 +331,7 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
             for _, currClosedId in ipairs( closedSequential ) do
                 local currClosedScore = scores[currClosedId]
 
-                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and not isLadder[ areaId ] then
+                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and isLadder[ currClosedId ] ~= true then
                     bestClosedScore = currClosedScore
                     bestClosedAreaId = currClosedId
 
@@ -2520,8 +2520,13 @@ function ENT:Initialize()
                             end
                         end
                         if noNav and not self:PathIsValid() and not stuck and not navmesh.GetNearestNavArea( myPos, false, 200, false, false, -2 ) then
-                            stuck = true
+                            if GAMEMODE.IsReallyHuntersGlee then
+                                SafeRemoveEntity( self )
 
+                            else
+                                stuck = true
+
+                            end
                         end
                     end
 
