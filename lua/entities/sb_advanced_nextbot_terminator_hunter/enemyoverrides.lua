@@ -215,6 +215,7 @@ function ENT:ShouldBeEnemy( ent )
     local isDeadNPC = ent:IsNPC() and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )
 
     if class == "rpg_missile" then return false end
+    if class == "env_flare" then return false end
     if not ent.SBAdvancedNextBot and isDeadNPC then return false end
     if ( ent.SBAdvancedNextBot or not ent:IsNPC() ) and ent:Health() <= 0 then return false end
 
@@ -303,6 +304,7 @@ function ENT:MakeFeud( enemy )
     if not enemy.Health then return end
     if enemy:Health() <= 0 then return end
     if enemy:GetClass() == "rpg_missile" then return end -- crazy fuckin bug
+    if enemy:GetClass() == "env_flare" then return end
     local maniacHunter = ( self:GetCreationID() % 15 ) == 1 or self.alwaysManiac
     local bothChummy = enemy.isTerminatorHunterChummy == self.isTerminatorHunterChummy
     if bothChummy and not maniacHunter then return end
