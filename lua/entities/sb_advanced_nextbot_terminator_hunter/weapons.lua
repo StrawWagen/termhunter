@@ -378,6 +378,7 @@ function ENT:WeaponPrimaryAttack()
             if npcShootCall == false then
                 wep.terminatorCrappyWeapon = true
                 print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
+                self:DropWeapon()
                 print( shootCallsError )
                 return
 
