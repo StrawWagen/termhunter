@@ -632,7 +632,7 @@ local function GetJumpBlockState( self, dir, goal )
             --debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 1, color )
 
             -- final check!
-            goalWithOverriddenZ.z = math.max( dirConfig.start.z, goal.z + 20 )
+            goalWithOverriddenZ.z = math.max( dirConfig.start.z, goal.z + 30 )
             finalCheckConfig.start = newStartPos
             finalCheckConfig.endpos = goalWithOverriddenZ
 
@@ -642,7 +642,9 @@ local function GetJumpBlockState( self, dir, goal )
             -- stops bot from jumping in hallways
             local thisCheckCanCompleteJump = newStartPos.z >= goal.z or not finalCheckResult.Hit
 
-            if dirResult.Hit and dirResult.HitNormal:Dot( vector_up ) < 0.65 and not hitThingWeCanBreak then
+            --debugoverlay.Line( dirConfig.start, finalCheckResult.HitPos, 2 )
+
+            if dirResult.Hit and finalCheckResult.Hit and dirResult.HitNormal:Dot( vector_up ) < 0.65 and not hitThingWeCanBreak then
                 checksThatHit = checksThatHit + 1
 
             elseif thisCheckCanCompleteJump then
@@ -983,16 +985,23 @@ function ENT:MoveAlongPath( lookatgoal )
             end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight and jumpingHeight < 64
+            local needsToFeelAround
+            if jumpstate == 2 then
+                local nextAreasClosestPoint = aheadSegment.area:GetClosestPointOnArea( myPos )
+                local myAreasClosestPointToNext = areaSimple:GetClosestPointOnArea( nextAreasClosestPoint )
+                needsToFeelAround = ( nextAreasClosestPoint.z - myAreasClosestPointToNext.z ) > self.loco:GetStepHeight()
+
+            end
 
             --print( myHeightToNext, self.loco:GetStepHeight() )
-            print( jumpstate, smallObstacle, jumptype, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, jumpstate == 2 )
+            --print( jumpstate, smallObstacle, jumptype, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, needsToFeelAround )
             if
                 jumptype or                                                     -- jump segment
                 smallObstacle or
                 areaSimple:HasAttributes( NAV_MESH_JUMP ) or                    -- jump area
                 droptype and jumpstate == 1 or                                  -- dropping down and there's obstacle
                 self.m_PathJump and jumpstate == 1 or
-                jumpstate == 2
+                needsToFeelAround
             then
                 local beenCloseToTheBottomOfTheJump = closeToGoal or self.beenCloseToTheBottomOfTheJump
                 self.beenCloseToTheBottomOfTheJump = beenCloseToTheBottomOfTheJump
@@ -1576,13 +1585,46 @@ function ENT:OnLeaveGround( ent )
 
 end
 
+local lethalFallHeightReal = 2000
+local noticeFall = lethalFallHeightReal * 0.25
+local fearFall = lethalFallHeightReal + -( lethalFallHeightReal * 0.2 )
+
 function ENT:HandleInAir()
     local myPos = self:GetPos()
     self:DoJumpPeak( myPos )
 
-    if self:FallHeight() > 200 and not self.terminator_playingFallingSound then
+    local fallHeight = self:FallHeight()
+
+    if fallHeight > 200 and not self.terminator_playingFallingSound then
         StartFallingSound( self )
 
+    end
+
+    if fallHeight > noticeFall then
+        local isScardey = ( self:GetCreationID() % 8 == 1 )
+
+        local lookAt
+        if isScardey then
+            lookAt = AngleRand()
+
+        else
+            -- look at places we wish we could land on
+            local areaToLookAt = navmesh.GetNearestNavArea( myPos, true, 1500, true, false, -2 )
+            if areaToLookAt then
+                local myShootPos = self:GetShootPos()
+                lookAt = terminator_Extras.dirToPos( myShootPos, areaToLookAt:GetClosestPointOnArea( myShootPos ) ):Angle()
+
+            end
+        end
+
+        if fallHeight > fearFall then
+            self:WeaponPrimaryAttack()
+
+        end
+        if lookAt then
+            self:SetDesiredEyeAngles( lookAt )
+
+        end
     end
 
     local waterLevel = self:WaterLevel()
@@ -1654,7 +1696,7 @@ function ENT:OnLandOnGround( ent )
     local fellOnSky = util.QuickTrace( myPos + vector_up * 25, down * 200, self ).HitSky
 
     -- wow we really fell far
-    if fallHeight > 2000 or fellOnSky and fallHeight > 500 then
+    if fallHeight > lethalFallHeightReal or fellOnSky and fallHeight > 500 then
         self:LethalFallDamage()
         killScale = 100
         killBoxScale = 8
