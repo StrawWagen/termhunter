@@ -1008,9 +1008,9 @@ function ENT:MoveAlongPath( lookatgoal )
 
                 -- obstacle, we have to move around if we want to go past it
                 if jumpstate == 2 then
-                    if math.random( 0, 100 ) > 80 then
+                    if math.random( 0, 100 ) > 85 then
                         sideMul = -sideMul -- jiggle this around a bit\
-                        moveScale = self:GetRangeTo( currSegment.pos ) * math.Rand( 0.7, 1.2 )
+                        moveScale = self:GetRangeTo( currSegment.pos ) * math.Rand( 0.5, 2 )
 
                     end
 

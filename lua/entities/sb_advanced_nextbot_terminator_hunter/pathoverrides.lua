@@ -112,6 +112,7 @@ end
 -- flanking!
 local flankingDest
 local hunterIsFlanking
+local flankingZRewardBegin
 local flankingAvoidAreas
 
 function ENT:AddAreasToFlank( areas, mul )
@@ -129,6 +130,7 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
     -- lagspike if we try to flank around area that contains the destination
     flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
     if not flankingDest then return false end
+    flankingZRewardBegin = destination.z + -96
     flankingAvoidAreas = flankingAvoidAreas or {}
     hunterIsFlanking = true
 
@@ -200,8 +202,10 @@ end
 function ENT:endFlankPath()
     self.flankBubbleCenter = nil
     self.flankBubbleSizeSqr = nil
+    flankingZRewardBegin = nil
     hunterIsFlanking = nil
     flankingAvoidAreas = nil
+
 end
 
 --TODO: dynamically check if a NAV_TRANSIENT areas are supported by terrain, then cache the results 
@@ -227,9 +231,15 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
     end
 
 
-    if hunterIsFlanking and flankingAvoidAreas and flankingAvoidAreas[ area:GetID() ] then
-        dist = dist * flankingAvoidAreas[ area:GetID() ]
-        --debugoverlay.Cross( area:GetCenter(), 10, 10, color_white, true )
+    if hunterIsFlanking then
+        if flankingAvoidAreas and flankingAvoidAreas[ area:GetID() ] then
+            dist = dist * flankingAvoidAreas[ area:GetID() ]
+            --debugoverlay.Cross( area:GetCenter(), 10, 10, color_white, true )
+
+        elseif area:GetCenter().z < flankingZRewardBegin then
+            dist = dist * 0.5
+
+        end
     end
 
     if area:HasAttributes( NAV_MESH_CROUCH ) then
