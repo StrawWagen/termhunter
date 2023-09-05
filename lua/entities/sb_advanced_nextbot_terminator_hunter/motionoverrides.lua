@@ -539,31 +539,7 @@ local function GetJumpBlockState( self, dir, goal )
 
     local dirResult = util.TraceHull( dirConfig )
 
-    -- final trace to see if a jump at height will actually take us all the way to goal
-    -- needed to determine height to jump to when encountering obstacle
-    local finalCheckConfig = {
-        mins = b1 / 0.75,
-        maxs = b2 / 0.75,
-        filter = self,
-        mask = mask,
-        collisiongroup = cgroup,
-    }
-
-    local finalCheckResult
-
-    -- do a trace from our pos to the jump offset's starting pos
-    local vertConfig = {
-        start = pos + fiftyZOffset,
-        endpos = pos + fiftyZOffset,
-        mins = b1,
-        maxs = b2,
-        filter = self,
-        mask = mask,
-        collisiongroup = cgroup,
-    }
-    local vertResult = nil
-
-    local didSight = nil
+    local didSight
     local sightResult
 
     -- if there's nothing to jump up to then just rely on dirResult
@@ -592,7 +568,31 @@ local function GetJumpBlockState( self, dir, goal )
 
     end
 
+    -- ok something is blocking us, or we need to jump up to something
     if dirResult.Hit or ( didSight and sightResult.Hit ) then
+        -- final trace to see if a jump at height will actually take us all the way to goal
+        local finalCheckConfig = {
+            mins = b1 / 0.75,
+            maxs = b2 / 0.75,
+            filter = self,
+            mask = mask,
+            collisiongroup = cgroup,
+        }
+        local finalCheckResult
+
+        -- do a trace from our pos to the jump offset's starting pos
+        local vertConfig = {
+            start = pos + fiftyZOffset,
+            endpos = pos + fiftyZOffset,
+            mins = b1,
+            maxs = b2,
+            filter = self,
+            mask = mask,
+            collisiongroup = cgroup,
+        }
+        local vertResult
+
+
         local maxjump = self.MaxJumpToPosHeight * 2
 
         local i = 0
@@ -702,6 +702,7 @@ local sideMul = 0.1 --  strafe mul for when bot is stepping back to find better 
 local moveScale = 40
 local cheats = GetConVar( "sv_cheats" )
 
+-- used in determining whether to look at and therefore beat up an inert entity
 function ENT:EntIsInMyWay( ent, tolerance, aheadSegment )
     local myPos = self:GetPos()
     local segmentAheadOfMe = aheadSegment
@@ -984,7 +985,7 @@ function ENT:MoveAlongPath( lookatgoal )
             local smallObstacle = jumpstate == 1 and jumpingHeight and jumpingHeight < 64
 
             --print( myHeightToNext, self.loco:GetStepHeight() )
-            --print( jumpstate, smallObstacle, jumptype, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, jumpstate == 2 )
+            print( jumpstate, smallObstacle, jumptype, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, jumpstate == 2 )
             if
                 jumptype or                                                     -- jump segment
                 smallObstacle or

@@ -2303,18 +2303,6 @@ function ENT:Initialize()
     self.TaskList = {
         ["shooting_handler"] = {
             OnStart = function( self, data )
-                data.PassBlockerTime = _CurTime()
-
-                data.PassBlocker = function( blocker )
-                    local dir =  self:getBestPos( blocker ) - self:GetPos()
-                    dir.z = 0
-
-                    local _,diff = WorldToLocal( vector_origin, dir:Angle(), vector_origin, self:GetDesiredEyeAngles() )
-                    local side = diff.y > 0 and 1 or -1
-                    local b1, b2 = self:GetCollisionBounds()
-
-                    self:Approach( self:GetPos() + -self:GetForward() + dir:Angle():Right() * side * 10 )
-                end
             end,
             BehaveUpdate = function(self,data,interval)
                 local enemy = self:GetEnemy()
