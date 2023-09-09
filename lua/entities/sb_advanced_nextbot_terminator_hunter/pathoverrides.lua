@@ -231,15 +231,10 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
     end
 
 
-    if hunterIsFlanking then
-        if flankingAvoidAreas and flankingAvoidAreas[ area:GetID() ] then
-            dist = dist * flankingAvoidAreas[ area:GetID() ]
-            --debugoverlay.Cross( area:GetCenter(), 10, 10, color_white, true )
+    if hunterIsFlanking and flankingAvoidAreas and flankingAvoidAreas[ area:GetID() ] then
+        dist = dist * flankingAvoidAreas[ area:GetID() ]
+        --debugoverlay.Cross( area:GetCenter(), 10, 10, color_white, true )
 
-        elseif area:GetCenter().z < flankingZRewardBegin then
-            dist = dist * 0.9
-
-        end
     end
 
     if area:HasAttributes( NAV_MESH_CROUCH ) then
