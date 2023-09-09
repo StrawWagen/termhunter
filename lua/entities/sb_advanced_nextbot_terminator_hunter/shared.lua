@@ -1179,6 +1179,7 @@ end
 local function nextNewPathIsGood( self )
     local nextNewPath = self.nextNewPath or 0
     if nextNewPath > _CurTime() then return end
+    if self.isHoppingOffLadder then return end
 
     return true
 end

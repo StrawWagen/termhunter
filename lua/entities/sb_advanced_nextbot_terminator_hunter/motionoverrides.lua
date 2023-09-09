@@ -1438,16 +1438,23 @@ function ENT:ExitLadder( exit, recalculate )
 
     if not pos then return end
 
-    recalculate = recalculate or 0.5
-
     self.terminator_HandlingLadder = nil
 
     --debugoverlay.Cross( pos, 100, 1, color_white, true )
+    if recalculate then
+        self.nextNewPath = _CurTime() + recalculate
 
-    self.nextNewPath = _CurTime() + recalculate
+    end
+
+    if not self.loco:IsOnGround() then
+        -- wait to path until we're on the ground
+        self.isHoppingOffLadder = true
+
+    end
     self.needsPathRecalculate = true
 
     local myPos = self:GetPos()
+    -- pos that is above the ladder or above the dest area
     local desiredPos = Vector( myPos.x, myPos.y, math.max( myPos.z + 15, pos.z + 35 ) )
 
     local b1, b2 = self:GetCollisionBounds()
@@ -1466,12 +1473,14 @@ function ENT:ExitLadder( exit, recalculate )
 
     local clearResult = util.TraceHull( findHighestClearPos )
 
+    -- if bot is set to a pos that conflicts to world, it bugs out
     self:SetPos( clearResult.HitPos )
     self.loco:SetVelocity( vector_up )
 
+    -- finally, set our vel towards the ladder exit
     local ladderExitVel = ( pos - clearResult.HitPos ):GetNormalized()
     ladderExitVel.z = 0
-    ladderExitVel = ladderExitVel * math.random( 280 + -40, 280 )
+    ladderExitVel = ladderExitVel * math.random( 350 + -40, 350 )
     timer.Simple( 0, function()
         if not IsValid( self ) then return end
         self.loco:SetGravity( self.preLadderGravity or 600 )
@@ -1682,6 +1691,11 @@ local vecDown = Vector( 0, 0, -1 )
     Some functional with jumps
 --]]------------------------------------
 function ENT:OnLandOnGround( ent )
+    if self.isHoppingOffLadder then
+        self.isHoppingOffLadder = nil
+
+    end
+
     if self.m_Jumping then
         self.m_Jumping = false
         self.nextPathJump = _CurTime() + 0.15
