@@ -159,45 +159,50 @@ end
     Arg2: (optional) bool | justdrop | If true, just drop weapon from current hand position. Don't apply velocity and position.
     Ret1: Weapon | Dropped weapon. If active weapon is lua analog of engine weapon, then this will be engine weapon, not lua analog.
 --]]------------------------------------
-function ENT:DropWeapon(velocity,justdrop)
+function ENT:DropWeapon( velocity, justdrop )
     local wep = self:GetActiveWeapon()
     if not _IsValid( wep ) then return end
 
     local actwep = self:GetActiveLuaWeapon()
 
     if not justdrop then
-        velocity = velocity or self:GetEyeAngles():Forward()*200
+        velocity = velocity or self:GetEyeAngles():Forward() * 200
         local spd = velocity:Length()
-        velocity = velocity/spd
-        velocity:Mul(math.min(spd,400))
+        velocity = velocity / spd
+        velocity:Mul( math.min( spd, 400 ) )
     end
 
-    self:SetActiveWeapon(NULL)
+    self:SetActiveWeapon( NULL )
 
     -- Unparenting weapon. Very similar to engine code.
 
     wep:SetParent()
-    wep:RemoveEffects(EF_BONEMERGE)
-    wep:RemoveSolidFlags(FSOLID_NOT_SOLID)
+    wep:RemoveEffects( EF_BONEMERGE )
+    wep:RemoveSolidFlags( FSOLID_NOT_SOLID )
     wep:CollisionRulesChanged()
 
-    wep:SetOwner(NULL)
+    wep:SetOwner( NULL )
 
-    wep:SetMoveType(MOVETYPE_FLYGRAVITY)
+    if self.m_ActualWeapon and self.m_ActualWeapon == wep then
+        self.m_ActualWeapon = nil
+
+    end
+
+    wep:SetMoveType( MOVETYPE_FLYGRAVITY )
 
     local SF = wep:GetSolidFlags()
-    if not wep:PhysicsInit(SOLID_VPHYSICS) then
-        wep:SetSolid(SOLID_BBOX)
+    if not wep:PhysicsInit( SOLID_VPHYSICS ) then
+        wep:SetSolid( SOLID_BBOX )
     else
-        wep:SetMoveType(MOVETYPE_VPHYSICS)
+        wep:SetMoveType( MOVETYPE_VPHYSICS )
         wep:PhysWake()
     end
-    wep:SetSolidFlags(bit.bor(SF,FSOLID_TRIGGER))
+    wep:SetSolidFlags( bit.bor( SF, FSOLID_TRIGGER ) )
 
-    wep:SetTransmitWithParent(false)
+    wep:SetTransmitWithParent( false )
 
-    ProtectedCall(function() actwep:OwnerChanged() end)
-    ProtectedCall(function() actwep:OnDrop() end)
+    ProtectedCall( function() actwep:OwnerChanged() end )
+    ProtectedCall( function() actwep:OnDrop() end )
 
     -- Restoring engine weapon from lua analog
     if wep ~= actwep then
@@ -225,66 +230,76 @@ function ENT:DropWeapon(velocity,justdrop)
             end )
         end
 
-        actwep:DontDeleteOnRemove(wep)
+        actwep:DontDeleteOnRemove( wep )
         actwep:Remove()
+
     end
 
-    ProtectedCall(function() self:OnWeaponDrop(wep) end)
+    ProtectedCall( function() self:OnWeaponDrop( wep ) end )
 
     if not justdrop then
-        wep:SetPos(self:GetShootPos())
-        wep:SetAngles(self:GetEyeAngles())
+        wep:SetPos( self:GetShootPos() )
+        wep:SetAngles( self:GetEyeAngles() )
 
         local phys = wep:GetPhysicsObject()
-        if _IsValid(phys) then
-            phys:AddVelocity(velocity)
-            phys:AddAngleVelocity(Vector(200,200,200))
+        if _IsValid( phys ) then
+            phys:AddVelocity( velocity )
+            phys:AddAngleVelocity( Vector( 200, 200, 200 ) )
+
         else
-            wep:SetVelocity(velocity)
+            wep:SetVelocity( velocity )
+
         end
     else
         local iBIndex,iWeaponBoneIndex
 
-        if wep:GetBoneCount()>0 then
-            for i=0,wep:GetBoneCount()-1 do
-                iBIndex = self:LookupBone(wep:GetBoneName(i))
+        if wep:GetBoneCount() > 0 then
+            for boneIndex = 0, wep:GetBoneCount() - 1 do
+                iBIndex = self:LookupBone( wep:GetBoneName( boneIndex ) )
 
                 if iBIndex then
-                    iWeaponBoneIndex = i
+                    iWeaponBoneIndex = boneIndex
                     break
+
                 end
             end
 
             if not iBIndex then
-                iWeaponBoneIndex = wep:LookupBone("ValveBiped.Weapon_bone")
-                iBIndex = iWeaponBoneIndex and self:LookupBone("ValveBiped.Weapon_bone")
+                iWeaponBoneIndex = wep:LookupBone( "ValveBiped.Weapon_bone" )
+                iBIndex = iWeaponBoneIndex and self:LookupBone( "ValveBiped.Weapon_bone" )
+
             end
         else
-            iWeaponBoneIndex = wep:LookupBone("ValveBiped.Weapon_bone")
-            iBIndex = iWeaponBoneIndex and self:LookupBone("ValveBiped.Weapon_bone")
+            iWeaponBoneIndex = wep:LookupBone( "ValveBiped.Weapon_bone" )
+            iBIndex = iWeaponBoneIndex and self:LookupBone( "ValveBiped.Weapon_bone" )
+
         end
 
         if iBIndex then
-            local wm = wep:GetBoneMatrix(iWeaponBoneIndex)
-            local m = self:GetBoneMatrix(iBIndex)
+            local wm = wep:GetBoneMatrix( iWeaponBoneIndex )
+            local m = self:GetBoneMatrix( iBIndex )
 
-            local lp,la = WorldToLocal(wep:GetPos(),wep:GetAngles(),wm:GetTranslation(),wm:GetAngles())
-            local p,a = LocalToWorld(lp,la,m:GetTranslation(),m:GetAngles())
+            local lp,la = WorldToLocal( wep:GetPos(), wep:GetAngles(), wm:GetTranslation(), wm:GetAngles() )
+            local p,a = LocalToWorld( lp, la, m:GetTranslation(), m:GetAngles() )
 
-            wep:SetPos(p)
-            wep:SetAngles(a)
+            wep:SetPos( p )
+            wep:SetAngles( a )
+
         else
             local dir = self:GetAimVector()
             dir.z = 0
 
-            wep:SetPos(self:GetShootPos()+dir*10)
+            wep:SetPos( self:GetShootPos() + dir * 10 )
+
         end
 
         local phys = wep:GetPhysicsObject()
-        if _IsValid(phys) then
-            phys:AddVelocity(self.loco:GetVelocity())
+        if _IsValid( phys ) then
+            phys:AddVelocity( self.loco:GetVelocity() )
+
         else
-            wep:SetVelocity(self.loco:GetVelocity())
+            wep:SetVelocity( self.loco:GetVelocity() )
+
         end
     end
 

@@ -1,9 +1,9 @@
 AddCSLuaFile()
 
 if SERVER then
-    util.AddNetworkString("weapon_rpg_sb_anb.muzzleflash")
+    util.AddNetworkString( "weapon_rpg_sb_anb.muzzleflash" )
 else
-    killicon.AddFont("weapon_rpg_sb_anb_better","HL2MPTypeDeath","3",Color(255,80,0))
+    killicon.AddFont( "weapon_rpg_sb_anb_better", "HL2MPTypeDeath", "3", Color( 255, 80, 0 ) )
 end
 
 SWEP.PrintName = "#HL2_RPG"
@@ -30,9 +30,9 @@ SWEP.Secondary = {
 terminator_Extras.SetupAnalogWeight( SWEP )
 
 function SWEP:Initialize()
-    self:SetHoldType("rpg")
+    self:SetHoldType( "rpg" )
 
-    if CLIENT then self:SetNoDraw(true) end
+    if CLIENT then self:SetNoDraw( true ) end
 
 end
 
@@ -59,30 +59,30 @@ function SWEP:CanSecondaryAttack()
     return false
 end
 
+local plrRpgDmg = GetConVar( "sk_plr_dmg_rpg" )
+
 function SWEP:PrimaryAttack()
-    if !self:CanPrimaryAttack() then return end
-    if IsValid(self.Missile) then return end
+    if not self:CanPrimaryAttack() then return end
+    if IsValid( self.Missile ) then return end
 
     local owner = self:GetOwner()
 
-    self:SetNextPrimaryFire(CurTime()+0.5)
+    self:SetNextPrimaryFire( CurTime() + 0.5 )
 
-    local dir = owner:GetAimVector()
-
-    local missile = self:CreateMissile(owner:GetShootPos(),owner)
-    missile:SetSaveValue("m_hOwner",self:GetParent())
-    missile:SetSaveValue("m_flGracePeriodEndsAt",CurTime()+0.2)
-    missile:SetSaveValue("m_flDamage",GetConVarNumber("sk_plr_dmg_rpg"))
+    local missile = self:CreateMissile( owner:GetShootPos(), owner )
+    missile:SetSaveValue( "m_hOwner",self:GetParent() )
+    missile:SetSaveValue( "m_flGracePeriodEndsAt", CurTime()+ 0.2 )
+    missile:SetSaveValue( "m_flDamage", plrRpgDmg:GetFloat() )
 
     self.Missile = missile
 
-    self:GetOwner():EmitSound(Sound("Weapon_RPG.NPC_Single"))
+    self:GetOwner():EmitSound( "Weapon_RPG.NPC_Single" )
 
-    self:SetClip1(self:Clip1()-1)
+    self:SetClip1( self:Clip1() -1 )
     self:SetLastShootTime()
 end
 
-function SWEP:CreateMissile( pos, owner )
+function SWEP:CreateMissile( _, owner )
 
     local createPos, ang = self:GetProjectileOffset()
     ang = ang:Angle()
@@ -164,33 +164,33 @@ end
 
 function SWEP:DoMuzzleFlash()
     if SERVER then
-        net.Start("weapon_rpg_sb_anb.muzzleflash",true)
-            net.WriteEntity(self)
-        net.SendPVS(self:GetPos())
+        net.Start( "weapon_rpg_sb_anb.muzzleflash", true )
+            net.WriteEntity( self )
+        net.SendPVS( self:GetPos() )
     else
         local MUZZLEFLASH_RPG = 7
 
         local ef = EffectData()
-        ef:SetEntity(self:GetParent())
-        ef:SetAttachment(self:LookupAttachment("muzzle"))
-        ef:SetScale(1)
-        ef:SetFlags(MUZZLEFLASH_RPG)
-        util.Effect("MuzzleFlash",ef,false)
+        ef:SetEntity( self:GetParent() )
+        ef:SetAttachment( self:LookupAttachment( "muzzle" ) )
+        ef:SetScale( 1 )
+        ef:SetFlags( MUZZLEFLASH_RPG )
+        util.Effect( "MuzzleFlash", ef, false )
     end
 end
 
 if CLIENT then
-    net.Receive("weapon_rpg_sb_anb.muzzleflash",function(len)
+    net.Receive( "weapon_rpg_sb_anb.muzzleflash", function( _ )
         local ent = net.ReadEntity()
 
-        if IsValid(ent) and ent.DoMuzzleFlash then
+        if IsValid( ent ) and ent.DoMuzzleFlash then
             ent:DoMuzzleFlash()
         end
-    end)
+    end )
 end
 
 function SWEP:SecondaryAttack()
-    if !self:CanSecondaryAttack() then return end
+    if not self:CanSecondaryAttack() then return end
 end
 
 function SWEP:Equip()
@@ -216,7 +216,7 @@ function SWEP:CanBePickedUpByNPCs()
     return true
 end
 
-function SWEP:GetNPCBulletSpread(prof)
+function SWEP:GetNPCBulletSpread( prof )
     return 0
 end
 

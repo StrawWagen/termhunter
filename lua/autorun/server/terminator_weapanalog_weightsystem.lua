@@ -1,3 +1,4 @@
+
 terminator_Extras.EngineAnalogWeights = nil
 
 local function AnalogWeightsCheck()

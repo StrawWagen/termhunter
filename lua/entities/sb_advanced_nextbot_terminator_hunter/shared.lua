@@ -202,6 +202,7 @@ end
 local ladderOffset = 800000
 
 local function AreaOrLadderGetID( areaOrLadder )
+    if not areaOrLadder then return end
     if areaOrLadder.GetTop then
         -- never seen a navmesh with 800k areas
         return areaOrLadder:GetID() + ladderOffset
@@ -226,6 +227,7 @@ local function getNavAreaOrLadderById( areaOrLadderID )
 end
 
 local function AreaOrLadderGetCenter( areaOrLadder )
+    if not areaOrLadder then return end
     if areaOrLadder.GetTop then
         return ( areaOrLadder:GetTop() + areaOrLadder:GetBottom() ) / 2
 
@@ -237,6 +239,7 @@ end
 
 local function AreaOrLadderGetAdjacentAreas( areaOrLadder )
     local adjacents = {}
+    if not areaOrLadder then return adjacents end
     if areaOrLadder.GetTop then -- is ladder
         table.Add( adjacents, areaOrLadder:GetBottomArea() )
         table.Add( adjacents, areaOrLadder:GetTopForwardArea() )
@@ -2688,7 +2691,7 @@ function ENT:Initialize()
                         elseif self.forcedCheckPositions and table.Count( self.forcedCheckPositions ) >= 1 then
                             local myPos = self:GetPos()
                             for positionKey, position in pairs( self.forcedCheckPositions ) do
-                                if SqrDistLessThan( position:DistToSqr( myPos ), 300 ) then
+                                if SqrDistLessThan( position:DistToSqr( myPos ), 150 ) then
                                     self.forcedCheckPositions[ positionKey ] = nil
                                     break
 
@@ -3494,18 +3497,12 @@ function ENT:Initialize()
         ["movement_search"] = {
             OnStart = function( self, data )
                 --debugoverlay.Cross( self:GetPos(), 50,1, Color(255,255,255), true )
-                if not isnumber( data.searchRadius ) then
-                    data.searchRadius = 5000
 
-                end
-                if not isnumber( data.searchWant ) then
-                    data.searchWant = 50
+                data.searchRadius = data.searchRadius or 5000
+                data.searchWant = data.searchWant or 50
+                data.Time = data.Time or 0
+                data.doneSearchesNearby = data.doneSearchesNearby or 0
 
-                end
-                if not isnumber( data.Time ) then
-                    data.Time = 0
-
-                end
                 --print( "Search!" .. data.searchWant .. " " .. data.searchRadius )
                 local toPick = { nil, data.searchCenter, self.EnemyLastPos, self:GetPos() }
                 local pickedSearchCenter = PickRealVec( toPick )
@@ -3577,7 +3574,12 @@ function ENT:Initialize()
                     local rand2DOffset = VectorRand()
                     rand2DOffset.z = 0.1
                     rand2DOffset:Normalize()
-                    rand2DOffset = rand2DOffset * math.random( 300, 600 )
+                    rand2DOffset = rand2DOffset * math.random( 100, 200 )
+
+                    local searchesNearbyExp = data.doneSearchesNearby ^ 1.8
+                    local offsetScalar = 1 + ( searchesNearbyExp * 0.15 )
+
+                    rand2DOffset = rand2DOffset * offsetScalar
 
                     local newSearchCenter = data.searchCenter + rand2DOffset
                     local result = terminator_Extras.getNearestPosOnNav( newSearchCenter )
@@ -3595,6 +3597,7 @@ function ENT:Initialize()
                         searchWant = data.searchWant + -1,
                         searchCenter = newSearchCenter,
                         searchedNearCenter = data.searchedNearCenter,
+                        doneSearchesNearby = data.doneSearchesNearby + 1,
                         hateLockedDoorDist = 2000
 
                     },

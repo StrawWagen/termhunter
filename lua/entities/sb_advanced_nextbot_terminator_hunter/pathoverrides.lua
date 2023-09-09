@@ -237,7 +237,7 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
             --debugoverlay.Cross( area:GetCenter(), 10, 10, color_white, true )
 
         elseif area:GetCenter().z < flankingZRewardBegin then
-            dist = dist * 0.5
+            dist = dist * 0.9
 
         end
     end

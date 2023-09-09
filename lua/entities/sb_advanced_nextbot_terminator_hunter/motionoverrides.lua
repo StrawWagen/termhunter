@@ -627,9 +627,9 @@ local function GetJumpBlockState( self, dir, goal )
 
             local hitThingWeCanBreak = self:hitBreakable( dirConfig, dirResult )
 
-            --local color = Color( 255, 255, 255, 25 )
-            --if dirResult.Hit then color = Color( 255,0,0, 25 ) end
-            --debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 1, color )
+            local color = Color( 255, 255, 255, 25 )
+            if dirResult.Hit then color = Color( 255,0,0, 25 ) end
+            debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 1, color )
 
             -- final check!
             goalWithOverriddenZ.z = math.max( dirConfig.start.z, goal.z + 30 )
@@ -640,14 +640,17 @@ local function GetJumpBlockState( self, dir, goal )
 
             -- if we are above the goal or, if we can see it
             -- stops bot from jumping in hallways
-            local thisCheckCanCompleteJump = newStartPos.z >= goal.z or not finalCheckResult.Hit
+            local thisCheckCanCompleteJump = newStartPos.z >= goal.z
 
             --debugoverlay.Line( dirConfig.start, finalCheckResult.HitPos, 2 )
 
-            if dirResult.Hit and finalCheckResult.Hit and dirResult.HitNormal:Dot( vector_up ) < 0.65 and not hitThingWeCanBreak then
+            local checkHit = dirResult.Hit and dirResult.HitNormal:Dot( vector_up ) < 0.65 and not hitThingWeCanBreak
+
+            if checkHit then
                 checksThatHit = checksThatHit + 1
 
-            elseif thisCheckCanCompleteJump then
+            end
+            if ( not checkHit and thisCheckCanCompleteJump ) or not finalCheckResult.Hit then
                 if checksThatHit >= 1 then
                     return 1, dirConfig.start, i, dirConfig.endpos
 
@@ -727,6 +730,10 @@ function ENT:EntIsInMyWay( ent, tolerance, aheadSegment )
 
 end
 
+local speedToConsiderSmallJumps = 30^2
+local defaultSpeedToAimAtProps = 30^2
+local interruptedSpeedToAimAtProps = 100^2
+
 --[[------------------------------------
     Name: NEXTBOT:MoveAlongPath
     Desc: (INTERNAL) Process movement along path.
@@ -759,12 +766,13 @@ function ENT:MoveAlongPath( lookatgoal )
 
     local laddering = seg1sType == 4 or seg2sType == 4 or seg1sType == 5 or seg2sType == 5
     local disrespecting = self:GetCachedDisrespector()
-    local speedToStopLookingFarAhead = 30^2
+    local speedToStopLookingFarAhead = defaultSpeedToAimAtProps
     if IsValid( disrespecting ) and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
-        speedToStopLookingFarAhead = 100^2
+        speedToStopLookingFarAhead = interruptedSpeedToAimAtProps
 
     end
-    local movingSlow = self.loco:GetVelocity():LengthSqr() < speedToStopLookingFarAhead
+    local myVelLengSqr = self.loco:GetVelocity():LengthSqr()
+    local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
 
     if ( lookatgoal or movingSlow ) and self:PathIsValid() then
         local ang
@@ -985,6 +993,7 @@ function ENT:MoveAlongPath( lookatgoal )
             end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight and jumpingHeight < 64
+            local smallObstacleBlocking = smallObstacle and ( myVelLengSqr < speedToConsiderSmallJumps or self.wasDoingJumpOverSmallObstacle )
             local needsToFeelAround
             if jumpstate == 2 then
                 local nextAreasClosestPoint = aheadSegment.area:GetClosestPointOnArea( myPos )
@@ -997,7 +1006,7 @@ function ENT:MoveAlongPath( lookatgoal )
             --print( jumpstate, smallObstacle, jumptype, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, needsToFeelAround )
             if
                 jumptype or                                                     -- jump segment
-                smallObstacle or
+                smallObstacleBlocking or
                 areaSimple:HasAttributes( NAV_MESH_JUMP ) or                    -- jump area
                 droptype and jumpstate == 1 or                                  -- dropping down and there's obstacle
                 self.m_PathJump and jumpstate == 1 or
@@ -1118,8 +1127,9 @@ function ENT:MoveAlongPath( lookatgoal )
                 local subtFlattened = subtProduct
                 subtFlattened.z = 0
                 local dist2d = subtFlattened:Length2D()
+                local dist2dMaxed = math.Clamp( dist2d, 0, self.RunSpeed )
 
-                local dirProportional = dir * math.Clamp( self.RunSpeed * 0.8, self.RunSpeed / 6, dist2d * 2 )
+                local dirProportional = dir * math.Clamp( self.RunSpeed * 0.8, self.RunSpeed / 6, dist2dMaxed * 2 )
 
                 myVel.x = dirProportional.x
                 myVel.y = dirProportional.y

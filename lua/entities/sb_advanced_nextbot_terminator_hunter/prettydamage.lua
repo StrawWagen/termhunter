@@ -204,12 +204,14 @@ function ENT:OnTakeDamage( Damage )
     local attacker = Damage:GetAttacker()
     local BgDamage = 0
 
-    local class = attacker:GetClass()
+    if IsValid( attacker ) then
+        local class = attacker:GetClass()
 
-    if class == "func_door_rotating" or class == "func_door" then
-        Damage:ScaleDamage( 0 )
-        self.overrideMiniStuck = true
+        if class == "func_door_rotating" or class == "func_door" then
+            Damage:ScaleDamage( 0 )
+            self.overrideMiniStuck = true
 
+        end
     end
 
     if Damage:IsDamageType( DMG_ACID ) then --acid!
