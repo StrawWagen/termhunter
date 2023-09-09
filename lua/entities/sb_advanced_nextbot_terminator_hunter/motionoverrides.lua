@@ -627,9 +627,9 @@ local function GetJumpBlockState( self, dir, goal )
 
             local hitThingWeCanBreak = self:hitBreakable( dirConfig, dirResult )
 
-            local color = Color( 255, 255, 255, 25 )
-            if dirResult.Hit then color = Color( 255,0,0, 25 ) end
-            debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 1, color )
+            --local color = Color( 255, 255, 255, 25 )
+            --if dirResult.Hit then color = Color( 255,0,0, 25 ) end
+            --debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 1, color )
 
             -- final check!
             goalWithOverriddenZ.z = math.max( dirConfig.start.z, goal.z + 30 )
