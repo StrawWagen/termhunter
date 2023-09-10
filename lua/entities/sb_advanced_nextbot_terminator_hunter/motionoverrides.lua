@@ -341,7 +341,7 @@ function ENT:IsAngry()
         if enemy and ( enemy.isTerminatorHunterKiller or enemy.terminator_CantConvinceImFriendly ) then
             self.terminator_PermanentAngry = true
 
-        elseif self:Health() < ( self:GetMaxHealth() * 0.9 ) then
+        elseif self:Health() < ( self:GetMaxHealth() * 0.9 ) or self:IsOnFire() then
             self.terminator_PermanentAngry = true
 
         elseif self.isUnstucking then
