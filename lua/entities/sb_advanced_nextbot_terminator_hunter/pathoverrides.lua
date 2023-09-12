@@ -281,11 +281,11 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
         if not istable( navExtraDataHunter.nav1Id ) then goto skipShitConnectionDetection end
         if not navExtraDataHunter.nav1Id.shitConnnections then goto skipShitConnectionDetection end
         if navExtraDataHunter.nav1Id.shitConnnections[nav2Id] then
-            addedCost = 1500
+            addedCost = 3000
             dist = dist * 10
             if not navExtraDataHunter.nav1Id.superShitConnnections then goto skipSuperShitConnectionDetection end
             if navExtraDataHunter.nav1Id.superShitConnnections[nav2Id] then
-                addedCost = 180000
+                addedCost = 200000
             end
             ::skipSuperShitConnectionDetection::
         end

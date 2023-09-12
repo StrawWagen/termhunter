@@ -229,6 +229,17 @@ function ENT:ShouldBeEnemy( ent )
     if isPly and shouldNotSeeEnemy( self, ent ) then return false end
 
     return true
+
+end
+
+function ENT:ClearEnemyMemory( enemy )
+    enemy = enemy or self:GetEnemy()
+    self.m_EnemiesMemory[enemy] = nil
+
+    if self:GetEnemy() == enemy then
+        self:SetEnemy( NULL )
+        hook.Run( "terminator_engagedenemywasbad", self, enemy )
+    end
 end
 
 function ENT:CanSeePosition( check )

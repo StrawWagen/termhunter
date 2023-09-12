@@ -767,7 +767,7 @@ function ENT:MoveAlongPath( lookatgoal )
     local laddering = seg1sType == 4 or seg2sType == 4 or seg1sType == 5 or seg2sType == 5
     local disrespecting = self:GetCachedDisrespector()
     local speedToStopLookingFarAhead = defaultSpeedToAimAtProps
-    if IsValid( disrespecting ) and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
+    if not self.LookAheadOnlyWhenBlocked and IsValid( disrespecting ) and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
         speedToStopLookingFarAhead = interruptedSpeedToAimAtProps
 
     end

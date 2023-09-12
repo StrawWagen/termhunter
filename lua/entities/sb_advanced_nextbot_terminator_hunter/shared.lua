@@ -259,10 +259,12 @@ end
 -- areas with highest return from scorefunc are selected
 -- areas that return 0 score from scorefunc are ignored
 -- returns the best scoring area if it's further than dist or no other options exist
-local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMin )
+function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMin )
     local pos = nil
     local res = nil
     local cur = nil
+    local inf = math.huge
+
     if isvector( start ) then
         pos = start
         res = terminator_Extras.getNearestPosOnNav( pos )
@@ -327,7 +329,7 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
         local myDist = distances[areaId]
         local noMoreOptions = #openedSequential == 1 and #closedSequential >= noMoreOptionsMin
 
-        if noMoreOptions or opCount >= 300 then
+        if noMoreOptions or opCount >= 300 or bestScore == inf then
             local _,bestClosedAreaId = table.Random( closed )
             local bestClosedScore = 0
 
@@ -337,6 +339,10 @@ local function findValidNavResult( data, start, radius, scoreFunc, noMoreOptions
                 if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and isLadder[ currClosedId ] ~= true then
                     bestClosedScore = currClosedScore
                     bestClosedAreaId = currClosedId
+
+                end
+                if bestClosedScore == inf then
+                    break
 
                 end
             end
@@ -435,7 +441,7 @@ function ENT:AreaIsOrphan( potentialOrphan )
 
     local checkRadius = 700
 
-    local _, _, escaped = findValidNavResult( scoreData, potentialOrphan, checkRadius, scoreFunction, 30 )
+    local _, _, escaped = self:findValidNavResult( scoreData, potentialOrphan, checkRadius, scoreFunction, 30 )
 
     local isPotentiallyPartOfWhole = ( #unConnectedAreasSequential <= #connectedAreasSequential ) and checkedSurfaceArea > ( checkRadius^2 ) * 0.25
 
@@ -890,7 +896,7 @@ end
 function ENT:Use2( toUse )
     if toUse:IsVehicle() then return end
     hook.Run( "TerminatorUse", self, toUse )
-    toUse:Use( self, self )
+    ProtectedCall( function() toUse:Use( self, self, USE_ON ) end )
     toUse.usedByTerm = true
     local time = _CurTime()
     toUse.usedByTermTime = time
@@ -944,7 +950,7 @@ function ENT:tryToOpen( blocker, blockerTrace )
         if blocker:GetInternalVariable( "m_bLocked" ) == true and isFists and range and traceDistanceSqr < range^2 then
             self:WeaponPrimaryAttack()
 
-        elseif ( doorIsStale and isFists and terminator_Extras.CanBashDoor( blocker ) ) or doorIsVeryStale then
+        elseif ( doorIsStale and isFists and terminator_Extras.CanBashDoor( blocker ) ) or ( doorIsVeryStale and isFists ) then
             self:WeaponPrimaryAttack()
 
         elseif blocker:GetInternalVariable( "m_eDoorState" ) ~= 2 then -- door is not open
@@ -991,7 +997,7 @@ function ENT:tryToOpen( blocker, blockerTrace )
             self:ReallyAnger( 10 )
 
         elseif self.HasFists then
-            self:DropWeapon()
+            self:DoFists()
 
         end
     end
@@ -1176,7 +1182,7 @@ local function StartNewMove( self )
 
 end
 
-local function nextNewPathIsGood( self )
+function ENT:nextNewPathIsGood()
     local nextNewPath = self.nextNewPath or 0
     if nextNewPath > _CurTime() then return end
     if self.isHoppingOffLadder then return end
@@ -1184,9 +1190,9 @@ local function nextNewPathIsGood( self )
     return true
 end
 
-local function CanDoNewPath( self, pathTarget )
+function ENT:CanDoNewPath( pathTarget )
     if not isvector( pathTarget ) then return false end
-    if not nextNewPathIsGood( self ) then return false end
+    if not self:nextNewPathIsGood() then return false end
     if self.BlockNewPaths then return false end
     local NewPathDist = 1
     local Dist = self:GetPath():GetLength() or 0
@@ -1212,7 +1218,7 @@ end
 -- do this so we can store extra stuff about new paths
 function ENT:SetupPath2( endpos, isUnstuck )
     -- unstucking paths are VIP
-    if not isUnstuck and not nextNewPathIsGood( self ) then return end
+    if not isUnstuck and not self:nextNewPathIsGood() then return end
     self.nextNewPath = _CurTime() + math.Rand( 0.05, 0.1 )
 
     if not isvector( endpos ) then return end
@@ -1301,7 +1307,7 @@ function ENT:SetupPath2( endpos, isUnstuck )
         return score
 
     end
-    findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
+    self:findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
 
     -- if there was a locked door, don't remember as unreachable!
     if not wasABlockedArea then
@@ -1339,8 +1345,9 @@ function ENT:shootAt( endpos, blockShoot )
     self:SetDesiredEyeAngles( dir:Angle() )
 
     local angNeeded = 11.25
-    if self:IsFists() then
+    if self:IsMeleeWeapon() then
         angNeeded = 60
+
     end
 
     local dot = math.Clamp( self:GetAimVector():Dot( dir ), 0, 1 )
@@ -1356,9 +1363,16 @@ function ENT:shootAt( endpos, blockShoot )
                 enemy.AttackConfirmed( enemy, self )
 
             end
-            blockAttack = enemy.attackConfirmedBlock
+            if not enemy.attackConfirmedBlock then
+                self:WeaponPrimaryAttack()
+                attacked = true
+ 
+            else
+                blockAttack = true
+
+            end
         end
-        if not blockAttack then
+        if not attacked and not blockAttack then
             self:WeaponPrimaryAttack()
             self:JudgeWeapon()
             attacked = true
@@ -1427,7 +1441,7 @@ function ENT:beatUpEnt( ent, unstucking )
 
     if canHit then
         if closeAndCanHit and not self:IsFists() and self.HasFists then
-            self:DropWeapon()
+            self:DoFists()
 
         end
         blockShoot = nil
@@ -1443,7 +1457,7 @@ function ENT:beatUpEnt( ent, unstucking )
 
     end
 
-    local newPathWouldBeCheap = CanDoNewPath( self, entsRealPos )
+    local newPathWouldBeCheap = self:CanDoNewPath( entsRealPos )
     local newPath = not pathValid or ( pathValid and newPathWouldBeCheap )
     newPath = newPath and not closeAndCanHit
 
@@ -1747,7 +1761,7 @@ function ENT:ControlPath2( AimMode )
 
             end
 
-            local _, escapeArea = findValidNavResult( scoreData, self:GetPos(), 1000, scoreFunction )
+            local _, escapeArea = self:findValidNavResult( scoreData, self:GetPos(), 1000, scoreFunction )
             if not escapeArea then continue end
             if not escapeArea:IsValid() then continue end
             --debugoverlay.Cross( escapeArea:GetCenter(), 50, 100, Color( 255, 255, 0 ), true )
@@ -2081,7 +2095,7 @@ function ENT:walkArea()
 
     end
 
-    local _ = findValidNavResult( scoreData, self:GetPos(), 1000, scoreFunction )
+    local _ = self:findValidNavResult( scoreData, self:GetPos(), 1000, scoreFunction )
 end
 
 -- did we already try, and fail, to path there?
@@ -2290,7 +2304,7 @@ function ENT:Initialize()
     self:SetCurrentWeaponProficiency( WEAPON_PROFICIENCY_PERFECT )
     self.WeaponSpread = 0
 
-    local model = table.Random( self.Models )
+    local model = self.Models[ math.random( #self.Models ) ]
     if model == "terminator" then
         model = termModel()
 
@@ -2301,9 +2315,14 @@ function ENT:Initialize()
     self:DoHardcodedRelations()
     self:SetFriendly( false )
 
+    self:DoTasks()
+
     -- for stuff based on this
     self:AdditionalInitialize()
 
+end
+
+function ENT:DoTasks()
     self.TaskList = {
         ["shooting_handler"] = {
             OnStart = function( self, data )
@@ -2332,7 +2351,7 @@ function ENT:Initialize()
                 local doShootingPrevent = self.PreventShooting
 
                 if wep.terminatorCrappyWeapon == true and self.HasFists then
-                    self:DropWeapon()
+                    self:DoFists()
 
                 elseif wep:Clip1() <= 0 and wep:GetMaxClip1() > 0 then
                     self:WeaponReload()
@@ -2557,7 +2576,7 @@ function ENT:Initialize()
                         local nearestNavArea = navmesh.GetNearestNavArea( self:GetPos(), false, 10000, false, true, 2 )
 
                         for _ = 1, 10 do
-                            freedomPos = findValidNavResult( scoreData, nearestNavArea, math.random( 2000, 3000 ), scoreFunction ) -- huge position shunt since we're so stuck.
+                            freedomPos = self:findValidNavResult( scoreData, nearestNavArea, math.random( 2000, 3000 ), scoreFunction ) -- huge position shunt since we're so stuck.
                             if freedomPos then break end
                         end
 
@@ -2751,7 +2770,7 @@ function ENT:Initialize()
 
                 local canGetWep, foundWep = self:canGetWeapon()
 
-                if not nextNewPathIsGood( self ) then
+                if not self:nextNewPathIsGood() then
                     self:TaskComplete( "movement_handler" )
                     self:StartTask2( "movement_wait", { Time = 0.1 }, "wait..." )
                     return
@@ -3218,7 +3237,7 @@ function ENT:Initialize()
 
                 if data:handleCrate() == true then return end
 
-                if not nextNewPathIsGood( self ) then
+                if not self:nextNewPathIsGood() then
                     data:finishAfterwards()
                     return
 
@@ -3228,7 +3247,7 @@ function ENT:Initialize()
 
                 if self:GetRangeTo( data.Wep ) < 60 then
                     if self:HasWeapon2() then
-                        self:DropWeapon()
+                        self:DoFists()
                     end
                     self:SetupWeapon( data.Wep )
 
@@ -3284,7 +3303,7 @@ function ENT:Initialize()
 
                 if rangeToWep < 60 then
                     if self:HasWeapon2() then
-                        self:DropWeapon()
+                        self:DoFists()
                     end
                     self:SetupWeapon( data.Wep )
                 end
@@ -3369,12 +3388,12 @@ function ENT:Initialize()
                 end
 
                 if soundPos then
-                    local newPath = data.newPath or not self:primaryPathIsValid() or ( self:primaryPathIsValid() and CanDoNewPath( self, soundPos ) )
+                    local newPath = data.newPath or not self:primaryPathIsValid() or ( self:primaryPathIsValid() and self:CanDoNewPath( soundPos ) )
 
                     local killerrr = self:GetEnemy() and self:GetEnemy().isTerminatorHunterKiller
                     local nextPathTime = data.nextPathTime or 0
 
-                    if newPath and nextPathTime < CurTime() and nextNewPathIsGood( self ) and not self.isUnstucking then -- HACK
+                    if newPath and nextPathTime < CurTime() and self:nextNewPathIsGood() and not self.isUnstucking then -- HACK
                         self:GetPath():Invalidate()
                         data.newPath = nil
                         data.Unreachable = nil
@@ -3620,7 +3639,7 @@ function ENT:Initialize()
                 local CheckNavId = data.CheckNavId
                 local DistToHideSqr = myPos:DistToSqr( hidingToCheck )
 
-                if not self:primaryPathIsValid() or CanDoNewPath( self, hidingToCheck ) then
+                if not self:primaryPathIsValid() or self:CanDoNewPath( hidingToCheck ) then
                     self:SetupPath2( hidingToCheck )
                     -- search failed, try and get somewhere close!
                     if data.searchCenter and not self:primaryPathIsValid() then
@@ -3674,7 +3693,7 @@ function ENT:Initialize()
 
                     }, "i heard something nearby, i will search there!" )
 
-                elseif self:validSoundHint() and CanDoNewPath( self, self.lastHeardSoundHint.source ) then
+                elseif self:validSoundHint() and self:CanDoNewPath( self.lastHeardSoundHint.source ) then
                     self:TaskComplete( "movement_search" )
                     self:StartTask2( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
 
@@ -3799,7 +3818,7 @@ function ENT:Initialize()
 
                     end
 
-                    local searchPos = findValidNavResult( scoreData, self:GetPos(), math.random( 2000, 3500 ), scoreFunction )
+                    local searchPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 2000, 3500 ), scoreFunction )
                     --debugoverlay.Cross( searchPos, 150, 10, Color( 255,255,255 ), true )
                     self:SetupPath2( searchPos )
 
@@ -4201,7 +4220,7 @@ function ENT:Initialize()
                         return score
 
                     end
-                    local stalkPos = findValidNavResult( scoreData, self:GetPos(), math.Rand( 4000, 5000 ), scoreFunction )
+                    local stalkPos = self:findValidNavResult( scoreData, self:GetPos(), math.Rand( 4000, 5000 ), scoreFunction )
 
                     if stalkPos then
                         --debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
@@ -4497,7 +4516,7 @@ function ENT:Initialize()
             OnStart = function( self, data )
 
                 -- wait!
-                if not nextNewPathIsGood( self ) then
+                if not self:nextNewPathIsGood() then
                     self:TaskFail( "movement_flankenemy" )
                     timer.Simple( 0.1, function()
                         if not IsValid( self ) then return end
@@ -4672,7 +4691,7 @@ function ENT:Initialize()
                     predictedPos = util.TraceLine( floorTraceDat ).HitPos or predictedPos
 
                     -- first proper check
-                    if not CanDoNewPath( self, predictedPos ) then goto terminatorInterceptNewPathFail end
+                    if not self:CanDoNewPath( predictedPos ) then goto terminatorInterceptNewPathFail end
 
                     local currDist2 = predictedPos:DistToSqr( lastInterceptPosOffsetted )
                     -- end here if this would place us closer to the enemy vs last time
@@ -4768,8 +4787,8 @@ function ENT:Initialize()
 
                 if approachPos and not data.Unreachable then
                     local newPosToGoto = data.lastApproachPos and approachPos ~= data.lastApproachPos
-                    local newPath = not self:primaryPathIsValid() or newPosToGoto or ( self:primaryPathIsValid() and CanDoNewPath( self, approachPos ) )
-                    if newPath and nextNewPathIsGood( self ) then
+                    local newPath = not self:primaryPathIsValid() or newPosToGoto or ( self:primaryPathIsValid() and self:CanDoNewPath( approachPos ) )
+                    if newPath and self:nextNewPathIsGood() then
                         local snappedResult = terminator_Extras.getNearestPosOnNav( approachPos )
                         local posOnNav = snappedResult.pos
 
@@ -4847,8 +4866,8 @@ function ENT:Initialize()
 
                 if approachPos and not data.Unreachable then
                     local newPosToGoto = data.lastApproachPos and approachPos ~= data.lastApproachPos
-                    local newPath = not self:primaryPathIsValid() or newPosToGoto or ( self:primaryPathIsValid() and CanDoNewPath( self, approachPos ) )
-                    if newPath and nextNewPathIsGood( self ) then
+                    local newPath = not self:primaryPathIsValid() or newPosToGoto or ( self:primaryPathIsValid() and self:CanDoNewPath( approachPos ) )
+                    if newPath and self:nextNewPathIsGood() then
                         local snappedResult = terminator_Extras.getNearestPosOnNav( approachPos )
                         local posOnNav = snappedResult.pos
 
@@ -4925,7 +4944,7 @@ function ENT:Initialize()
                 local GoodEnemy = self.IsSeeEnemy and IsValid( enemy )
 
                 if enemyPos then
-                    local newPath = not self:primaryPathIsValid() or ( self:primaryPathIsValid() and CanDoNewPath( self, enemyPos ) )
+                    local newPath = not self:primaryPathIsValid() or ( self:primaryPathIsValid() and self:CanDoNewPath( enemyPos ) )
                     if newPath and not self.isUnstucking and not data.Unreachable then -- HACK
                         local result = terminator_Extras.getNearestPosOnNav( enemyPos )
                         local reachable = self:areaIsReachable( result.area )
@@ -5310,7 +5329,7 @@ function ENT:Initialize()
 
                 end
 
-                wanderPos = findValidNavResult( scoreData, self:GetPos(), math.random( 3000, 4000 ), scoreFunction )
+                wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 3000, 4000 ), scoreFunction )
 
                 if wanderPos then
                     self:SetupPath2( wanderPos )
@@ -5377,7 +5396,7 @@ function ENT:Initialize()
             OnStart = function( self, data )
 
                 -- wait!
-                if not nextNewPathIsGood( self ) then
+                if not self:nextNewPathIsGood() then
                     self:TaskFail( "movement_biginertia" )
                     timer.Simple( 0.1, function()
                         if not IsValid( self ) then return end
@@ -5452,7 +5471,7 @@ function ENT:Initialize()
 
                 end
 
-                wanderPos = findValidNavResult( scoreData, self:GetPos(), math.random( 5000, 6000 ), scoreFunction )
+                wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 5000, 6000 ), scoreFunction )
 
                 if foundSomewhereNotBeen == nil then
                     self.bigInertiaPreserveBeenAreas = {}
@@ -5517,7 +5536,7 @@ function ENT:Initialize()
                     self:TaskComplete( "movement_biginertia" )
                     self:StartTask2( "movement_followsound", { Sound = self.lastHeardSoundHint }, " i heard something" )
                     self.bigInertiaPreserveBeenAreas = nil
-                elseif not data.blockUnderstanding and IsValid( self.awarenessUnknown[1] ) and nextNewPathIsGood( self ) then
+                elseif not data.blockUnderstanding and IsValid( self.awarenessUnknown[1] ) and self:nextNewPathIsGood() then
                     self:TaskComplete( "movement_biginertia" )
                     self:StartTask2( "movement_understandobject", nil, "im curious" )
                     self.bigInertiaPreserveBeenAreas = data.beenAreas
@@ -5833,7 +5852,7 @@ function ENT:Initialize()
                     --debugoverlay.Text( data.bestPos, "a" .. data.bestPosScore, 10, false )
 
                 else
-                    if not self:primaryPathIsValid() or self:primaryPathIsValid() and CanDoNewPath( self, data.bestPos ) then
+                    if not self:primaryPathIsValid() or self:primaryPathIsValid() and self:CanDoNewPath( data.bestPos ) then
                         self:SetupPath2( data.bestPos )
                     end
                     local result = self:ControlPath2( not self.IsSeeEnemy )
@@ -5975,7 +5994,7 @@ function ENT:Initialize()
                     --debugoverlay.Text( data.bestPos, "a" .. data.bestPosScore, 10, false )
 
                 else
-                    if not self:primaryPathIsValid() or self:primaryPathIsValid() and CanDoNewPath( self, data.bestPos ) then
+                    if not self:primaryPathIsValid() or self:primaryPathIsValid() and self:CanDoNewPath( data.bestPos ) then
                         self:SetupPath2( data.bestPos )
                     end
                     local result = self:ControlPath2( not self.IsSeeEnemy )

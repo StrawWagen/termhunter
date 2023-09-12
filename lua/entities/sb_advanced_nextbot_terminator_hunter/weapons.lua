@@ -17,7 +17,6 @@ local EngineAnalogs = {
     --weapon_physcannon = "weapon_physcannon_sb_anb",
 }
 
-local TERM_FISTS = "weapon_terminatorfists_sb_anb"
 local crateClass = "item_item_crate"
 
 local EngineAnalogsReverse = {}
@@ -303,7 +302,7 @@ function ENT:DropWeapon( velocity, justdrop )
         end
     end
 
-    self.terminator_NextWeaponPickup = CurTime() + math.Rand( 0.5, 1 )
+    self.terminator_NextWeaponPickup = CurTime() + math.Rand( 1, 2 )
 
     return wep
 end
@@ -685,11 +684,23 @@ function ENT:IsMeleeWeapon( wep )
 end
 
 function ENT:IsFists()
-    local wep = self:GetActiveWeapon()
+    local wep = self:GetWeapon()
     if not _IsValid( wep ) then return end
-    if wep:GetClass() == TERM_FISTS then return true end
+    if wep:GetClass() == self.TERM_FISTS then return true end
 
     return nil
+
+end
+
+function ENT:DoFists()
+    if self:IsFists() then return end
+    if not self.DontDropPrimary then
+        self:DropWeapon()
+
+
+    end
+    self.terminator_NextWeaponPickup = CurTime() + 2.5
+    self:Give( self.TERM_FISTS )
 
 end
 
@@ -741,7 +752,7 @@ end )
 function ENT:HasWeapon2()
     local realWeapon = self:GetActiveWeapon():IsValid() and ( CLIENT or self:GetActiveLuaWeapon():IsValid() )
     if not realWeapon then return false end
-    local unarmed = self:GetActiveWeapon():GetClass() == TERM_FISTS
+    local unarmed = self:GetWeapon():GetClass() == self.TERM_FISTS
     return realWeapon and not unarmed
 end
 
