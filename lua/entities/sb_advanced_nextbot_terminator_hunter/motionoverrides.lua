@@ -892,12 +892,12 @@ function ENT:MoveAlongPath( lookatgoal )
     local realGapJump = nil
     if seg1sType == 3 or seg2sType == 3 then
 
-        local trStart = middle
-        trStart.z = math.max( currSegment.pos.z, aheadSegment.pos.z )
+        local middleOfGapHighestPoint = middle
+        middleOfGapHighestPoint.z = math.max( currSegment.pos.z, aheadSegment.pos.z )
 
         local noWallToJumpOverTrace = {
             start = myPos,
-            endpos = trStart,
+            endpos = middleOfGapHighestPoint,
             filter = self,
             maxs = gapJumpHull,
             mins = -gapJumpHull,
@@ -910,7 +910,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
         else
             local floorTraceDat = {
-                start = trStart,
+                start = middleOfGapHighestPoint,
                 endpos = middle + down * 40,
                 filter = self,
                 maxs = gapJumpHull,
@@ -961,8 +961,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
     if areaSimple and good then
         -- Jump support for navmesh PathFollower
-
-        local tryingToJumpUpStairs = areaSimple:HasAttributes( NAV_MESH_STAIRS ) and math.abs( myHeightToNext ) < 35
+        local tryingToJumpUpStairs = areaSimple and areaSimple:HasAttributes( NAV_MESH_STAIRS ) and math.abs( myHeightToNext ) < 25
         local blockJump = areaSimple:HasAttributes( NAV_MESH_NO_JUMP ) or tryingToJumpUpStairs or prematureGapJump
 
         if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( self.nextPathJump or 0 ) < _CurTime() then
@@ -1180,7 +1179,7 @@ function ENT:MoveAlongPath( lookatgoal )
         local catchupAfterAJump = aheadSegment.type ~= 0 and distAhead < myPos:DistToSqr( aheadSegment.pos ) and aheadSegment.length^2 < distAhead and terminator_Extras.PosCanSee( self:GetShootPos(), currSegment.pos )
 
         -- don't backtrack, we're already here!
-        if catchupAfterAJump then
+        if catchupAfterAJump or invalidJump then
             self.BiggerGoalTolerance = true
             path:SetGoalTolerance( 200000 )
 

@@ -264,6 +264,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     local res = nil
     local cur = nil
     local inf = math.huge
+    local blockRadiusEnd = data.blockRadiusEnd
 
     if isvector( start ) then
         pos = start
@@ -349,7 +350,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
             local bestClosedArea = navmesh.GetNavAreaByID( bestClosedAreaId )
             return bestClosedArea:GetCenter(), bestClosedArea, nil
 
-        elseif myDist > radius and not area.GetTop then
+        elseif not blockRadiusEnd and myDist > radius and not area.GetTop then
             return area:GetCenter(), area, true
 
         end
@@ -535,7 +536,9 @@ function ENT:ClearOrBreakable( start, endpos )
     } )
 
     local hitNothingOrHitBreakable = true
+    local hitNothing = true
     if tr.Hit then
+        hitNothing = nil
         hitNothingOrHitBreakable = nil
 
     end
@@ -549,7 +552,7 @@ function ENT:ClearOrBreakable( start, endpos )
         end
     end
 
-    return hitNothingOrHitBreakable, tr
+    return hitNothingOrHitBreakable, tr, hitNothing
 
 end
 
