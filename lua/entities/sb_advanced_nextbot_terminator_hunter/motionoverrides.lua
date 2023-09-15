@@ -496,21 +496,10 @@ end
 
 local fivePositiveZ = Vector( 0,0,5 )
 local fiftyZOffset = Vector( 0,0,50 )
-local hullSizeMul = 0.75
 local vector25Z = Vector( 0, 0, 25 )
 
--- rewrite this because the old logic was not working
--- return 0 when no blocker
--- returns 1 when its blocked but it can jump over
--- returns 2 when it should take a step back
-local function GetJumpBlockState( self, dir, goal )
-
-    local enemy = self:GetEnemy()
-    local pos = self:GetPos()
-    local b1,b2 = self:GetCollisionBounds()
-    local step = self.loco:GetStepHeight()
-    local mask = self:GetSolidMask()
-    local cgroup = self:GetCollisionGroup()
+function ENT:BoundsAdjusted( hullSizeMul )
+    local b1, b2 = self:GetCollisionBounds()
 
     b1.x = b1.x * hullSizeMul
     b1.y = b1.y * hullSizeMul
@@ -519,6 +508,85 @@ local function GetJumpBlockState( self, dir, goal )
 
     b1.z = b1.z * 0.25
     b2.z = b2.z * 0.25
+
+    return b1, b2
+
+end
+
+function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
+    local b1,b2 = self:BoundsAdjusted( 1 )
+    local mask = self:GetSolidMask()
+    local cgroup = self:GetCollisionGroup()
+
+    local dir = terminator_Extras.dirToPos( startPos, aheadPos )
+
+    local trLength = math.Clamp( startPos:Distance( aheadPos ), 50, 150 )
+
+    local defEndPos = startPos + ( dir * trLength )
+
+    -- do a trace in the dir we goin, likely flattened direction to next segment
+    -- starts even more traces if this trace hits something
+    local dirConfig = {
+        start = startPos,
+        endpos = defEndPos,
+        mins = b1,
+        maxs = b2,
+        filter = self,
+        mask = mask,
+        collisiongroup = cgroup,
+    }
+
+    local dirResult = util.TraceHull( dirConfig )
+
+    if dirResult.Hit then
+        local traceHitPositions = {}
+
+        for index = 1, 15 do
+            local offsetScale = math.log10( index ) * 300
+            local offset = VectorRand()
+            offset = dir:Cross( offset ) * offsetScale
+            local newStartPos = startPos + offset
+
+            if not util.IsInWorld( newStartPos ) then continue end
+
+            local newEndPos = defEndPos + offset
+
+            dirConfig.start = newStartPos
+            dirConfig.endpos = newEndPos
+
+            dirResult = util.TraceHull( dirConfig )
+
+            if not dirResult.Hit then
+                return newStartPos
+
+            else
+                traceHitPositions[ dirResult.Fraction ] = dirResult.HitPos
+
+            end
+        end
+
+        local bestFraction = table.maxn( traceHitPositions )
+
+        return traceHitPositions[ bestFraction ]
+
+    else
+        return dirResult.HitPos
+
+    end
+end
+
+-- rewrite this because the old logic was not working
+-- return 0 when no blocker
+-- returns 1 when its blocked but it can jump over
+-- returns 2 when it should take a step back
+function ENT:GetJumpBlockState( dir, goal )
+
+    local enemy = self:GetEnemy()
+    local pos = self:GetPos()
+    local b1,b2 = self:BoundsAdjusted( 0.75 )
+    local step = self.loco:GetStepHeight()
+    local mask = self:GetSolidMask()
+    local cgroup = self:GetCollisionGroup()
 
     local distToTrace = ( pos - goal ):Length2D()
     distToTrace = math.Clamp( distToTrace, 15, 50 )
@@ -591,7 +659,6 @@ local function GetJumpBlockState( self, dir, goal )
             collisiongroup = cgroup,
         }
         local vertResult
-
 
         local maxjump = self.MaxJumpToPosHeight * 2
 
@@ -701,6 +768,58 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
     end
     return nil
 
+end
+
+function ENT:MoveInAirTowardsVisible( toChoose, destinationArea )
+    local myPos = self:GetPos()
+    local nextPos, indexThatWasVisible, hitBreakable = self:ChooseBasedOnVisible( myPos, toChoose )
+    --debugoverlay.Cross( closestPoint, 10, 10, Color( 255, 255, 255 ), true )
+    --debugoverlay.Cross( nextAreaCenter, 10, 10, Color( 255, 255, 255 ), true )
+    --debugoverlay.Cross( validJumpable, 10, 10, Color( 255, 255, 255 ), true )
+
+    if nextPos then
+        --debugoverlay.Cross( destinationArea:GetCenter(), 10, 10, Color( 255, 255, 255 ), true )
+        --debugoverlay.Cross( destinationArea:GetCenter(), 0.5, 20, Color( 255, 255, 255 ), true )
+
+        local subtProduct = nextPos - myPos
+        local dir = ( subtProduct ):GetNormalized()
+        local myVel = self.loco:GetVelocity()
+        local subtFlattened = subtProduct
+        subtFlattened.z = 0
+        local dist2d = subtFlattened:Length2D()
+        local dist2dMaxed = math.Clamp( dist2d, 0, self.RunSpeed )
+
+        local dirProportional = dir * math.Clamp( self.RunSpeed * 0.8, self.RunSpeed / 6, dist2dMaxed * 2 )
+
+        myVel.x = dirProportional.x
+        myVel.y = dirProportional.y
+        if dir.z < -0.75 then
+            myVel.z = math.Clamp( myVel.z, -math.huge, myVel.z * 0.9 )
+
+        end
+
+        self.OverrideCrouch = _CurTime() + 1.5
+
+        local beginSetposCrouchJump = IsValid( destinationArea ) and indexThatWasVisible <= 4 and destinationArea:HasAttributes( NAV_MESH_CROUCH ) and not hitBreakable
+        local justSetposUsThere = IsValid( destinationArea ) and ( self.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( destinationArea:GetClosestPointOnArea( myPos ) ) < 40^2
+
+        -- i HATE VENTS!
+        if justSetposUsThere then
+            local setPosDist = math.Clamp( dist2d, 15, 35 )
+            self:SetPos( myPos + dir * setPosDist )
+            self.loco:SetVelocity( dir )
+            self.WasSetposCrouchJump = true
+
+        else
+            self.loco:SetVelocity( myVel )
+
+        end
+        return true
+
+    else
+        return false
+
+    end
 end
 
 local sideMul = 0.1 --  strafe mul for when bot is stepping back to find better jump spot 
@@ -952,6 +1071,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
     local jumptype = seg1sType == 2 or seg2sType == 2 or realGapJump or reallyJustAGap or validDroptypeInterpretedAsGap
     local droptype = droppingType and not dropIsReallyJustAGap
+    local dropTypeToDealwith = droptype and closeToGoal 
 
     local good = self:PathIsValid() and not self:UsingNodeGraph() and iAmOnGround
     local areaSimple = self:GetCurrentNavArea()
@@ -969,7 +1089,7 @@ function ENT:MoveAlongPath( lookatgoal )
             dir.z = 0
             dir:Normalize()
 
-            local jumpstate, jumpBlockerJumpOver, jumpingHeight, jumpBlockClearPos = GetJumpBlockState( self, dir, aheadSegment.pos, droptype )
+            local jumpstate, jumpBlockerJumpOver, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, aheadSegment.pos )
 
             self.moveAlongPathJumpingHeight = jumpingHeight or self.moveAlongPathJumpingHeight
             self.jumpBlockerJumpOver = jumpBlockerJumpOver or self.jumpBlockerJumpOver
@@ -1002,14 +1122,16 @@ function ENT:MoveAlongPath( lookatgoal )
             end
 
             --print( myHeightToNext, self.loco:GetStepHeight() )
-            --print( jumpstate, smallObstacle, jumptype, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, needsToFeelAround )
+            --print( jumpstate, smallObstacle, jumptype, droptype, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, needsToFeelAround )
             if
                 jumptype or                                                     -- jump segment
+                dropTypeToDealwith or
                 smallObstacleBlocking or
                 areaSimple:HasAttributes( NAV_MESH_JUMP ) or                    -- jump area
                 droptype and jumpstate == 1 or                                  -- dropping down and there's obstacle
                 self.m_PathJump and jumpstate == 1 or
                 needsToFeelAround
+
             then
                 local beenCloseToTheBottomOfTheJump = closeToGoal or self.beenCloseToTheBottomOfTheJump
                 self.beenCloseToTheBottomOfTheJump = beenCloseToTheBottomOfTheJump
@@ -1029,20 +1151,34 @@ function ENT:MoveAlongPath( lookatgoal )
                     self:Approach( myPos + -movingDir * moveScale )
                     doingJump = true
 
+                elseif droptype then
+                    self.m_PathJump = true
+
+                    local _, segDropdownBottom = self:GetNextPathArea( aheadSegment.area )
+                    local segAfterTheDrop = segDropdownBottom or aheadSegment
+                    self.dropdownClearPos = self:PosThatWillBringUsTowards( self:WorldSpaceCenter(), segAfterTheDrop.pos ) or self.dropdownClearPos
+
+                    if self.dropdownClearPos then
+                        self:GotoPosSimple( self.dropdownClearPos, 0 )
+                        --debugoverlay.Line( self:WorldSpaceCenter(), self.dropdownClearPos, 5, color_white, true ) 
+
+                    end
+                    if iAmOnGround then
+                        doPathUpdate = true
+
+                    end
+
                 -- nothing is stopping us from jumping!
                 elseif jumpstate == 1 or ( ( gapping or jumptype ) and beenCloseToTheBottomOfTheJump ) or ( droptype and jumpstate == 1 ) then
                     -- Performing jump
 
-                    self.m_PathJump = false
                     self.wasDoingJumpOverSmallObstacle = smallObstacle
                     self.jumpBlockClearPos = jumpBlockClearPos
                     self.loco:SetVelocity( vector_origin )
 
                     self:Jump( jumpingHeight )
-
-                    local ang = self:GetAngles()
                     doPathUpdate = true
-                    self:SetAngles( ang )
+
                 end
 
                 -- Trying deal with jump, don't update path
@@ -1050,6 +1186,7 @@ function ENT:MoveAlongPath( lookatgoal )
                 doingJump = closeToGoal
             elseif iAmOnGround and self.m_PathJump and jumpstate == 0 then
                 self.m_PathJump = false
+                self.dropdownClearPos = nil
                 self.wasDoingJumpOverSmallObstacle = nil
                 self.jumpBlockClearPos = nil
 
@@ -1057,7 +1194,7 @@ function ENT:MoveAlongPath( lookatgoal )
         end
     end
 
-    local jumpApproach = nil
+    local inAirNoDestination = nil
     -- off ground
     if not iAmOnGround and aheadSegment then
         if self:IsJumping() then
@@ -1111,54 +1248,14 @@ function ENT:MoveAlongPath( lookatgoal )
             table.insert( toChoose, validJumpableBotRelative )
             table.insert( toChoose, validJumpablePathRelative )
 
-            local nextPos, indexThatWasVisible, hitBreakable = self:ChooseBasedOnVisible( myPos, toChoose )
-            --debugoverlay.Cross( closestPoint, 10, 10, Color( 255, 255, 255 ), true )
-            --debugoverlay.Cross( nextAreaCenter, 10, 10, Color( 255, 255, 255 ), true )
-            --debugoverlay.Cross( validJumpable, 10, 10, Color( 255, 255, 255 ), true )
+            local didMove = self:MoveInAirTowardsVisible( toChoose, nextPathArea )
 
-            if nextPos then
-                --debugoverlay.Cross( nextPathArea:GetCenter(), 10, 10, Color( 255, 255, 255 ), true )
-                --debugoverlay.Cross( nextPathArea:GetCenter(), 0.5, 20, Color( 255, 255, 255 ), true )
-
-                local subtProduct = nextPos - myPos
-                local dir = ( subtProduct ):GetNormalized()
-                local myVel = self.loco:GetVelocity()
-                local subtFlattened = subtProduct
-                subtFlattened.z = 0
-                local dist2d = subtFlattened:Length2D()
-                local dist2dMaxed = math.Clamp( dist2d, 0, self.RunSpeed )
-
-                local dirProportional = dir * math.Clamp( self.RunSpeed * 0.8, self.RunSpeed / 6, dist2dMaxed * 2 )
-
-                myVel.x = dirProportional.x
-                myVel.y = dirProportional.y
-                if dir.z < -0.75 then
-                    myVel.z = math.Clamp( myVel.z, -math.huge, myVel.z * 0.9 )
-
-                end
-
-                self.OverrideCrouch = _CurTime() + 1.5
-
-                local beginSetposCrouchJump = IsValid( nextPathArea ) and indexThatWasVisible <= 4 and nextPathArea:HasAttributes( NAV_MESH_CROUCH ) and not hitBreakable
-                local justSetposUsThere = IsValid( nextPathArea ) and ( self.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( nextPathArea:GetClosestPointOnArea( myPos ) ) < 40^2
-
-                -- i HATE VENTS!
-                if justSetposUsThere then
-                    local setPosDist = math.Clamp( dist2d, 15, 35 )
-                    self:SetPos( myPos + dir * setPosDist )
-                    self.loco:SetVelocity( dir )
-                    self.WasSetposCrouchJump = true
-
-                else
-                    self.loco:SetVelocity( myVel )
-
-                end
-            else
-                jumpApproach = true
+            if didMove ~= true then
+                inAirNoDestination = true
 
             end
         else
-            jumpApproach = true
+            inAirNoDestination = true
 
         end
     elseif not isHandlingJump and iAmOnGround then
@@ -1212,19 +1309,18 @@ function ENT:MoveAlongPath( lookatgoal )
         end
     end
 
-
-    if jumpApproach == true then
+    if inAirNoDestination == true then
         if closeToGoal then
             doingJump = true
 
         end
 
-        -- not doing dropdown, cancel the non-z parts of my vel pls
+        -- dampen sideways vel when in air
         local myVel = self.loco:GetVelocity()
         local product = -myVel * 0.2
         product.z = 0
 
-        -- doing drop down, please approach the dropdown
+        -- doing drop down, please jump towards the dropdown
         if droptype and terminator_Extras.PosCanSeeComplex( myPos, currSegment.pos, self ) then
             --debugoverlay.Line( myPos, currSegment.pos, 0.2 )
             product1 = myPos - currSegment.pos
@@ -1401,11 +1497,23 @@ function ENT:GotoPosSimple( pos, distance )
     if distance ~= math.huge and self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
         local dir = terminator_Extras.dirToPos( myPos, pos )
-        local jumpstate, _, jumpingHeight = GetJumpBlockState( self, dir, pos, false )
-        if self.loco:IsOnGround() and ( jumpstate == 1 or jumpstate == 2 ) then
+        local onGround = self.loco:IsOnGround()
+        local jumpstate, _, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, pos, false )
+        if onGround and ( jumpstate == 1 or jumpstate == 2 ) then
             jumpingHeight = jumpingHeight or 64
             self:Jump( jumpingHeight + 20 )
+            self.jumpBlockClearPos = jumpBlockClearPos
+            self.moveAlongPathJumpingHeight = jumpingHeight
             return
+
+        elseif not onGround and self.m_Jumping then
+            local toChoose = {
+                pos,
+                self.jumpBlockClearPos,
+                myPos + Vector( 0,0,self.moveAlongPathJumpingHeight ),
+
+            }
+            if self:MoveInAirTowardsVisible( toChoose ) ~= true then return end
 
         end
 

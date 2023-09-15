@@ -617,7 +617,6 @@ function ENT:CanPickupWeapon(wep)
             return true
 
         else
-            debugoverlay.Cross( wepPos, 10, 10, color_white, true )
             return false
 
         end
