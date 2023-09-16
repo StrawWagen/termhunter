@@ -93,16 +93,18 @@ terminator_Extras.BearingToPos = function( pos1, ang1, pos2, ang2 )
 
 end
 
-terminator_Extras.PosCanSee = function( startPos, endPos )
+terminator_Extras.PosCanSee = function( startPos, endPos, mask )
     if not startPos then return end
     if not endPos then return end
 
-    local mask = {
+    mask = mask or terminator_Extras.LineOfSightMask
+
+    local trData = {
         start = startPos,
         endpos = endPos,
-        mask = terminator_Extras.LineOfSightMask
+        mask = mask,
     }
-    local trace = util.TraceLine( mask )
+    local trace = util.TraceLine( trData )
     return not trace.Hit, trace
 
 end
