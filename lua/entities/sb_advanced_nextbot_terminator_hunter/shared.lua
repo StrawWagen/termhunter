@@ -531,7 +531,7 @@ function ENT:ClearOrBreakable( start, endpos )
     local tr = util.TraceLine( {
         start = start,
         endpos = endpos,
-        mask = MASK_SOLID,
+        mask = MASK_SHOT,
         filter = self,
     } )
 
@@ -543,11 +543,14 @@ function ENT:ClearOrBreakable( start, endpos )
 
     end
     if IsValid( tr.Entity ) then
+        local enemy = self:GetEnemy()
+        local isVehicle = tr.Entity:IsVehicle() and tr.Entity:GetDriver() and tr.Entity:GetDriver() == enemy
         if self:memorizedAsBreakable( tr.Entity ) then
             hitNothingOrHitBreakable = true
 
-        elseif self:GetEnemy() == tr.Entity then
+        elseif enemy == tr.Entity or isVehicle then
             hitNothingOrHitBreakable = true
+            hitNothing = true
 
         end
     end
