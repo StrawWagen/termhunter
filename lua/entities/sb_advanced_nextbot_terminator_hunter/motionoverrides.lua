@@ -487,8 +487,7 @@ function ENT:ShouldCrouch()
         end
 
         local hasToCrouchToSee = self:HasToCrouchToSeeEnemy()
-
-        if hasToCrouchToSee then return hasToCrouchToSee end
+        if hasToCrouchToSee == true then return true end
 
         return self:RunTask( "ShouldCrouch" ) or false
     end
@@ -520,8 +519,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
 
     local dir = terminator_Extras.dirToPos( startPos, aheadPos )
 
-    local trLength = math.Clamp( startPos:Distance( aheadPos ), 50, 150 )
-
+    local trLength = math.Clamp( startPos:Distance( aheadPos ), 100, 300 )
     local defEndPos = startPos + ( dir * trLength )
 
     -- do a trace in the dir we goin, likely flattened direction to next segment
@@ -539,15 +537,17 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
     local dirResult = util.TraceHull( dirConfig )
 
     if dirResult.Hit then
-        local traceHitPositions = {}
+        local potentialClearPositions = {}
 
-        for index = 1, 15 do
-            local offsetScale = math.log10( index ) * 300
+        for index = 1, 25 do
+            local offsetScale = math.log( index, 20 ) * 150
             local offset = VectorRand()
             offset = dir:Cross( offset ) * offsetScale
             local newStartPos = startPos + offset
 
             if not util.IsInWorld( newStartPos ) then continue end
+
+            if not self:ClearOrBreakable( startPos, newStartPos ) then continue end
 
             local newEndPos = defEndPos + offset
 
@@ -557,17 +557,17 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
             dirResult = util.TraceHull( dirConfig )
 
             if not dirResult.Hit then
+                --debugoverlay.Line( dirConfig.start, dirResult.HitPos, 2 )
                 return newStartPos
 
             else
-                traceHitPositions[ dirResult.Fraction ] = dirResult.HitPos
+                potentialClearPositions[ dirResult.Fraction ] = newStartPos
 
             end
         end
 
-        local bestFraction = table.maxn( traceHitPositions )
-
-        return traceHitPositions[ bestFraction ]
+        local bestFraction = table.maxn( potentialClearPositions )
+        return potentialClearPositions[ bestFraction ]
 
     else
         return dirResult.HitPos
@@ -789,7 +789,7 @@ function ENT:MoveInAirTowardsVisible( toChoose, destinationArea )
         local dist2d = subtFlattened:Length2D()
         local dist2dMaxed = math.Clamp( dist2d, 0, self.RunSpeed )
 
-        local dirProportional = dir * math.Clamp( self.RunSpeed * 0.8, self.RunSpeed / 6, dist2dMaxed * 2 )
+        local dirProportional = dir * math.Clamp( self.RunSpeed * 0.8, self.RunSpeed / 10, dist2dMaxed + 50 )
 
         myVel.x = dirProportional.x
         myVel.y = dirProportional.y
@@ -1071,7 +1071,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
     local jumptype = seg1sType == 2 or seg2sType == 2 or realGapJump or reallyJustAGap or validDroptypeInterpretedAsGap
     local droptype = droppingType and not dropIsReallyJustAGap
-    local dropTypeToDealwith = droptype and closeToGoal 
+    local dropTypeToDealwith = droptype and ( closeToGoal or self.dropdownClearPos )
 
     local good = self:PathIsValid() and not self:UsingNodeGraph() and iAmOnGround
     local areaSimple = self:GetCurrentNavArea()
@@ -1153,10 +1153,15 @@ function ENT:MoveAlongPath( lookatgoal )
 
                 elseif droptype then
                     self.m_PathJump = true
-
+                    local nextDropdownCheck = self.nextDropdownCheck or 0
                     local _, segDropdownBottom = self:GetNextPathArea( aheadSegment.area )
                     local segAfterTheDrop = segDropdownBottom or aheadSegment
-                    self.dropdownClearPos = self:PosThatWillBringUsTowards( self:WorldSpaceCenter(), segAfterTheDrop.pos ) or self.dropdownClearPos
+
+                    if not self.dropdownClearPos or nextDropdownCheck < CurTime() then
+                        self.nextDropdownCheck = CurTime() + 0.6
+                        self.dropdownClearPos = self:PosThatWillBringUsTowards( self:WorldSpaceCenter(), segAfterTheDrop.pos ) or self.dropdownClearPos
+
+                    end
 
                     if self.dropdownClearPos then
                         self:GotoPosSimple( self.dropdownClearPos, 0 )
@@ -1317,15 +1322,17 @@ function ENT:MoveAlongPath( lookatgoal )
 
         -- dampen sideways vel when in air
         local myVel = self.loco:GetVelocity()
-        local product = -myVel * 0.2
+        local product = -myVel * 0.5
         product.z = 0
 
+        local dropdownTarget = self.dropdownClearPos or currSegment.pos
+
         -- doing drop down, please jump towards the dropdown
-        if droptype and terminator_Extras.PosCanSeeComplex( myPos, currSegment.pos, self ) then
+        if droptype and terminator_Extras.PosCanSeeComplex( myPos, dropdownTarget, self ) then
             --debugoverlay.Line( myPos, currSegment.pos, 0.2 )
-            product1 = myPos - currSegment.pos
+            product1 = myPos - dropdownTarget
             product1.z = 0
-            product = -product1:GetNormalized() * math.Clamp( product1:Length() * 2, 0, 200 )
+            product = -product1:GetNormalized() * math.Clamp( product1:Length() * 1.2, 0, 200 )
 
         end
         self.loco:SetVelocity( myVel + product )
@@ -1497,6 +1504,9 @@ function ENT:GotoPosSimple( pos, distance )
     if distance ~= math.huge and self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
         local dir = terminator_Extras.dirToPos( myPos, pos )
+        dir.z = dir.z * 0.15
+        dir:Normalize()
+
         local onGround = self.loco:IsOnGround()
         local jumpstate, _, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, pos, false )
         if onGround and ( jumpstate == 1 or jumpstate == 2 ) then

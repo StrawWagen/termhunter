@@ -188,12 +188,16 @@ local _IsFlagSet = entMeta.IsFlagSet
 function ENT:ShouldBeEnemy( ent )
     if _IsFlagSet( ent, FL_NOTARGET ) then return false end
     local isObject = _IsFlagSet( ent, FL_OBJECT )
+    local killer = ent.isTerminatorHunterKiller
+    -- neither an object or a killer? boring!
+    if not isObject and not killer then return false end
+    if ent.terminatorIgnoreEnt then return false end
     local isPly = ent:IsPlayer()
     local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
-    local killer = ent.isTerminatorHunterKiller
     local krangledKiller
 
     -- not interesting but it killed terminators? interesting!
+    -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
     if killer and not ( interesting or isObject ) then
         local class = ent:GetClass()
         if isKiller and not ( ent:IsNextBot() or ent:IsNPC() or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then
@@ -377,6 +381,7 @@ function ENT:HasToCrouchToSeeEnemy()
                 end
 
                 self.shouldCrouchToSeeWeight = math.Clamp( self.shouldCrouchToSeeWeight + decreaseRate, 0, math.huge )
+                -- dont stop crouching instantly!
                 if self.shouldCrouchToSeeWeight >= 1 then
                     return true
 
@@ -403,12 +408,13 @@ function ENT:HasToCrouchToSeeEnemy()
 
             if crouchWouldSee ~= true then return end
 
-            self.shouldCrouchToSeeWeight = 10
+            self.shouldCrouchToSeeWeight = 20
 
             return crouchWouldSee
 
         else
             return self.shouldCrouchToSeeWeight >= 1
+
         end
     end
 
