@@ -188,11 +188,11 @@ local _IsFlagSet = entMeta.IsFlagSet
 function ENT:ShouldBeEnemy( ent )
     if _IsFlagSet( ent, FL_NOTARGET ) then return false end
     local isObject = _IsFlagSet( ent, FL_OBJECT )
+    local isPly = ent:IsPlayer()
     local killer = ent.isTerminatorHunterKiller
     -- neither an object or a killer? boring!
-    if not isObject and not killer then return false end
+    if not isObject and not killer and not isPly then return false end
     if ent.terminatorIgnoreEnt then return false end
-    local isPly = ent:IsPlayer()
     local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
     local krangledKiller
 
