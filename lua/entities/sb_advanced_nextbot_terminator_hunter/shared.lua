@@ -1277,6 +1277,7 @@ function ENT:SetupPath2( endpos, isUnstuck )
     end
 
     if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
+    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 10 then return end
 
     --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
 
@@ -4272,7 +4273,7 @@ function ENT:DoTasks()
                     if self.IsSeeEnemy then
                         -- missing a fail here caused massive cascade
                         self:TaskFail( "movement_stalkenemy" )
-                        if self:areaIsReachable( enemyNav ) and not tooDangerousToApproach then
+                        if reachable and not tooDangerousToApproach then
                             self:StartTask2( "movement_flankenemy", { Time = 0.2 }, "i can reach them, ill just go around" )
                         else
                             self:StartTask2( "movement_stalkenemy", { Time = 0.2, PerchWhenHidden = true }, "i cant reach them, ill stand somewhere high up i can see them" )

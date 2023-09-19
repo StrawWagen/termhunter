@@ -190,8 +190,6 @@ function ENT:ShouldBeEnemy( ent )
     local isObject = _IsFlagSet( ent, FL_OBJECT )
     local isPly = ent:IsPlayer()
     local killer = ent.isTerminatorHunterKiller
-    -- neither an object, player or a killer? boring!
-    if not isObject and not isPly and not killer then return false end
     local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
     local krangledKiller
 
@@ -352,6 +350,7 @@ end
 function ENT:HasToCrouchToSeeEnemy()
     local enemy = self:GetEnemy()
     local myPos = self:GetPos()
+    local decreaseRate = -1
 
     if self.tryCrouchingToSeeEnemy and IsValid( enemy ) then
         local nextSeeCheck = self.nextCrouchWouldSeeEnemyCheck or 0
@@ -373,13 +372,10 @@ function ENT:HasToCrouchToSeeEnemy()
             local hitTheEnem = IsValid( standingSeeTraceResult.Entity ) and standingSeeTraceResult.Entity == enemy
             local standingWouldSee = hitTheEnem or not standingSeeTraceResult.Hit
 
+            -- standing would see the enemy
             if standingWouldSee then
-                local decreaseRate = -1
-                if self.IsSeeEnemy then
-                    decreaseRate = -2
-                end
-
                 self.shouldCrouchToSeeWeight = math.Clamp( self.shouldCrouchToSeeWeight + decreaseRate, 0, math.huge )
+
                 -- dont stop crouching instantly!
                 if self.shouldCrouchToSeeWeight >= 1 then
                     return true
@@ -405,11 +401,15 @@ function ENT:HasToCrouchToSeeEnemy()
             local crouchHitTheEnem = IsValid( crouchSeeTraceResult.Entity ) and crouchSeeTraceResult.Entity == enemy
             local crouchWouldSee = crouchHitTheEnem or not crouchSeeTraceResult.Hit
 
-            if crouchWouldSee ~= true then return end
+            if crouchWouldSee ~= true then
+                self.shouldCrouchToSeeWeight = math.Clamp( self.shouldCrouchToSeeWeight + decreaseRate, 0, math.huge )
+                return self.shouldCrouchToSeeWeight >= 1
 
-            self.shouldCrouchToSeeWeight = 20
+            end
 
-            return crouchWouldSee
+            self.shouldCrouchToSeeWeight = 5
+
+            return true
 
         else
             return self.shouldCrouchToSeeWeight >= 1

@@ -487,7 +487,10 @@ function ENT:ShouldCrouch()
         end
 
         local hasToCrouchToSee = self:HasToCrouchToSeeEnemy()
-        if hasToCrouchToSee == true then return true end
+        if hasToCrouchToSee == true then
+            return true
+
+        end
 
         return self:RunTask( "ShouldCrouch" ) or false
     end
