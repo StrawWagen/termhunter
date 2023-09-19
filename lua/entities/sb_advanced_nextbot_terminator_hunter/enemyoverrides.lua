@@ -192,7 +192,6 @@ function ENT:ShouldBeEnemy( ent )
     local killer = ent.isTerminatorHunterKiller
     -- neither an object, player or a killer? boring!
     if not isObject and not isPly and not killer then return false end
-    if ent.terminatorIgnoreEnt then return false end
     local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
     local krangledKiller
 
