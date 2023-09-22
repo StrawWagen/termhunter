@@ -210,7 +210,7 @@ function ENT:ShouldBeEnemy( ent )
     end
 
     if isPly and GetConVar_Local( "ai_ignoreplayers" ):GetBool() then return false end
-    if hook.Run( "terminator_cantarget", self, ent ) ~= nil then return false end
+    if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
 
     local class = ent:GetClass()
     local isDeadNPC = ent:IsNPC() and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )

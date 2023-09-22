@@ -1154,7 +1154,7 @@ function ENT:MoveAlongPath( lookatgoal )
                     self:Approach( myPos + -movingDir * moveScale )
                     doingJump = true
 
-                elseif droptype then
+                elseif dropTypeToDealwith then
                     self.m_PathJump = true
                     local nextDropdownCheck = self.nextDropdownCheck or 0
                     local _, segDropdownBottom = self:GetNextPathArea( aheadSegment.area )
