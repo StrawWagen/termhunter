@@ -787,12 +787,13 @@ end
 -- can find item crates too
 function ENT:FindWeapon()
     local searchrange = 2000
-
     local wep,weight
+
+    local _CanPickupWeapon = self.CanPickupWeapon
 
     for _, potentialWeap in ipairs( ents.FindInSphere( self:GetPos(), searchrange ) ) do
 
-        if not self:CanPickupWeapon( potentialWeap ) then continue end
+        if not _CanPickupWeapon( self, potentialWeap ) then continue end
 
         local wepWeight = self:GetWeightOfWeapon( potentialWeap )
 
@@ -800,13 +801,15 @@ function ENT:FindWeapon()
             local _, tr = terminator_Extras.PosCanSeeComplex( self:GetShootPos(), potentialWeap:WorldSpaceCenter(), self )
             if tr.Fraction > 0.25 then
                 wep = potentialWeap
-                weight = wepWeight + ( -tr.Fraction * 5 )
+
+                local failedPathsToWeap = wep.failedWeaponPaths or 0
+                weight = wepWeight + ( -tr.Fraction * 5 ) + ( -failedPathsToWeap * 5 )
 
             end
         end
     end
-
     return wep
+
 end
 
 hook.Add( "EntityTakeDamage", "terminator_trackweapondamage", function( target, dmg )
@@ -821,7 +824,10 @@ hook.Add( "EntityTakeDamage", "terminator_trackweapondamage", function( target, 
     local dmgDealt = dmg:GetDamage()
 
     -- dont give up on burst firing weaps!
-    if dmgDealt > 50 then
+    if dmgDealt > 80 then
+        dmgDealt = dmgDealt * 8
+
+    elseif dmgDealt > 40 then
         dmgDealt = dmgDealt * 2
 
     end
@@ -829,6 +835,8 @@ hook.Add( "EntityTakeDamage", "terminator_trackweapondamage", function( target, 
     weapEquipped.terminator_TrackedDamageDealt = trackedDamageDealt + dmgDealt
 
 end )
+
+--TODO: this is way too quick to mark weapons as bad in singleplayer for some reason
 
 function ENT:JudgeWeapon()
     if self:IsFists() then return end
@@ -844,19 +852,24 @@ function ENT:JudgeWeapon()
 
     local offset = 100
     if self:IsMeleeWeapon( myWeapon ) then
+        -- be much less forgiving with melee weaps!
         offset = 15
 
     end
     local offsettedAttackAttempts = trackedAttackAttempts + -offset
     local trackedDamageDealt = myWeapon.terminator_TrackedDamageDealt or 0
-    local trackedDamageScaled = trackedDamageDealt * 2 
+    local trackedDamageScaled = trackedDamageDealt * 2
 
     if offsettedAttackAttempts > trackedDamageScaled then
         terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + -5 )
-        self:DropWeapon()
         myWeapon.terminatorCrappyWeapon = true
         print( "Terminator spits in the face of a useless weapon\nphTOOEY!" )
 
+        local weightToMe = self:GetWeightOfWeapon( myWeapon )
+        if weightToMe <= 2 then
+            self:DropWeapon()
+
+        end
     end
     if not myWeapon.terminator_ReallyLikesThisOne and trackedDamageDealt > math.max( trackedAttackAttempts * 25, 250 ) then
         -- i like this one!

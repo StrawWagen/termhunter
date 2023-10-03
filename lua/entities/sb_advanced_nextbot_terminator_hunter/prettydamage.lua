@@ -214,7 +214,7 @@ function ENT:OnTakeDamage( Damage )
         end
     end
 
-    if Damage:IsDamageType( DMG_ACID ) then --acid!
+    if Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) then -- that has no effect on my skeleton!
         Damage:ScaleDamage( 0 )
         BgDamage = 40
 
@@ -233,6 +233,7 @@ function ENT:OnTakeDamage( Damage )
 
         if string.find( potentialBall:GetClass(), "ball" ) then
             potentialBall:Fire( "Explode" )
+
         end
 
         self:CatDamage()
