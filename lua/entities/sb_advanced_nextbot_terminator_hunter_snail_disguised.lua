@@ -20,6 +20,7 @@ ENT.MoveSpeed = 200
 ENT.RunSpeed = 360
 ENT.AccelerationSpeed = 1500
 ENT.JumpHeight = 70 * 2.5
+ENT.FistDamageMul = 1
 
 ENT.duelEnemyTimeoutMul = 5
 

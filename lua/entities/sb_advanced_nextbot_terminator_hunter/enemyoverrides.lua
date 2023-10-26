@@ -436,22 +436,76 @@ function ENT:DoHardcodedRelations()
 
 end
 
+local function pals( ent1, ent2 )
+    return ent1.isTerminatorHunterChummy == ent2.isTerminatorHunterChummy
+
+end
+
+local _dirToPos = terminator_Extras.dirToPos
+local _PosCanSeeComplex = terminator_Extras.PosCanSeeComplex
+local vecUp25 = Vector( 0, 0, 25 )
+
+function ENT:AnotherHunterIsHeadingToEnemy()
+    local myEnemy = self:GetEnemy()
+    if not IsValid( myEnemy ) then return end
+
+    local enemysPos = myEnemy:GetPos()
+    local enemysShootPos = self:EntShootPos( myEnemy )
+
+    local otherHunters = ents.FindByClass( "sb_advanced_nextbot_terminator_hunter*" )
+    table.Shuffle( otherHunters )
+
+    local myDirToEnemy = _dirToPos( self:GetPos(), enemysPos )
+
+    for _, hunter in ipairs( otherHunters ) do
+        if hunter ~= self and pals( self, hunter ) and hunter:PathIsValid() then
+            -- its not being sneaky!
+            if hunter.IsSeeEnemy then continue end
+
+            local path = hunter:GetPath()
+            local pathEnd = path:GetEnd()
+            local moveSpeed = hunter.MoveSpeed
+            local distNeeded = moveSpeed * 6
+
+            local pathEndDistToEnemy = pathEnd:DistToSqr( enemysPos )
+            -- way too far to be going to enemy
+            if pathEndDistToEnemy > distNeeded^2 then continue end
+
+            -- is it coming in from another direction, or is it just going straight to enemy
+            local dirDifference = ( myDirToEnemy - _dirToPos( pathEnd, enemysPos ) ):Length()
+            if dirDifference < 0.25 and pathEndDistToEnemy > moveSpeed^2 then continue end
+
+            -- finally
+            if not _PosCanSeeComplex( pathEnd + vecUp25, enemysShootPos, { enemy } ) then continue end
+
+            return true
+
+        end
+    end
+end
+
 function ENT:GetOtherHuntersProbableEntrance()
     local otherHunters = ents.FindByClass( "sb_advanced_nextbot_terminator_hunter*" )
     table.Shuffle( otherHunters )
 
     -- find a long path
     for _, hunter in ipairs( otherHunters ) do
-        if hunter ~= self and hunter.isTerminatorHunterChummy == self.isTerminatorHunterChummy and hunter:PathIsValid() and hunter:GetPath():GetLength() > 750 then
+        if hunter ~= self and pals( self, hunter ) and hunter:PathIsValid() and hunter:GetPath():GetLength() > 750 then
             return hunter:GetPathHalfwayPoint()
 
         end
     end
     -- no other long paths! just avoid the other guys if we can
     for _, hunter in ipairs( otherHunters ) do
-        if hunter ~= self and hunter.isTerminatorHunterChummy == self.isTerminatorHunterChummy then
-            return hunter:GetPos()
+        if hunter ~= self and pals( self, hunter ) then
+            if hunter.IsSeeEnemy then
+                -- between hunter and enemy
+                return ( hunter:GetPos() + hunter:GetEnemy():GetPos() ) / 2
 
+            else
+                return hunter:GetPos()
+
+            end
         end
     end
 end

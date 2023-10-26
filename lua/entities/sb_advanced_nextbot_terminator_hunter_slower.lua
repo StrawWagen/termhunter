@@ -20,3 +20,4 @@ ENT.MoveSpeed = 250
 ENT.RunSpeed = 400 -- normal speed
 ENT.AccelerationSpeed = 2000
 ENT.JumpHeight = 70 * 2.5
+ENT.FistDamageMul = 1.5

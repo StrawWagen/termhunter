@@ -1,8 +1,9 @@
 
 -- give the bot some weapons plssss!
 
+local defaultWepsToDrop = 6
 local doDropWeapons = CreateConVar( "terminator_playerdropweapons", "1", FCVAR_ARCHIVE, "Should players drop all their weapons when killed by terminators?" )
-local maxWeaponsToDrop = CreateConVar( "terminator_playerdropweapons_count", "5", FCVAR_ARCHIVE, "How many weapons to drop when terminators kill players, Default 5" )
+local maxWeaponsToDrop = CreateConVar( "terminator_playerdropweapons_droppedcount", "-1", FCVAR_ARCHIVE, "How many weapons to drop when terminators kill players, Default 6" )
 
 local function setDropWeapons( ply, attacker, _ )
     if not attacker or attacker.isTerminatorHunterBased ~= true then return end
@@ -25,6 +26,10 @@ local function setDropWeapons( ply, attacker, _ )
     end )
 
     local maxDrop = maxWeaponsToDrop:GetInt()
+    if maxDrop <= -1 then
+        maxDrop = defaultWepsToDrop
+
+    end
 
     -- randomly remove one of the worst weapons until we have just enough
     while #weapsToDrop > maxDrop do

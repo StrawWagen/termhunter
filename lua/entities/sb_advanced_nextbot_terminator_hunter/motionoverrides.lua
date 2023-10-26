@@ -317,6 +317,9 @@ function ENT:IsReallyAngry()
         elseif self:inSeriousDanger() then
             reallyAngryTime = reallyAngryTime + 60
 
+        elseif self:EnemyIsUnkillable() then
+            reallyAngryTime = reallyAngryTime + 10
+
         end
     end
 
@@ -324,6 +327,13 @@ function ENT:IsReallyAngry()
     self.terminator_ReallyAngryTime = math.max( reallyAngryTime, _CurTime() )
 
     return reallyAngry
+
+end
+
+
+function ENT:Anger( time )
+    local angryTime = self.terminator_AngryTime or _CurTime()
+    self.terminator_AngryTime = math.max( angryTime + time, _CurTime() )
 
 end
 
@@ -347,7 +357,7 @@ function ENT:IsAngry()
         elseif self.isUnstucking then
             angryTime = angryTime + 6
 
-        elseif self:inSeriousDanger() then
+        elseif self:inSeriousDanger() or self:EnemyIsUnkillable() then
             angryTime = angryTime + math.random( 5, 15 )
 
         elseif self:getLostHealth() > 0.5 then
@@ -390,7 +400,6 @@ function ENT:canDoRun()
     if nearObstacleBlockRunning > _CurTime() and not self.IsSeeEnemy then return end
     local area = self:GetCurrentNavArea()
     if not area then return end
-    if area:HasAttributes( NAV_MESH_AVOID ) then return end
     if area:HasAttributes( NAV_MESH_CLIFF ) then return end
     if area:HasAttributes( NAV_MESH_TRANSIENT ) then return end
     if area:HasAttributes( NAV_MESH_CROUCH ) then return end
@@ -401,7 +410,6 @@ function ENT:canDoRun()
     if not nextArea:IsValid() then return true end
     local myPos = self:GetPos()
     if myPos:DistToSqr( nextArea:GetClosestPointOnArea( myPos ) ) > ( self.MoveSpeed * 1.25 ) ^ 2 then return true end
-    if nextArea:HasAttributes( NAV_MESH_AVOID ) then return end
     if nextArea:HasAttributes( NAV_MESH_CLIFF ) then return end
     if nextArea:HasAttributes( NAV_MESH_TRANSIENT ) then return end
     if nextArea:HasAttributes( NAV_MESH_CROUCH ) then return end
@@ -596,6 +604,8 @@ function ENT:GetJumpBlockState( dir, goal )
 
     local defEndPos = pos + dir * distToTrace
 
+    local filter = { enemy, self }
+
     -- do a trace in the dir we goin, likely flattened direction to next segment
     -- starts even more traces if this trace hits something
     local dirConfig = {
@@ -603,7 +613,7 @@ function ENT:GetJumpBlockState( dir, goal )
         endpos = defEndPos,
         mins = b1,
         maxs = b2,
-        filter = self,
+        filter = filter,
         mask = mask,
         collisiongroup = cgroup,
     }
@@ -622,7 +632,7 @@ function ENT:GetJumpBlockState( dir, goal )
             endpos = goal + fiftyZOffset,
             mins = b1,
             maxs = b2,
-            filter = self,
+            filter = filter,
             mask = mask,
             collisiongroup = cgroup,
         }
@@ -645,7 +655,7 @@ function ENT:GetJumpBlockState( dir, goal )
         local finalCheckConfig = {
             mins = b1 / 0.75,
             maxs = b2 / 0.75,
-            filter = self,
+            filter = filter,
             mask = mask,
             collisiongroup = cgroup,
         }
@@ -657,7 +667,7 @@ function ENT:GetJumpBlockState( dir, goal )
             endpos = pos + fiftyZOffset,
             mins = b1,
             maxs = b2,
-            filter = self,
+            filter = filter,
             mask = mask,
             collisiongroup = cgroup,
         }
@@ -1154,6 +1164,7 @@ function ENT:MoveAlongPath( lookatgoal )
                     self:Approach( myPos + -movingDir * moveScale )
                     doingJump = true
 
+                -- droptypes have a habit of being over-generated, need all this code to handle finding a path "downwards"
                 elseif dropTypeToDealwith then
                     self.m_PathJump = true
                     local nextDropdownCheck = self.nextDropdownCheck or 0
@@ -1558,6 +1569,7 @@ function ENT:ExitLadder( exit, recalculate )
 
     if not pos then return end
 
+    self:GetPath():Invalidate()
     self.terminator_HandlingLadder = nil
 
     --debugoverlay.Cross( pos, 100, 1, color_white, true )
@@ -1589,11 +1601,12 @@ function ENT:ExitLadder( exit, recalculate )
         filter = self,
         mask = mask,
         collisiongroup = cgroup,
+
     }
 
     local clearResult = util.TraceHull( findHighestClearPos )
 
-    -- if bot is set to a pos that conflicts to world, it bugs out
+    -- if bot is set to a pos that makes it conflict with world, it bugs out
     self:SetPos( clearResult.HitPos )
     self.loco:SetVelocity( vector_up )
 
@@ -1607,8 +1620,6 @@ function ENT:ExitLadder( exit, recalculate )
         self.loco:SetVelocity( ladderExitVel )
 
     end )
-
-    self:GetPath():Invalidate()
 
     self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", 98, math.random( 60, 70 ) )
     util.ScreenShake( self:GetPos(), 10, 20, 0.2, 1000 )

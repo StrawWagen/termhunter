@@ -11,7 +11,7 @@ SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_crowbar.mdl"
 SWEP.WorldModel = "models/weapons/w_crowbar.mdl"
-SWEP.Weight = 6
+SWEP.Weight = 5
 
 SWEP.Primary = {
     Ammo = "None",

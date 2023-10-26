@@ -10,7 +10,7 @@ ENT.MedCal = 4
 ENT.HighCal = 80
 
 ENT.BGrpMaxHealth = {
-    [0] = 30,
+    [0] = 10,
     [1] = 150,
     [2] = 300,
     [3] = 100,
@@ -18,7 +18,7 @@ ENT.BGrpMaxHealth = {
     [5] = 120,
     [6] = 120,
 }
-ENT.BodyGroups = { 
+ENT.BodyGroups = {
     ["Glasses"] = 0,
     ["Head"] = 1,
     ["Torso"] = 2,
@@ -263,5 +263,51 @@ function ENT:OnTakeDamage( Damage )
         table.remove( ToBGs, math.random( 0, 6 ) )
         BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
 
+    end
+end
+
+function ENT:HandleWeaponOnDeath( wep, dmg )
+    if not dmg:IsDamageType( DMG_DISSOLVE ) then
+        if self:CanDropWeaponOnDie( wep ) then
+            self:DropWeapon( true )
+
+        else
+            wep:Remove()
+
+        end
+    else
+        wep = self:DropWeapon( true, wep )
+        self:DissolveEntity( wep )
+
+    end
+end
+
+function ENT:OnKilled( dmg )
+    local wep = self:GetWeapon()
+    local weaps = { wep }
+    local _, holsteredWeaps = self:GetHolsteredWeapons()
+    table.Add( weaps, holsteredWeaps )
+    for _, currWep in pairs( holsteredWeaps ) do
+        if not IsValid( currWep ) then continue end
+        self:HandleWeaponOnDeath( currWep, dmg )
+
+    end
+
+    if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
+        if dmg:IsDamageType( DMG_DISSOLVE ) then
+            self:DissolveEntity()
+
+        end
+        self:BecomeRagdoll( dmg )
+    end
+
+    self:RunTask( "OnKilled", dmg )
+    hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
+
+    for _, child in ipairs( self:GetChildren() ) do
+        if child ~= self and child:GetClass() ~= "env_entity_dissolver" then
+            child:SetNoDraw( true )
+
+        end
     end
 end

@@ -387,8 +387,6 @@ function SWEP:PrimaryAttack()
     self:SetLastShootTime()
 end
 
-local phys_pushscale = GetConVar( "phys_pushscale" )
-
 function SWEP:DealDamage()
 
     local owner = self:GetOwner()
@@ -411,8 +409,7 @@ function SWEP:DealDamage()
         } )
     end
 
-    local scale = phys_pushscale:GetFloat() * 3
-
+    local scale = 3
     local hitEnt = tr.Entity
 
     if SERVER and IsValid( hitEnt ) then
@@ -425,7 +422,7 @@ function SWEP:DealDamage()
         else
             local _, entMemoryKey = owner.getMemoryOfObject and self:GetOwner():getMemoryOfObject( hitEnt )
 
-            local dmgMul = 1
+            local dmgMul = owner.FistDamageMul
             if friendly then
                 dmgMul = 0.05
                 hitEnt.overrideMiniStuck = true
@@ -439,7 +436,7 @@ function SWEP:DealDamage()
             end
             local oldHealth = hitEnt:Health()
 
-            local damageToDeal = math.random( 30, 40 ) * dmgMul
+            local damageToDeal = math.random( 40, 50 ) * dmgMul
             local dmginfo = DamageInfo()
 
             local attacker = owner
@@ -451,7 +448,7 @@ function SWEP:DealDamage()
             dmginfo:SetDamageType( DMG_CLUB )
 
             if hitEnt:IsPlayer() or hitEnt:IsNextBot() or hitEnt:IsNPC() then
-                dmginfo:SetDamageForce( owner:GetAimVector() * 9998 * scale )
+                dmginfo:SetDamageForce( owner:GetAimVector() * 6998 * scale )
 
             end
 

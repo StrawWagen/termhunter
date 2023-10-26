@@ -106,11 +106,16 @@ function SWEP:CreateMissile( _, owner )
         local missileTargetPos = nil
         local ownerShootPos
         if owner and owner.GetEnemy and IsValid( owner:GetEnemy() ) then
+            local enemy = owner:GetEnemy()
             ownerShootPos = owner:GetShootPos()
-            local enemyShootPos = owner:EntShootPos( owner:GetEnemy() )
+            local enemysPos = enemy:GetPos()
+            if not enemy:IsOnGround() then
+                enemysPos = owner:EntShootPos( owner:GetEnemy() )
+
+            end
             local traceData = {
                 start = ownerShootPos,
-                endpos = enemyShootPos,
+                endpos = enemysPos,
                 mask = MASK_BLOCKLOS,
                 filter = missile.traceFilter,
             }
@@ -225,7 +230,7 @@ function SWEP:GetNPCBurstSettings()
 end
 
 function SWEP:GetNPCRestTimes()
-    return 4,4
+    return 2.5,2.5
 end
 
 function SWEP:GetCapabilities()
