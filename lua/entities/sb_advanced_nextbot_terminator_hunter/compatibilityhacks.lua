@@ -74,7 +74,8 @@ function ENT:SetEyeAngles()
 end
 
 function ENT:GetViewModel()
-    return nil
+    if not IsValid( self ) or CLIENT then return NULL end
+    return self:GetWeapon() or NULL
 
 end
 

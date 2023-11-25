@@ -112,7 +112,6 @@ end
 -- flanking!
 local flankingDest
 local hunterIsFlanking
-local flankingZRewardBegin
 local flankingAvoidAreas
 
 function ENT:AddAreasToFlank( areas, mul )
@@ -130,7 +129,6 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
     -- lagspike if we try to flank around area that contains the destination
     flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
     if not flankingDest then return false end
-    flankingZRewardBegin = destination.z + -96
     flankingAvoidAreas = flankingAvoidAreas or {}
     hunterIsFlanking = true
 

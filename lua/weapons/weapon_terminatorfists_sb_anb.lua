@@ -416,11 +416,11 @@ function SWEP:DealDamage()
         local Class = hitEnt:GetClass()
         local IsGlass = Class == "func_breakable_surf"
         -- teamkilling is funny but also stupid
-        local friendly = hitEnt:IsNPC() and Class == self:GetOwner():GetClass() and self:GetOwner():Disposition( hitEnt ) ~= D_HT
+        local friendly = hitEnt:IsNPC() and Class == owner:GetClass() and owner:Disposition( hitEnt ) ~= D_HT
         if IsGlass then
             hitEnt:Fire( "Shatter", tr.HitPos )
         else
-            local _, entMemoryKey = owner.getMemoryOfObject and self:GetOwner():getMemoryOfObject( hitEnt )
+            local _, entMemoryKey = owner.getMemoryOfObject and owner:getMemoryOfObject( hitEnt )
 
             local dmgMul = owner.FistDamageMul
             if friendly then
@@ -460,7 +460,10 @@ function SWEP:DealDamage()
 
             local MEMORY_BREAKABLE = 4
 
+            local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()
+
             timer.Simple( 0.1, function()
+                if isSignificant then return end
                 if not IsValid( self ) then return end
                 -- small things dont take the damage's force when in water????
                 if IsValid( hitEnt ) and hitEnt:GetVelocity():LengthSqr() < 25 ^ 2 and IsValid( hitEnt:GetPhysicsObject() ) then
@@ -469,7 +472,7 @@ function SWEP:DealDamage()
                 end
 
                 if not IsValid( hitEnt ) or ( IsValid( hitEnt ) and oldHealth > 0 and hitEnt:Health() <= 0 ) then
-                    self:GetOwner():memorizeEntAs( entMemoryKey, MEMORY_BREAKABLE )
+                    owner:memorizeEntAs( entMemoryKey, MEMORY_BREAKABLE )
 
                 end
             end )

@@ -937,9 +937,13 @@ function ENT:MoveAlongPath( lookatgoal )
 
     end
 
-    if laddering and self:TermHandleLadder( aheadSegment, currSegment ) then
-        return
+    if laddering then
+        local result = self:TermHandleLadder( aheadSegment, currSegment )
+        if result == false then
+            return result
 
+        end
+        return
     end
 
     if self.terminator_HandlingLadder then

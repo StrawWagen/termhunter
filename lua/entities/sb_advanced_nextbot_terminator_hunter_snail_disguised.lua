@@ -72,10 +72,10 @@ function ENT:MakeFootstepSound( volume, surface, mul )
             stepSound:SetSoundLevel( 88 * mul )
             stepSound:PlayEx( intVolume, 85 * mul )
 
-            local clompingLvl = 88
+            local clompingLvl = 80
 
             if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
-                clompingLvl = 78
+                clompingLvl = 70
 
             end
 

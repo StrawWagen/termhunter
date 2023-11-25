@@ -337,7 +337,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
         local noMoreOptions = #openedSequential == 1 and #closedSequential >= noMoreOptionsMin
 
         if noMoreOptions or opCount >= 300 or bestScore == inf then
-            local _,bestClosedAreaId = table.Random( closed )
+            local _, bestClosedAreaId = table.Random( closed )
             local bestClosedScore = 0
 
             for _, currClosedId in ipairs( closedSequential ) do
@@ -354,6 +354,8 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
                 end
             end
             local bestClosedArea = navmesh.GetNavAreaByID( bestClosedAreaId )
+            if not bestClosedArea then return nil, NULL, nil end -- huh??
+
             return bestClosedArea:GetCenter(), bestClosedArea, nil
 
         elseif not blockRadiusEnd and myDist > radius and area and not area.GetTop then
@@ -551,7 +553,6 @@ end
 function ENT:caresAbout( ent )
     if not IsValid( ent ) then return end
     if ent == self then return end
-    if ent.terminatorIgnoreEnt then return end
     if not IsValid( ent:GetPhysicsObject() ) then return end
     if not ent:IsSolid() then return end
     if ent:IsFlagSet( FL_WORLDBRUSH ) then return end
@@ -648,6 +649,8 @@ function ENT:understandObject( ent )
         table.insert( self.awarenessBash, ent )
 
     end
+
+    if ent.terminatorIgnoreEnt then return end
 
     if isnumber( memory ) then
         if memory == MEMORY_MEMORIZING then
@@ -1054,10 +1057,10 @@ function ENT:tryToOpen( blocker, blockerTrace )
             if doorIsStale then
                 if isFists then
                     self:WeaponPrimaryAttack()
-        
+
                 elseif self.HasFists then
                     self:DoFists()
-        
+
                 end
             elseif _CurTime() - OpenTime > 1 then
                 self:Use2( blocker )
@@ -1446,7 +1449,27 @@ function ENT:SetupPath2( endpos, isUnstuck )
     return true
 end
 
+-- this is a stupid hack
+-- fixes bot firing guns slow in multiplyer, without making bot think faster.
+-- eg m9k minigun firing at one tenth its actual fire rate
+function ENT:CreateShootingTimer()
+    local timerName = "terminator_fastshootingthink_" .. self:GetCreationID()
+    timer.Create( timerName, 0, 0, function()
+        if not IsValid( self ) then timer.Remove( timerName ) return end
+        if self.terminator_FiringIsAllowed ~= true then return end
+
+        self:WeaponPrimaryAttack()
+
+        if math.abs( self.terminator_LastFiringIsAllowed - CurTime() ) > 0.25 then
+            self.terminator_FiringIsAllowed = nil
+
+        end
+    end )
+end
+
 function ENT:shootAt( endpos, blockShoot )
+    self.terminator_FiringIsAllowed = nil
+    self.terminator_LastFiringIsAllowed = CurTime()
     if not endpos then return end
     local endposOffsetted = endpos
     local enemy = self:GetEnemy()
@@ -1481,13 +1504,14 @@ function ENT:shootAt( endpos, blockShoot )
         filter[#filter + 1] = self
         filter[#filter + 1] = enemy
         local blockAttack = nil
+        -- witness me hack for glee
         if enemy.AttackConfirmed then
             if IsValid( enemy ) and not blockShoot and enemy:Health() > 0 and self.DistToEnemy < self:GetWeaponRange() * 1.5 then
                 enemy.AttackConfirmed( enemy, self )
 
             end
             if not enemy.attackConfirmedBlock then
-                self:WeaponPrimaryAttack()
+                self.terminator_FiringIsAllowed = true
                 attacked = true
 
             else
@@ -1496,11 +1520,12 @@ function ENT:shootAt( endpos, blockShoot )
             end
         end
         if not attacked and not blockAttack then
-            self:WeaponPrimaryAttack()
+            self.terminator_FiringIsAllowed = true
+
             local nextWeaponJudge = self.nextWeaponJudge or 0
             -- fix over-judging in singleplayer
             if nextWeaponJudge < _CurTime() then
-                self.nextWeaponJudge = _CurTime() + 0.05
+                self.nextWeaponJudge = _CurTime() + 0.08
                 self:JudgeWeapon()
 
             end
@@ -1512,6 +1537,7 @@ function ENT:shootAt( endpos, blockShoot )
         out = true
     end
     return out, attacked
+
 end
 
 function ENT:canHitEnt( ent )
@@ -1859,7 +1885,8 @@ function ENT:ControlPath2( AimMode )
 
             local randOffset = math.random( -40, 40 )
 
-            local scoreFunction = function( scoreData, area1, area2 ) -- find an area that is at least in the opposite direction of our current path
+             -- find an area that is at least in the opposite direction of our current path
+            local scoreFunction = function( scoreData, area1, area2 )
                 local dirToEnd = scoreData.dirToEnd:Angle()
                 local bearing = terminator_Extras.BearingToPos( scoreData.bearingPos, dirToEnd, area2:GetCenter(), dirToEnd )
                 bearing = math.abs( bearing )
@@ -1898,7 +1925,7 @@ function ENT:ControlPath2( AimMode )
             --debugoverlay.Cross( escapeArea:GetCenter(), 50, 100, Color( 255, 255, 0 ), true )
             self:SetupPath2( escapeArea:GetRandomPoint(), true )
 
-            if self:PathIsValid() then
+            if self:PathIsValid() and myNav then
                 self.initArea = myNav
                 self.initAreaId = self.initArea:GetID()
                 break
@@ -1943,7 +1970,7 @@ function ENT:ControlPath2( AimMode )
                     self.hitTimeout = _CurTime() + 3
 
                 elseif isNailed and not isClose and visible and self:GetWeaponRange() > 500 then
-                    self:ShootAt( toBeat )
+                    self:shootAt( toBeat )
 
                 end
             -- was valid
@@ -1982,6 +2009,7 @@ function ENT:ControlPath2( AimMode )
         local DistToStart = self:GetPos():Distance( self.startUnstuckPos )
         local FarEnough = DistToStart > 200
         local MyNavArea = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
+        if not MyNavArea then return end
         local NotStart = self.initAreaId ~= MyNavArea:GetID()
 
         local Escaped = nil
@@ -2307,6 +2335,7 @@ end
 hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, inflictor )
     if not npc.isTerminatorHunterChummy then return end
     if not attacker then return end
+    if not inflictor then return end
 
     if GetConVar( "ai_ignoreplayers" ):GetBool() and attacker:IsPlayer() then return end
 
@@ -2447,6 +2476,8 @@ function ENT:Initialize()
     BaseClass.Initialize( self )
     self.terminator_DontImmiediatelyFire = CurTime()
 
+    self:CreateShootingTimer()
+
     self.isTerminatorHunterBased = true
     self.isTerminatorHunterChummy = true -- are we pals with terminators?
 
@@ -2522,7 +2553,7 @@ function ENT:DoTasks()
                 if wep.terminatorCrappyWeapon == true and self.HasFists then
                     self:DoFists()
 
-                elseif wep:Clip1() <= 0 and wep:GetMaxClip1() > 0 then
+                elseif wep:Clip1() <= 0 and wep:GetMaxClip1() > 0 and not self.IsReloadingWeapon then
                     self:WeaponReload()
 
                 -- allow us to not stop shooting at the witness player
@@ -2580,7 +2611,7 @@ function ENT:DoTasks()
                         self:shootAt( meleeAtPos, blockShoot )
 
                     end
-                elseif wep:GetMaxClip1() > 0 and wep:Clip1() < wep:GetMaxClip1() / 2 then
+                elseif ( wep:GetMaxClip1() > 0 ) and ( wep:Clip1() < wep:GetMaxClip1() / 2 ) and not self.IsReloadingWeapon then
                     self:WeaponReload()
 
                 end
@@ -3015,8 +3046,13 @@ function ENT:DoTasks()
                 if data.object.huntersglee_breakablenails then data.insane = true end
 
                 data.readHealth = data.object:Health()
-                data.timeout = _CurTime() + 8
+                if data.insane then
+                    data.timeout = _CurTime() + 50
 
+                else
+
+                    data.timeout = _CurTime() + 8
+                end
             end,
             BehaveUpdate = function( self, data, interval )
 
@@ -3077,7 +3113,7 @@ function ENT:DoTasks()
                     data.gotAHitIn = data.gotAHitIn or attacked
 
                     if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
-                        self:ShootAt( toBeat )
+                        self:shootAt( toBeat )
 
                     end
                 end
@@ -3090,7 +3126,7 @@ function ENT:DoTasks()
 
                     end
                     if data.success and data.success < _CurTime() then
-                        local validWep, potentialWep = self:canGetWeapon()
+                        local canWep, potentialWep = self:canGetWeapon()
                         if data.frenzy then
                             if #self.awarenessBash > 0 then
                                 self:TaskComplete( "movement_bashobject" )
@@ -3102,13 +3138,20 @@ function ENT:DoTasks()
                                 aBashingFrenzyTerminator = nil
                                 return
                             end
-                        elseif validWep then
-                            if self:getTheWeapon( "movement_bashobject", potentialWep ) then return end
+                        elseif canWep and self:getTheWeapon( "movement_handler", potentialWep ) then
+                            return
 
                         else
-                            self:TaskComplete( "movement_bashobject" )
-                            self:StartTask2( "movement_handler", nil, "nothin better to do" )
-                            return
+                            if data.insane then
+                                self:TaskComplete( "movement_bashobject" )
+                                self:StartTask2( "movement_searchlastdir", { Want = 8 }, "destroyed thing, time to search behind it!" )
+
+                            else
+                                self:TaskComplete( "movement_bashobject" )
+                                self:StartTask2( "movement_handler", nil, "nothin better to do" )
+                                return
+
+                            end
                         end
                     end
                 end
@@ -3427,7 +3470,7 @@ function ENT:DoTasks()
 
                 data.Wep.terminatorTaking = self
 
-                if self:GetRangeTo( data.Wep ) < 60 then
+                if self:GetRangeTo( data.Wep ) < 25 then
                     self:SetupWeapon( data.Wep )
 
                     data:finishAfterwards()
@@ -3447,12 +3490,22 @@ function ENT:DoTasks()
 
                     end
                 end
+
+                if self:CanBashLockedDoor( self:GetPos(), 500 ) then
+                    self:BashLockedDoor( "movement_getweapon" )
+
+                end
+
                 if not self:primaryPathIsValid() then
                     self:SetupPath2( data.Wep:GetPos() )
 
                 end
 
                 if not self:primaryPathIsValid() then
+                    if self:CanBashLockedDoor( nil, 1000 ) then
+                        self:BashLockedDoor( "movement_getweapon" )
+    
+                    end
                     local failedWeaponPaths = data.Wep.failedWeaponPaths or 0
                     data.Wep.failedWeaponPaths = failedWeaponPaths + 1
                     if data.Wep.failedWeaponPaths > 25 then
@@ -3827,7 +3880,7 @@ function ENT:DoTasks()
                 end
                 if data.InvalidAfterwards then
                     self:TaskFail( "movement_search" )
-                    self:StartTask2( "movement_searchlastdir", { Dir = self.EnemyLastDir, Want = 8, wasNormalSearch = true }, "i couldnt find somewhere to search" )
+                    self:StartTask2( "movement_searchlastdir", { Want = 8, wasNormalSearch = true }, "i couldnt find somewhere to search" )
                     return
 
                 end
@@ -3965,21 +4018,12 @@ function ENT:DoTasks()
                     data.Want = 10
                 end
                 data.Want = data.Want + -1
-                local Dir = nil
 
-                if isvector( data.Dir ) and data.Dir ~= vec_zero then
-                    Dir = data.Dir
-                elseif self.EnemyLastDir ~= vec_zero and isvector( self.EnemyLastDir ) then
-                    Dir = self.EnemyLastDir
-                elseif isvector( self.LastEnemyForward ) then
-                    Dir = self.LastEnemyForward
-                end
-                if Dir == nil or data.Want <= 0 then
+                if data.Want <= 0 then
                     data.InvalidAfterwards = true
                 else
                     local scoreData = {}
                     scoreData.canDoUnderWater = self:isUnderWater()
-                    scoreData.forward = Dir:Angle()
                     scoreData.self = self
                     scoreData.bearingCompare = self.EnemyLastPos or self:GetPos()
                     scoreData.visCheckArea = self:GetCurrentNavArea()
@@ -4065,7 +4109,7 @@ function ENT:DoTasks()
                         self:StartTask2( "movement_biginertia", { Want = 50 }, "im all done searching and i was in a loop" )
 
                     end
-                elseif self:CanBashLockedDoor( nil, 300 ) then
+                elseif self:CanBashLockedDoor( nil, 800 ) then
                     self:BashLockedDoor( "movement_searchlastdir" )
                 elseif IsValid( self.awarenessUnknown[1]  ) and data.Want < 1 then
                     self:TaskComplete( "movement_searchlastdir" )
@@ -4235,7 +4279,7 @@ function ENT:DoTasks()
                         self.PreventShooting = true
                     elseif theyreInForASurprise then
                         -- lots of bots watching
-                        if #enemy.terminator_TerminatorsWatching > 1 then
+                        if enemy.terminator_TerminatorsWatching and #enemy.terminator_TerminatorsWatching > 1 then
                             self:TaskComplete( "movement_watch" )
                             self:StartTask2( "movement_stalkenemy", nil, "thats enough looking" )
                             self.PreventShooting = true -- keep
@@ -4310,7 +4354,7 @@ function ENT:DoTasks()
 
                     end
                 -- that's quite a weapon!
-                elseif self:getLostHealth() > 2 or self:inSeriousDanger() then
+                elseif self:getLostHealth() > 10 or self:inSeriousDanger() then
                     if enemy then
                         enemy.terminator_CantConvinceImFriendly = true
 
@@ -4681,6 +4725,9 @@ function ENT:DoTasks()
                     self:TaskFail( "movement_stalkenemy" )
                     self:StartTask2( "movement_stalkenemy", { forcedOrbitDist = orbitDist, PerchWhenHidden = true }, "im too close to it!!" )
                     exit = true
+                elseif self:CanBashLockedDoor( nil, 800 ) then
+                    self:BashLockedDoor( "movement_stalkenemy" )
+                    exit = true
                 -- really lame to get close and have it run away
                 elseif farFarTooClose and reachable and not tooDangerousToApproach then
                     self:TaskComplete( "movement_stalkenemy" )
@@ -4731,9 +4778,6 @@ function ENT:DoTasks()
                 -- invalid path, keep stalking
                 elseif result == false then
                     valid = true
-                elseif self:CanBashLockedDoor( nil, 350 ) then
-                    self:BashLockedDoor( "movement_stalkenemy" )
-                    exit = true
                 end
                 if exit then
                     self.WasHidden = nil
@@ -4889,7 +4933,7 @@ function ENT:DoTasks()
                     self:TaskComplete( "movement_flankenemy" )
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "that hurt!" )
                     exit = true
-                elseif self:CanBashLockedDoor( nil, 350 ) then
+                elseif self:CanBashLockedDoor( nil, 800 ) then
                     self:BashLockedDoor( "movement_flankenemy" )
                     exit = true
                 elseif self.IsSeeEnemy and self.DistToEnemy < self.DuelEnemyDist then
@@ -5262,7 +5306,7 @@ function ENT:DoTasks()
                 elseif ( self:inSeriousDanger() and GoodEnemy ) or self:EnemyIsLethalInMelee() then
                     self:TaskFail( "movement_followenemy" )
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i dont want to die" )
-                elseif self:CanBashLockedDoor( enemyPos, 800 ) then
+                elseif self:CanBashLockedDoor( self:GetPos(), 1000 ) then
                     self:BashLockedDoor( "movement_followenemy" )
                 elseif data.Unreachable and GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
@@ -5348,6 +5392,8 @@ function ENT:DoTasks()
 
                 end
 
+                local fisticuffsDist = 135
+                local getWepDist = fisticuffsDist + 10
                 local canWep, potentialWep = self:canGetWeapon()
                 local distToWeapSqr = math.huge
                 local wepDistToEnemySqr = math.huge
@@ -5361,6 +5407,10 @@ function ENT:DoTasks()
                 if badEnemy then
                     data.badEnemyCounts = badEnemyCounts + 1
                     if data.badEnemyCounts > 10 or data.fightingPlayer then
+                        -- find weapons NOW!
+                        self:NextWeapSearch( -1 )
+                        canWep, potentialWep = self:canGetWeapon()
+
                         if canWep and self:getTheWeapon( "movement_duelenemy_near", potentialWep, "movement_handler" ) then
                             return
 
@@ -5409,7 +5459,7 @@ function ENT:DoTasks()
                     -- drop our weap because fists will serve us better!
                     if self.DistToEnemy < 500 and not self:IsMeleeWeapon( wep ) and wep then
                         local blockFisticuffs = wepIsReallyGood or ( enemy:IsPlayer() and enemy:GetMoveType() == MOVETYPE_NOCLIP ) -- not dropping it if you're just gonna fly away with it!
-                        local canDoFisticuffss = self.DistToEnemy < 135 or ( data.quitTime < _CurTime() and ( math.random( 0, 100 ) < 25 ) ) or reallyLowHealth
+                        local canDoFisticuffss = self.DistToEnemy < fisticuffsDist or ( data.quitTime < _CurTime() and ( math.random( 0, 100 ) < 25 ) ) or reallyLowHealth
                         local fistiCuffs = canDoFisticuffss and not blockFisticuffs
                         if fistiCuffs and self.HasFists then
                             if self:EnemyIsLethalInMelee() and not data.stalkDeathLoop then
@@ -5470,7 +5520,8 @@ function ENT:DoTasks()
                         -- closerToWeapon is more lenient, so bot gets weapons more often
                         local closerToWeapon = distToWeapSqr^2 < self.DistToEnemy^2
                         local weaponToMeLessThanWeaponToEnemy = distToWeapSqr < wepDistToEnemySqr
-                        local badDist = ( closerToWeapon and weaponToMeLessThanWeaponToEnemy and self.DistToEnemy > 125 and not reallyLowHealth ) or highUp
+                        local badDist = ( closerToWeapon and weaponToMeLessThanWeaponToEnemy and self.DistToEnemy > getWepDist and not reallyLowHealth ) or highUp
+                        local unholster = math.random( 1, 100 ) < 15 and self.DistToEnemy > getWepDist and self:IsHolsteredWeap( potentialWep )
 
                         local enemyBearingToMe = self:enemyBearingToMeAbs()
                         local quitEat = 10
@@ -5492,7 +5543,10 @@ function ENT:DoTasks()
 
                         end
 
-                        if badDist and canWep and self:getTheWeapon( "movement_duelenemy_near", potentialWep, "movement_handler" ) then
+                        local bored = quitTime <= _CurTime()
+                        local wepIsGoodIdea = unholster or badDist or bored
+
+                        if wepIsGoodIdea and canWep and self:getTheWeapon( "movement_duelenemy_near", potentialWep, "movement_handler" ) then
                             return
 
                         elseif reallyCloseToEnemy and ( not self.LastShootBlocker or self.LastShootBlocker == enemy ) then
@@ -5502,7 +5556,7 @@ function ENT:DoTasks()
                             end
                             self:GotoPosSimple( enemyPos, 10 )
 
-                        elseif quitTime > _CurTime() or tooAngryToQuit then
+                        elseif not bored or tooAngryToQuit then
 
                             local enemVel = enemy:GetVelocity()
                             local velProduct = math.Clamp( enemVel:Length() * 1.4, 0, self.DistToEnemy * 0.8 )
@@ -6060,7 +6114,7 @@ function ENT:DoTasks()
                     self.PreventShooting = nil
 
                 -- bored
-                elseif ( not self.IsSeeEnemy and lostHp > 1 ) or data.campingCounter < -data.campingStaringTolerance then
+                elseif ( not self.IsSeeEnemy and lostHp > 1 ) or data.campingCounter < -data.campingStaringTolerance or self:IsFists() then
 
                     self.campingFailures = self.campingFailures + 1
 

@@ -9,6 +9,7 @@ local function AnalogWeightsCheck()
         ["weapon_smg1"] = 2,
         ["weapon_357"] = 6,
         ["m9k_minigun"] = 10,
+        ["m9k_davy_crockett"] = 99999,
 
     }
 

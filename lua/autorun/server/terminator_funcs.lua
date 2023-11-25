@@ -137,6 +137,7 @@ terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
         collisiongroup = collisiongroup,
     }
     local trace = util.TraceLine( traceData )
-    return not trace.Hit, trace
+    local hitSomething = trace.Hit or trace.StartSolid
+    return not hitSomething, trace
 
 end

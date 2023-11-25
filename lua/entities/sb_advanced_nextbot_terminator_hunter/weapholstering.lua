@@ -16,6 +16,8 @@ end
 
 function ENT:CanHolsterWeap( wep )
     if self:IsHolsteredWeap( wep ) then return false end
+    if wep:GetClass() == self.TERM_FISTS then return false end
+
     local holsteredWeps, holsteredSlots = self:GetHolsteredWeapons()
 
     -- validate slots
@@ -77,9 +79,15 @@ local offsetsForSlots = {
 }
 
 local rotationsForSizes = {
-    x = Angle( 0, 90, 0 ),
-    y = Angle( 0, 0, 0 ),
-    z = Angle( 0, 0, 90 ),
+    xx = Angle( 0, 90, 0 ),
+    xy = Angle( 90, 0, 0 ), -- done
+    xz = Angle( 0, 90, 0 ),
+    yy = Angle( 0, 0, 90 ),
+    yx = Angle( 0, 0, 0 ), -- done
+    yz = Angle( 0, 90, 90 ), -- done
+    zy = Angle( 0, 0, 90 ),
+    zx = Angle( 0, 0, 90 ), -- done
+    zz = Angle( 0, 0, 90 ),
 
 }
 
@@ -91,7 +99,6 @@ function ENT:GetHolsterData( wep )
 
     local biggestIndex = nil
     local thinnestIndex = nil
-    local attachAngles = angZero
     local biggestSize = 0
     local thinnestSize = math.huge
 
@@ -131,8 +138,12 @@ function ENT:GetHolsterData( wep )
 
     if not holsterDat.slot then return end
 
-    local rotation = rotationsForSizes[ thinnestIndex ]
+    local rotInd = thinnestIndex .. biggestIndex
+
+    local rotation = rotationsForSizes[ rotInd ]
     local offsets = offsetsForSlots[ holsterDat.slot ]
+
+    --print( rotInd, thinnestSize, biggestSize, wep:GetClass() )
 
     if offsets.angOffset then
         rotation = rotation + offsets.angOffset

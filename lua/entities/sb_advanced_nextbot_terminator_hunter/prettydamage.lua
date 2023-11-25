@@ -148,15 +148,15 @@ local function OnDamaged( damaged, Hitgroup, Damage )
     local ToBGs = nil
     local BgDmg = false
     local BgDamage = 0
-    local DamageG = Damage:GetDamage()
+    local DamageDealt = Damage:GetDamage()
 
     if not Damage:IsExplosionDamage() then
-        if DamageG >= damaged.HighCal then
+        if DamageDealt >= damaged.HighCal then
             BgDmg = true
             BgDamage = Damage:GetDamage()
-            Damage:SetDamage( DamageG / 3.5 )
+            Damage:SetDamage( DamageDealt / 2.5 )
             MedDamage( damaged, Damage )
-        elseif DamageG > damaged.MedCal then
+        elseif DamageDealt > damaged.MedCal then
             BgDmg = true
             BgDamage = Damage:GetDamage() / 3
             Damage:SetDamage( 1 )
@@ -168,10 +168,10 @@ local function OnDamaged( damaged, Hitgroup, Damage )
             BgDamage = Damage:GetDamage() / 13
             Damage:SetDamage( 0 )
         end
-    elseif DamageG > 60 then
+    elseif DamageDealt > 60 then
         ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
         table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-        Damage:SetDamage( math.Clamp( DamageG, 0, 100 ) )
+        Damage:SetDamage( math.Clamp( DamageDealt, 0, 100 ) )
         BgDamage = 40
         damaged:CatDamage()
     end
@@ -267,37 +267,36 @@ function ENT:OnTakeDamage( Damage )
 end
 
 function ENT:HandleWeaponOnDeath( wep, dmg )
-    if not dmg:IsDamageType( DMG_DISSOLVE ) then
+    if dmg:IsDamageType( DMG_DISSOLVE ) then
+        wep = self:DropWeapon( true, wep )
+        self:DissolveEntity( wep )
+
+    else
         if self:CanDropWeaponOnDie( wep ) then
-            self:DropWeapon( true )
+            self:DropWeapon( true, wep )
 
         else
             wep:Remove()
 
         end
-    else
-        wep = self:DropWeapon( true, wep )
-        self:DissolveEntity( wep )
-
     end
 end
 
 function ENT:OnKilled( dmg )
-    local wep = self:GetWeapon()
-    local weaps = { wep }
+    local wep = self:GetActiveWeapon()
+    local weps = { wep }
+
     local _, holsteredWeaps = self:GetHolsteredWeapons()
-    table.Add( weaps, holsteredWeaps )
-    for _, currWep in pairs( holsteredWeaps ) do
+    table.Add( weps, holsteredWeaps )
+    for _, currWep in pairs( weps ) do
         if not IsValid( currWep ) then continue end
         self:HandleWeaponOnDeath( currWep, dmg )
 
     end
 
     if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
-        if dmg:IsDamageType( DMG_DISSOLVE ) then
-            self:DissolveEntity()
+        if dmg:IsDamageType( DMG_DISSOLVE ) then self:DissolveEntity() end
 
-        end
         self:BecomeRagdoll( dmg )
     end
 
@@ -305,9 +304,10 @@ function ENT:OnKilled( dmg )
     hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
     for _, child in ipairs( self:GetChildren() ) do
-        if child ~= self and child:GetClass() ~= "env_entity_dissolver" then
-            child:SetNoDraw( true )
+        if not IsValid( child ) then continue end
+        local parent = child:GetParent()
+        if not IsValid( parent ) or parent ~= self then continue end
+        child:SetNoDraw( true )
 
-        end
     end
 end

@@ -185,18 +185,20 @@ end
     Arg2: (optional) bool | justdrop | If true, just drop weapon from current hand position. Don't apply velocity and position.
     Ret1: Weapon | Dropped weapon. If active weapon is lua analog of engine weapon, then this will be engine weapon, not lua analog.
 --]]------------------------------------
-function ENT:DropWeapon( noHolster, override )
+function ENT:DropWeapon( noHolster, droppingOverride )
     local wep
-    local activeWep = self:GetActiveWeapon()
-    if IsValid( override ) then
-        local isGood = ( override == activeWep ) or self:IsHolsteredWeap( override )
+    local realWep = self:GetActiveWeapon()
+    if IsValid( droppingOverride ) then
+        local isGood = ( realWep == droppingOverride ) or self:IsHolsteredWeap( droppingOverride )
         if not isGood then return end
-        wep = override
+        wep = droppingOverride
 
     else
-        wep = activeWep
+        wep = realWep
 
     end
+
+
     if not _IsValid( wep ) then return end
 
     if wep:GetClass() == self.TERM_FISTS then
@@ -205,11 +207,7 @@ function ENT:DropWeapon( noHolster, override )
     end
 
     local actwep = self:GetActiveLuaWeapon()
-
-    velocity = velocity or self:GetEyeAngles():Forward() * 100
-    local spd = velocity:Length()
-    velocity = velocity / spd
-    velocity:Mul( math.min( spd, 400 ) )
+    local velocity = self:GetEyeAngles():Forward() * 10
 
 
     self:SetActiveWeapon( NULL )
@@ -244,38 +242,40 @@ function ENT:DropWeapon( noHolster, override )
 
     wep:SetTransmitWithParent( false )
 
-    ProtectedCall( function() actwep:OwnerChanged() end )
-    ProtectedCall( function() actwep:OnDrop() end )
+    if IsValid( actwep ) then
+        ProtectedCall( function() actwep:OwnerChanged() end )
+        ProtectedCall( function() actwep:OnDrop() end )
 
-    -- Restoring engine weapon from lua analog
-    if wep ~= actwep then
-        if actwep:Clip1() > 0 then
-            if not _IsValid( wep ) then return end
-            wep:SetClip1( actwep:Clip1() )
-
-        else
-            timer.Simple( 0, function()
+        -- Restoring engine weapon from lua analog
+        if wep ~= actwep then
+            if actwep:Clip1() > 0 then
                 if not _IsValid( wep ) then return end
-                wep:SetClip1( wep:GetMaxClip1() )
+                wep:SetClip1( actwep:Clip1() )
 
-            end )
+            else
+                timer.Simple( 0, function()
+                    if not _IsValid( wep ) then return end
+                    wep:SetClip1( wep:GetMaxClip1() )
+
+                end )
+
+            end
+            if actwep:Clip2() > 0 then
+                if not _IsValid( wep ) then return end
+                wep:SetClip2( actwep:Clip2() )
+
+            else
+                timer.Simple( 0, function()
+                    if not _IsValid( wep ) then return end
+                    wep:SetClip2( wep:GetMaxClip2() )
+
+                end )
+            end
+
+            actwep:DontDeleteOnRemove( wep )
+            actwep:Remove()
 
         end
-        if actwep:Clip2() > 0 then
-            if not _IsValid( wep ) then return end
-            wep:SetClip2( actwep:Clip2() )
-
-        else
-            timer.Simple( 0, function()
-                if not _IsValid( wep ) then return end
-                wep:SetClip2( wep:GetMaxClip2() )
-
-            end )
-        end
-
-        actwep:DontDeleteOnRemove( wep )
-        actwep:Remove()
-
     end
 
     ProtectedCall( function() self:OnWeaponDrop( wep ) end )
@@ -293,7 +293,7 @@ function ENT:DropWeapon( noHolster, override )
 
     end
 
-    if self:CanHolsterWeap( wep ) and noHolster ~= true then
+    if self:CanHolsterWeap( wep ) and noHolster ~= true and self:GetWeightOfWeapon( wep ) > 2 then -- holster wep if we can, and it's not crappy!
         self:HolsterWeap( wep )
 
     end
@@ -326,13 +326,24 @@ end
 function ENT:AssumeWeaponNextShootTime()
     local wep = self:GetWeapon()
     local wepData = self.m_WeaponData
+
     if isnumber( wep.NPC_NextPrimaryFireT ) then -- vj BASE
         return wep.NPC_NextPrimaryFireT
+
     elseif wep and wepData.Primary.NextShootTime and wepData.Primary.NextShootTime ~= 0 then
         return wepData.Primary.NextShootTime
-    elseif wep.GetNextPrimaryFire then
-        if wep.Primary.Automatic ~= true and wep.terminator_IsBurst and not self:IsAngry() then
-            return wep:GetNextPrimaryFire() + math.Rand( 0.5,1.5 )
+
+    elseif wep.GetNextPrimaryFire and not ( wep.terminator_FiredBefore and wep:GetNextPrimaryFire() == 0 ) then
+        if wep.Primary.Automatic ~= true and wep.terminator_IsBurst then
+            local nextFire = wep:GetNextPrimaryFire()
+            if self:IsAngry() then
+                nextFire = nextFire + math.Rand( 0.5, 1 )
+
+            else
+                nextFire = nextFire + math.Rand( 2, 4 )
+
+            end
+            return nextFire
 
         end
         return wep:GetNextPrimaryFire()
@@ -356,13 +367,19 @@ function ENT:CanWeaponPrimaryAttack()
     local wep = self:GetActiveLuaWeapon() or self:GetActiveWeapon()
     if not IsValid( wep ) then return false end
 
+    if self.IsReloadingWeapon then return false end
+
     if wep.terminator_NeedsEnemy and not IsValid( self:GetEnemy() ) then return false end
 
-    local noErrors, result = pcall( function() -- no MORE ERRORS!
+    if wep:GetMaxClip1() > 0 and wep:Clip1() <= 0 then return false end
+
+    local noErrors, result = nil, false
+    noErrors, result = pcall( function() -- no MORE ERRORS!
 
         local nextShoot = self:AssumeWeaponNextShootTime() or 0
 
-        if not wep or CurTime() < nextShoot then return end
+        if not wep then return false end
+        if nextShoot > CurTime() then return false end
         if wep.CanPrimaryAttack and not wep:CanPrimaryAttack() then return false end
 
         return true
@@ -390,7 +407,7 @@ end
 --]]------------------------------------
 function ENT:WeaponPrimaryAttack()
     local wep = self:GetActiveLuaWeapon() or self:GetWeapon()
-    if not self:CanWeaponPrimaryAttack() then return end
+    if self:CanWeaponPrimaryAttack() ~= true then return end
 
     local data = self.m_WeaponData.Primary
 
@@ -464,6 +481,7 @@ function ENT:WeaponPrimaryAttack()
         self:Anger( 10 )
 
     else
+        wep.terminator_FiredBefore = true
         self.terminator_LastAttack = CurTime()
 
     end
@@ -476,10 +494,10 @@ end
     Ret1: bool | Can do secondary attack
 --]]------------------------------------
 function ENT:CanWeaponSecondaryAttack()
-    if not self:HasWeapon() or CurTime()<self.m_WeaponData.Secondary.NextShootTime then return false end
-    
+    if not self:HasWeapon() or CurTime() < self.m_WeaponData.Secondary.NextShootTime then return false end
+
     local wep = self:GetActiveLuaWeapon()
-    if CurTime()<wep:GetNextSecondaryFire() then return false end
+    if CurTime() < wep:GetNextSecondaryFire() then return false end
 
     return true
 end
@@ -492,43 +510,11 @@ end
 --]]------------------------------------
 function ENT:WeaponSecondaryAttack()
     if not self:CanWeaponSecondaryAttack() then return end
-    
+
     local wep = self:GetActiveLuaWeapon()
-    
+
     ProtectedCall(function() wep:NPCShoot_Secondary(self:GetShootPos(),self:GetAimVector()) end)
     self:DoRangeGesture()
-end
-
---[[------------------------------------
-    Name: NEXTBOT:GetAimVector
-    Desc: Returns direction that used for weapon, including spread.
-    Arg1: 
-    Ret1: Vector | Aim direction.
---]]------------------------------------
-function ENT:GetAimVector()
-    local dir = self:GetEyeAngles():Forward()
-    
-    if self:HasWeapon() then
-        local deg = 0.1
-        local active = self:GetActiveLuaWeapon()
-
-        if active.NPC_CustomSpread then
-            deg = self.WeaponSpread * ( active.NPC_CustomSpread / self:GetCurrentWeaponProficiency() )
-
-        elseif isfunction( active.GetNPCBulletSpread ) then
-            deg = active:GetNPCBulletSpread( self:GetCurrentWeaponProficiency() ) / 4
-            deg = math.sin( math.rad( deg ) ) / 1.5
-
-        elseif active.Primary.Spread then
-            deg = active.Primary.Spread / 4
-
-        end
-
-        dir:Add(Vector(math.Rand(-deg,deg),math.Rand(-deg,deg),math.Rand(-deg,deg)))
-
-    end
-    
-    return dir
 end
 
 --[[------------------------------------
@@ -540,9 +526,9 @@ end
 function ENT:DoRangeGesture()
     local act = self:TranslateActivity(ACT_MP_ATTACK_STAND_PRIMARYFIRE)
     local seq = self:SelectWeightedSequence(act)
-    
+
     self:DoGesture(act)
-    
+
     return self:SequenceDuration(seq)
 end
 
@@ -553,11 +539,11 @@ end
     Ret1: number | Animation duration.
 --]]------------------------------------
 function ENT:DoReloadGesture()
-    local act = self:TranslateActivity(ACT_MP_RELOAD_STAND)
-    local seq = self:SelectWeightedSequence(act)
-    
+    local act = self:TranslateActivity( ACT_MP_RELOAD_STAND )
+    local seq = self:SelectWeightedSequence( act )
+
     self:DoGesture(act)
-    
+
     return self:SequenceDuration(seq)
 end
 
@@ -571,16 +557,24 @@ function ENT:WeaponReload()
     if not self:HasWeapon() then return end
 
     local wep = self:GetActiveLuaWeapon()
-    if wep:Clip1()>=wep:GetMaxClip1() then return end
-    if CurTime()<self.m_WeaponData.NextReloadTime then return end
+    if wep:Clip1() >= wep:GetMaxClip1() then return end
+    if CurTime() < self.m_WeaponData.NextReloadTime then return end
 
-    wep:SetClip1(wep:GetMaxClip1())
+    local reloadTime = self:DoReloadGesture()
+    self.IsReloadingWeapon = true
 
-    local time = CurTime()+self:DoReloadGesture()
+    local time = CurTime() + reloadTime
+    timer.Simple( reloadTime, function()
+        if not IsValid( self ) then return end
+        self.IsReloadingWeapon = nil
+        if not IsValid( wep ) then return end
+        wep:SetClip1( wep:GetMaxClip1() )
 
-    self.m_WeaponData.Primary.NextShootTime = math.max(time,self.m_WeaponData.Primary.NextShootTime)
-    self.m_WeaponData.Secondary.NextShootTime = math.max(time,self.m_WeaponData.Secondary.NextShootTime)
+    end )
+
     self.m_WeaponData.NextReloadTime = time
+
+    ProtectedCall( function() wep:Reload() end )
 
 end
 
@@ -657,7 +651,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered )
     if not wep:IsWeapon() then return false end
     if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then return false end
     if _IsValid( wep.terminatorTaking ) and wep.terminatorTaking ~= self then return false end
-    if self:GetWeightOfWeapon( wep ) < -50 then return false end
+    if self:GetWeightOfWeapon( wep ) < -2 then return false end
 
     if self:EnemyIsLethalInMelee() and wep:GetPos():DistToSqr( self:GetEnemy():GetPos() ) < 500^2 then return false end
 
@@ -764,7 +758,7 @@ local function weapSpread( wep )
     if wep.Cone then
         spread = wep.Cone.Ads / 2
 
-    else
+    elseif wep.Primary then
         spread = wep.Primary.Spread
 
     end
@@ -851,9 +845,46 @@ function ENT:GetWeaponRange()
 
 end
 
-hook.Add("PlayerCanPickupWeapon","SBAdvancedNextBot",function(ply,wep)
+--[[------------------------------------
+    Name: NEXTBOT:GetAimVector
+    Desc: Returns direction that used for weapon, including spread.
+    Arg1: 
+    Ret1: Vector | Aim direction.
+--]]------------------------------------
+function ENT:GetAimVector()
+    local dir = self:GetEyeAngles():Forward()
+
+    if self:HasWeapon() then
+        local deg = 0.1
+        if self.loco:GetVelocity():LengthSqr() < 10^2 then
+            deg = 0
+
+        end
+        local active = self:GetActiveLuaWeapon()
+
+        if active.NPC_CustomSpread then
+            deg = self.WeaponSpread * ( active.NPC_CustomSpread / self:GetCurrentWeaponProficiency() )
+
+        elseif isfunction( active.GetNPCBulletSpread ) then
+            deg = active:GetNPCBulletSpread( self:GetCurrentWeaponProficiency() ) / 4
+            deg = math.sin( math.rad( deg ) ) / 1.5
+
+        -- let the wep handle the spread
+        elseif weapSpread( active ) ~= 0 then
+            deg = 0
+
+        end
+
+        dir:Add( Vector( math.Rand( -deg, deg ), math.Rand( -deg, deg ), math.Rand( -deg, deg ) ) )
+
+    end
+
+    return dir
+end
+
+hook.Add( "PlayerCanPickupWeapon", "SBAdvancedNextBot", function( ply,wep )
     -- Do not allow pickup when bot carries this weapon
-    if _IsValid(wep:GetOwner()) and wep:GetOwner().SBAdvancedNextBot then
+    if _IsValid( wep:GetOwner() ) and wep:GetOwner().SBAdvancedNextBot then
         return false
     end
 
@@ -995,7 +1026,7 @@ hook.Add( "EntityTakeDamage", "terminator_trackweapondamage", function( target, 
     if not IsValid( enem ) then return end
     if enem ~= target then return end
 
-    local weapEquipped = attacker:GetWeapon()
+    local weapEquipped = attacker:GetActiveWeapon()
     if not IsValid( weapEquipped ) then return end
 
     local trackedDamageDealt = weapEquipped.terminator_TrackedDamageDealt or 0
@@ -1009,58 +1040,80 @@ hook.Add( "EntityTakeDamage", "terminator_trackweapondamage", function( target, 
     elseif dmgDealt > 40 then
         dmgDealt = dmgDealt * 2
 
+    -- what a FUN wep!
+    elseif dmg:IsExplosionDamage() then
+        dmgDealt = dmgDealt * 2
+
     end
 
     weapEquipped.terminator_TrackedDamageDealt = trackedDamageDealt + dmgDealt
 
 end )
 
---TODO: this is way too quick to mark weapons as bad in singleplayer for some reason
-
 function ENT:JudgeWeapon()
     if self:IsFists() then return end
     if not IsValid( self:GetEnemy() ) then return end
 
-    local myWeapon = self:GetWeapon()
+    local myWeapon = self:GetActiveWeapon()
     if not IsValid( myWeapon ) then return end
-    if myWeapon.terminator_IgnoreWeaponUtility then return end
+    if IsValid( self:GetActiveLuaWeapon() ) and self:GetActiveLuaWeapon().terminator_IgnoreWeaponUtility then return end
     local weapsWeightToMe = self:GetWeightOfWeapon( myWeapon )
 
-    trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0
+    local trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0
     myWeapon.terminator_TrackedAttackAttempts = trackedAttackAttempts + 1
 
-    local offset = 50
-    local scale = 3
-    if self:IsMeleeWeapon( myWeapon ) then
+    -- applied to attack attempts
+    local offset = 20
+    local tolerance = 4
+    if weapSpread( self:GetActiveLuaWeapon() ) then
+         -- normal weapon that shoots bullets!
+        offset = 50
+        tolerance = 8
+
+    elseif self:IsMeleeWeapon( myWeapon ) then
         -- be much less forgiving with melee weaps!
         offset = 10
-        scale = 0.75
+        tolerance = 1
 
     end
-    local offsettedAttackAttempts = trackedAttackAttempts + -offset
-    local trackedDamageDealt = myWeapon.terminator_TrackedDamageDealt or 0
-    local trackedDamageScaled = ( trackedDamageDealt + 10 ) * scale
 
-    if ( offsettedAttackAttempts / 2 ) > trackedDamageDealt and not myWeapon.terminator_NoLeading then
+    local trackedDamageDealt = myWeapon.terminator_TrackedDamageDealt or 0
+    local offsettedAttackAttempts = trackedAttackAttempts + -offset
+
+    local hasEvenDoneDamage = nil
+    local giveUpOnWeap = nil
+    if trackedDamageDealt > 0 then
+        hasEvenDoneDamage = true
+
+    end
+
+    if offsettedAttackAttempts > offset and not hasEvenDoneDamage then
+        giveUpOnWeap = true
+
+    elseif offsettedAttackAttempts / 2 > trackedDamageDealt and not myWeapon.terminator_NoLeading then
         -- see if this helps!
         myWeapon.terminator_NoLeading = true
 
-    end
-    if offsettedAttackAttempts > trackedDamageScaled then
-        terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + -5 )
-        print( "Terminator spits in the face of a useless weapon\nphTOOEY!" )
-        self:Anger( 5 )
-
+    elseif ( offsettedAttackAttempts / tolerance ) > trackedDamageDealt then
+        terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + -0.5 )
         local weightToMe = self:GetWeightOfWeapon( myWeapon )
+
         if weightToMe <= 2 then
-            myWeapon.terminatorCrappyWeapon = true
-            self:DropWeapon( true )
+            giveUpOnWeap = true
 
         end
+    end
+    if giveUpOnWeap then
+        print( "Terminator spits in the face of a useless weapon\n" .. myWeapon:GetClass() .. "\nphTOOEY!" )
+        self:Anger( 5 )
+        myWeapon.terminatorCrappyWeapon = true
+        self:DropWeapon( true )
+
     end
     if not myWeapon.terminator_ReallyLikesThisOne and trackedDamageDealt > math.max( trackedAttackAttempts * 25, 250 ) then
         -- i like this one!
         myWeapon.terminator_ReallyLikesThisOne = true
+        print( "Terminator finds deep satisfaction in using\n" .. myWeapon:GetClass() )
         terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + 15 )
 
     end
