@@ -67,6 +67,7 @@ entsMeta.EyeAngles = function( self )
 
 end
 
+
 function ENT:DrawViewModel()
 end
 

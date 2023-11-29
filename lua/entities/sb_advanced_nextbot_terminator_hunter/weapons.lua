@@ -882,6 +882,56 @@ function ENT:GetAimVector()
     return dir
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:SetupEyeAngles
+    Desc: (INTERNAL) Aiming bot to desired direction.
+    Arg1: 
+    Ret1: 
+--]]------------------------------------
+
+local math_max = math.max
+local math_min = math.min
+local math_abs = math.abs
+
+function ENT:SetupEyeAngles()
+    -- old angles
+    local angp = self.m_PitchAim
+    local angy = self:GetAngles().y
+
+    -- new angles
+    local desired = self:GetDesiredEyeAngles()
+    local punch = self:GetViewPunchAngles()
+
+    if self:IsControlledByPlayer() then
+        desired = self:GetControlPlayer():EyeAngles()
+    end
+
+    local diffp = math.AngleDifference( desired.p, angp )
+    local diffy = math.AngleDifference( desired.y, angy )
+    local max = self.BehaveInterval * self.AimSpeed
+
+    diffp = diffp < 0 and math_max( -max, diffp ) or math_min( max, diffp )
+    diffy = diffy < 0 and math_max( -max, diffy ) or math_min( max, diffy )
+
+    angp = angp + diffp
+    angy = angy + diffy
+
+    -- evil, horrible rare bug
+    if math_abs( angp ) > 360 then
+        angp = 0
+
+    end
+
+    self:SetAngles( Angle( 0, angy, 0 ) )
+
+    self.m_PitchAim = angp
+    self:SetPoseParameter( "aim_pitch", self.m_PitchAim + punch.p )
+    self:SetPoseParameter( "aim_yaw", punch.y )
+
+    self:SetEyeTarget( self:GetShootPos() + self:GetEyeAngles():Forward() * 100 )
+
+end
+
 hook.Add( "PlayerCanPickupWeapon", "SBAdvancedNextBot", function( ply,wep )
     -- Do not allow pickup when bot carries this weapon
     if _IsValid( wep:GetOwner() ) and wep:GetOwner().SBAdvancedNextBot then
@@ -1062,11 +1112,19 @@ function ENT:JudgeWeapon()
     local trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0
     myWeapon.terminator_TrackedAttackAttempts = trackedAttackAttempts + 1
 
+    local trackedDamageDealt = myWeapon.terminator_TrackedDamageDealt or 0
+
+    local hasEvenDoneDamage = nil
+    if trackedDamageDealt > 0 then
+        hasEvenDoneDamage = true
+
+    end
+
     -- applied to attack attempts
     local offset = 20
     local tolerance = 4
-    if weapSpread( self:GetActiveLuaWeapon() ) then
-         -- normal weapon that shoots bullets!
+    if weapSpread( self:GetActiveLuaWeapon() ) or hasEvenDoneDamage then
+        -- weapon thats useful!
         offset = 50
         tolerance = 8
 
@@ -1077,20 +1135,13 @@ function ENT:JudgeWeapon()
 
     end
 
-    local trackedDamageDealt = myWeapon.terminator_TrackedDamageDealt or 0
     local offsettedAttackAttempts = trackedAttackAttempts + -offset
-
-    local hasEvenDoneDamage = nil
     local giveUpOnWeap = nil
-    if trackedDamageDealt > 0 then
-        hasEvenDoneDamage = true
-
-    end
 
     if offsettedAttackAttempts > offset and not hasEvenDoneDamage then
         giveUpOnWeap = true
 
-    elseif offsettedAttackAttempts / 2 > trackedDamageDealt and not myWeapon.terminator_NoLeading then
+    elseif ( offsettedAttackAttempts / 2 ) > trackedDamageDealt and not myWeapon.terminator_NoLeading then
         -- see if this helps!
         myWeapon.terminator_NoLeading = true
 

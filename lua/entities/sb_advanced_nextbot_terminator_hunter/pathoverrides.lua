@@ -113,6 +113,7 @@ end
 local flankingDest
 local hunterIsFlanking
 local flankingAvoidAreas
+local isReallyAngry = nil
 
 function ENT:AddAreasToFlank( areas, mul )
     for _, avoid in ipairs( areas ) do
@@ -131,6 +132,7 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
     if not flankingDest then return false end
     flankingAvoidAreas = flankingAvoidAreas or {}
     hunterIsFlanking = true
+    isReallyAngry = self:IsReallyAngry()
 
     if flankAvoidRadius then
         self:flankAroundArea( areaToFlankAround, flankAvoidRadius )
@@ -203,22 +205,23 @@ function ENT:endFlankPath()
     flankingZRewardBegin = nil
     hunterIsFlanking = nil
     flankingAvoidAreas = nil
+    isReallyAngry = nil
 
 end
 
 --TODO: dynamically check if a NAV_TRANSIENT areas are supported by terrain, then cache the results 
 --local function isCachedTraversable( area )
 
-local _IsValid = IsValid
+local IsValid = IsValid
 
-function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
-    if not _IsValid( from ) then return 0 end
+function ENT:NavMeshPathCostGenerator( _, area, from, ladder, _, len )
+    if not IsValid( from ) then return 0 end
 
     local dist = 0
     local addedCost = 0
     local costSoFar = from:GetCostSoFar() or 0
 
-    if _IsValid( ladder ) then
+    if IsValid( ladder ) then
         local cost = ladder:GetLength() * 4
         cost = cost + 400
         return cost
@@ -246,7 +249,11 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
     end
 
     if area:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
-        dist = dist * 2 -- these usually look goofy
+        if from:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
+            dist = dist * 8
+        else
+            dist = dist * 2 -- these usually look goofy
+        end
     end
 
     local sizeX = area:GetSizeX()
@@ -333,10 +340,10 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
     elseif deltaZ <= -self.loco:GetDeathDropHeight() then
         cost = cost * 50000
 
-    elseif deltaZ <= -jumpHeight then
+    elseif not isReallyAngry and deltaZ <= -jumpHeight then
         cost = cost * 4
 
-    elseif deltaZ <= -stepHeight * 3 then
+    elseif not isReallyAngry and deltaZ <= -stepHeight * 3 then
         if hunterIsFlanking then
             cost = cost * 2
 
@@ -344,7 +351,7 @@ function ENT:NavMeshPathCostGenerator( path, area, from, ladder, _, len )
             cost = cost * 3
 
         end
-    elseif deltaZ <= -stepHeight then
+    elseif not isReallyAngry and deltaZ <= -stepHeight then
         if hunterIsFlanking then
             cost = cost * 1.2
 

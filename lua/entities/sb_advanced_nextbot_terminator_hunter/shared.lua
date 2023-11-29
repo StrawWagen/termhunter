@@ -162,7 +162,7 @@ function ENT:getBestPos( ent )
     local pos = ent:NearestPoint( shootPos )
     -- put the nearest point a bit inside the entity
     pos = ent:WorldToLocal( pos )
-    pos = pos * 0.8
+    pos = pos * 0.6
     pos = ent:LocalToWorld( pos )
 
     --debugoverlay.Cross( pos, 5, 5 )
@@ -179,9 +179,11 @@ function ENT:getBestPos( ent )
         local center = obj:GetMassCenter()
         if center ~= vec_zero then
             pos = ent:LocalToWorld( center )
+
         end
     end
     return pos
+
 end
 
 local function getUsefulPositions( area )
@@ -1541,8 +1543,9 @@ function ENT:shootAt( endpos, blockShoot )
 end
 
 function ENT:canHitEnt( ent )
+    local myShootPos = self:GetShootPos()
     local objPos = self:getBestPos( ent )
-    local behindObj = objPos + terminator_Extras.dirToPos( self:GetShootPos(), objPos ) * 40
+    local behindObj = objPos + terminator_Extras.dirToPos( myShootPos, objPos ) * 40
 
     -- use fist's mask!
     local mask = nil
@@ -1551,10 +1554,10 @@ function ENT:canHitEnt( ent )
 
     end
 
-    local _, hitTrace = terminator_Extras.PosCanSeeComplex( self:GetShootPos(), behindObj, self, mask )
+    local _, hitTrace = terminator_Extras.PosCanSeeComplex( myShootPos, behindObj, self, mask )
     --debugoverlay.Cross( hitTrace.HitPos, 10, 10 )
 
-    local closenessSqr = self:GetShootPos():DistToSqr( objPos )
+    local closenessSqr = myShootPos:DistToSqr( objPos )
     local weapDist = self:GetWeaponRange() + -20
     local hitReallyClose = SqrDistLessThan( hitTrace.HitPos:DistToSqr( behindObj ), 30 ) or SqrDistLessThan( hitTrace.HitPos:DistToSqr( objPos ), 30 )
     local visible = ( hitTrace.Entity == ent ) or hitReallyClose
@@ -1576,11 +1579,12 @@ function ENT:beatUpEnt( ent, unstucking )
     local canHit, closenessSqr, entsRealPos, _, visible = self:canHitEnt( ent )
 
     local isNear = SqrDistLessThan( closenessSqr, 500 )
+    local quiteNear = SqrDistLessThan( closenessSqr, 150 )
     local isClose = SqrDistLessThan( closenessSqr, 50 )
 
     local nearAndCanHit = canHit and isNear
     local closeAndCanHit = canHit and isClose
-    if isClose then
+    if quiteNear then
         local distIfCrouch = ( self:GetPos() + crouchingOffset ):DistToSqr( entsRealPos )
         local distIfStand = ( self:GetPos() + standingOffset ):DistToSqr( entsRealPos )
 
@@ -2071,6 +2075,8 @@ function ENT:Use( user )
     PrintTable( self.m_ActiveTasks )
     PrintTable( self.taskHistory )
     print( self.lastShootingType )
+    print( self:GetEyeAngles() )
+    print( self:GetEyeAngles(), self:GetAimVector() )
 
 end
 
