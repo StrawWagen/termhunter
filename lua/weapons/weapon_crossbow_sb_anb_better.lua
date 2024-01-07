@@ -11,7 +11,7 @@ SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_crossbow.mdl"
 SWEP.WorldModel = "models/weapons/w_crossbow.mdl"
-SWEP.Weight = 5
+SWEP.Weight = terminator_Extras.GoodWeight + -1
 
 SWEP.Primary = {
     Ammo = "XBowBolt",

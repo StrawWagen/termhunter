@@ -13,7 +13,7 @@ SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_rpg.mdl"
 SWEP.WorldModel = "models/weapons/w_rocket_launcher.mdl"
-SWEP.Weight = 6
+SWEP.Weight = terminator_Extras.GoodWeight
 
 SWEP.Primary = {
     Ammo = "RPG_Round",

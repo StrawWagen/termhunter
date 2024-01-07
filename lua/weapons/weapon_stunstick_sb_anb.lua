@@ -12,7 +12,7 @@ SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_stunstick.mdl"
 SWEP.WorldModel = "models/weapons/w_stunbaton.mdl"
-SWEP.Weight = 6
+SWEP.Weight = terminator_Extras.GoodWeight + -2
 
 terminator_Extras.SetupAnalogWeight( SWEP )
 

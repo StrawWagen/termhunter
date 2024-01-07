@@ -171,10 +171,12 @@ local function OnDamaged( damaged, Hitgroup, Damage )
     elseif DamageDealt > 60 then
         ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
         table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-        Damage:SetDamage( math.Clamp( DamageDealt, 0, 100 ) )
+        Damage:SetDamage( math.Clamp( DamageDealt, 0, 150 ) )
         BgDamage = 40
         damaged:CatDamage()
     end
+
+    damaged:TakenDamage( Damage )
 
     if BgDmg then
         if damaged:GetModel() ~= ARNOLD_MODEL then return end
@@ -221,6 +223,19 @@ function ENT:OnTakeDamage( Damage )
         ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
         BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
+    elseif Damage:IsDamageType( DMG_SHOCK ) then
+        if self.ShockDamageImmune then
+            Damage:ScaleDamage( 0.01 )
+
+        else
+            Damage:ScaleDamage( 0.5 )
+
+        end
+        BgDamage = 140
+
+        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
+
     elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 300 then --combine ball!
         Damage:SetDamage( 300 )
         BgDamage = 140
@@ -238,13 +253,6 @@ function ENT:OnTakeDamage( Damage )
 
         self:CatDamage()
         self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
-
-    elseif Damage:IsDamageType( DMG_SHOCK ) then
-        Damage:ScaleDamage( 0.5 )
-        BgDamage = 140
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
     elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or Damage:IsDamageType( DMG_DIRECT ) then -- fire damage!
         Damage:ScaleDamage( 0 )
@@ -264,6 +272,9 @@ function ENT:OnTakeDamage( Damage )
         BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
 
     end
+
+    self:TakenDamage( Damage )
+
 end
 
 function ENT:HandleWeaponOnDeath( wep, dmg )
@@ -295,8 +306,13 @@ function ENT:OnKilled( dmg )
     end
 
     if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
-        if dmg:IsDamageType( DMG_DISSOLVE ) then self:DissolveEntity() end
+        if dmg:IsDamageType( DMG_DISSOLVE ) then
+            self:DissolveEntity()
 
+        else
+            hook.Run( "OnTerminatorKilledRagdoll", self, dmg:GetAttacker(), dmg:GetInflictor() )
+
+        end
         self:BecomeRagdoll( dmg )
     end
 

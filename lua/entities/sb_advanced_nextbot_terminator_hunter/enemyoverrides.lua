@@ -57,6 +57,7 @@ local function shouldNotSeeEnemy( me, enemy )
     if a == 255 then return end -- dont waste any more performance
     if a > maxSeen then return end
     if not me:CanSeePosition( enemy ) then return end
+    if enemy:IsOnFire() then return end -- they are visible!
 
     local seen = math.abs( a - maxSeen )
     local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )
@@ -498,7 +499,7 @@ function ENT:GetOtherHuntersProbableEntrance()
     -- no other long paths! just avoid the other guys if we can
     for _, hunter in ipairs( otherHunters ) do
         if hunter ~= self and pals( self, hunter ) then
-            if hunter.IsSeeEnemy then
+            if hunter.IsSeeEnemy and IsValid( hunter:GetEnemy() ) then
                 -- between hunter and enemy
                 return ( hunter:GetPos() + hunter:GetEnemy():GetPos() ) / 2
 

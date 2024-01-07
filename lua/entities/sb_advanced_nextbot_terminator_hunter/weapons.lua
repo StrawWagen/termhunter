@@ -174,6 +174,13 @@ function ENT:SetupWeapon( wep )
     self.terminator_DontImmiediatelyFire = CurTime() + math.Rand( 0.75, 1.25 )
     self:NextWeapSearch( 0 )
 
+    --[[timer.Simple( 0.1, function()
+        if true then
+            self:DropWeapon()
+
+        end
+    end )--]]
+
     return actwep
 
 end

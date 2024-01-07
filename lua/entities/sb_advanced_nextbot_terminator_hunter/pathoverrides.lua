@@ -109,6 +109,16 @@ function ENT:primaryPathIsValid()
 
 end
 
+function ENT:TakenDamage( damage )
+    if damage:GetDamage() <= 75 then return end
+    local areas = navmesh.Find( self:GetPos(), damage:GetDamage(), self.JumpHeight, self.JumpHeight )
+    for _, area in ipairs( areas ) do
+        self.hazardousAreas[ area:GetID() ] = area
+
+    end
+end
+
+
 -- flanking!
 local flankingDest
 local hunterIsFlanking
@@ -117,7 +127,7 @@ local isReallyAngry = nil
 
 function ENT:AddAreasToFlank( areas, mul )
     for _, avoid in ipairs( areas ) do
-        if avoid ~= flankingDest then
+        if avoid and ( avoid ~= flankingDest ) then
             flankingAvoidAreas[ avoid:GetID() ] = mul
             --debugoverlay.Cross( avoid:GetCenter(), 10, 10, color_white, true )
 
@@ -145,6 +155,9 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
         self:FlankAroundEasyEntraceToThing( areaToFlankAround:GetCenter(), self:GetEnemy() )
 
     end
+
+    self:AddAreasToFlank( self.hazardousAreas, 10 )
+
     self:SetupPath2( destination )
     self:endFlankPath()
 

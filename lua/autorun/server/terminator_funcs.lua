@@ -1,4 +1,3 @@
-
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 
 terminator_Extras.getNearestNavFloor = function( pos )

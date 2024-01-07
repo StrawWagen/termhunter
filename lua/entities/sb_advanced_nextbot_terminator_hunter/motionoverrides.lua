@@ -523,7 +523,24 @@ function ENT:BoundsAdjusted( hullSizeMul )
 
 end
 
+-- find pos to path to, for geting around any kind of obstacle
 function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
+
+    local timerName = "terminator_obliteratetowardscache_" .. self:GetCreationID()
+    timer.Remove( timerName )
+    timer.Create( timerName, 0.5, 1, function()
+        if not IsValid( self ) then timer.Remove( timerName ) return end
+        self.cachedBringUsTowards = nil
+        self.nextBringUsTowardsCache = nil
+
+    end )
+
+    -- lots of traces ahead, use caching please!
+    local nextCache = self.nextBringUsTowardsCache or 0
+    if nextCache > CurTime() and self.cachedBringUsTowards then return self.cachedBringUsTowards end
+    self.nextBringUsTowardsCache = CurTime() + 0.25
+
+
     local b1,b2 = self:BoundsAdjusted( 1 )
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
@@ -569,6 +586,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
 
             if not dirResult.Hit then
                 --debugoverlay.Line( dirConfig.start, dirResult.HitPos, 2 )
+                self.cachedBringUsTowards = newStartPos
                 return newStartPos
 
             else
@@ -577,10 +595,13 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
             end
         end
 
-        local bestFraction = table.maxn( potentialClearPositions )
-        return potentialClearPositions[ bestFraction ]
+        local bestFractionIndex = table.maxn( potentialClearPositions )
+        local bestFraction = potentialClearPositions[ bestFractionIndex ]
+        self.cachedBringUsTowards = bestFraction
+        return bestFraction
 
     else
+        self.cachedBringUsTowards = dirResult.HitPos
         return dirResult.HitPos
 
     end
@@ -776,6 +797,10 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
             if not result.Hit or hitBreakable then
                 --debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
                 return potentialVisible, index, hitBreakable
+
+            --else
+                --debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 1, Color( 255,255,255 ) )
+
             end
         end
     end
@@ -1018,7 +1043,9 @@ function ENT:MoveAlongPath( lookatgoal )
 
             end
             if iAmOnGround and myPos.z < segAfterTheDrop.pos.z + 25 and self.wasADropTypeInterpretedAsAGap then
+                currSegment.pos = myPos
                 self:GetPath():Invalidate()
+                return false -- pls recalculate path!
 
             end
         end
@@ -1155,34 +1182,27 @@ function ENT:MoveAlongPath( lookatgoal )
 
                 -- obstacle, we have to move around if we want to go past it
                 if jumpstate == 2 then
-                    if math.random( 0, 100 ) > 85 then
-                        sideMul = -sideMul -- jiggle this around a bit\
-                        moveScale = self:GetRangeTo( currSegment.pos ) * math.Rand( 0.5, 2 )
 
-                    end
-
-                    local movingDir = dir + ( self:GetRight() * sideMul )
+                    local goodPosToGoto = self:PosThatWillBringUsTowards( self:WorldSpaceCenter(), aheadSegment.pos )
 
                     self.m_PathJump = true
 
-                    self:Approach( myPos + -movingDir * moveScale )
+                    if goodPosToGoto then
+                        self:Approach( goodPosToGoto, 10000 )
+
+                    end
                     doingJump = true
 
                 -- droptypes have a habit of being over-generated, need all this code to handle finding a path "downwards"
                 elseif dropTypeToDealwith then
                     self.m_PathJump = true
-                    local nextDropdownCheck = self.nextDropdownCheck or 0
                     local _, segDropdownBottom = self:GetNextPathArea( aheadSegment.area )
                     local segAfterTheDrop = segDropdownBottom or aheadSegment
 
-                    if not self.dropdownClearPos or nextDropdownCheck < CurTime() then
-                        self.nextDropdownCheck = CurTime() + 0.6
-                        self.dropdownClearPos = self:PosThatWillBringUsTowards( self:WorldSpaceCenter(), segAfterTheDrop.pos ) or self.dropdownClearPos
+                    local dropdownClearPos = self:PosThatWillBringUsTowards( self:WorldSpaceCenter(), segAfterTheDrop.pos ) or self.dropdownClearPos
 
-                    end
-
-                    if self.dropdownClearPos then
-                        self:GotoPosSimple( self.dropdownClearPos, 0 )
+                    if dropdownClearPos then
+                        self:GotoPosSimple( dropdownClearPos, 0 )
                         --debugoverlay.Line( self:WorldSpaceCenter(), self.dropdownClearPos, 5, color_white, true ) 
 
                     end
@@ -1300,35 +1320,31 @@ function ENT:MoveAlongPath( lookatgoal )
 
         -- don't backtrack, we're already here!
         if catchupAfterAJump or invalidJump then
-            self.BiggerGoalTolerance = true
-            path:SetGoalTolerance( 200000 )
-
-        elseif self.BiggerGoalTolerance then
-            self.BiggerGoalTolerance = nil
-            path:SetGoalTolerance( self.PathGoalTolerance )
-
-        end
-
-        local ang = self:GetAngles()
-        path:Update( self )
-        -- if this doesnt run then bot always looks toward next path seg, doesn't aim at ply
-        self:SetAngles( ang )
-
-        local phys = self:GetPhysicsObject()
-        if IsValid( phys ) then
-            phys:SetAngles( angle_zero )
-
-        end
-
-        -- detect when bot falls down and we need to repath
-        local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegment.pos.z ), self.loco:GetMaxJumpHeight() * 1.5 )
-        local changeToSegment = math.abs( myPos.z - currSegment.pos.z )
-
-        if changeToSegment > maxHeightChange * 2 then
-            --print( "invalid", changeToSegment, maxHeightChange * 2 )
-            self.terminator_FellOffPath = true
             self:GetPath():Invalidate()
+            return false -- pls recalculate path!
 
+        else
+            local ang = self:GetAngles()
+            path:Update( self )
+            -- if this doesnt run then bot always looks toward next path seg, doesn't aim at ply
+            self:SetAngles( ang )
+
+            local phys = self:GetPhysicsObject()
+            if IsValid( phys ) then
+                phys:SetAngles( angle_zero )
+
+            end
+
+            -- detect when bot falls down and we need to repath
+            local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegment.pos.z ), self.loco:GetMaxJumpHeight() * 1.5 )
+            local changeToSegment = math.abs( myPos.z - currSegment.pos.z )
+
+            if changeToSegment > maxHeightChange * 2 then
+                --print( "invalid", changeToSegment, maxHeightChange * 2 )
+                self.terminator_FellOffPath = true
+                self:GetPath():Invalidate()
+
+            end
         end
     end
 
@@ -1340,20 +1356,11 @@ function ENT:MoveAlongPath( lookatgoal )
 
         -- dampen sideways vel when in air
         local myVel = self.loco:GetVelocity()
-        local product = -myVel * 0.5
-        product.z = 0
+        local newVel = myVel * 1
+        newVel.x = newVel.x * 0.9
+        newVel.y = newVel.y * 0.9
 
-        local dropdownTarget = self.dropdownClearPos or currSegment.pos
-
-        -- doing drop down, please jump towards the dropdown
-        if droptype and terminator_Extras.PosCanSeeComplex( myPos, dropdownTarget, self ) then
-            --debugoverlay.Line( myPos, currSegment.pos, 0.2 )
-            product1 = myPos - dropdownTarget
-            product1.z = 0
-            product = -product1:GetNormalized() * math.Clamp( product1:Length() * 1.2, 0, 200 )
-
-        end
-        self.loco:SetVelocity( myVel + product )
+        self.loco:SetVelocity( newVel )
 
     end
 
@@ -1522,17 +1529,25 @@ function ENT:GotoPosSimple( pos, distance )
     if distance ~= math.huge and self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
         local dir = terminator_Extras.dirToPos( myPos, pos )
-        dir.z = dir.z * 0.15
+        dir.z = dir.z * 0.05
         dir:Normalize()
 
         local onGround = self.loco:IsOnGround()
         local jumpstate, _, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, pos, false )
-        if onGround and ( jumpstate == 1 or jumpstate == 2 ) then
-            jumpingHeight = jumpingHeight or 64
-            self:Jump( jumpingHeight + 20 )
-            self.jumpBlockClearPos = jumpBlockClearPos
-            self.moveAlongPathJumpingHeight = jumpingHeight
-            return
+        if onGround then
+            if jumpstate == 1 then
+                jumpingHeight = jumpingHeight or 64
+                self:Jump( jumpingHeight + 20 )
+                self.jumpBlockClearPos = jumpBlockClearPos
+                self.moveAlongPathJumpingHeight = jumpingHeight
+                return
+            elseif jumpstate == 2 then
+                local goodPosToGoto = self:PosThatWillBringUsTowards( self:WorldSpaceCenter(), pos )
+                if not goodPosToGoto then return end
+                self.loco:Approach( goodPosToGoto, 10000 )
+                return
+
+            end
 
         elseif not onGround and self.m_Jumping then
             local toChoose = {

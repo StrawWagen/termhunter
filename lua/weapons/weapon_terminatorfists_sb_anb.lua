@@ -171,6 +171,13 @@ function SWEP:HandleDoor( tr )
     -- let nails do their thing
     if door.huntersglee_breakablenails then return end
 
+    local doorsLocked = door:GetInternalVariable( "m_bLocked" ) == true
+
+    if doorsLocked then
+        terminator_Extras.lockedDoorAttempts = {}
+
+    end
+
     if class == "func_door_rotating" or class == "prop_door_rotating" then
         local HitCount = door.PunchedCount or 0
         door.PunchedCount = HitCount + 1
@@ -232,13 +239,13 @@ function SWEP:HandleDoor( tr )
                 end )
             end
 
-            if door:GetInternalVariable( "m_bLocked" ) == true then
+            if doorsLocked then
                 SparkEffect( door:GetPos() + -lockOffset )
                 LockBustSound( door )
 
             end
         end
-    elseif class == "func_door" and door:GetInternalVariable( "m_bLocked" ) == true then
+    elseif class == "func_door" and doorsLocked then
         local lockHealth = door.terminator_lockHealth
         if not door.terminator_lockHealth then
             local initialHealth = 200

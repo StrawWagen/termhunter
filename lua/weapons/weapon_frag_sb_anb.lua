@@ -13,9 +13,10 @@ SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_stunstick.mdl"
 SWEP.WorldModel = "models/weapons/w_stunbaton.mdl"
-SWEP.Weight = 5
+SWEP.Weight = terminator_Extras.GoodWeight + -2
 
 terminator_Extras.SetupAnalogWeight( SWEP )
+SWEP.terminator_IgnoreWeaponUtility = true
 
 SWEP.PickupSound = "Grenade.ImpactSoft"
 SWEP.Range = 1800

@@ -11,7 +11,7 @@ SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_crowbar.mdl"
 SWEP.WorldModel = "models/weapons/w_crowbar.mdl"
-SWEP.Weight = 5
+SWEP.Weight = terminator_Extras.GoodWeight + -2
 
 SWEP.Primary = {
     Ammo = "None",
@@ -26,6 +26,7 @@ SWEP.Secondary = {
 }
 
 terminator_Extras.SetupAnalogWeight( SWEP )
+SWEP.terminator_IgnoreWeaponUtility = true
 
 SWEP.PickupSound = "weapons/crowbar/crowbar_impact2.wav"
 SWEP.Range = 2200

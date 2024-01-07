@@ -81,7 +81,7 @@ function ENT:GetViewModel()
 end
 
 function ENT:Alive()
-    return true
+    return self:Health() > 0
 
 end
 

@@ -35,6 +35,7 @@ function ENT:CanHolsterWeap( wep )
     end
 
     local data = self:GetHolsterData( wep )
+    if not data then return false end
     local slot = data.slot
 
     local hasBoneForSlot = self:HasHolsterBone( slot )
@@ -84,8 +85,8 @@ local rotationsForSizes = {
     xz = Angle( 0, 90, 0 ),
     yy = Angle( 0, 0, 90 ),
     yx = Angle( 0, 0, 0 ), -- done
-    yz = Angle( 0, 90, 90 ), -- done
-    zy = Angle( 0, 0, 90 ),
+    yz = Angle( 0, 90, 0 ), -- done
+    zy = Angle( 0, 90, -90 ), -- done
     zx = Angle( 0, 0, 90 ), -- done
     zz = Angle( 0, 0, 90 ),
 
@@ -97,8 +98,8 @@ function ENT:GetHolsterData( wep )
 
     if data then return data end
 
-    local biggestIndex = nil
-    local thinnestIndex = nil
+    local biggestIndex = 1
+    local thinnestIndex = 1
     local biggestSize = 0
     local thinnestSize = math.huge
 
@@ -106,9 +107,9 @@ function ENT:GetHolsterData( wep )
     local maxs = wep:OBBMaxs()
 
     local sizes = {
-        x = math.abs( mins.x - maxs.x ),
-        y = math.abs( mins.y - maxs.y ),
-        z = math.abs( mins.z - maxs.z ),
+        x = math.abs( mins.x ) + math.abs( maxs.x ),
+        y = math.abs( mins.y ) + math.abs( maxs.y ),
+        z = math.abs( mins.z ) + math.abs( maxs.z ),
 
     }
 
@@ -137,10 +138,13 @@ function ENT:GetHolsterData( wep )
     end
 
     if not holsterDat.slot then return end
+    if not thinnestIndex then return end
+    if not biggestIndex then return end
 
     local rotInd = thinnestIndex .. biggestIndex
 
     local rotation = rotationsForSizes[ rotInd ]
+    if not rotation then return end
     local offsets = offsetsForSlots[ holsterDat.slot ]
 
     --print( rotInd, thinnestSize, biggestSize, wep:GetClass() )
