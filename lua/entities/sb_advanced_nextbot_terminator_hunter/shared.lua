@@ -1587,6 +1587,7 @@ local standingOffset = Vector( 0,0,50 )
 -- throw away swep, go towards ent, and beat it up
 function ENT:beatUpEnt( ent, unstucking )
     local valid = true
+    local myPos = self:GetPos()
     local forcePath = nil
     local alwaysValid = nil
     local canHit, closenessSqr, entsRealPos, _, visible = self:canHitEnt( ent )
@@ -1598,8 +1599,8 @@ function ENT:beatUpEnt( ent, unstucking )
     local nearAndCanHit = canHit and isNear
     local closeAndCanHit = canHit and isClose
     if quiteNear then
-        local distIfCrouch = ( self:GetPos() + crouchingOffset ):DistToSqr( entsRealPos )
-        local distIfStand = ( self:GetPos() + standingOffset ):DistToSqr( entsRealPos )
+        local distIfCrouch = ( myPos + crouchingOffset ):DistToSqr( entsRealPos )
+        local distIfStand = ( myPos + standingOffset ):DistToSqr( entsRealPos )
 
         if distIfCrouch < distIfStand then
             self.overrideCrouch = CurTime() + 0.3
@@ -1609,19 +1610,17 @@ function ENT:beatUpEnt( ent, unstucking )
     end
     --debugoverlay.Cross( entsRealPos, 50, 1, Color( 255, 255, 0 ), true )
 
-    local blockShoot = true
+    local attacked = nil
 
     if canHit then
         if closeAndCanHit and not self:IsFists() and self.HasFists then
             self:DoFists()
 
         end
-        blockShoot = nil
+        _, attacked = self:shootAt( entsRealPos, nil )
+        self.blockAimingAtEnemy = CurTime() + 0.2
 
     end
-
-    local _, attacked = self:shootAt( entsRealPos, blockShoot )
-    self.blockAimingAtEnemy = CurTime() + 0.2
 
     local pathValid = self:primaryPathIsValid()
     if unstucking then
@@ -1710,8 +1709,8 @@ function ENT:beatUpEnt( ent, unstucking )
     elseif not unstucking then
         self:GotoPosSimple( entsRealPos, 5 )
 
-        self.forcedShouldWalk = CurTime() + 0.4
-        self.blockControlPath = CurTime() + 0.1
+        self.forcedShouldWalk = CurTime() + 0.3
+        self.blockControlPath = CurTime() + 0.15
 
     end
 
