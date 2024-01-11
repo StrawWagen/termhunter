@@ -1992,7 +1992,7 @@ function ENT:ControlPath2( AimMode )
                     self.hitTimeout = CurTime() + 3
 
                 elseif isNailed and not isClose and visible and self:GetWeaponRange() > 500 then
-                    self:shootAt( toBeat )
+                    self:shootAt( self:getBestPos( toBeat ) )
 
                 end
             -- was valid
