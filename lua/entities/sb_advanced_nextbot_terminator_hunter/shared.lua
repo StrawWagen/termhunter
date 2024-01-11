@@ -164,7 +164,7 @@ local function distBetweenTwoAreas( area1, area2 )
 end
 
 function ENT:getBestPos( ent )
-    if not IsValid( ent ) then return vec_zero end
+    if not IsValid( ent ) then return nil end
     local shootPos = self:GetShootPos()
     local pos = ent:NearestPoint( shootPos )
     -- put the nearest point a bit inside the entity
@@ -1482,22 +1482,24 @@ function ENT:CreateShootingTimer()
     end )
 end
 
-function ENT:shootAt( endpos, blockShoot )
+function ENT:shootAt( endPos, blockShoot )
     self.terminator_FiringIsAllowed = nil
     self.terminator_LastFiringIsAllowed = CurTime()
-    if not endpos then return end
-    local endposOffsetted = endpos
+    if not endPos then return end
+
+    local endPosOffsetted = endPos
     local enemy = self:GetEnemy()
     local wep = self:GetWeapon()
     if IsValid( enemy ) and not wep.terminator_NoLeading then
-        endposOffsetted = endposOffsetted + ( enemy:GetVelocity() * 0.08 )
-        endposOffsetted = endposOffsetted - ( self:GetVelocity() * 0.08 )
+        endPosOffsetted = endPosOffsetted + ( enemy:GetVelocity() * 0.08 )
+        endPosOffsetted = endPosOffsetted - ( self:GetVelocity() * 0.08 )
 
     end
     local attacked = nil
     local out = nil
     local pos = self:GetShootPos()
-    local dir = endposOffsetted-pos
+    local dir = endPosOffsetted - pos
+
     dir:Normalize()
 
     self:SetDesiredEyeAngles( dir:Angle() )
@@ -1556,6 +1558,7 @@ function ENT:shootAt( endpos, blockShoot )
 end
 
 function ENT:canHitEnt( ent )
+    if not IsValid( ent ) then return end
     local myShootPos = self:GetShootPos()
     local objPos = self:getBestPos( ent )
     local behindObj = objPos + terminator_Extras.dirToPos( myShootPos, objPos ) * 40
@@ -2612,7 +2615,7 @@ function ENT:DoTasks()
                     if not self:IsMeleeWeapon( wep ) and wep and seeOrWeaponDoesntCare then
                         local shootableVolatile = self:getShootableVolatiles( enemy )
 
-                        if shootableVolatile then
+                        if IsValid( shootableVolatile ) then
                             self:shootAt( self:getBestPos( shootableVolatile ), doShootingPrevent )
                             self.lastShootingType = "shootvolatile"
 
