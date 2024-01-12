@@ -1589,6 +1589,8 @@ local standingOffset = Vector( 0,0,50 )
 
 -- throw away swep, go towards ent, and beat it up
 function ENT:beatUpEnt( ent, unstucking )
+    if not IsValid( ent ) then return end
+
     local valid = true
     local myPos = self:GetPos()
     local forcePath = nil
@@ -3162,13 +3164,15 @@ function ENT:DoTasks()
 
                     end
 
-                    -- BEATUP
-                    local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose = self:beatUpEnt( data.object )
-                    data.gotAHitIn = data.gotAHitIn or attacked
+                    if IsValid( data.object ) then
+                        -- BEATUP
+                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose = self:beatUpEnt( data.object )
+                        data.gotAHitIn = data.gotAHitIn or attacked
 
-                    if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
-                        self:shootAt( toBeat )
+                        if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
+                            self:shootAt( toBeat )
 
+                        end
                     end
                 end
                 if not data.exit then
@@ -3318,7 +3322,7 @@ function ENT:DoTasks()
                 end
                 if not data.fail and not data.success and not data.exit then
                     local valid, attacked, nearAndCanHit, closeAndCanHit, isClose
-                    if not self.isUnstucking then
+                    if not self.isUnstucking and IsValid( data.object ) then
                         -- UNDERSTAND
                         valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose = self:beatUpEnt( data.object )
                         --print( valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose )
@@ -3327,7 +3331,7 @@ function ENT:DoTasks()
                             data.fail = true
 
                         end
-                    else
+                    elseif self.isUnstucking then
                         self:ControlPath2( not self.IsSeeEnemy )
 
                     end

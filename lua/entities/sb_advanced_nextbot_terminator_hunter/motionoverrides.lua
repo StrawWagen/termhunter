@@ -843,7 +843,7 @@ function ENT:MoveInAirTowardsVisible( toChoose, destinationArea )
 
         -- i HATE VENTS!
         if justSetposUsThere then
-            local setPosDist = math.Clamp( dist2d, 15, 35 )
+            local setPosDist = math.Clamp( dist2d, 5, 35 )
             self:SetPos( myPos + dir * setPosDist )
             self.loco:SetVelocity( dir )
             self.WasSetposCrouchJump = true
