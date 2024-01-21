@@ -158,6 +158,12 @@ hook.Add( "EntityTakeDamage", "term_busteddoorbreak", function( target, damage )
 end )
 local lockOffset = Vector( 0, 42.6, -10 )
 
+local slidingDoors = {
+    ["func_movelinear"] = true,
+    ["func_door"] = true,
+
+}
+
 function SWEP:HandleDoor( tr )
     if CLIENT or not IsValid( tr.Entity ) then return end
     local door = tr.Entity
@@ -178,78 +184,19 @@ function SWEP:HandleDoor( tr )
 
     end
 
-    if class == "func_door_rotating" or class == "prop_door_rotating" then
-        local HitCount = door.PunchedCount or 0
-        door.PunchedCount = HitCount + 1
+    local doorsObj = door:GetPhysicsObject()
+    local isProperDoor = class == "prop_door_rotating"
+    local isSlidingDoor = slidingDoors[class]
+    local isBashableSlidDoor
+    if isSlidingDoor then
+        isBashableSlidDoor = doorsObj:GetVolume() < 48880 -- magic number! 10x mass of doors on terrortrain
 
-        if terminator_Extras.CanBashDoor( door ) == false then
-            DoorHitSound( door )
-        else
-            if HitCount > 4 then
-                BreakSound( door )
-            end
-            if HitCount > 2 then
-                StrainSound( door )
-            end
+    end
 
-            if HitCount >= 5 then
-                self:MakeDoor( door )
-            elseif HitCount < 5 then
-                DoorHitSound( door )
-                StrainSound( door )
-
-                local newname = "TFABash" .. self:EntIndex()
-                self.PreBashName = self:GetName()
-                self:SetName( newname )
-
-                if ( HitCount % 3 ) == 4 then
-                    if owner.Use2 then
-                        self:Use2( door )
-                    else
-                        door:Use( self, self )
-                    end
-                end
-
-                if not door.defaultsGrabbed then
-                    door.defaultsGrabbed = true
-                    local values = door:GetKeyValues()
-                    door.oldBashSpeed = values["speed"]
-                    door.oldOpenDir = values["opendir"]
-                end
-
-                door:SetKeyValue( "speed", "500" )
-                door:SetKeyValue( "opendir", 0 )
-                door:Fire( "unlock", "", .01 )
-                door:Fire( "openawayfrom", newname, .01 )
-
-                timer.Simple( 0.02, function()
-                    if not IsValid( basher ) or basher:GetName() ~= newname then return end
-
-                    basher:SetName( basher.PreBashName )
-                end )
-
-                timer.Simple( 0.3, function()
-                    if not IsValid( door ) then return end
-                    if door.oldBashSpeed then
-                        door:SetKeyValue( "speed", door.oldBashSpeed )
-                    end
-                    if door.oldOpenDir then
-                        door:SetKeyValue( "opendir", door.oldOpenDir )
-                    end
-                end )
-            end
-
-            if doorsLocked then
-                SparkEffect( door:GetPos() + -lockOffset )
-                LockBustSound( door )
-
-            end
-        end
-    elseif class == "func_door" and doorsLocked then
+    if isSlidingDoor and doorsLocked then
         local lockHealth = door.terminator_lockHealth
         if not door.terminator_lockHealth then
             local initialHealth = 200
-            local doorsObj = door:GetPhysicsObject()
             if doorsObj and doorsObj:IsValid() then
                 initialHealth = math.max( initialHealth, doorsObj:GetVolume() / 1250 )
 
@@ -289,7 +236,91 @@ function SWEP:HandleDoor( tr )
 
         door.terminator_lockHealth = lockHealth
 
+    elseif class == "func_door_rotating" or isProperDoor or isBashableSlidDoor then
+        local HitCount = door.term_PunchedCount or 0
+        door.term_PunchedCount = HitCount + 1
+
+        if terminator_Extras.CanBashDoor( door ) == false then
+            DoorHitSound( door )
+
+        else
+            if HitCount > 4 then
+                BreakSound( door )
+
+            end
+            if HitCount > 2 then
+                StrainSound( door )
+
+            end
+
+            if HitCount >= 5 then
+                self:MakeDoor( door )
+
+            elseif HitCount < 5 then
+                DoorHitSound( door )
+                StrainSound( door )
+
+                if ( HitCount % 3 ) == 4 then
+                    if owner.Use2 then
+                        self:Use2( door )
+
+                    else
+                        door:Use( self, self )
+
+                    end
+                end
+
+                if isProperDoor then
+                    self:SoftBashProperDoor( door, owner )
+
+                end
+            end
+
+            if doorsLocked and isProperDoor then
+                SparkEffect( door:GetPos() + -lockOffset )
+                LockBustSound( door )
+
+            end
+        end
     end
+end
+
+function SWEP:SoftBashProperDoor( door, owner )
+    local newname = "TFABash" .. self:EntIndex()
+    self.term_PreBashName = self:GetName()
+    self:SetName( newname )
+
+    if not door.term_defaultsGrabbed then
+        door.term_defaultsGrabbed = true
+        local values = door:GetKeyValues()
+        door.term_oldBashSpeed = values["speed"]
+        door.term_oldOpenDir = values["opendir"]
+
+    end
+
+    door:SetKeyValue( "speed", "500" )
+    door:SetKeyValue( "opendir", 0 )
+    door:Fire( "unlock", "", .01 )
+    door:Fire( "openawayfrom", newname, .01 )
+
+    timer.Simple( 0.02, function()
+        if not IsValid( owner ) or owner:GetName() ~= newname then return end
+
+        owner:SetName( owner.term_PreBashName )
+
+    end )
+
+    timer.Simple( 0.3, function()
+        if not IsValid( door ) then return end
+        if door.term_oldBashSpeed then
+            door:SetKeyValue( "speed", door.term_oldBashSpeed )
+
+        end
+        if door.term_oldOpenDir then
+            door:SetKeyValue( "opendir", door.term_oldOpenDir )
+
+        end
+    end )
 end
 
 function SWEP:ResetHoldTypeCountdown()

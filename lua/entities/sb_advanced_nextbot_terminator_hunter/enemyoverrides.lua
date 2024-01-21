@@ -1,6 +1,8 @@
 
 local MEMORY_WEAPONIZEDNPC = 32
 
+local IsValid = IsValid
+
 function ENT:EntShootPos( ent, random )
     local hitboxes = {}
     if not IsValid( ent ) then return end
@@ -143,8 +145,10 @@ local function shouldNotSeeEnemy( me, enemy )
     local randomSeed = math.random( 0, maxSeen ) + weapBite + mimicBite
 
 
-    local obviousEnemy = oldEnemyThatISee and randomSeed > seen * 0.1 
     -- i see enemy, make the chance of losing them really small
+    local obviousEnemy = oldEnemyThatISee and randomSeed > seen * 0.1
+
+    -- seen
     if obviousEnemy or mimicThatDidntMove then return end
 
     local seedIsGreater = math.random( 0, maxSeen ) > seen * 0.9
@@ -286,6 +290,7 @@ function ENT:SetupEntityRelationship( ent )
 
         end
         ent:AddEntityRelationship( self, theirdisp, nil )
+        -- stupid hack
         if ent.IsVJBaseSNPC == true then
             timer.Simple( 0, function()
                 if not IsValid( ent ) or not IsValid( self ) or not istable( ent.CurrentPossibleEnemies ) then return end
@@ -295,14 +300,15 @@ function ENT:SetupEntityRelationship( ent )
     end
 end
 
-
 function ENT:SetupRelationships()
     for _, ent in ipairs( ents.GetAll() ) do
         self:SetupEntityRelationship( ent )
     end
 
-    hook.Add( "OnEntityCreated", self, function( _, ent )
-        if not IsValid( self ) then return end
+    local hookId = "sb_anb_terminator_relations_" .. self:GetCreationID()
+
+    hook.Add( "OnEntityCreated", hookId, function( ent )
+        if not IsValid( self ) then hook.Remove( "OnEntityCreated", hookId ) return end
         timer.Simple( 0.5, function()
             if not IsValid( self ) then return end
             if not IsValid( ent ) then return end
