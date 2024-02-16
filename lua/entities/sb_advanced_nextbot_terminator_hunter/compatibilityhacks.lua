@@ -53,7 +53,7 @@ if SERVER then
 
 end
 
--- weapon hacks
+-- approximate player funcs!
 
 -- DISGUSTING!!!!!!
 local entsMeta = FindMetaTable( "Entity" )
@@ -67,6 +67,10 @@ entsMeta.EyeAngles = function( self )
 
 end
 
+function ENT:GetTarget()
+    return self:GetEnemy()
+
+end
 
 function ENT:DrawViewModel()
 end
@@ -165,6 +169,18 @@ if SERVER then
 
     include( "weaponhacks.lua" )
 
+    local medkitModels = {
+        ["models/weapons/w_medkit.mdl"] = true,
+        ["models/items/healthkit.mdl"] = true,
+
+    }
+    local medkitOffset = Angle( 0,0,-90 )
+    hook.Add( "terminator_holstering_overrideangles", "fixthe_god_damn_MEDKITS!", function( model )
+        if not medkitModels[model] then return end
+        return medkitOffset
+
+    end )
+
     function ENT:SendLua()
         return
 
@@ -196,7 +212,7 @@ if SERVER then
 
     function ENT:StripWeapon()
         if not IsValid( self:GetWeapon() ) then return end
-        SafeRemoveEntityDelayed( self:DropWeapon( true ), 0.1 )
+        SafeRemoveEntityDelayed( self:DropWeapon( true ), 0 )
 
     end
 
@@ -207,4 +223,9 @@ if SERVER then
         return trResult
 
     end
+
+    function ENT:SwitchToDefaultWeapon()
+        self:Give( self.TERM_FISTS )
+    end
+
 end

@@ -32,8 +32,6 @@ terminator_Extras.SetupAnalogWeight( SWEP )
 function SWEP:Initialize()
     self:SetHoldType( "rpg" )
 
-    if CLIENT then self:SetNoDraw( true ) end
-
 end
 
 

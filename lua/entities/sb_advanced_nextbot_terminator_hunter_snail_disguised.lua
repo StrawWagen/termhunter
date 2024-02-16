@@ -15,6 +15,18 @@ if CLIENT then
 
 end
 
+local isADoppleGanger
+
+local function checkIfThereIsADoppleganger()
+    if #ents.FindByClass( "sb_advanced_nextbot_terminator_hunter_snail_disguised" ) > 0 then
+        isADoppleGanger = true
+
+    else
+        isADoppleGanger = false
+
+    end
+end
+
 ENT.WalkSpeed = 75
 ENT.MoveSpeed = 200
 ENT.RunSpeed = 360
@@ -127,6 +139,12 @@ function ENT:AdditionalInitialize()
     local randomPlayerToMimic = table.Random( stuffWeCanMimic )
     self:MimicPlayer( randomPlayerToMimic )
 
+    timer.Simple( 0, checkIfThereIsADoppleganger )
+    self:CallOnRemove( "checkiftheresdoppleganger", function()
+        timer.Simple( 0, checkIfThereIsADoppleganger )
+
+    end )
+
 end
 
 --https://github.com/Facepunch/garrysmod/blob/master/garrysmod/lua/matproxy/player_color.lua
@@ -218,9 +236,11 @@ local function paintNameAndHealth( toPaint )
     draw.SimpleText( text, font, x + 1, y + 1, Color( 0, 0, 0, 120 ) )
     draw.SimpleText( text, font, x + 2, y + 2, Color( 0, 0, 0, 50 ) )
     draw.SimpleText( text, font, x, y, GAMEMODE:GetTeamColor( toPaint ) )
+
 end
 
 hook.Add( "HUDPaint", "terminator_PaintDisguisedNameAndHealth", function()
+    if not isADoppleGanger then return end
 
     if hook.Run( "HUDDrawTargetID" ) ~= nil then return end
 

@@ -13,6 +13,7 @@ local EngineAnalogs = {
     weapon_flechettegun = "weapon_flechettegun_sb_anb",
     gmod_camera = "gmod_camera_sb_anb",
     weapon_frag = "weapon_frag_sb_anb",
+    weapon_slam = "weapon_slam_sb_anb",
 
 }
 
@@ -23,7 +24,7 @@ for k,v in pairs( EngineAnalogs ) do EngineAnalogsReverse[v] = k end
 
 termHunter_WeaponAnalogs = EngineAnalogs
 
-local _IsValid = IsValid
+local IsValid = IsValid
 
 --[[------------------------------------
     Name: NEXTBOT:Give
@@ -34,7 +35,7 @@ local _IsValid = IsValid
 function ENT:Give( wepname )
     local wep = ents.Create( wepname )
 
-    if not _IsValid( wep ) then return end
+    if not IsValid( wep ) then return end
 
     if not wep:IsScripted() and not EngineAnalogs[wepname] then
         SafeRemoveEntity( wep )
@@ -44,7 +45,7 @@ function ENT:Give( wepname )
     end
 
     local oldWep = self:GetWeapon()
-    if _IsValid( oldWep ) then
+    if IsValid( oldWep ) then
         SafeRemoveEntity( oldWep )
 
     end
@@ -76,7 +77,7 @@ end
 --]]------------------------------------
 function ENT:SetupWeapon( wep )
 
-    if not _IsValid( wep ) or wep == self:GetActiveWeapon() then return end
+    if not IsValid( wep ) or wep == self:GetActiveWeapon() then return end
 
     local wepsClass = wep:GetClass()
     -- Cannot hold engine weapons
@@ -117,7 +118,7 @@ function ENT:SetupWeapon( wep )
         actwep:SetClip2( wep:Clip2() )
 
         hook.Add( "Think", actwep, function( self )
-            if not _IsValid( wep ) then return end
+            if not IsValid( wep ) then return end
             wep:SetClip1( self:Clip1() )
             wep:SetClip2( self:Clip2() )
         end )
@@ -172,14 +173,19 @@ function ENT:SetupWeapon( wep )
     self:EmitSound( "Flesh.Strain", 80, 160, 0.8 )
 
     self.terminator_DontImmiediatelyFire = CurTime() + math.Rand( 0.75, 1.25 )
+    self.terminator_FiringIsAllowed = nil
+    self.terminator_LastFiringIsAllowed = 0
     self:NextWeapSearch( 0 )
 
-    --[[timer.Simple( 0.1, function()
+    --[[
+    -- debug for testing holstering
+    timer.Simple( 0.5, function()
         if true then
             self:DropWeapon()
 
         end
-    end )--]]
+    end )
+    --]]
 
     return actwep
 
@@ -206,7 +212,7 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     end
 
 
-    if not _IsValid( wep ) then return end
+    if not IsValid( wep ) then return end
 
     if wep:GetClass() == self.TERM_FISTS then
         SafeRemoveEntity( wep )
@@ -256,24 +262,24 @@ function ENT:DropWeapon( noHolster, droppingOverride )
         -- Restoring engine weapon from lua analog
         if wep ~= actwep then
             if actwep:Clip1() > 0 then
-                if not _IsValid( wep ) then return end
+                if not IsValid( wep ) then return end
                 wep:SetClip1( actwep:Clip1() )
 
             else
                 timer.Simple( 0, function()
-                    if not _IsValid( wep ) then return end
+                    if not IsValid( wep ) then return end
                     wep:SetClip1( wep:GetMaxClip1() )
 
                 end )
 
             end
             if actwep:Clip2() > 0 then
-                if not _IsValid( wep ) then return end
+                if not IsValid( wep ) then return end
                 wep:SetClip2( actwep:Clip2() )
 
             else
                 timer.Simple( 0, function()
-                    if not _IsValid( wep ) then return end
+                    if not IsValid( wep ) then return end
                     wep:SetClip2( wep:GetMaxClip2() )
 
                 end )
@@ -291,7 +297,7 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     wep:SetAngles( self:GetEyeAngles() )
 
     local phys = wep:GetPhysicsObject()
-    if _IsValid( phys ) then
+    if IsValid( phys ) then
         phys:AddVelocity( velocity )
         phys:AddAngleVelocity( Vector( 200, 200, 200 ) )
 
@@ -300,7 +306,7 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
     end
 
-    if self:CanHolsterWeap( wep ) and noHolster ~= true and self:GetWeightOfWeapon( wep ) > 2 then -- holster wep if we can, and it's not crappy!
+    if self:CanHolsterWeap( wep ) and noHolster ~= true then -- holster wep if we can, and it's not crappy!
         self:HolsterWeap( wep )
 
     end
@@ -473,7 +479,7 @@ function ENT:WeaponPrimaryAttack()
 
             end
 
-        elseif _IsValid( wep ) then
+        elseif IsValid( wep ) then
             wep:PrimaryAttack()
 
         end
@@ -531,7 +537,8 @@ end
     Ret1: number | Animation duration.
 --]]------------------------------------
 function ENT:DoRangeGesture()
-    local act = self:TranslateActivity(ACT_MP_ATTACK_STAND_PRIMARYFIRE)
+    local act = self:TranslateActivity( ACT_MP_ATTACK_STAND_PRIMARYFIRE )
+    if not act then return end
     local seq = self:SelectWeightedSequence(act)
 
     self:DoGesture(act)
@@ -547,6 +554,7 @@ end
 --]]------------------------------------
 function ENT:DoReloadGesture()
     local act = self:TranslateActivity( ACT_MP_RELOAD_STAND )
+    if not act or act <= 0 then return end
     local seq = self:SelectWeightedSequence( act )
 
     self:DoGesture(act)
@@ -635,10 +643,10 @@ end
 local cratesMaxDistFromGround = 75^2
 
 function ENT:CanPickupWeapon( wep, doingHolstered )
-    if not _IsValid( wep ) then return false end
+    if not IsValid( wep ) then return false end
     if wep.terminatorCrappyWeapon then return false end
-    if _IsValid( wep:GetOwner() ) and not doingHolstered then return false end
-    if _IsValid( wep:GetParent() ) and not doingHolstered then return false end
+    if IsValid( wep:GetOwner() ) and not doingHolstered then return false end
+    if IsValid( wep:GetParent() ) and not doingHolstered then return false end
 
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
     if blockWeaponNoticing > CurTime() then return end
@@ -657,7 +665,6 @@ function ENT:CanPickupWeapon( wep, doingHolstered )
     end
     if not wep:IsWeapon() then return false end
     if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then return false end
-    if _IsValid( wep.terminatorTaking ) and wep.terminatorTaking ~= self then return false end
     if self:GetWeightOfWeapon( wep ) < -2 then return false end
 
     if self:EnemyIsLethalInMelee() and wep:GetPos():DistToSqr( self:GetEnemy():GetPos() ) < 500^2 then return false end
@@ -667,7 +674,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered )
 end
 
 function ENT:GetWeightOfWeapon( wep )
-    if not _IsValid( wep ) then return -1 end
+    if not IsValid( wep ) then return -1 end
     local class = wep:GetClass()
     if class == crateClass then
         return 1
@@ -705,21 +712,31 @@ end
 function ENT:IsMeleeWeapon( wep )
     wep = wep or self:GetActiveWeapon()
 
-    if not _IsValid( wep ) then return false end
-    if not wep.GetCapabilities then return false end
+    if self:IsFists() then return true end
+    if not IsValid( wep ) then return false end
+    if wep.GetCapabilities then
+        local caps = wep:GetCapabilities()
+        if bit.band( caps, CAP_WEAPON_MELEE_ATTACK1 ) ~= 0 then return true end
+        if bit.band( caps, CAP_INNATE_MELEE_ATTACK1 ) ~= 0 then return true end
 
-    local caps = wep:GetCapabilities()
-    if bit.band( caps, CAP_WEAPON_MELEE_ATTACK1 ) ~= 0 then return true end
-    if bit.band( caps, CAP_INNATE_MELEE_ATTACK1 ) ~= 0 then return true end
+    end
     if wep.IsMeleeWeapon == true then return true end
+
+    local range = self:GetWeaponRange()
+    if range and range < 150 then return true end
 
     return false
 
 end
 
+function ENT:IsRangedWeapon( wep )
+    return not self:IsMeleeWeapon( wep )
+
+end
+
 function ENT:IsFists()
     local wep = self:GetWeapon()
-    if not _IsValid( wep ) then return end
+    if not IsValid( wep ) then return end
     if wep:GetClass() == self.TERM_FISTS then return true end
 
     return nil
@@ -766,8 +783,14 @@ local function weapSpread( wep )
         spread = wep.Cone.Ads / 2
 
     elseif wep.Primary then
-        spread = wep.Primary.Spread
+        local spreadInt = wep.Primary.Spread
+        if isvector( spreadInt ) then
+            spread = spreadInt:Length()
 
+        elseif isnumber( spreadInt ) then
+            spread = spreadInt
+
+        end
     end
     return spread
 
@@ -815,7 +838,7 @@ end
 function ENT:GetWeaponRange()
     local wep = self:GetActiveLuaWeapon() or self:GetActiveWeapon()
 
-    if not _IsValid( wep ) then return math.huge end
+    if not IsValid( wep ) then return math.huge end
     if wep.ArcCW then return wep.Range * 52 end -- HACK
     if isnumber( wep.Range ) then return wep.Range end
     if isnumber( wep.MeleeWeaponDistance ) then return wep.MeleeWeaponDistance end
@@ -941,7 +964,7 @@ end
 
 hook.Add( "PlayerCanPickupWeapon", "SBAdvancedNextBot", function( ply,wep )
     -- Do not allow pickup when bot carries this weapon
-    if _IsValid( wep:GetOwner() ) and wep:GetOwner().SBAdvancedNextBot then
+    if IsValid( wep:GetOwner() ) and wep:GetOwner().SBAdvancedNextBot then
         return false
     end
 
@@ -986,7 +1009,8 @@ function ENT:canGetWeapon()
     end
     local wepDat = self.cachedNewWeaponDat or {}
     local newWeap = wepDat.wep
-    if not _IsValid( newWeap ) then return false, nil end
+
+    if not IsValid( newWeap ) then return false, nil end
 
     if armed then
         local currWeap = self:GetActiveWeapon()
@@ -1014,7 +1038,7 @@ function ENT:canGetWeapon()
         local badWepOrBox = wepDat.isBox and self:IsFists() and weapWeight <= 1 and not self.IsSeeEnemy
 
         local betterWeapOrJustHappyTohave = betterWeap or badWepOrBox
-        local canGet = _IsValid( newWeap ) and betterWeapOrJustHappyTohave
+        local canGet = IsValid( newWeap ) and betterWeapOrJustHappyTohave
         return canGet, newWeap
 
     else
@@ -1025,7 +1049,7 @@ end
 
 -- can find item crates too
 function ENT:FindWeapon()
-    local searchrange = 2000
+    local searchrange = 3000
     local wep,weight,range
 
     -- also returns item_item_crate(s)
@@ -1074,7 +1098,39 @@ function ENT:FindWeapon()
 
 end
 
-hook.Add( "EntityTakeDamage", "terminator_trackweapondamage", function( target, dmg )
+local function getTrackedDamage( me, wepOrClass )
+    if IsValid( wepOrClass ) then
+        local tracked = wepOrClass.terminator_TrackedDamageDealt or 0
+        if me.trackedDamagingClasses and me.trackedDamagingClasses[ wepOrClass:GetClass() ] then
+            tracked = tracked + me.trackedDamagingClasses[ wepOrClass:GetClass() ]
+
+        end
+        return tracked
+
+    elseif wepOrClass then
+        if not me.trackedDamagingClasses then
+            me.trackedDamagingClasses = {}
+
+        end
+        return me.trackedDamagingClasses[wepOrClass] or 0
+
+    end
+end
+local function setTrackedDamage( me, wepOrClass, new )
+    if IsValid( wepOrClass ) then
+        wepOrClass.terminator_TrackedDamageDealt = new
+
+    elseif wepOrClass and me.trackedDamagingClasses then
+        if not me.trackedDamagingClasses then
+            me.trackedDamagingClasses = {}
+
+        end
+        me.trackedDamagingClasses[wepOrClass] = new
+
+    end
+end
+
+hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( target, dmg )
     local attacker = dmg:GetAttacker()
     if not IsValid( attacker ) then return end
     if not attacker.isTerminatorHunterBased then return end
@@ -1083,29 +1139,42 @@ hook.Add( "EntityTakeDamage", "terminator_trackweapondamage", function( target, 
     if not IsValid( enem ) then return end
     if enem ~= target then return end
 
-    local weapEquipped = attacker:GetActiveWeapon()
-    if not IsValid( weapEquipped ) then return end
+    -- allow thrown crowbar + derivatives to actually get judged
+    local inflictor = dmg:GetInflictor()
+    local toJudgeWepOrClass = inflictor.terminator_Judger_WepClassToCredit
+    if not toJudgeWepOrClass then
+        toJudgeWepOrClass = attacker:GetActiveWeapon()
 
-    local trackedDamageDealt = weapEquipped.terminator_TrackedDamageDealt or 0
+    end
+    local trackedDamageDealt = getTrackedDamage( attacker, toJudgeWepOrClass )
+
+    if not trackedDamageDealt then return end
+
     local dmgDealt = dmg:GetDamage()
 
     -- dont give up on burst firing weaps!
     if dmgDealt > 80 then
         dmgDealt = dmgDealt * 8
-        weapEquipped.terminator_IsBurst = true
+        if IsValid( toJudgeWepOrClass ) then
+            toJudgeWepOrClass.terminator_IsBurst = true
+
+        end
 
     elseif dmgDealt > 40 then
         dmgDealt = dmgDealt * 2
 
+    end
     -- what a FUN wep!
-    elseif dmg:IsExplosionDamage() then
+    if dmg:IsExplosionDamage() then
         dmgDealt = dmgDealt * 2
 
     end
 
-    weapEquipped.terminator_TrackedDamageDealt = trackedDamageDealt + dmgDealt
+    setTrackedDamage( attacker, toJudgeWepOrClass, trackedDamageDealt + dmgDealt )
 
 end )
+
+-- is a weapon not being useful?
 
 function ENT:JudgeWeapon()
     if self:IsFists() then return end
@@ -1119,7 +1188,8 @@ function ENT:JudgeWeapon()
     local trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0
     myWeapon.terminator_TrackedAttackAttempts = trackedAttackAttempts + 1
 
-    local trackedDamageDealt = myWeapon.terminator_TrackedDamageDealt or 0
+    local myWepsClass = myWeapon:GetClass()
+    local trackedDamageDealt = getTrackedDamage( self, myWeapon ) or 0
 
     local hasEvenDoneDamage = nil
     if trackedDamageDealt > 0 then
@@ -1127,25 +1197,25 @@ function ENT:JudgeWeapon()
 
     end
 
-    -- applied to attack attempts
-    local offset = 20
+    -- tolerance for weapons
+    local bonusAttackAttempts = 30
     local tolerance = 4
     if weapSpread( self:GetActiveLuaWeapon() ) or hasEvenDoneDamage then
-        -- weapon thats useful!
-        offset = 50
+        -- weapon that shoots bullets??
+        bonusAttackAttempts = 60
         tolerance = 8
 
     elseif self:IsMeleeWeapon( myWeapon ) then
         -- be much less forgiving with melee weaps!
-        offset = 10
+        bonusAttackAttempts = 10
         tolerance = 1
 
     end
 
-    local offsettedAttackAttempts = trackedAttackAttempts + -offset
+    local offsettedAttackAttempts = trackedAttackAttempts + -bonusAttackAttempts
     local giveUpOnWeap = nil
 
-    if offsettedAttackAttempts > offset and not hasEvenDoneDamage then
+    if offsettedAttackAttempts > bonusAttackAttempts and not hasEvenDoneDamage then
         giveUpOnWeap = true
 
     elseif ( offsettedAttackAttempts / 2 ) > trackedDamageDealt and not myWeapon.terminator_NoLeading then
@@ -1153,16 +1223,19 @@ function ENT:JudgeWeapon()
         myWeapon.terminator_NoLeading = true
 
     elseif ( offsettedAttackAttempts / tolerance ) > trackedDamageDealt then
-        terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + -0.5 )
+        terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.5 )
         local weightToMe = self:GetWeightOfWeapon( myWeapon )
 
-        if weightToMe <= 2 then
+        if weightToMe <= 2 and not hasEvenDoneDamage then
+            giveUpOnWeap = true
+
+        elseif weightToMe <= -2 then
             giveUpOnWeap = true
 
         end
     end
     if giveUpOnWeap then
-        print( "Terminator spits in the face of a useless weapon\n" .. myWeapon:GetClass() .. "\nphTOOEY!" )
+        print( "Terminator spits in the face of a useless weapon\n" .. myWepsClass .. "\nphTOOEY!" )
         self:Anger( 5 )
         myWeapon.terminatorCrappyWeapon = true
         self:DropWeapon( true )
@@ -1171,8 +1244,18 @@ function ENT:JudgeWeapon()
     if not myWeapon.terminator_ReallyLikesThisOne and trackedDamageDealt > math.max( trackedAttackAttempts * 25, 250 ) then
         -- i like this one!
         myWeapon.terminator_ReallyLikesThisOne = true
-        print( "Terminator finds deep satisfaction in using\n" .. myWeapon:GetClass() )
-        terminator_Extras.OverrideWeaponWeight( myWeapon:GetClass(), weapsWeightToMe + 15 )
+        print( "Terminator finds deep satisfaction in using\n" .. myWepsClass )
+        terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + 15 )
 
     end
+end
+
+
+function ENT:WeaponIsPlacable()
+    local wep = self:GetWeapon()
+    if not wep.termPlace_ScoringFunc then return end
+    if not wep.termPlace_PlacingFunc then return end
+
+    return true
+
 end

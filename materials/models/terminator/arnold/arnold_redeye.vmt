@@ -4,5 +4,5 @@
 	"$bumpmap" "models/terminator/arnold/Arnold_redeye_BM"
 	"$normalmap" "models/terminator/arnold/Arnold_redeye_BM"
 	"$selfillum" 1
-	"$selfillumtint" "[ 1.0 .0 .0]"
+	"$selfillumtint" "[1 1 1]"
 }

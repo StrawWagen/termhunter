@@ -45,8 +45,8 @@ terminator_Extras.getNearestPosOnNav = function( pos )
 end
 
 terminator_Extras.dirToPos = function( startPos, endPos )
-    if not startPos then return end
-    if not endPos then return end
+    if not startPos then return vec_zero end
+    if not endPos then return vec_zero end
 
     return ( endPos - startPos ):GetNormalized()
 
@@ -65,6 +65,7 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     local directions = overrideDirections or nookDirections
     distance = distance or 800
     local facesBlocked = 0
+    local hits = {}
     for _, direction in ipairs( directions ) do
         local traceData = {
             start = pos,
@@ -76,11 +77,13 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
         local trace = util.TraceLine( traceData )
         if not trace.Hit then continue end
 
+        hits[trace.Fraction] = trace
+
         facesBlocked = facesBlocked + math.abs( trace.Fraction - 1 )
 
     end
 
-    return facesBlocked
+    return facesBlocked, hits
 
 end
 
@@ -89,54 +92,5 @@ terminator_Extras.BearingToPos = function( pos1, ang1, pos2, ang2 )
     local bearing = 180 / math.pi * math.atan2( localPos.y, localPos.x )
 
     return bearing
-
-end
-
-terminator_Extras.PosCanSee = function( startPos, endPos, mask )
-    if not startPos then return end
-    if not endPos then return end
-
-    mask = mask or terminator_Extras.LineOfSightMask
-
-    local trData = {
-        start = startPos,
-        endpos = endPos,
-        mask = mask,
-    }
-    local trace = util.TraceLine( trData )
-    return not trace.Hit, trace
-
-end
-
-terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
-    if not startPos then return end
-    if not endPos then return end
-
-    local filterTbl = {}
-    local collisiongroup = nil
-
-    if IsValid( filter ) then
-        filterTbl = table.Copy( filter:GetChildren() )
-        table.insert( filterTbl, filter )
-
-        collisiongroup = filter:GetCollisionGroup()
-
-    end
-
-    if not mask then
-        mask = bit.bor( CONTENTS_SOLID, CONTENTS_HITBOX )
-
-    end
-
-    local traceData = {
-        filter = filterTbl,
-        start = startPos,
-        endpos = endPos,
-        mask = mask,
-        collisiongroup = collisiongroup,
-    }
-    local trace = util.TraceLine( traceData )
-    local hitSomething = trace.Hit or trace.StartSolid
-    return not hitSomething, trace
 
 end

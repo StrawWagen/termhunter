@@ -23,7 +23,7 @@ function ENT:CanHolsterWeap( wep )
     -- validate slots
     for check, _ in pairs( holsteredWeps ) do
         if not IsValid( check ) then
-            holsteredWeps[check] = nil
+            holsteredWeps[ check ] = nil
 
         end
     end
@@ -41,9 +41,21 @@ function ENT:CanHolsterWeap( wep )
     local hasBoneForSlot = self:HasHolsterBone( slot )
     if not hasBoneForSlot then return false end
 
-    if holsteredSlots[ slot ] then return false end
+    -- already something there!
+    local alreadyThereWeap = holsteredSlots[ slot ]
+    local toEvict
+    if alreadyThereWeap then
+        local alreadyThereWeight = self:GetWeightOfWeapon( alreadyThereWeap )
+        local holsteredIsBad = alreadyThereWeight <= 1
+        local notBetterEnough = self:GetWeightOfWeapon( wep ) < alreadyThereWeight + 2
+        local iWantToKeepTheHolsteredOne = not holsteredIsBad and notBetterEnough
+        if iWantToKeepTheHolsteredOne then return false end
 
-    return true, data
+        toEvict = alreadyThereWeap
+
+    end
+
+    return true, data, toEvict
 
 end
 
@@ -63,8 +75,6 @@ function ENT:HasHolsterBone( slot )
 
 end
 
-
-local angZero = Angle( 0, 0, 0 )
 local vector_back = Vector( 0, -1, 0 )
 local vector_leftSide = Vector( 0, 0, 1 )
 local vector_localUp = Vector( 1, 0, 0 )
@@ -80,15 +90,12 @@ local offsetsForSlots = {
 }
 
 local rotationsForSizes = {
-    xx = Angle( 0, 90, 0 ),
-    xy = Angle( 90, 0, 0 ), -- done
+    xy = { [ HOLSTER_BACK ] = Angle( 0, 90, 0 ), [ HOLSTER_SIDEARM ] = Angle( 90, 90, 90 ) }, -- done
     xz = Angle( 0, 90, 0 ),
-    yy = Angle( 0, 0, 90 ),
     yx = Angle( 0, 0, 0 ), -- done
-    yz = Angle( 0, 90, 0 ), -- done
-    zy = Angle( 0, 90, -90 ), -- done
+    yz = { [ HOLSTER_BACK ] = Angle( 90, 90, 90 ), [ HOLSTER_SIDEARM ] = Angle( 0, -80, 0 ) }, -- done, troublemaker though!
     zx = Angle( 0, 0, 90 ), -- done
-    zz = Angle( 0, 0, 90 ),
+    zy = Angle( 0, 90, -90 ), -- done
 
 }
 
@@ -96,15 +103,17 @@ function ENT:GetHolsterData( wep )
 
     local data = wep.terminator_HolsterData
 
+    -- if this was already cached, use the cache!!!
     if data then return data end
 
-    local biggestIndex = 1
-    local thinnestIndex = 1
+    local biggestIndex = "x"
+    local thinnestIndex = "x"
     local biggestSize = 0
     local thinnestSize = math.huge
 
-    local mins = wep:OBBMins()
-    local maxs = wep:OBBMaxs()
+    local mins, maxs = wep:GetModelRenderBounds()
+
+    if not mins or not maxs then return end
 
     local sizes = {
         x = math.abs( mins.x ) + math.abs( maxs.x ),
@@ -132,7 +141,7 @@ function ENT:GetHolsterData( wep )
     if biggestSize <= 25 then -- sidearm
         holsterDat.slot = HOLSTER_SIDEARM
 
-    elseif biggestSize <= 150 then
+    elseif biggestSize <= 80 then
         holsterDat.slot = HOLSTER_BACK
 
     end
@@ -141,13 +150,24 @@ function ENT:GetHolsterData( wep )
     if not thinnestIndex then return end
     if not biggestIndex then return end
 
-    local rotInd = thinnestIndex .. biggestIndex
+    -- override pesky models with crappy oversized bounding boxes. ( EG. MEDKIT MODELS! )
+    local rotation = hook.Run( "terminator_holstering_overrideangles", wep:GetModel() )
 
-    local rotation = rotationsForSizes[ rotInd ]
+    -- no override? do the default checks
+    if not rotation then
+        local rotInd = thinnestIndex .. biggestIndex
+        rotation = rotationsForSizes[ rotInd ]
+        if istable( rotation ) then
+            rotation = rotation[ holsterDat.slot ]
+
+        end
+        --print( rotInd, thinnestIndex .. thinnestSize, biggestIndex .. biggestSize, wep:GetClass() )
+
+    end
     if not rotation then return end
-    local offsets = offsetsForSlots[ holsterDat.slot ]
 
-    --print( rotInd, thinnestSize, biggestSize, wep:GetClass() )
+    -- SLOT offsets
+    local offsets = offsetsForSlots[ holsterDat.slot ]
 
     if offsets.angOffset then
         rotation = rotation + offsets.angOffset
@@ -166,8 +186,13 @@ function ENT:GetHolsterData( wep )
 end
 
 function ENT:HolsterWeap( wep )
-    local canHolster, holsterDat = self:CanHolsterWeap( wep )
+    local canHolster, holsterDat, toEvict = self:CanHolsterWeap( wep )
     if not canHolster then return end
+
+    if IsValid( toEvict ) then
+        self:DropWeapon( true, toEvict )
+
+    end
 
     local boneExists, boneId = self:HasHolsterBone( holsterDat.slot )
     if not boneExists then return end

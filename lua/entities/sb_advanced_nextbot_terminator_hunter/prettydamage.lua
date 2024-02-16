@@ -277,14 +277,61 @@ function ENT:OnTakeDamage( Damage )
 
 end
 
+local MEMORY_VOLATILE = 8
+local MEMORY_DAMAGING = 64
+
+function ENT:TakenDamage( damage )
+    if damage:GetDamage() <= 75 then return end
+
+    -- make group of bots react to 1 getting damaged
+    local ourChummy = self.isTerminatorHunterChummy
+    for _, curr in ipairs( self.awarenessSubstantialStuff ) do
+        if curr.isTerminatorHunterChummy ~= ourChummy then continue end
+        timer.Simple( math.Rand( 0.5, 1.5 ), function()
+            if not IsValid( curr ) then return end
+            if not curr.Anger then return end
+            curr:Anger( math.random( 5, 10 ) )
+
+        end )
+    end
+
+    -- dont walk in this area ever again!
+    local areas = navmesh.Find( self:GetPos(), damage:GetDamage(), self.JumpHeight, self.JumpHeight )
+    for _, area in ipairs( areas ) do
+        table.insert( self.hazardousAreas, area )
+
+    end
+
+    local inflictor = damage:GetInflictor()
+    local trueDamager = IsValid( inflictor ) and not IsValid( inflictor:GetOwner() ) and not inflictor:IsPlayer() and not inflictor:IsNPC()
+    if trueDamager then
+        if damage:IsExplosionDamage() then
+            self:memorizeEntAs( inflictor, MEMORY_VOLATILE )
+
+        else
+            self:memorizeEntAs( inflictor, MEMORY_DAMAGING )
+
+        end
+    end
+end
+
 function ENT:HandleWeaponOnDeath( wep, dmg )
     if dmg:IsDamageType( DMG_DISSOLVE ) then
-        wep = self:DropWeapon( true, wep )
         self:DissolveEntity( wep )
+        timer.Simple( 0, function()
+            if not IsValid( self ) then return end
+            if not IsValid( wep ) then return end
+            wep = self:DropWeapon( true, wep )
 
+        end )
     else
         if self:CanDropWeaponOnDie( wep ) then
-            self:DropWeapon( true, wep )
+            timer.Simple( 0, function()
+                if not IsValid( self ) then return end
+                if not IsValid( wep ) then return end
+                self:DropWeapon( true, wep )
+
+            end )
 
         else
             wep:Remove()
@@ -323,6 +370,7 @@ function ENT:OnKilled( dmg )
         if not IsValid( child ) then continue end
         local parent = child:GetParent()
         if not IsValid( parent ) or parent ~= self then continue end
+        if child:IsWeapon() then continue end
         child:SetNoDraw( true )
 
     end

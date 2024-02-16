@@ -22,7 +22,7 @@ SWEP.MeleeWeaponDistance = SWEP.Range
 SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.ThrowForce = 25000
-SWEP.ClassToRespawnAs = "weapon_stunstick"
+SWEP.PreOverrideClass = "weapon_stunstick"
 
 function SWEP:SwingSpawn( spawnPos )
     local new = ents.Create( "prop_physics" )

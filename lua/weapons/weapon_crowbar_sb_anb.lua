@@ -26,7 +26,6 @@ SWEP.Secondary = {
 }
 
 terminator_Extras.SetupAnalogWeight( SWEP )
-SWEP.terminator_IgnoreWeaponUtility = true
 
 SWEP.PickupSound = "weapons/crowbar/crowbar_impact2.wav"
 SWEP.Range = 2200
@@ -34,13 +33,12 @@ SWEP.MeleeWeaponDistance = SWEP.Range
 SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.ThrowForce = 28000
-SWEP.ClassToRespawnAs = "weapon_crowbar"
+SWEP.PreOverrideClass = "weapon_crowbar"
 
 function SWEP:Initialize()
     self:SetHoldType( self.HoldType )
     self:SetNextPrimaryFire( CurTime() + 1 )
 
-    if CLIENT then self:SetNoDraw( true ) end
 end
 
 function SWEP:GetProjectileOffset()
@@ -108,11 +106,14 @@ function SWEP:SwingingSound( projectile )
 
 end
 
+local invisWhite = Color( 255, 255, 255, 0 )
+
 function SWEP:Swing()
     if not SERVER then return end
 
+    local wepsClass = self:GetClass()
     local owner = self:GetOwner()
-    self:SetColor( Color( 255, 255, 255, 0 ) )
+    self:SetColor( invisWhite )
     SafeRemoveEntityDelayed( self, 0.3 )
     self:SetNextPrimaryFire( CurTime() + 10 )
 
@@ -123,6 +124,9 @@ function SWEP:Swing()
         local newPos, aimVec = self:GetProjectileOffset()
 
         local thrownFake = self:SwingSpawn( newPos )
+
+        if not IsValid( thrownFake ) then return end
+        thrownFake.terminator_Judger_WepClassToCredit = wepsClass
 
         local obj = thrownFake:GetPhysicsObject()
         local force = 0
@@ -150,12 +154,12 @@ function SWEP:Swing()
 
         self:SwingingSound( thrownFake )
 
-        local ClassToRespawnAs = self.ClassToRespawnAs
+        local PreOverrideClass = self.PreOverrideClass
 
         timer.Simple( 3, function()
             if not IsValid( thrownFake ) then return end
             if thrownFake.blockReturnAsWeap then return end
-            local returnWeap = ents.Create( ClassToRespawnAs )
+            local returnWeap = ents.Create( PreOverrideClass )
             returnWeap:SetAngles( thrownFake:GetAngles() )
             returnWeap:SetPos( thrownFake:GetPos() )
             returnWeap:Spawn()
@@ -170,6 +174,8 @@ function SWEP:Swing()
         end )
     end )
 end
+
+local IsValid = IsValid
 
 hook.Add( "EntityTakeDamage", "STRAW_terminatorHunter_crowbarCorrectTheAttacker", function( target, damage )
     local inflic = damage:GetInflictor()
@@ -261,6 +267,8 @@ end
 function SWEP:GetCapabilities()
     return CAP_WEAPON_RANGE_ATTACK1
 end
+
+if not CLIENT then return end
 
 function SWEP:DrawWorldModel()
 end

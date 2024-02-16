@@ -483,7 +483,7 @@ function ENT:AnotherHunterIsHeadingToEnemy()
             if dirDifference < 0.25 and pathEndDistToEnemy > moveSpeed^2 then continue end
 
             -- finally
-            if not _PosCanSeeComplex( pathEnd + vecUp25, enemysShootPos, { enemy } ) then continue end
+            if not _PosCanSeeComplex( pathEnd + vecUp25, enemysShootPos, { myEnemy } ) then continue end
 
             return true
 
@@ -579,7 +579,19 @@ function ENT:HandleFakeCrouching( data, enemy )
     if enemy.terminator_CantConvinceImFriendly then return end
     if not ( data.baitcrouching or enemy.terminator_crouchingbaited == self ) then return end
 
-    self.forcedShouldWalk = CurTime() + 1
+    if not data.distToEnemyOld then
+        data.distToEnemyOld = self.DistToEnemy
+
+    elseif self.DistToEnemy > data.distToEnemyOld then
+        self.forcedShouldWalk = 0
+        data.distToEnemyOld = math.Clamp( self.DistToEnemy, data.distToEnemyOld, data.distToEnemyOld + 5 )
+        return
+
+    elseif self.DistToEnemy < data.distToEnemyOld then
+        data.distToEnemyOld = self.DistToEnemy
+        self.forcedShouldWalk = CurTime() + 1
+
+    end
 
     data.baitcrouching = data.baitcrouching or CurTime()
     data.crouchbaitcount = data.crouchbaitcount or 0

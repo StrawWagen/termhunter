@@ -209,6 +209,7 @@ function ENT:DoWeaponHacks( wep )
     local wepsTable = weapons.Get( wepClass )
     local max = 100 -- dont let anything funny happen!
     local doneCount = 0
+
     while wepsTable and doneCount < max do
         doneCount = doneCount + 1
 

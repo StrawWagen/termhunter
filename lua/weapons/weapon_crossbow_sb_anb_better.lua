@@ -30,8 +30,6 @@ terminator_Extras.SetupAnalogWeight( SWEP )
 function SWEP:Initialize()
     self:SetHoldType("crossbow")
 
-    if CLIENT then self:SetNoDraw(true) end
-
 end
 
 function SWEP:CanPrimaryAttack()

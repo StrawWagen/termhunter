@@ -7,7 +7,6 @@ end
 SWEP.Base = "weapon_crowbar_sb_anb"
 SWEP.PrintName = "#HL2_Frag"
 SWEP.Spawnable = false
-SWEP.Spawnable = false
 SWEP.Author = "Shadow Bonnie (RUS)"
 SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 
@@ -16,7 +15,6 @@ SWEP.WorldModel = "models/weapons/w_stunbaton.mdl"
 SWEP.Weight = terminator_Extras.GoodWeight + -2
 
 terminator_Extras.SetupAnalogWeight( SWEP )
-SWEP.terminator_IgnoreWeaponUtility = true
 
 SWEP.PickupSound = "Grenade.ImpactSoft"
 SWEP.Range = 1800
@@ -24,9 +22,9 @@ SWEP.MeleeWeaponDistance = SWEP.Range
 SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.worksWithoutSightline = true
+SWEP.PreOverrideClass = "weapon_frag"
 
 function SWEP:CanPrimaryAttack()
-
     if self:GetNextPrimaryFire() > CurTime() then return false end
     if not terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
@@ -48,7 +46,6 @@ function SWEP:SwingSpawn( spawnPos )
 
 end
 
-
 function SWEP:ThrowForce()
     local owner = self:GetOwner()
     local enemy = owner:GetEnemy()
@@ -61,8 +58,6 @@ function SWEP:ThrowForce()
     return force
 
 end
-
-local flattenVec = Vector( 1, 1, 0.5 )
 
 function SWEP:terminatorAimingFunc()
     local owner = self:GetOwner()

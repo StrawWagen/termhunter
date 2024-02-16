@@ -16,6 +16,16 @@ SWEP.Range    = 80
 SWEP.Weight = 0
 SWEP.HitMask = MASK_SOLID
 
+local className = "weapon_terminatorfists_sb_anb"
+if CLIENT then
+    language.Add( className, SWEP.PrintName )
+    killicon.Add( className, "killicon/" .. className .. ".png" )
+
+else
+    resource.AddFile( "killicon/" .. className .. ".png" )
+
+end
+
 local SwingSound = Sound( "WeaponFrag.Throw" )
 local HitSound = Sound( "Flesh.ImpactHard" )
 
@@ -30,21 +40,6 @@ SWEP.Secondary = {
     ClipSize = -1,
     DefaultClip = -1,
 }
-
-local function DoorHitSound( ent )
-    ent:EmitSound( "ambient/materials/door_hit1.wav", 100, math.random( 80, 120 ) )
-
-end
-local function BreakSound( ent )
-    local Snd = "physics/wood/wood_furniture_break" .. tostring( math.random( 1, 2 ) ) .. ".wav"
-    ent:EmitSound( Snd, 110, math.random( 80, 90 ) )
-
-end
-local function StrainSound( ent )
-    local Snd = "physics/wood/wood_strain" .. tostring( math.random( 2, 4 ) ) .. ".wav"
-    ent:EmitSound( Snd, 80, math.random( 60, 70 ) )
-
-end
 
 local function LockBustSound( ent )
     ent:EmitSound( "doors/vent_open1.wav", 100, 80, 1, CHAN_STATIC )
@@ -75,55 +70,6 @@ local function ModelBoundSparks( ent )
     randpos = ent:LocalToWorld( randpos )
 
     SparkEffect( randpos )
-
-end
-
--- code from the sanic nextbot, the greatest nexbot
-local function detachAreaPortals( self, door )
-
-    local doorName = door:GetName()
-    if doorName == "" then return end
-
-    for _, portal in ipairs( ents.FindByClass( "func_areaportal" ) ) do
-        local portalTarget = portal:GetInternalVariable( "m_target" )
-        if portalTarget == doorName then
-
-            portal:Input( "Open", self, door )
-
-            portal:SetSaveValue( "m_target", "" )
-        end
-    end
-end
-
-function SWEP:MakeDoor( ent )
-    local vel = self:GetForward() * 4800
-    pos = ent:GetPos()
-    ang = ent:GetAngles()
-    mdl = ent:GetModel()
-    ski = ent:GetSkin()
-
-    detachAreaPortals( self:GetOwner(), ent )
-
-    local getRidOf = { ent }
-    table.Add( getRidOf, ent:GetChildren() )
-    for _, toRid in pairs( getRidOf ) do
-        toRid:SetNotSolid( true )
-        toRid:SetNoDraw( true )
-    end
-    prop = ents.Create( "prop_physics" )
-    prop:SetPos( pos )
-    prop:SetAngles( ang )
-    prop:SetModel( mdl )
-    prop:SetSkin( ski or 0 )
-    prop:Spawn()
-    prop:SetVelocity( vel )
-    prop:GetPhysicsObject():ApplyForceOffset( vel, self:GetPos() )
-    prop:SetPhysicsAttacker( self )
-    DoorHitSound( prop )
-    BreakSound( prop )
-
-    prop.isBustedDoor = true
-    prop.bustedDoorHp = 400
 
 end
 
@@ -213,7 +159,7 @@ function SWEP:HandleDoor( tr )
         if lockHealth <= 0 then
             lockHealth = nil
             door:Fire( "unlock", "", .01 )
-            DoorHitSound( door )
+            terminator_Extras.DoorHitSound( door )
             LockBustSound( door )
 
             util.ScreenShake( owner:GetPos(), 80, 10, 1, 1500 )
@@ -224,7 +170,7 @@ function SWEP:HandleDoor( tr )
             end
 
         else
-            DoorHitSound( door )
+            terminator_Extras.DoorHitSound( door )
             if lockHealth < door.terminator_lockMaxHealth * 0.45 then
                 ModelBoundSparks( door )
                 util.ScreenShake( owner:GetPos(), 10, 10, 0.5, 600 )
@@ -241,24 +187,24 @@ function SWEP:HandleDoor( tr )
         door.term_PunchedCount = HitCount + 1
 
         if terminator_Extras.CanBashDoor( door ) == false then
-            DoorHitSound( door )
+            terminator_Extras.DoorHitSound( door )
 
         else
             if HitCount > 4 then
-                BreakSound( door )
+                terminator_Extras.BreakSound( door )
 
             end
             if HitCount > 2 then
-                StrainSound( door )
+                terminator_Extras.StrainSound( door )
 
             end
 
             if HitCount >= 5 then
-                self:MakeDoor( door )
+                terminator_Extras.DehingeDoor( self, door )
 
             elseif HitCount < 5 then
-                DoorHitSound( door )
-                StrainSound( door )
+                terminator_Extras.DoorHitSound( door )
+                terminator_Extras.StrainSound( door )
 
                 if ( HitCount % 3 ) == 4 then
                     if owner.Use2 then
@@ -295,11 +241,13 @@ function SWEP:SoftBashProperDoor( door, owner )
         local values = door:GetKeyValues()
         door.term_oldBashSpeed = values["speed"]
         door.term_oldOpenDir = values["opendir"]
+        door.term_oldOpenDmg = values["dmg"]
 
     end
 
     door:SetKeyValue( "speed", "500" )
     door:SetKeyValue( "opendir", 0 )
+    door:SetKeyValue( "dmg", 100 )
     door:Fire( "unlock", "", .01 )
     door:Fire( "openawayfrom", newname, .01 )
 
@@ -320,6 +268,10 @@ function SWEP:SoftBashProperDoor( door, owner )
             door:SetKeyValue( "opendir", door.term_oldOpenDir )
 
         end
+        if door.term_oldOpenDmg then
+            door:SetKeyValue( "dmg", door.term_oldOpenDmg )
+
+        end
     end )
 end
 
@@ -327,6 +279,7 @@ function SWEP:ResetHoldTypeCountdown()
     if not SERVER then return end
     local owner = self:GetOwner()
     if not IsValid( owner ) then return end
+    if not owner.GetEnemy then return end
     local time = 15
 
     if owner:IsAngry() then
@@ -345,6 +298,7 @@ end
 function SWEP:HoldTypeThink()
     local owner = self:GetOwner()
     if not IsValid( owner ) then return end
+    if not owner.GetEnemy then return end
     local enemy = owner:GetEnemy()
     local holdType = "fist"
     local doFistsTime = self.doFistsTime
@@ -396,14 +350,10 @@ end
 function SWEP:Initialize()
     self:SetHoldType( "normal" )
 
-    if CLIENT then
-        self:SetNoDraw( true )
+    if not SERVER then return end
+    self.doFistsTime = 0
+    self.oldHoldType = nil
 
-    else
-        self.doFistsTime = 0
-        self.oldHoldType = nil
-
-    end
 end
 
 function SWEP:CanPrimaryAttack()
@@ -460,7 +410,7 @@ function SWEP:DealDamage()
         else
             local _, entMemoryKey = owner.getMemoryOfObject and owner:getMemoryOfObject( hitEnt )
 
-            local dmgMul = owner.FistDamageMul
+            local dmgMul = owner.FistDamageMul or 1
             if friendly then
                 dmgMul = 0.05
                 hitEnt.overrideMiniStuck = true
@@ -509,7 +459,7 @@ function SWEP:DealDamage()
 
                 end
 
-                if not IsValid( hitEnt ) or ( IsValid( hitEnt ) and oldHealth > 0 and hitEnt:Health() <= 0 ) then
+                if owner.memorizeEntAs and not IsValid( hitEnt ) or ( IsValid( hitEnt ) and oldHealth > 0 and hitEnt:Health() <= 0 ) then
                     owner:memorizeEntAs( entMemoryKey, MEMORY_BREAKABLE )
 
                 end

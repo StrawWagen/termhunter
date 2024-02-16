@@ -1,3 +1,39 @@
+local listening = nil
+
+terminator_Extras = terminator_Extras or {}
+terminator_Extras.listeners = terminator_Extras.listeners or {}
+
+local function cleanupListenerTbl()
+    listening = true
+    for index, curr in ipairs( terminator_Extras.listeners ) do
+        if not IsValid( curr ) then
+            table.remove( terminator_Extras.listeners, index )
+
+        end
+    end
+    if #terminator_Extras.listeners <= 0 then
+        listening = nil
+
+    end
+end
+
+function terminator_Extras.RegisterListener( listener )
+    timer.Simple( 0, function()
+        cleanupListenerTbl()
+
+    end )
+
+    if not IsValid( listener ) then return end
+    table.insert( terminator_Extras.listeners, listener )
+
+    listener:CallOnRemove( "terminator_cleanupsoundlisteners", function()
+        timer.Simple( 0, function()
+            cleanupListenerTbl()
+
+        end )
+    end )
+end
+
 local function sqrDistLessThan( Dist1, Dist2 )
     Dist2 = Dist2 ^ 2
     return Dist1 < Dist2
@@ -29,9 +65,8 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
 
     for _, currTerm in pairs( terms ) do
         if IsValid( thing ) and currTerm.isTerminatorHunterChummy == thing.isTerminatorHunterChummy then goto nextSoundHintPlease end
-        local distToSrc = currTerm:GetPos():DistToSqr( src )
-        local isMe = thing == currTerm
-        if sqrDistLessThan( distToSrc, range ) and not isMe then
+        local isNotMe = thing ~= currTerm
+        if isNotMe and sqrDistLessThan( currTerm:GetPos():DistToSqr( src ), range ) then
             --debugoverlay.Line( currTerm:GetPos(), src, 10, Vector(255,255,255), true )
 
             currTerm:SaveSoundHint( src, valuable, thing )
@@ -54,6 +89,7 @@ local customRanges = {
 }
 
 local function bulletFireThink( entity, data )
+    if not listening then return end
     if not IsValid( entity ) then return end
 
     local range = nil
@@ -89,13 +125,14 @@ hook.Add( "EntityFireBullets", "straw_termalerter_firebullets", bulletFireThink 
 
 
 -- stick our fingers in emithint
-sound._EmitHint = sound._EmitHint or sound.EmitHint
+sound._StrawTakeover_EmitHint = sound._StrawTakeover_EmitHint or sound.EmitHint
 sound.EmitHint = function( ... )
     hook.Run( "StrawSoundEmitHint", ... )
-    return sound._EmitHint( ... )
+    return sound._StrawTakeover_EmitHint( ... )
 end
 
 local function soundHintThink( hint, pos, volume, _, owner )
+    if not listening then return end
 
     local combat = bit.band( hint, SOUND_COMBAT ) > 0
     local danger = bit.band( hint, SOUND_DANGER ) > 0
@@ -116,13 +153,14 @@ hook.Add( "StrawSoundEmitHint", "straw_termalerter_soundhint", soundHintThink )
 
 
 -- bl damage
-util._NextBotHook_BlastDamage = util._NextBotHook_BlastDamage or util.BlastDamage
+util._StrawTakeover_BlastDamage = util._StrawTakeover_BlastDamage or util.BlastDamage
 util.BlastDamage = function( ... )
     hook.Run( "StrawBlastDamage", ... )
-    return util._NextBotHook_BlastDamage( ... )
+    return util._StrawTakeover_BlastDamage( ... )
 end
 
 local function blastDamageHintThink( _, attacker, damageOrigin, damageRadius, damage )
+    if not listening then return end
 
     local radiusComponent = damageRadius * 0.2
     local volume = math.Clamp( damage * radiusComponent, 1000, 10000 )
@@ -134,13 +172,14 @@ hook.Add( "StrawBlastDamage", "straw_termalerter_blastdamage", blastDamageHintTh
 
 
 -- bl damage info
-util._NextBotHook_BlastDamageInfo = util._NextBotHook_BlastDamageInfo or util.BlastDamageInfo
+util._StrawTakeover_BlastDamageInfo = util._StrawTakeover_BlastDamageInfo or util.BlastDamageInfo
 util.BlastDamageInfo = function( ... )
     hook.Run( "StrawBlastDamageInfo", ... )
-    return util._NextBotHook_BlastDamageInfo( ... )
+    return util._StrawTakeover_BlastDamageInfo( ... )
 end
 
 local function blastDamageInfoHintThink( dmg, damageOrigin, damageRadius )
+    if not listening then return end
 
     local damage = dmg:GetDamage()
     local radiusComponent = damageRadius * 0.2
@@ -156,6 +195,7 @@ hook.Add( "StrawBlastDamageInfo", "straw_termalerter_blastdamageinfo", blastDama
 
 -- env_explosion reading
 local function explosionHintThink( entity )
+    if not listening then return end
     if not IsValid( entity ) then return end
     if entity:GetClass() ~= "env_explosion" then return end
 
@@ -183,6 +223,7 @@ hook.Add( "OnEntityCreated", "straw_termalerter_explosioninfo", explosionHintThi
 
 
 local function handleNormalSound( ent, pos, level, name )
+    if not listening then return end
     if pos == Vector() then return end
 
     local squareInternal = squareVarQuiet
@@ -199,13 +240,14 @@ local function handleNormalSound( ent, pos, level, name )
 end
 
 -- fingies be stucketh
-sound._StrawTakeoverPlay = sound._StrawTakeoverPlay or sound.Play
+sound._StrawTakeover_soundPlay = sound._StrawTakeover_soundPlay or sound.Play
 sound.Play = function( ... )
     hook.Run( "StrawSoundPlayHook", ... )
-    return sound._StrawTakeoverPlay( ... )
+    return sound._StrawTakeover_soundPlay( ... )
 end
 
 local function soundPlayThink( name, pos, level, _, volume )
+    if not listening then return end
 
     if not name then return end
     if not pos then return end
@@ -223,9 +265,9 @@ end
 hook.Add( "StrawSoundPlayHook", "straw_termalerter_soundplayhook", soundPlayThink )
 
 
-
 -- sound reading!?!??
 local function emitSoundThink( soundDat )
+    if not listening then return end
     local entity = soundDat.Entity
     if not IsValid( entity ) then return end
     local class = entity:GetClass()

@@ -1,3 +1,19 @@
+local cheatsVar = GetConVar( "sv_cheats" )
+local function isCheats()
+    return cheatsVar:GetBool()
+
+end
+
+function ENT:InvalidatePath( reason )
+    local path = self:GetPath()
+    if not path:IsValid() then return end
+    path:Invalidate()
+    if not isCheats() then return end
+
+    -- this is displayed when bot is used by a player
+    self.lastPathInvalidateReason = reason
+
+end
 
 function ENT:getCachedPathSegments()
     local path = self:GetPath()
@@ -109,26 +125,80 @@ function ENT:primaryPathIsValid()
 
 end
 
-function ENT:TakenDamage( damage )
-    if damage:GetDamage() <= 75 then return end
-    local areas = navmesh.Find( self:GetPos(), damage:GetDamage(), self.JumpHeight, self.JumpHeight )
-    for _, area in ipairs( areas ) do
-        self.hazardousAreas[ area:GetID() ] = area
+function ENT:primaryPathInvalidOrOutdated( destination )
+    return not self:primaryPathIsValid() or ( self:primaryPathIsValid() and self:CanDoNewPath( destination ) )
 
-    end
+end
+
+local badConnections = {}
+local lastBadFlags = {}
+local superBadConnections = {}
+local lastSuperBadFlags = {}
+local normalBadTimeout = 120
+local superBadTimeout = 520
+
+local function getConnId( fromAreaId, toAreaId )
+    -- this needs to have directionality
+    return fromAreaId + ( toAreaId / 2 )
+
+end
+
+-- make nextbot recognize two nav areas that dont connect in practice
+function ENT:flagConnectionAsShit( area1, area2 )
+    if not area1:IsValid() then return end
+    if not area2:IsValid() then return end
+    if not area1:IsConnected( area2 ) then return end -- no connection to flag! bot probably fell off it's path
+
+    local connectionsId = getConnId( area1:GetID(), area2:GetID() )
+
+    local superShitConnection = nil
+    if badConnections[ connectionsId ] then superShitConnection = true end
+
+    badConnections[connectionsId] = true
+    lastBadFlags[connectionsId] = CurTime()
+
+    timer.Simple( normalBadTimeout, function()
+        local lastFlag = lastBadFlags[connectionsId]
+
+        if not lastFlag then return end -- ???
+        -- dont obliterate new ones!
+        if lastFlag + ( normalBadTimeout + -10 ) < CurTime() then return end
+
+        badConnections[connectionsId] = nil
+        lastBadFlags[connectionsId] = nil
+
+    end )
+
+    if not superShitConnection then return end
+
+    superBadConnections[connectionsId] = true
+    lastSuperBadFlags[connectionsId] = CurTime()
+
+    timer.Simple( superBadTimeout, function()
+        local lastSuperFlag = lastSuperBadFlags[connectionsId]
+
+        if not lastSuperFlag then return end
+        if lastSuperFlag + ( normalBadTimeout + -10 ) < CurTime() then return end
+
+        superBadConnections[connectionsId] = nil
+        lastSuperBadFlags[connectionsId] = nil
+
+    end )
 end
 
 
 -- flanking!
 local flankingDest
 local hunterIsFlanking
-local flankingAvoidAreas
+local pathAreasAdditionalCost
 local isReallyAngry = nil
 
-function ENT:AddAreasToFlank( areas, mul )
+function ENT:AddAreasToAvoid( areas, mul )
+    pathAreasAdditionalCost = pathAreasAdditionalCost or {}
     for _, avoid in ipairs( areas ) do
         if avoid and ( avoid ~= flankingDest ) then
-            flankingAvoidAreas[ avoid:GetID() ] = mul
+            local oldMul = pathAreasAdditionalCost[ avoid:GetID() ] or 0
+            pathAreasAdditionalCost[ avoid:GetID() ] = oldMul + mul
             --debugoverlay.Cross( avoid:GetCenter(), 10, 10, color_white, true )
 
         end
@@ -139,8 +209,9 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
     if not isvector( destination ) then return end
     -- lagspike if we try to flank around area that contains the destination
     flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
+
     if not flankingDest then return false end
-    flankingAvoidAreas = flankingAvoidAreas or {}
+
     hunterIsFlanking = true
     isReallyAngry = self:IsReallyAngry()
 
@@ -156,9 +227,8 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
 
     end
 
-    self:AddAreasToFlank( self.hazardousAreas, 10 )
+    self:SetupPathShell( destination )
 
-    self:SetupPath2( destination )
     self:endFlankPath()
 
 end
@@ -168,7 +238,7 @@ function ENT:flankAroundArea( bubbleArea, bubbleRadius )
     local bubbleCenter = bubbleArea:GetCenter()
 
     local areas = navmesh.Find( bubbleCenter, bubbleRadius, self.JumpHeight, self.JumpHeight )
-    self:AddAreasToFlank( areas, 25 )
+    self:AddAreasToAvoid( areas, 25 )
 
 end
 
@@ -180,7 +250,7 @@ function ENT:flankAroundCorridorBetween( bubbleStart, bubbleDestination )
     local bubbleCenter = bubbleStart + offset
 
     local firstBubbleAreas = navmesh.Find( bubbleCenter, bubbleRadius, self.JumpHeight, self.JumpHeight )
-    self:AddAreasToFlank( firstBubbleAreas, 25 )
+    self:AddAreasToAvoid( firstBubbleAreas, 25 )
 
 end
 
@@ -209,7 +279,7 @@ function ENT:FlankAroundEasyEntraceToThing( bubbleStart, thing )
         end
     end
 
-    self:AddAreasToFlank( secondBubbleAreasClipped, 50 )
+    self:AddAreasToAvoid( secondBubbleAreasClipped, 50 )
 end
 
 function ENT:endFlankPath()
@@ -217,22 +287,39 @@ function ENT:endFlankPath()
     self.flankBubbleSizeSqr = nil
     flankingZRewardBegin = nil
     hunterIsFlanking = nil
-    flankingAvoidAreas = nil
     isReallyAngry = nil
+
+end
+
+local function badConnectionCheck( connectionsId, dist )
+    if badConnections[connectionsId] then
+        dist = dist * 10
+        dist = dist + 3000
+
+    end
+    if superBadConnections[connectionsId] then
+        dist = dist + 20000000
+
+    end
+    return dist
 
 end
 
 --TODO: dynamically check if a NAV_TRANSIENT areas are supported by terrain, then cache the results 
 --local function isCachedTraversable( area )
 
+local jumpHeightCached
+local stepHeightCached
+local deathHeightCached
+
 local IsValid = IsValid
+local band = bit.band
 
-function ENT:NavMeshPathCostGenerator( _, area, from, ladder, _, len )
-    if not IsValid( from ) then return 0 end
+function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
+    if not IsValid( fromArea ) then return 0 end
 
-    local dist = 0
-    local addedCost = 0
-    local costSoFar = from:GetCostSoFar() or 0
+    local toAreasId = toArea:GetID()
+    local dist
 
     if IsValid( ladder ) then
         local cost = ladder:GetLength() * 4
@@ -241,17 +328,22 @@ function ENT:NavMeshPathCostGenerator( _, area, from, ladder, _, len )
     elseif len > 0 then
         dist = len
     else
-        dist = from:GetCenter():Distance( area:GetCenter() )
+        dist = fromArea:GetCenter():Distance( toArea:GetCenter() )
     end
 
+    dist = badConnectionCheck( getConnId( fromArea:GetID(), toAreasId ), dist )
 
-    if hunterIsFlanking and flankingAvoidAreas and flankingAvoidAreas[ area:GetID() ] then
-        dist = dist * flankingAvoidAreas[ area:GetID() ]
-        --debugoverlay.Cross( area:GetCenter(), 10, 10, color_white, true )
+    if pathAreasAdditionalCost[ toAreasId ] then
+        dist = dist * pathAreasAdditionalCost[ toAreasId ]
+        --debugoverlay.Cross( toArea:GetCenter(), 10, 10, color_white, true )
 
     end
 
-    if area:HasAttributes( NAV_MESH_CROUCH ) then
+    local attributes = toArea:GetAttributes()
+    local crouching
+
+    if band( attributes, NAV_MESH_CROUCH ) == 1 then
+        crouching = true
         if hunterIsFlanking then
             -- vents?
             dist = dist * 0.5
@@ -261,20 +353,20 @@ function ENT:NavMeshPathCostGenerator( _, area, from, ladder, _, len )
         end
     end
 
-    if area:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
-        if from:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
+    if band( attributes, NAV_MESH_OBSTACLE_TOP ) == 1 then
+        if fromArea:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
             dist = dist * 8
         else
             dist = dist * 2 -- these usually look goofy
         end
     end
 
-    local sizeX = area:GetSizeX()
-    local sizeY = area:GetSizeY()
+    local sizeX = toArea:GetSizeX()
+    local sizeY = toArea:GetSizeY()
 
     if sizeX < 26 or sizeY < 26 then
         -- generator often makes small 1x1 areas with this attribute, on very complex terrain
-        if area:HasAttributes( NAV_MESH_NO_MERGE ) then
+        if band( attributes, NAV_MESH_NO_MERGE ) == 1 then
             dist = dist * 8
         else
             dist = dist * 1.25
@@ -282,63 +374,48 @@ function ENT:NavMeshPathCostGenerator( _, area, from, ladder, _, len )
     end
     if sizeX > 151 and sizeY > 151 and not hunterIsFlanking then --- mmm very simple terrain
         dist = dist * 0.6
-    elseif sizeX > 76 and sizeY > 76 then -- this makes us prefer paths thru simple terrain
+    elseif sizeX > 76 and sizeY > 76 then -- this makes us prefer paths thru simple terrain, it's cheaper!
         dist = dist * 0.8
     end
 
-    if area:HasAttributes( NAV_MESH_JUMP ) then
+    if band( attributes, NAV_MESH_JUMP ) == 1 then
         dist = dist * 1.5
     end
 
-    if area:HasAttributes( NAV_MESH_AVOID ) then
+    if band( attributes, NAV_MESH_AVOID ) == 1 then
         dist = dist * 20
     end
 
-    if from then
-        local nav2Id = area:GetID()
-        if not istable( navExtraDataHunter.nav1Id ) then goto skipShitConnectionDetection end
-        if not navExtraDataHunter.nav1Id.shitConnnections then goto skipShitConnectionDetection end
-        if navExtraDataHunter.nav1Id.shitConnnections[nav2Id] then
-            addedCost = 3000
-            dist = dist * 10
-            if not navExtraDataHunter.nav1Id.superShitConnnections then goto skipSuperShitConnectionDetection end
-            if navExtraDataHunter.nav1Id.superShitConnnections[nav2Id] then
-                addedCost = 200000
-            end
-            ::skipSuperShitConnectionDetection::
-        end
-        ::skipShitConnectionDetection::
-    end
-
-    if area:HasAttributes( NAV_MESH_TRANSIENT ) then
+    if band( attributes, NAV_MESH_TRANSIENT ) == 1 then
         dist = dist * 2
     end
 
-    if area:IsUnderwater() then
+    if toArea:IsUnderwater() then
         dist = dist * 2
     end
 
-    local cost = dist + addedCost + costSoFar
+    local costSoFar = fromArea:GetCostSoFar() or 0
+    local cost = dist + costSoFar
 
-    local deltaZ = from:ComputeAdjacentConnectionHeightChange( area )
-    local stepHeight = self.loco:GetStepHeight()
-    local jumpHeight = self.loco:GetMaxJumpHeight()
+    local deltaZ = fromArea:ComputeAdjacentConnectionHeightChange( toArea )
+    local stepHeight = stepHeightCached
+    local jumpHeight = jumpHeightCached
     if deltaZ >= stepHeight then
         if deltaZ >= jumpHeight then return -1 end
         if deltaZ > stepHeight * 4 then
-            if hunterIsFlanking then
-                cost = cost * 6
-
-            else
-                cost = cost * 8
-
-            end
-        elseif deltaZ > stepHeight * 2 then
             if hunterIsFlanking then
                 cost = cost * 4
 
             else
                 cost = cost * 6
+
+            end
+        elseif deltaZ > stepHeight * 2 then
+            if hunterIsFlanking then
+                cost = cost * 3
+
+            else
+                cost = cost * 5
 
             end
         else
@@ -350,7 +427,11 @@ function ENT:NavMeshPathCostGenerator( _, area, from, ladder, _, len )
 
             end
         end
-    elseif deltaZ <= -self.loco:GetDeathDropHeight() then
+        if crouching then
+            cost = cost * 20
+
+        end
+    elseif deltaZ <= -deathHeightCached then
         cost = cost * 50000
 
     elseif not isReallyAngry and deltaZ <= -jumpHeight then
@@ -377,6 +458,142 @@ function ENT:NavMeshPathCostGenerator( _, area, from, ladder, _, len )
     return cost
 end
 
+-- do this so we can store extra stuff about new paths
+function ENT:SetupPathShell( endpos, isUnstuck )
+    -- block path spamming
+    -- exceptions for unstucker paths, they're VIP
+    if not isUnstuck and not self:nextNewPathIsGood() then return end
+    self.nextNewPath = CurTime() + math.Rand( 0.05, 0.1 )
+
+    if not isvector( endpos ) then return end
+    if self.isUnstucking and not isUnstuck then return end
+
+    self.term_ExpensivePath = nil
+    local endArea = terminator_Extras.getNearestPosOnNav( endpos )
+
+    local reachable = self:areaIsReachable( endArea.area )
+    if not reachable then
+        -- make sure we dont get super duper stuck
+        if self.isUnstucking and isUnstuck then
+            self.overrideVeryStuck = true
+
+        end
+        return
+
+    end
+
+    -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
+    -- prevents paths to really small collections of navareas that don't connect back to the bot. ( and the lagspikes that come from those! )
+    local pathDestinationIsAnOrphan, encounteredABlockedArea = self:AreaIsOrphan( endArea.area )
+
+    -- not an orphan, proceed as normal!
+    if pathDestinationIsAnOrphan ~= true then
+        -- save path start info for the HunterIsStuck
+        self.LastMovementStart = CurTime()
+        self.LastMovementStartPos = self:GetPos()
+        self.PathEndPos = endpos
+
+        local before = SysTime()
+        self:SetupPath( endpos )
+
+        local after = SysTime()
+
+        -- good path, escape here
+        if self:primaryPathIsValid() then
+            self.setupPath2NoNavs = nil
+            local cost = ( after - before )
+            self.nextNewPath = CurTime() + cost * 4
+            if cost > 0.03 then
+                self.term_ExpensivePath = true
+
+            end
+            return
+
+        -- no path! something failed
+        else
+            local setupPath2NoNavs = self.setupPath2NoNavs or 0
+            -- aha, im not on the navmesh! that's why!
+            if not navmesh.GetNearestNavArea( self:GetPos(), false, 45, false, false, -2 ) and self:IsOnGround() then
+                self.setupPath2NoNavs = setupPath2NoNavs + 1
+
+            end
+            if setupPath2NoNavs > 5 then
+                self.setupPath2NoNavs = nil
+                self.overrideVeryStuck = true
+
+            end
+        end
+    end
+
+    -- first blocked area check, got it from the orphan checker? probably a locked door, store that for the door bashing stuff
+    if encounteredABlockedArea then
+        self.encounteredABlockedAreaWhenPathing = true
+
+    end
+
+    -- only get to here if the path failed
+
+    if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
+    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 10 then return end
+
+    --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
+
+    local scoreData = {}
+    scoreData.decreasingScores = {}
+    scoreData.droppedDownAreas = {}
+    scoreData.areasToUnreachable = {}
+    wasABlockedArea = nil
+
+    -- find areas around the path's end that we can't reach
+    -- this prevents super obnoxous stutters on maps with tens of thousands of navareas
+    local scoreFunction = function( scoreData, area1, area2 )
+        local score = scoreData.decreasingScores[area1:GetID()] or 10000
+        local droppedDown = scoreData.droppedDownAreas[area1:GetID()]
+        local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
+
+        -- we are dealing with a locked door, not an orphan/elevated area!
+        if area2:IsBlocked() then
+            wasABlockedArea = true
+            score = 0
+
+        elseif dropToArea > self.loco:GetMaxJumpHeight() or droppedDown then
+            score = 1
+            scoreData.droppedDownAreas[area2:GetID()] = true
+
+        else
+            score = score + -1
+            table.insert( scoreData.areasToUnreachable, area2 )
+
+        end
+
+        --debugoverlay.Text( area2:GetCenter(), tostring( score ), 8 )
+        scoreData.decreasingScores[area2:GetID()] = score
+
+        return score
+
+    end
+    self:findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
+
+    -- ok remember the areas as unreachable so we dont go through this again ( unless there was a locked door! )
+    if not wasABlockedArea then
+        self:rememberAsUnreachable( endArea.area )
+
+        for _, area in ipairs( scoreData.areasToUnreachable ) do
+            self:rememberAsUnreachable( area )
+
+        end
+    end
+
+    -- we got stuck while in the middle of an unstuck!
+    if self.isUnstucking and isUnstuck then
+        self.overrideVeryStuck = true
+
+    end
+
+    return true
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:SetupPath
     Desc: Creates new PathFollower object and computes path to goal. Invalidates old path.
@@ -385,16 +602,26 @@ end
         `mindist` - SetMinLookAheadDistance
         `tolerance` - SetGoalTolerance
         `generator` - Custom cost generator
-        `recompute` - recompute path every x seconds
     Ret1: any | PathFollower object if created succesfully, otherwise false
 --]]------------------------------------
 function ENT:SetupPath( pos, options )
-    self:GetPath():Invalidate()
+    self:InvalidatePath( "i started a new path" )
+
+    jumpHeightCached = self.loco:GetMaxJumpHeight()
+    stepHeightCached = self.loco:GetStepHeight()
+    deathHeightCached = self.loco:GetDeathDropHeight()
+
+    self:AddAreasToAvoid( self.hazardousAreas, 10 )
+
+    if self.awarenessDamaging then
+        local damagingAreas = self:DamagingAreas()
+        self:AddAreasToAvoid( damagingAreas, 50 )
+
+    end
 
     options = options or {}
     options.mindist = options.mindist or self.PathMinLookAheadDistance
     options.tolerance = options.tolerance or self.PathGoalTolerance
-    options.recompute = options.recompute or self.PathRecompute
 
     if not options.generator and not self:UsingNodeGraph() then
         options.generator = function( area, from, ladder, elevator, len )
@@ -411,8 +638,15 @@ function ENT:SetupPath( pos, options )
     self.m_PathOptions = options
     self.m_PathPos = pos
 
-    if not self:ComputePath( pos, options.generator ) then
-        path:Invalidate()
+    local computed = self:ComputePath( pos, options.generator )
+
+    pathAreasAdditionalCost = nil
+    jumpHeightCached = nil
+    stepHeightCached = nil
+    deathHeightCached = nil
+
+    if not computed then
+        self:InvalidatePath( "i failed to build a path" )
         return false
 
     end
@@ -519,5 +753,20 @@ function ENT:ComputePath( pos, generator )
     end
 
     return false
+
+end
+
+function ENT:DamagingAreas()
+    local damagingAreas = {}
+    local added = 0
+    local jumpHeight = self.JumpHeight
+    for _, volatile in ipairs( self.awarenessDamaging ) do
+        if added > 10 then break end
+        if not IsValid( volatile ) then continue end
+        added = added + 1
+        table.Add( damagingAreas, navmesh.Find( volatile:GetPos(), 50, jumpHeight, jumpHeight ) )
+
+    end
+    return damagingAreas
 
 end
