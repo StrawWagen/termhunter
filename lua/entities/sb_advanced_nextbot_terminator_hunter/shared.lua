@@ -5269,7 +5269,7 @@ function ENT:DoTasks()
                     self.forcedCheckPositions[ data.forcedCheckKey ] = nil
                     self.PreventShooting = nil
                 -- bad path
-                elseif ( result == false or ( self:GetPath():GetLength() < 50 and self:GetPos():Distance2D( self:GetPath():GetEnd() ) < 300 ) ) and givenItAChance then
+                elseif ( result == false or ( self:GetPath():GetLength() < 50 and Distance2D( self:GetPos(), self:GetPath():GetEnd() ) < 300 ) ) and givenItAChance then
                     self:TaskFail( "movement_approachforcedcheckposition" )
                     self:StartTask2( "movement_search", { searchWant = 80 }, "my path doesn't exist" )
                     self.PreventShooting = nil
@@ -5354,7 +5354,7 @@ function ENT:DoTasks()
                         self.PreventShooting = nil
                     end
                 -- bad path
-                elseif ( result == false or ( self:GetPath():GetLength() < 50 and self:GetPos():Distance2D( self:GetPath():GetEnd() ) < 300 ) ) and givenItAChance then
+                elseif ( result == false or ( self:GetPath():GetLength() < 50 and Distance2D( self:GetPos(), self:GetPath():GetEnd() ) < 300 ) ) and givenItAChance then
                     self:TaskFail( "movement_approachlastseen" )
                     self:StartTask2( "movement_search", { searchWant = 80 }, "something failed" )
                     self.PreventShooting = nil
@@ -5451,7 +5451,7 @@ function ENT:DoTasks()
                 elseif result and not GoodEnemy then
                     self:TaskComplete( "movement_followenemy" )
                     self:StartTask2( "movement_approachlastseen", nil, "where did they go" )
-                elseif result == false or ( self:GetPath():GetLength() < 50 and self:GetPos():Distance2D( self:GetPath():GetEnd() ) < 300 ) then
+                elseif result == false or ( self:GetPath():GetLength() < 50 and Distance2D( self:GetPos(), self:GetPath():GetEnd() ) < 300 ) then
                     self:TaskFail( "movement_followenemy" )
                     self:StartTask2( "movement_search", { searchWant = 80 }, "my path failed" )
                 elseif not GoodEnemy and not self:primaryPathIsValid() then
