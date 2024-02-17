@@ -15,7 +15,7 @@ if CLIENT then
     killicon.Add( className, "killicon/" .. className .. ".png", color_white )
 
 else
-    resource.AddFile( "killicon/" .. className .. ".png" )
+    resource.AddFile( "materials/killicon/" .. className .. ".png" )
 
 end
 
