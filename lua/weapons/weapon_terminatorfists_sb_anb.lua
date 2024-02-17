@@ -1,12 +1,5 @@
 AddCSLuaFile()
 
-if SERVER then
-    util.AddNetworkString( "weapon_terminatorfists_sb_anb" )
-else
-    language.Add( "weapon_terminatorfists_sb_anb", "Terminator's Fists" )
-    killicon.AddFont( "weapon_terminatorfists_sb_anb", "HL2MPTypeDeath", "", Color( 255, 80, 0 ) )
-end
-
 SWEP.PrintName = "Terminator Fists"
 SWEP.Spawnable = false
 SWEP.Author = "StrawWagen"
@@ -19,7 +12,7 @@ SWEP.HitMask = MASK_SOLID
 local className = "weapon_terminatorfists_sb_anb"
 if CLIENT then
     language.Add( className, SWEP.PrintName )
-    killicon.Add( className, "killicon/" .. className .. ".png" )
+    killicon.Add( className, "killicon/" .. className .. ".png", color_white )
 
 else
     resource.AddFile( "killicon/" .. className .. ".png" )
