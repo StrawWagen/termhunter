@@ -12,10 +12,10 @@ SWEP.HitMask = MASK_SOLID
 local className = "weapon_terminatorfists_sb_anb"
 if CLIENT then
     language.Add( className, SWEP.PrintName )
-    killicon.Add( className, "killicon/" .. className .. ".png", color_white )
+    killicon.Add( className, "vgui/hud/killicon/" .. className .. ".vmt", color_white )
 
 else
-    resource.AddFile( "materials/killicon/" .. className .. ".png" )
+    resource.AddFile( "materials/vgui/hud/killicon/" .. className .. ".vmt" )
 
 end
 
