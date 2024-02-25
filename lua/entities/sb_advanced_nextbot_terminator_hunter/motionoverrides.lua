@@ -1312,7 +1312,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
             -- jump height that matches gap we're jumping over
             if gapping and aheadSegment then
-                jumpingHeight = ( myPos - aheadSegment.pos ):Length2D() * 0.35
+                jumpingHeight = ( myPos - aheadSegment.pos ):Length2D() * 0.5
                 if jumpingHeight > 0 then
                     jumpingHeight = jumpingHeight + myHeightToNext
 
@@ -1737,13 +1737,22 @@ function ENT:GotoPosSimple( pos, distance )
         dir:Normalize()
 
         local aboveUs
+        local simpleClearPos
         local aboveUsJumpHeight
+        local heightDiffNeededToJump = simpleJumpMinHeight + 20
 
-        if zToPos > simpleJumpMinHeight + 20 then
-            aboveUs = true
-            aboveUsJumpHeight = zToPos
-            pos = pos + dir * simpleJumpMinHeight
+        if zToPos > heightDiffNeededToJump then
+            local dist2d = ( pos - myPos )
+            dist2d.z = 0
+            dist2d = dist2d:Length()
+            local adjustdedDiffNeeded = math.Clamp( heightDiffNeededToJump - dist2d, 0, math.huge )
+            if zToPos > adjustdedDiffNeeded then
+                aboveUs = true
+                aboveUsJumpHeight = zToPos
+                pos = pos + dir * simpleJumpMinHeight
+                simpleClearPos = pos
 
+            end
         end
 
         local onGround = self.loco:IsOnGround()
@@ -1752,7 +1761,7 @@ function ENT:GotoPosSimple( pos, distance )
             if jumpstate == 1 or aboveUs then
                 jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
                 self:Jump( jumpingHeight + 20 )
-                self.jumpBlockClearPos = jumpBlockClearPos
+                self.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
                 self.moveAlongPathJumpingHeight = jumpingHeight
                 return
             elseif jumpstate == 2 then

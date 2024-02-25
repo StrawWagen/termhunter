@@ -427,9 +427,13 @@ function SWEP:DealDamage()
             dmginfo:SetInflictor( self )
             dmginfo:SetDamage( damageToDeal )
             dmginfo:SetDamageType( DMG_CLUB )
+            dmginfo:SetDamagePosition( tr.HitPos )
 
             if hitEnt:IsPlayer() or hitEnt:IsNextBot() or hitEnt:IsNPC() then
                 dmginfo:SetDamageForce( owner:GetAimVector() * 6998 * scale )
+
+            else
+                dmginfo:SetDamageForce( owner:GetAimVector() * 100 )
 
             end
 

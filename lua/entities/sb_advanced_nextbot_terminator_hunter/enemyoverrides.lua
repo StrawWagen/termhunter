@@ -74,7 +74,7 @@ local function shouldNotSeeEnemy( me, enemy )
         weapBite = 80
     end
 
-    if enemy:FlashlightIsOn() then
+    if enemy:FlashlightIsOn() or enemy.glee_Thirdperson_Flashlight then
         weapBite = weapBite + 80
 
     end

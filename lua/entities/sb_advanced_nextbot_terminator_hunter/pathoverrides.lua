@@ -320,11 +320,12 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     local toAreasId = toArea:GetID()
     local dist
+    local laddering
 
     if IsValid( ladder ) then
-        local cost = ladder:GetLength() * 4
-        cost = cost + 400
-        return cost
+        laddering = true
+        dist = ladder:GetLength() * 4
+        dist = dist + 400
     elseif len > 0 then
         dist = len
     else
@@ -332,6 +333,10 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     end
 
     dist = badConnectionCheck( getConnId( fromArea:GetID(), toAreasId ), dist )
+
+    local costSoFar = fromArea:GetCostSoFar() or 0
+
+    if laddering then return costSoFar + dist end
 
     if pathAreasAdditionalCost[ toAreasId ] then
         dist = dist * pathAreasAdditionalCost[ toAreasId ]
@@ -394,7 +399,6 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
         dist = dist * 2
     end
 
-    local costSoFar = fromArea:GetCostSoFar() or 0
     local cost = dist + costSoFar
 
     local deltaZ = fromArea:ComputeAdjacentConnectionHeightChange( toArea )

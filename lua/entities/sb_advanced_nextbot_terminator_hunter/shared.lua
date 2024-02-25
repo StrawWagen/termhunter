@@ -2855,18 +2855,13 @@ function ENT:DoTasks()
         ["movement_handler"] = {
             OnStart = function( self, data )
 
-                local canWep, potentialWep = self:canGetWeapon()
-
                 if not self:nextNewPathIsGood() then
                     self:TaskComplete( "movement_handler" )
                     self:StartTask2( "movement_wait", { Time = 0.1 }, "wait..." )
                     return
 
-                elseif canWep and self:getTheWeapon( "movement_handler", potentialWep ) then
-                    return
-
                 else
-                    local wep = self:GetWeapon()
+                    local canWep, potentialWep = self:canGetWeapon()
                     if self.forcedCheckPositions and table.Count( self.forcedCheckPositions ) >= 1 then
                         self:TaskComplete( "movement_handler" )
                         self:StartTask2( "movement_approachforcedcheckposition", nil, "i should check that spot" )
@@ -2874,7 +2869,11 @@ function ENT:DoTasks()
                     elseif IsValid( self:GetEnemy() ) then
                         self:EnemyAcquired( "movement_handler" )
 
+                    elseif canWep and self:getTheWeapon( "movement_handler", potentialWep ) then
+                        return
+
                     else
+                        local wep = self:GetWeapon()
                         if wep.termPlace_ScoringFunc and wep.termPlace_PlacingFunc then
                             self:TaskComplete( "movement_handler" )
                             self:StartTask2( "movement_placeweapon", nil, "i can place this" )
@@ -3305,8 +3304,7 @@ function ENT:DoTasks()
                         end
 
                         -- search for a new weapon NOW!
-                        self.nextNewPath = 0
-                        self.terminator_NextWeaponPickup = 0
+                        self:ResetWeaponSearchTimers()
                         self:TaskFail( "movement_getweapon" )
                         self:StartTask2( data.nextTask, data.nextTaskData, "finishAfterwards " .. afterwardsReason )
 
@@ -3349,6 +3347,10 @@ function ENT:DoTasks()
                             data.giveUpTime = CurTime() + 5
 
                         end
+                    elseif not self:CanPickupWeapon( data.Wep ) then
+                        self:ResetWeaponSearchTimers()
+                        data.failedCount = data.failedCount + 0.5
+
                     end
                     return true
 
@@ -3886,6 +3888,7 @@ function ENT:DoTasks()
 
                 local myWep = self:GetWeapon()
                 local myShootPos = self:GetShootPos()
+                local soundHintDistNeeded = doneCount^1.75
 
                 local walkedAreas = navmesh.Find( myPos, 500, 10, 10 )
                 for _, area in ipairs( walkedAreas ) do
@@ -3940,7 +3943,7 @@ function ENT:DoTasks()
                     data.finishUp()
                     return
 
-                elseif self:validSoundHint() and myPos:DistToSqr( self.lastHeardSoundHint.source ) < ( myPos:Distance( hidingToCheck ) * doneCount ) ^ 2 then
+                elseif self:validSoundHint() and myPos:DistToSqr( self.lastHeardSoundHint.source ) < ( myPos:Distance( hidingToCheck ) * soundHintDistNeeded ) ^ 2 then
                     self:TaskComplete( "movement_search" )
                     timer.Simple( 0, function()
                         if not IsValid( self ) then return end
@@ -4316,7 +4319,11 @@ function ENT:DoTasks()
                         data.timeNeededToMove = timeNeededToMove + 1
 
                     end
-                    if self.terminator_HandlingLadder or ( data.timeNeededToMove and data.timeNeededToMove > CurTime() ) then
+
+                    local _, canShootTr = terminator_Extras.PosCanSeeComplex( self:GetPos(), self:EntShootPos( enemy ), self, MASK_SHOT )
+                    local canShoot = not canShootTr.Hit or canShootTr.Entity == enemy
+
+                    if not canShoot or self.terminator_HandlingLadder or ( data.timeNeededToMove and data.timeNeededToMove > CurTime() ) then
                         if self:primaryPathInvalidOrOutdated( enemyPos ) then
                             self:SetupPathShell( enemyPos )
 
@@ -4805,7 +4812,7 @@ function ENT:DoTasks()
                     self:BashLockedDoor( "movement_stalkenemy" )
                     exit = true
                 -- really lame to get close and have it run away
-                elseif farFarTooClose and reachable and not tooDangerousToApproach then
+                elseif self.NothingOrBreakableBetweenEnemy and farFarTooClose and reachable and not tooDangerousToApproach then
                     self:TaskComplete( "movement_stalkenemy" )
                     self:StartTask2( "movement_duelenemy_near", { stalkDeathLoop = true }, "hey pal, you're way too close" )
                     exit = true
@@ -5017,7 +5024,7 @@ function ENT:DoTasks()
                 elseif self:CanBashLockedDoor( nil, 800 ) then
                     self:BashLockedDoor( "movement_flankenemy" )
                     exit = true
-                elseif self.IsSeeEnemy and self.DistToEnemy < self.DuelEnemyDist then
+                elseif self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < self.DuelEnemyDist then
                     self:TaskComplete( "movement_flankenemy" )
                     self:StartTask2( "movement_duelenemy_near", nil, "im close enough!" )
                     exit = true
@@ -5375,7 +5382,7 @@ function ENT:DoTasks()
 
                 local enemy = self:GetEnemy()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPos or nil
-                local GoodEnemy = self.IsSeeEnemy and IsValid( enemy )
+                local GoodEnemy = self.IsSeeEnemy and IsValid( enemy ) and enemy:Alive()
 
                 if enemyPos then
                     local toPos = enemyPos
@@ -5439,7 +5446,7 @@ function ENT:DoTasks()
                 elseif data.Unreachable and not GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
                     self:StartTask2( "movement_search", { searchWant = 10 }, "i cant get there, and they're gone" )
-                elseif self.IsSeeEnemy and self.DistToEnemy < distToExit then
+                elseif GoodEnemy and self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < distToExit then
                     if data.baitcrouching then
                         enemy.terminator_CantConvinceImFriendly = true
                         self.PreventShooting = nil
@@ -5507,7 +5514,7 @@ function ENT:DoTasks()
                 if IsValid( enemy ) and enemy:Health() <= 0 then
                     badEnemy = true
 
-                elseif not enemy or not self.IsSeeEnemy then
+                elseif not IsValid( enemy ) or not self.NothingOrBreakableBetweenEnemy then
                     badEnemy = true
 
                 end
@@ -5541,7 +5548,7 @@ function ENT:DoTasks()
 
                         elseif enemyNavArea and enemyNavArea.IsValid and self:areaIsReachable( enemyNavArea ) then
                             self:TaskComplete( "movement_duelenemy_near" )
-                            self:StartTask2( "movement_followenemy", nil, "my enemy left" )
+                            self:StartTask2( "movement_approachlastseen", nil, "my enemy wasnt engagable!" )
 
                         else
                             self:TaskComplete( "movement_duelenemy_near" )
@@ -6527,9 +6534,11 @@ function ENT:DoTasks()
                         if #data.potentialPerchables == 0 then break end
                         local perchableArea = table.remove( data.potentialPerchables, 1 )
                         local checkPositions = getUsefulPositions( perchableArea )
+                        local lastCheck
 
                         for _, checkPos in ipairs( checkPositions ) do
                             checkPos = checkPos + plus25Z
+                            lastCheck = checkPos
                             local dat = {
                                 start = checkPos,
                                 endpos = checkPos + negativeFiveHundredZ,
@@ -6560,6 +6569,10 @@ function ENT:DoTasks()
                             data.scoredPerchables[ score ] = checkPos
 
                         end
+
+                        if not lastCheck then return end
+                        self:shootAt( lastCheck, true )
+
                     end
                 elseif not data.bestPos then
                     data.bestPosScore = table.maxn( data.scoredPerchables )

@@ -538,12 +538,12 @@ end
 --]]------------------------------------
 function ENT:DoRangeGesture()
     local act = self:TranslateActivity( ACT_MP_ATTACK_STAND_PRIMARYFIRE )
-    if not act then return end
-    local seq = self:SelectWeightedSequence(act)
+    if not act or act <= 0 then return end
+    local seq = self:SelectWeightedSequence( act )
 
-    self:DoGesture(act)
+    self:DoGesture( act )
 
-    return self:SequenceDuration(seq)
+    return self:SequenceDuration( seq )
 end
 
 --[[------------------------------------
@@ -557,9 +557,9 @@ function ENT:DoReloadGesture()
     if not act or act <= 0 then return end
     local seq = self:SelectWeightedSequence( act )
 
-    self:DoGesture(act)
+    self:DoGesture( act )
 
-    return self:SequenceDuration(seq)
+    return self:SequenceDuration( seq )
 end
 
 --[[------------------------------------
@@ -575,7 +575,10 @@ function ENT:WeaponReload()
     if wep:Clip1() >= wep:GetMaxClip1() then return end
     if CurTime() < self.m_WeaponData.NextReloadTime then return end
 
+    ProtectedCall( function() wep:Reload() end )
     local reloadTime = self:DoReloadGesture()
+
+    if not reloadTime then return end
     self.IsReloadingWeapon = true
 
     local time = CurTime() + reloadTime
@@ -588,8 +591,6 @@ function ENT:WeaponReload()
     end )
 
     self.m_WeaponData.NextReloadTime = time
-
-    ProtectedCall( function() wep:Reload() end )
 
 end
 
@@ -646,7 +647,10 @@ function ENT:CanPickupWeapon( wep, doingHolstered )
     if not IsValid( wep ) then return false end
     if wep.terminatorCrappyWeapon then return false end
     if IsValid( wep:GetOwner() ) and not doingHolstered then return false end
-    if IsValid( wep:GetParent() ) and not doingHolstered then return false end
+    local wepsParent = wep:GetParent()
+    if IsValid( wepsParent ) and not doingHolstered then return false end
+
+    if doingHolstered and wepsParent ~= self then return false end
 
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
     if blockWeaponNoticing > CurTime() then return end
@@ -976,9 +980,11 @@ end )
 
 function ENT:getTheWeapon( oldTask, theWep, nextTask, theDat )
     if IsValid( theWep ) and self:IsHolsteredWeap( theWep ) then
+        -- equip holstered weap
         self:SetupWeapon( theWep )
 
     else
+        -- break task to get a weap
         self:TaskComplete( oldTask )
         self:StartTask2( "movement_getweapon", { Wep = potentialWep, nextTask = nextTask, nextTaskData = theDat }, "there's a weapon" )
         return true
@@ -988,6 +994,13 @@ end
 
 function ENT:NextWeapSearch( time )
     self.nextWeapSearch = CurTime() + time
+
+end
+
+function ENT:ResetWeaponSearchTimers()
+    self.nextNewPath = CurTime() + 0.1
+    self.terminator_NextWeaponPickup = 0
+    self.nextWeapSearch = CurTime() + 0.1
 
 end
 
@@ -1055,6 +1068,7 @@ function ENT:FindWeapon()
     -- also returns item_item_crate(s)
     local _CanPickupWeapon = self.CanPickupWeapon
 
+    local seesEnemy = self.IsSeeEnemy
     local distToEnemy = self.DistToEnemy
     local ourHolstered = self:GetHolsteredWeapons()
 
@@ -1087,7 +1101,11 @@ function ENT:FindWeapon()
                 wep = potentialWeap
 
                 local failedPathsToWeap = wep.failedWeaponPaths or 0
-                weight = wepWeight + ( -tr.Fraction * 5 ) + ( -failedPathsToWeap * 5 )
+                if failedPathsToWeap > 2 and seesEnemy then
+                    continue
+
+                end
+                weight = wepWeight + ( -tr.Fraction * 5 ) + ( -failedPathsToWeap * 20 )
                 range = self:GetWeaponRange( potentialWeap )
                 isBox = wep:GetClass() == "item_item_crate"
 
