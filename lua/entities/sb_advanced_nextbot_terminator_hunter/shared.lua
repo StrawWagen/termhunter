@@ -5382,7 +5382,8 @@ function ENT:DoTasks()
 
                 local enemy = self:GetEnemy()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPos or nil
-                local GoodEnemy = self.IsSeeEnemy and IsValid( enemy ) and enemy:Alive()
+                local aliveOrHp = ( enemy.Alive and enemy:Alive() ) or ( enemy.Health and enemy:Health() > 0 )
+                local GoodEnemy = self.IsSeeEnemy and IsValid( enemy ) and aliveOrHp
 
                 if enemyPos then
                     local toPos = enemyPos
