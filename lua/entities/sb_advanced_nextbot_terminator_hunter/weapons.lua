@@ -683,7 +683,7 @@ function ENT:GetWeightOfWeapon( wep )
     if class == crateClass then
         return 1
     end
-    return terminator_Extras.EngineAnalogWeights[class] or wep:GetWeight()
+    return terminator_Extras.EngineAnalogWeights[class] or wep:GetWeight() or 0
 
 end
 
@@ -1031,7 +1031,7 @@ function ENT:canGetWeapon()
 
         local rand = math.random( 1, 100 )
 
-        local weapWeight = wepDat.weight
+        local weapWeight = wepDat.weight or 0
         local currWeapWeight = self:GetWeightOfWeapon( currWeap )
 
         local distToEnemy = self.DistToEnemy
@@ -1063,7 +1063,9 @@ end
 -- can find item crates too
 function ENT:FindWeapon()
     local searchrange = 3000
-    local wep,weight,range
+    local wep
+    local range
+    local weight = -1
 
     -- also returns item_item_crate(s)
     local _CanPickupWeapon = self.CanPickupWeapon

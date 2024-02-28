@@ -20,7 +20,6 @@ if CLIENT then
 end
 
 ENT.JumpHeight = 70
-ENT.MaxJumpToPosHeight = ENT.JumpHeight
 ENT.DefaultStepHeight = 18
 ENT.StandingStepHeight = ENT.DefaultStepHeight * 1 -- used in crouch toggle in motionoverrides
 ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9

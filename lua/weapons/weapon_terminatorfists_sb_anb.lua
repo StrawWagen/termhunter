@@ -15,8 +15,11 @@ if CLIENT then
     killicon.Add( className, "vgui/hud/killicon/" .. className .. ".vmt", color_white )
 
 else
-    resource.AddFile( "materials/vgui/hud/killicon/" .. className .. ".vmt" )
+    local doFastDl = CreateConVar( "terminator_fastdlkillicon", 1, { FCVAR_ARCHIVE }, "Toggle the killicon fastdl." )
+    if doFastDl:GetBool() then
+        resource.AddFile( "materials/vgui/hud/killicon/" .. className .. ".vmt" )
 
+    end
 end
 
 local SwingSound = Sound( "WeaponFrag.Throw" )

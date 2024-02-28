@@ -285,11 +285,17 @@ function ENT:SetupEntityRelationship( ent )
     self:SetEntityRelationship( ent, disp, priority )
     if ( ent:IsNPC() or ent:IsNextBot() ) and ent.AddEntityRelationship then
         if ent.SBAdvancedNextBot then
-            ent:SetEntityRelationship( self, theirdisp, nil )
+            print( self, ent, theirdisp )
+            timer.Simple( 0, function()
+                if not IsValid( ent ) then return end
+                if not IsValid( self ) then return end
+                ent:SetEntityRelationship( self, theirdisp, nil )
+
+            end )
             return
 
         end
-        ent:AddEntityRelationship( self, theirdisp, nil )
+        ent:AddEntityRelationship( self, theirdisp, 1 )
         -- stupid hack
         if ent.IsVJBaseSNPC == true then
             timer.Simple( 0, function()

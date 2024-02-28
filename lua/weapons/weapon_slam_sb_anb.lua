@@ -20,9 +20,6 @@ SWEP.PreOverrideClass = "weapon_slam"
 
 terminator_Extras.SetupAnalogWeight( SWEP )
 
---
--- Initialize Stuff
---
 
 function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end

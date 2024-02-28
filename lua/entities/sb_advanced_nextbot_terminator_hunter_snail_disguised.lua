@@ -200,7 +200,7 @@ local function paintNameAndHealth( toPaint )
 
     local MouseX, MouseY = gui.MousePos()
 
-    if ( MouseX == 0 && MouseY == 0 ) then
+    if MouseX == 0 and MouseY == 0 then
 
         MouseX = ScrW() / 2
         MouseY = ScrH() / 2

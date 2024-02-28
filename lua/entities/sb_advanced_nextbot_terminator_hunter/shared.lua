@@ -14,8 +14,17 @@ list.Set( "NPC", "sb_advanced_nextbot_terminator_hunter", {
 -- these need to be shared
 include( "compatibilityhacks.lua" )
 
+
 if CLIENT then
     language.Add( "sb_advanced_nextbot_terminator_hunter", ENT.PrintName )
+
+    function ENT:AdditionalClientInitialize() end
+
+    function ENT:Initialize()
+        self:AdditionalClientInitialize()
+
+    end
+
     return
 
 elseif SERVER then
@@ -34,6 +43,8 @@ elseif SERVER then
     include( "prettydamage.lua" )
     -- glee thing
     include( "overcharging.lua" )
+    -- sounds, used by supercop
+    include( "spokenlines.lua" )
 
 end
 
@@ -2274,7 +2285,6 @@ end )
 -- custom values for the nextbot base to use
 -- i set these as multiples of defaults
 ENT.JumpHeight = 70 * 3.5
-ENT.MaxJumpToPosHeight = ENT.JumpHeight
 ENT.DefaultStepHeight = 18
 -- allow us to have different step height when couching/standing
 -- stops bot from sticking to ceiling with big step height
@@ -2283,7 +2293,6 @@ ENT.StandingStepHeight = ENT.DefaultStepHeight * 1.5
 ENT.CrouchingStepHeight = ENT.DefaultStepHeight
 ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
-ENT.DoMetallicDamage = true
 ENT.SpawnHealth = 900
 ENT.AimSpeed = 480
 ENT.WalkSpeed = 130
@@ -2304,6 +2313,10 @@ ENT.Models = { "terminator" }
 
 ENT.ReallyStrong = true
 ENT.HasFists = true
+ENT.DoMetallicDamage = true
+
+-- enable/disable spokenlines logic
+ENT.CanSpeak = false
 
 ENT.DuelEnemyDist = 550 -- dist to move from flank or follow enemy, to duel enemy
 
@@ -2313,6 +2326,7 @@ end
 function ENT:Think() -- true hack
     self:walkArea()
     self:AdditionalThink()
+    self:SpokenLinesThink()
     if not self.loco:IsOnGround() then
         self:HandleInAir()
 
@@ -2361,6 +2375,7 @@ function ENT:Initialize()
 
     BaseClass.Initialize( self )
     terminator_Extras.RegisterListener( self )
+
     self.terminator_DontImmiediatelyFire = CurTime()
 
     self:CreateShootingTimer()
@@ -2408,6 +2423,7 @@ function ENT:Initialize()
 
     -- for stuff based on this
     self:AdditionalInitialize()
+    self:InitializeSpeaking()
 
 end
 
@@ -2705,6 +2721,7 @@ function ENT:DoTasks()
                 data.UpdateEnemies = CurTime()
                 data.HasEnemy = false
                 data.playerCheckIndex = 0
+                data.blockSwitchingEnemies = 0
                 self.IsSeeEnemy = false
                 self.DistToEnemy = 0
                 self:SetEnemy( NULL )
@@ -2743,8 +2760,26 @@ function ENT:DoTasks()
                         end
 
                         local enemy = self:FindPriorityEnemy()
+                        -- conditional friction for switching enemies.
+                        -- fixes bot jumping between two enemies that get obscured as it paths, and doing a little dance
+                        if
+                            IsValid( enemy ) and
+                            IsValid( prevenemy ) and
+                            prevenemy:Health() > 0 and -- old enemy needs to be alive...
+                            prevenemy ~= enemy and
+                            data.blockSwitchingEnemies > 0 and
+                            self:GetPos():Distance( enemy:GetPos() ) > self.DuelEnemyDist -- enemy needs to be far away, otherwise just switch now
 
-                        if IsValid( enemy ) then
+                        then
+                            local removed = 1
+                            if not self.IsSeeEnemy then
+                                removed = 2
+
+                            end
+                            data.blockSwitchingEnemies = data.blockSwitchingEnemies - removed
+                            enemy = prevenemy
+
+                        elseif IsValid( enemy ) then
                             newenemy = enemy
                             local enemyPos = enemy:GetPos()
                             if not self.EnemyLastPos then self.EnemyLastPos = enemyPos end
@@ -2811,7 +2846,16 @@ function ENT:DoTasks()
                         if not data.HasEnemy then
                             self:RunTask( "EnemyFound", newenemy )
                         elseif prevenemy ~= newenemy then
+                            local blockSwitch = math.random( 3, 5 )
+                            if self:IsReallyAngry() then
+                                blockSwitch = blockSwitch + math.random( 10, 15 )
+                            elseif self:IsAngry() then
+                                blockSwitch = blockSwitch + 2
+
+                            end
+                            data.blockSwitchingEnemies = blockSwitch
                             self:RunTask( "EnemyChanged", newenemy, prevenemy )
+
                         end
 
                         data.HasEnemy = true
@@ -4323,7 +4367,7 @@ function ENT:DoTasks()
                     local _, canShootTr = terminator_Extras.PosCanSeeComplex( self:GetPos(), self:EntShootPos( enemy ), self, MASK_SHOT )
                     local canShoot = not canShootTr.Hit or canShootTr.Entity == enemy
 
-                    if not canShoot or self.terminator_HandlingLadder or ( data.timeNeededToMove and data.timeNeededToMove > CurTime() ) then
+                    if not canShoot or self.terminator_HandlingLadder or self:WaterLevel() >= 3 or ( data.timeNeededToMove and data.timeNeededToMove > CurTime() ) then
                         if self:primaryPathInvalidOrOutdated( enemyPos ) then
                             self:SetupPathShell( enemyPos )
 
@@ -5381,9 +5425,10 @@ function ENT:DoTasks()
             BehaveUpdate = function( self, data )
 
                 local enemy = self:GetEnemy()
+                local validEnemy = IsValid( enemy )
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPos or nil
-                local aliveOrHp = ( enemy.Alive and enemy:Alive() ) or ( enemy.Health and enemy:Health() > 0 )
-                local GoodEnemy = self.IsSeeEnemy and IsValid( enemy ) and aliveOrHp
+                local aliveOrHp = ( validEnemy and enemy.Alive and enemy:Alive() ) or ( validEnemy and enemy.Health and enemy:Health() > 0 )
+                local GoodEnemy = self.IsSeeEnemy and validEnemy and aliveOrHp
 
                 if enemyPos then
                     local toPos = enemyPos
@@ -5539,7 +5584,7 @@ function ENT:DoTasks()
 
                 if badEnemy then
                     data.badEnemyCounts = badEnemyCounts + 1
-                    if data.badEnemyCounts > 10 or data.fightingPlayer then
+                    if data.badEnemyCounts > 2 or data.fightingPlayer then
                         -- find weapons NOW!
                         self:NextWeapSearch( -1 )
                         canWep, potentialWep = self:canGetWeapon()
@@ -5594,7 +5639,7 @@ function ENT:DoTasks()
 
                     -- drop our weap because fists will serve us better!
                     if self.DistToEnemy < 500 and wep and self:IsRangedWeapon( wep ) then
-                        local blockFisticuffs = wepIsReallyGood or ( enemy:IsPlayer() and enemy:GetMoveType() == MOVETYPE_NOCLIP ) -- not dropping it if you're just gonna fly away with it!
+                        local blockFisticuffs = wepIsReallyGood
                         local canDoFisticuffss = self.DistToEnemy < fisticuffsDist or ( data.quitTime < CurTime() and ( math.random( 0, 100 ) < 25 ) ) or reallyLowHealth
                         local fistiCuffs = canDoFisticuffss and not blockFisticuffs
                         if fistiCuffs and self.HasFists then

@@ -106,53 +106,78 @@ end
 --]]------------------------------------
 function ENT:StuckCheck()
     if CurTime() >= self.m_StuckTime then
-        self.m_StuckTime = CurTime() + math.Rand( 0.15, 0.50 )
+        local added = math.Rand( 0.15, 0.50 )
+        self.m_StuckTime = CurTime() + added
 
         local pos = self:GetPos()
+        local moving
 
         if self.m_StuckPos ~= pos then
             self.m_StuckPos = pos
             self.m_StuckTime2 = 0
+            moving = true
 
             if self.m_Stuck then
                 self:OnUnStuck()
             end
-        else
-            local b1,b2 = self:GetCollisionBounds()
+        end
 
-            if not self.loco:IsOnGround() or self.isUnstucking or self.loco:GetVelocity():Length2DSqr() < 5^2 then
-                -- prevents getting stuck in air, and getting stuck in doors that slide into us
-                b1.x = b1.x - 4
-                b1.y = b1.y - 4
-                b2.x = b2.x + 4
-                b2.y = b2.y + 4
+        local b1,b2 = self:GetCollisionBounds()
 
-            end
+        if not self.loco:IsOnGround() or self.isUnstucking or self.loco:GetVelocity():Length2DSqr() < 5^2 then
+            -- prevents getting stuck in air, and getting stuck in doors that slide into us
+            b1.x = b1.x - 4
+            b1.y = b1.y - 4
+            b2.x = b2.x + 4
+            b2.y = b2.y + 4
 
-            local tr = util.TraceHull( {
-                start = pos,
-                endpos = pos,
-                filter = TrFilterNoSelf( self ),
-                mask = self:GetSolidMask(),
-                collisiongroup = self:GetCollisionGroup(),
-                mins = b1,
-                maxs = b2,
-            } )
+        end
 
-            if not self.m_Stuck then
-                if TraceHit( tr ) then
-                    self.m_StuckTime2 = self.m_StuckTime2 + math.Rand( 0.5, 0.75 )
+        local tr = util.TraceHull( {
+            start = pos,
+            endpos = pos,
+            filter = TrFilterNoSelf( self ),
+            mask = self:GetSolidMask(),
+            collisiongroup = self:GetCollisionGroup(),
+            mins = b1,
+            maxs = b2,
+        } )
 
-                    if self.m_StuckTime2 >= 1 then -- changed from 5 to 1
-                        self:OnStuck()
-                    end
-                else
-                    self.m_StuckTime2 = 0
+        --debugoverlay.Box( pos, b1, b2, 0.5, Color( 255, 255, 255, 150 ) )
+
+        -- push thing out the way!
+        if IsValid( tr.Entity ) and IsValid( tr.Entity:GetPhysicsObject() ) and tr.Entity:GetPhysicsObject():IsMotionEnabled() then
+            local obj = tr.Entity:GetPhysicsObject()
+            local forceStart = self:WorldSpaceCenter()
+            local forceEnd = tr.Entity:WorldSpaceCenter()
+            local force = terminator_Extras.dirToPos( forceStart, forceEnd ) * 30000
+            obj:ApplyForceOffset( force, forceEnd )
+
+        end
+
+        local hit = TraceHit( tr )
+        if hit then
+            -- fix bot getting stuck running up stairs
+            local mul = 1.1
+            local oldWalk = self.forcedShouldWalk or 0
+            self.forcedShouldWalk = math.max( oldWalk + added * mul, CurTime() + added * mul )
+
+        end
+
+        if not moving and not self.m_Stuck then
+            if hit then
+                self.m_StuckTime2 = self.m_StuckTime2 + math.Rand( 0.5, 0.75 )
+
+                if self.m_StuckTime2 >= 1 then -- changed from 5 to 1
+                    self:OnStuck()
+
                 end
             else
-                if not TraceHit( tr ) then
-                    self:OnUnStuck()
-                end
+                self.m_StuckTime2 = 0
+            end
+        else
+            if not hit then
+                self:OnUnStuck()
             end
         end
     end
@@ -172,6 +197,7 @@ local function TryStuck( self, pos, t, tr )
         self:OnUnStuck()
 
         return true
+
     end
 
     return false
@@ -183,20 +209,20 @@ end
 --]]------------------------------------
 function ENT:OnStuck()
     self.m_Stuck = true
-    self:GetPath():Invalidate()
+    self:InvalidatePath( "onstuck" )
 
-    self:RunTask("OnStuck")
+    self:RunTask( "OnStuck" )
 
     local pos = self:GetPos()
     local b1,b2 = self:GetCollisionBounds()
 
-    if not self.loco:IsOnGround() then
+    if not self.loco:IsOnGround() or self.isUnstucking then
         -- Seems in air trace check can return false, but bot is stuck (close to the wall). So we making test bounds bigger.
 
-        b1.x = b1.x - 1
-        b1.y = b1.y - 1
-        b2.x = b2.x + 1
-        b2.y = b2.y + 1
+        b1.x = b1.x - 4
+        b1.y = b1.y - 4
+        b2.x = b2.x + 4
+        b2.y = b2.y + 4
     end
 
     local tr = {}
@@ -857,7 +883,7 @@ function ENT:GetJumpBlockState( dir, goal )
         }
         local vertResult
 
-        local maxjump = self.MaxJumpToPosHeight * 2
+        local maxjump = self.JumpHeight * 2
 
         local i = 0
 
@@ -1293,11 +1319,15 @@ function ENT:MoveAlongPath( lookatgoal )
     local areaSimple = self:GetCurrentNavArea()
 
     local myHeightToNext = aheadSegment.pos.z - myPos.z
-    local jumpableHeight = myHeightToNext < self.MaxJumpToPosHeight
+    local jumpableHeight = myHeightToNext < self.JumpHeight
 
     if areaSimple and good then
         -- Jump support for navmesh PathFollower
-        local tryingToJumpUpStairs = areaSimple and areaSimple:HasAttributes( NAV_MESH_STAIRS ) and math.abs( myHeightToNext ) < 25
+        local tryingToJumpUpStairs = areaSimple and areaSimple:HasAttributes( NAV_MESH_STAIRS )
+        if tryingToJumpUpStairs and aheadSegment.area ~= areaSimple then
+            tryingToJumpUpStairs = aheadSegment.area:IsFlat() or aheadSegment.area:HasAttributes( NAV_MESH_STAIRS )
+
+        end
         local blockJump = areaSimple:HasAttributes( NAV_MESH_NO_JUMP ) or tryingToJumpUpStairs or prematureGapJump
 
         if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( self.nextPathJump or 0 ) < CurTime() then
