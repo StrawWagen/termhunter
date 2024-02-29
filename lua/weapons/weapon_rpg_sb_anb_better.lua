@@ -107,7 +107,9 @@ function SWEP:CreateMissile( _, owner )
             local enemy = owner:GetEnemy()
             ownerShootPos = owner:GetShootPos()
             local enemysPos = enemy:GetPos()
-            if not enemy:IsOnGround() then
+            local enemyAboveMe = enemysPos.z > ownerShootPos.z + 65
+
+            if not enemy:IsOnGround() or enemyAboveMe then
                 enemysPos = owner:EntShootPos( owner:GetEnemy() )
 
             end
@@ -142,7 +144,6 @@ function SWEP:CreateMissile( _, owner )
                     missileTargetPos2 = missilePos + Vector( 0, 0, -1000 )
 
                 end
-
             end
 
             local oldDir = missile:GetForward()

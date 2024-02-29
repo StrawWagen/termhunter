@@ -95,6 +95,7 @@ function ENT:SetupWeapon( wep )
 
     end
 
+    self.terminator_NeedsAWeaponNow = nil
     ProtectedCall( function() self:OnWeaponEquip( wep ) end )
 
     self:SetActiveWeapon( wep )
@@ -1025,6 +1026,7 @@ function ENT:canGetWeapon()
 
     if not IsValid( newWeap ) then return false, nil end
 
+    -- crazy unholstering logic
     if armed then
         local currWeap = self:GetActiveWeapon()
         if not IsValid( currWeap ) then return true, newWeap end
@@ -1060,9 +1062,16 @@ function ENT:canGetWeapon()
     end
 end
 
+function ENT:GetTheBestWeapon()
+    -- dont need a wep!
+    if IsValid( self:GetWeapon() ) and self:GetWeaponRange( self:GetWeapon() ) > self.DistToEnemy then return end
+    self.terminator_NeedsAWeaponNow = true
+
+end
+
 -- can find item crates too
 function ENT:FindWeapon()
-    local searchrange = 3000
+    local searchrange = 2000
     local wep
     local range
     local weight = -1
@@ -1091,6 +1100,15 @@ function ENT:FindWeapon()
 
     if IsValid( wep ) then return { wep = wep, weight = weight, range = range, isBox = nil } end
 
+    local needsAWepNow = self.terminator_NeedsAWeaponNow
+    local bestWep = self.terminator_BestWeaponIEverFound
+    local canPickupBest = IsValid( bestWep ) and _CanPickupWeapon( self, bestWep )
+
+    if not canPickupBest and needsAWepNow then
+        searchrange = 32000
+
+    end
+
     for _, potentialWeap in ipairs( ents.FindInSphere( self:GetPos(), searchrange ) ) do
 
         if not _CanPickupWeapon( self, potentialWeap ) then continue end
@@ -1114,6 +1132,27 @@ function ENT:FindWeapon()
             end
         end
     end
+    local better = wep and not canPickupBest
+
+    if not better and canPickupBest and wep then
+        better = weight > self:GetWeightOfWeapon( bestWep )
+
+    end
+
+    -- save best weapon
+    if better then
+        self.terminator_BestWeaponIEverFound = wep
+
+    end
+
+    if not wep and canPickupBest and needsAWepNow then
+        wep = bestWep
+        weight = self:GetWeightOfWeapon( bestWep )
+        range = self:GetWeaponRange( bestWep )
+        isBox = wep:GetClass() == "item_item_crate"
+
+    end
+
     return { wep = wep, weight = weight, range = range, isBox = isBox }
 
 end

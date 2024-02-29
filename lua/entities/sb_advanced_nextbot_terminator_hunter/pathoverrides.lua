@@ -207,6 +207,7 @@ end
 
 function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius )
     if not isvector( destination ) then return end
+
     -- lagspike if we try to flank around area that contains the destination
     flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
 
@@ -227,7 +228,8 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
 
     end
 
-    self:SetupPathShell( destination )
+    --useful for debug
+    local _, _ = self:SetupPathShell( destination )
 
     self:endFlankPath()
 
@@ -466,11 +468,11 @@ end
 function ENT:SetupPathShell( endpos, isUnstuck )
     -- block path spamming
     -- exceptions for unstucker paths, they're VIP
-    if not isUnstuck and not self:nextNewPathIsGood() then return end
+    if not isUnstuck and not self:nextNewPathIsGood() then return nil, "blocked1" end
     self.nextNewPath = CurTime() + math.Rand( 0.05, 0.1 )
 
-    if not isvector( endpos ) then return end
-    if self.isUnstucking and not isUnstuck then return end
+    if not isvector( endpos ) then return nil, "blocked2" end
+    if self.isUnstucking and not isUnstuck then return nil, "blocked3" end
 
     self.term_ExpensivePath = nil
     local endArea = terminator_Extras.getNearestPosOnNav( endpos )
@@ -482,7 +484,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
             self.overrideVeryStuck = true
 
         end
-        return
+        return nil, "blocked4"
 
     end
 
@@ -511,7 +513,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
                 self.term_ExpensivePath = true
 
             end
-            return
+            return nil, "blocked5"
 
         -- no path! something failed
         else
@@ -543,10 +545,12 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
 
     local scoreData = {}
+    local invalidUnreachable
+    local wasABlockedArea = false
+    scoreData.myArea = self:GetCurrentNavArea()
     scoreData.decreasingScores = {}
     scoreData.droppedDownAreas = {}
     scoreData.areasToUnreachable = {}
-    wasABlockedArea = nil
 
     -- find areas around the path's end that we can't reach
     -- this prevents super obnoxous stutters on maps with tens of thousands of navareas
@@ -555,8 +559,13 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         local droppedDown = scoreData.droppedDownAreas[area1:GetID()]
         local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
 
+        -- uhhh we got back to our own area....
+        if area2 == scoreData.myArea then
+            invalidUnreachable = true
+            return math.huge
+
         -- we are dealing with a locked door, not an orphan/elevated area!
-        if area2:IsBlocked() then
+        elseif area2:IsBlocked() then
             wasABlockedArea = true
             score = 0
 
@@ -578,8 +587,10 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     end
     self:findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
 
-    -- ok remember the areas as unreachable so we dont go through this again ( unless there was a locked door! )
-    if not wasABlockedArea then
+    -- ok remember the areas as unreachable so we dont go through this again
+    -- unless there was a locked door!, or
+    -- we tried to mark our OWN AREA as unreachable!
+    if not wasABlockedArea and not invalidUnreachable then
         self:rememberAsUnreachable( endArea.area )
 
         for _, area in ipairs( scoreData.areasToUnreachable ) do

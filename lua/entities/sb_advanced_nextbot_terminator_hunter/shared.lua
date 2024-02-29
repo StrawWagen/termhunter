@@ -3393,6 +3393,7 @@ function ENT:DoTasks()
                         end
                     elseif not self:CanPickupWeapon( data.Wep ) then
                         self:ResetWeaponSearchTimers()
+                        data.Wep = nil
                         data.failedCount = data.failedCount + 0.5
 
                     end
@@ -3405,7 +3406,7 @@ function ENT:DoTasks()
 
                 if data:handleCrate() == true then return end
 
-                if self:GetRangeTo( data.Wep ) < 25 then
+                if self:GetRangeTo( data.Wep ) < 25 and self:CanPickupWeapon( data.Wep ) then
                     self:SetupWeapon( data.Wep )
 
                     data:finishAfterwards( "i started the task on top of the wep!" )
@@ -3472,14 +3473,18 @@ function ENT:DoTasks()
 
                 end
 
-                if rangeToWep < 60 then
+                if rangeToWep < 60 and self:CanPickupWeapon( data.Wep ) then
                     self:SetupWeapon( data.Wep )
                     data:finishAfterwards( "reached the wep" )
                     return
 
                 end
 
-                if self.IsSeeEnemy and ( self.DistToEnemy < self.CloseEnemyDistance or data.giveUpTime < CurTime() ) then
+                local bestFound = self.terminator_BestWeaponIEverFound or NULL
+                -- dont give up if we NEED the weapon!
+                local giveUp = data.giveUpTime < CurTime() and data.Wep ~= bestFound
+
+                if self.IsSeeEnemy and ( self.DistToEnemy < self.CloseEnemyDistance or giveUp ) then
                     self:EnemyAcquired( "movement_getweapon" )
                     return
 
@@ -4268,7 +4273,7 @@ function ENT:DoTasks()
                 local theyreInForASurprise = self:AnotherHunterIsHeadingToEnemy()
 
                 local tooCloseDist = data.tooCloseDist
-                if data.enemyIsBoxedIn == true or theyreInForASurprise then
+                if data.enemyIsBoxedIn == true or theyreInForASurprise or self:Health() < self:GetMaxHealth() * 0.9 then
                     tooCloseDist = 400
 
                 end
@@ -4419,12 +4424,12 @@ function ENT:DoTasks()
                 elseif data.doneSurpriseSetup and not theyreInForASurprise and not beingFooled then
                     if enemy and enemy.isTerminatorHunterKiller then
                         self:TaskComplete( "movement_watch" )
-                        self:StartTask2( "movement_flankenemy", nil, "surprise has happened, time to close in.. carefully!" )
+                        self:StartTask2( "movement_stalkenemy", nil, "surprise has happened, time to close in.. carefully!" )
                         self.PreventShooting = nil
 
                     else
                         self:TaskComplete( "movement_watch" )
-                        self:StartTask2( "movement_followenemy", nil, "surprise has happened, time to close in!" )
+                        self:StartTask2( "movement_flankenemy", nil, "surprise has happened, time to close in!" )
                         self.PreventShooting = nil
 
                     end
@@ -4541,7 +4546,8 @@ function ENT:DoTasks()
 
                 local result = terminator_Extras.getNearestPosOnNav( enemyPos )
 
-                if enemyPos and result.area:IsValid() then
+                local enemyOnNav = result.area:IsValid()
+                if enemyPos then
 
                     local minEnemyDist = 0
                     if tooDangerousToApproach then
@@ -4556,7 +4562,7 @@ function ENT:DoTasks()
                     local hardInnerBoundary = math.Clamp( enemyDis + -1000, minEnemyDist, math.huge )
                     local hardOuterBoundary = innerBoundary + 2000
                     local enemyArea = result.area
-                    local enemyAreaCenter = enemyArea:GetCenter()
+                    local enemyAreaCenter = enemyOnNav and enemyArea:GetCenter() or enemyPos
 
                     if myPos:DistToSqr( enemyAreaCenter ) > hardOuterBoundary^2 and self:areaIsReachable( enemyArea ) then
                         self:TaskFail( "movement_stalkenemy" )
@@ -4576,6 +4582,7 @@ function ENT:DoTasks()
                     scoreData.hardOuterBoundary = hardOuterBoundary
                     scoreData.lastStalkFromPos = data.lastStalkFromPos or myPos
                     scoreData.stalkStartPos = myPos
+                    scoreData.unreachableAreasCached = self.unreachableAreas
 
                     scoreData.lowestHeightAllowed = math.min( scoreData.enemyAreaCenter.z, myPos.z )
                     --debugoverlay.Cross( scoreData.lastStalkFromPos, 10, 20, color_white, true )
@@ -4584,8 +4591,10 @@ function ENT:DoTasks()
 
                     -- find area to my left or right, relative to enemy, basically circle the enemy 
                     local scoreFunction = function( scoreData, area1, area2 )
-
                         if area2:IsBlocked() then return 0 end
+
+                        local area2sId = area2:GetID()
+                        if scoreData.unreachableAreasCached[ area2sId ] then return 0 end
 
                         local area2Center = area2:GetCenter()
                         local distanceTravelled = DistToSqr2D( area2Center, scoreData.lastStalkFromPos )
@@ -4605,7 +4614,7 @@ function ENT:DoTasks()
 
                         end
 
-                        if not area2:IsCompletelyVisible( scoreData.enemyArea ) then
+                        if enemyOnNav and not area2:IsCompletelyVisible( scoreData.enemyArea ) then
                             score = score^ 1.45
 
                         elseif scoreData.hateVisible then
@@ -4613,7 +4622,7 @@ function ENT:DoTasks()
 
                         end
 
-                        if self.walkedAreas[area2:GetID()] then
+                        if self.walkedAreas[area2sId] then
                             score = score^0.85
 
                         end
@@ -4658,7 +4667,7 @@ function ENT:DoTasks()
 
                         end
 
-                        --debugoverlay.Text( area2Center, tostring( math.Round( score, 2 ) ), 10, false )
+                        --debugoverlay.Text( area2Center, tostring( math.Round( score, 2 ) ), 1, false )
 
                         return score
 
@@ -4667,9 +4676,14 @@ function ENT:DoTasks()
 
                     if stalkPos then
                         --debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
-                        -- build path left or right, weight it to never get too close to enemy aswell.
-                        self:SetupFlankingPath( stalkPos, result.area, self.DistToEnemy * 0.8 )
+                        if enemyOnNav then
+                            -- build path left or right, weight it to never get too close to enemy aswell.
+                            self:SetupFlankingPath( stalkPos, result.area, self.DistToEnemy * 0.8 )
 
+                        else
+                            self:SetupPathShell( stalkPos )
+
+                        end
                     end
                 end
 
@@ -4711,6 +4725,7 @@ function ENT:DoTasks()
                         self:TaskFail( "movement_stalkenemy" )
                         local oldUpHighFails = data.standUpHighFails or 0
                         local doBackupCamp = oldUpHighFails > 15 and self.IsSeeEnemy
+                        self:GetTheBestWeapon()
 
                         if reachable and not tooDangerousToApproach then
                             self:StartTask2( "movement_flankenemy", { Time = 0.2 }, "i can reach them, ill just go around" )
@@ -4719,7 +4734,7 @@ function ENT:DoTasks()
                             self:StartTask2( "movement_camp", { maxNoSeeing = 100 }, "i failed to stand somewhere high too much, SHOOT!" )
 
                         else
-                            self:StartTask2( "movement_stalkenemy", { Time = 0.2, PerchWhenHidden = true, standUpHighFails = oldUpHighFails + 1 }, "i cant reach them, ill stand somewhere high up i can see them" )
+                            self:StartTask2( "movement_stalkenemy", { Time = 0.2, perchWhenHidden = true, standUpHighFails = oldUpHighFails + 1 }, "i cant reach them, ill stand somewhere high up i can see them" )
 
                         end
                         self.WasHidden = nil
@@ -4738,8 +4753,8 @@ function ENT:DoTasks()
                             newDat.lastKnownStalkDist = data.lastKnownStalkDist
                             newDat.lastKnownStalkDir = data.lastKnownStalkDir
                             newDat.lastKnownStalkPos = data.lastKnownStalkPos
-                            newDat.PerchWhenHidden = data.PerchWhenHidden
-                            newDat.PerchWhenHiddenPos = data.PerchWhenHiddenPos
+                            newDat.perchWhenHidden = data.perchWhenHidden
+                            newDat.perchWhenHiddenPos = data.perchWhenHiddenPos
                             self:StartTask2( "movement_stalkenemy", newDat, "i still want to stalk" )
                             self.WasHidden = nil
 
@@ -4850,7 +4865,7 @@ function ENT:DoTasks()
                 elseif tooCloseToDangerousAndGettingCloser then
                     local orbitDist = math.Clamp( self.DistToEnemy * 2, 1000, math.huge )
                     self:TaskFail( "movement_stalkenemy" )
-                    self:StartTask2( "movement_stalkenemy", { forcedOrbitDist = orbitDist, PerchWhenHidden = true }, "im too close to it!!" )
+                    self:StartTask2( "movement_stalkenemy", { forcedOrbitDist = orbitDist, perchWhenHidden = true }, "im too close to it!!" )
                     exit = true
                 elseif self:CanBashLockedDoor( nil, 800 ) then
                     self:BashLockedDoor( "movement_stalkenemy" )
@@ -4858,17 +4873,17 @@ function ENT:DoTasks()
                 -- really lame to get close and have it run away
                 elseif self.NothingOrBreakableBetweenEnemy and farFarTooClose and reachable and not tooDangerousToApproach then
                     self:TaskComplete( "movement_stalkenemy" )
-                    self:StartTask2( "movement_duelenemy_near", { stalkDeathLoop = true }, "hey pal, you're way too close" )
+                    self:StartTask2( "movement_duelenemy_near", { wasStalk = true }, "hey pal, you're way too close" )
                     exit = true
                 -- really lame to get close and have it run away
                 elseif farTooClose and reachable and not tooDangerousToApproach then
                     self:TaskComplete( "movement_stalkenemy" )
-                    self:StartTask2( "movement_flankenemy", { Time = 0.1 }, "too close pal" )
+                    self:StartTask2( "movement_flankenemy", { Time = 0.1, wasStalk = true }, "too close pal" )
                     exit = true
                 -- we are too close and we just jumped out of somewhere hidden
                 elseif tooClose and self.WasHidden and reachable and not tooDangerousToApproach then
                     self:TaskComplete( "movement_stalkenemy" )
-                    self:StartTask2( "movement_flankenemy", { Time = 0.3 }, "too close" )
+                    self:StartTask2( "movement_flankenemy", { Time = 0.3, wasStalk = true }, "too close" )
                     exit = true
                 -- enemy isnt looking at us so we can observe them
                 elseif watch then
@@ -4940,8 +4955,8 @@ function ENT:DoTasks()
                         self:StartTask2( "movement_flankenemy", nil, "im gonna try another way" )
 
                     -- this activates when ply is somewhere impossible to reach
-                    elseif self.WasHidden and ( data.PerchWhenHidden or shouldPerchBecauseTheyTooDeadly ) then
-                        local whereWeNeedToSee = data.PerchWhenHiddenPos or self.EnemyLastPos
+                    elseif self.WasHidden and ( data.perchWhenHidden or shouldPerchBecauseTheyTooDeadly ) then
+                        local whereWeNeedToSee = data.perchWhenHiddenPos or self.EnemyLastPos
                         self:TaskComplete( "movement_stalkenemy" )
                         self:StartTask2( "movement_perch", { requiredTarget = whereWeNeedToSee, cutFarther = true, perchRadius = self:GetRangeTo( whereWeNeedToSee ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
 
@@ -4958,8 +4973,8 @@ function ENT:DoTasks()
                         newDat.lastKnownStalkDist = data.lastKnownStalkDist
                         newDat.lastKnownStalkDir = data.lastKnownStalkDir
                         newDat.lastKnownStalkPos = data.lastKnownStalkPos
-                        newDat.PerchWhenHidden = data.PerchWhenHidden
-                        newDat.PerchWhenHiddenPos = data.PerchWhenHiddenPos
+                        newDat.perchWhenHidden = data.perchWhenHidden
+                        newDat.perchWhenHiddenPos = data.perchWhenHiddenPos
                         self:TaskComplete( "movement_stalkenemy" )
                         self:StartTask2( "movement_stalkenemy", newDat, "i did a good stalk and i want to do more" )
 
@@ -5061,7 +5076,7 @@ function ENT:DoTasks()
                 local canWep, potentialWep = self:canGetWeapon()
                 if canWep and not self.IsSeeEnemy and self:getTheWeapon( "movement_flankenemy", potentialWep, "movement_flankenemy" ) then
                     exit = true
-                elseif self:inSeriousDanger() or self:EnemyIsLethalInMelee() then
+                elseif self:inSeriousDanger() or self:EnemyIsLethalInMelee() and not data.wasStalk then
                     self:TaskComplete( "movement_flankenemy" )
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "that hurt!" )
                     exit = true
@@ -5308,7 +5323,7 @@ function ENT:DoTasks()
                 -- cant get to them
                 elseif data.Unreachable and givenItAChance then
                     self:TaskFail( "movement_approachforcedcheckposition" )
-                    self:StartTask2( "movement_stalkenemy", { PerchWhenHidden = true, PerchWhenHiddenPos = approachPos }, "i couldnt reach the pos" )
+                    self:StartTask2( "movement_stalkenemy", { perchWhenHidden = true, perchWhenHiddenPos = approachPos }, "i couldnt reach the pos" )
                     self.forcedCheckPositions[ data.forcedCheckKey ] = nil
                 -- i see you...
                 elseif goodEnemy then
@@ -5390,7 +5405,8 @@ function ENT:DoTasks()
                     self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
                 elseif data.Unreachable and givenItAChance then
                     self:TaskFail( "movement_approachlastseen" )
-                    self:StartTask2( "movement_stalkenemy", { PerchWhenHidden = true, PerchWhenHiddenPos = approachPos }, "i cant get to the pos, perching!" )
+                    self:GetTheBestWeapon()
+                    self:StartTask2( "movement_stalkenemy", { perchWhenHidden = true, perchWhenHiddenPos = approachPos }, "i cant get to the pos, perching!" )
                 -- i see you...
                 elseif goodEnemy then
                     self:EnemyAcquired( "movement_approachlastseen" )
@@ -5488,9 +5504,11 @@ function ENT:DoTasks()
                     self:BashLockedDoor( "movement_followenemy" )
                 elseif data.Unreachable and GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
+                    self:GetTheBestWeapon()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i cant get to them" )
                 elseif data.Unreachable and not GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
+                    self:GetTheBestWeapon()
                     self:StartTask2( "movement_search", { searchWant = 10 }, "i cant get there, and they're gone" )
                 elseif GoodEnemy and self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < distToExit then
                     if data.baitcrouching then
@@ -5598,21 +5616,24 @@ function ENT:DoTasks()
 
                         else
                             self:TaskComplete( "movement_duelenemy_near" )
+                            self:GetTheBestWeapon()
                             self:StartTask2( "movement_search", { searchCenter = self.EnemyLastPos, searchWant = 20, searchRadius = 2000 }, "my enemy is gone and i cant get to where they were" )
 
                         end
                     end
-                elseif self:EnemyIsLethalInMelee() or ( self:inSeriousDanger() or self:getLostHealth() > 140 ) and enemy and not data.stalkDeathLoop then
+                elseif self:EnemyIsLethalInMelee() or ( self:inSeriousDanger() or self:getLostHealth() > 140 ) and enemy and not data.wasStalk then
                     self:TaskFail( "movement_duelenemy_near" )
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i dont want to die" )
 
                 elseif ( not self:areaIsReachable( enemyNavArea ) or data.Unreachable ) and enemy then
-                    if data.stalkDeathLoop then
+                    if data.wasStalk then
                         self:TaskFail( "movement_duelenemy_near" )
+                        self:GetTheBestWeapon()
                         self:StartTask2( "movement_inertia", {}, "i cant reach them" )
 
                     else
                         self:TaskFail( "movement_duelenemy_near" )
+                        self:GetTheBestWeapon()
                         self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i cant reach them" )
 
                     end
@@ -5643,7 +5664,7 @@ function ENT:DoTasks()
                         local canDoFisticuffss = self.DistToEnemy < fisticuffsDist or ( data.quitTime < CurTime() and ( math.random( 0, 100 ) < 25 ) ) or reallyLowHealth
                         local fistiCuffs = canDoFisticuffss and not blockFisticuffs
                         if fistiCuffs and self.HasFists then
-                            if self:EnemyIsLethalInMelee() and not data.stalkDeathLoop then
+                            if self:EnemyIsLethalInMelee() and not data.wasStalk then
                                 self:TaskFail( "movement_duelenemy_near" )
                                 self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 2 }, "i wanted to punch them, but ill back up instead" )
 

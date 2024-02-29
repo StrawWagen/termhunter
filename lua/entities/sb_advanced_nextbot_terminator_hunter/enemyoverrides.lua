@@ -285,7 +285,7 @@ function ENT:SetupEntityRelationship( ent )
     self:SetEntityRelationship( ent, disp, priority )
     if ( ent:IsNPC() or ent:IsNextBot() ) and ent.AddEntityRelationship then
         if ent.SBAdvancedNextBot then
-            print( self, ent, theirdisp )
+            --print( self, ent, theirdisp )
             timer.Simple( 0, function()
                 if not IsValid( ent ) then return end
                 if not IsValid( self ) then return end
