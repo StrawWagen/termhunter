@@ -1036,8 +1036,8 @@ function ENT:canGetWeapon()
         local weapWeight = wepDat.weight or 0
         local currWeapWeight = self:GetWeightOfWeapon( currWeap )
 
-        local distToEnemy = self.DistToEnemy
-        local range = wepDat.range
+        local distToEnemy = self.DistToEnemy or 0
+        local range = wepDat.range or 0
         local currWeapRange = self:GetWeaponRange( currWeap )
 
         local canHolster = self:CanHolsterWeap( currWeap )

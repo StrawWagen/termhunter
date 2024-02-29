@@ -3401,6 +3401,8 @@ function ENT:DoTasks()
 
                 end
 
+                self:InvalidatePath( "getting weapon, killing old path" )
+
                 if not data:updateWep() then return end
                 if not IsValid( data.Wep ) then return end
 
@@ -3413,8 +3415,6 @@ function ENT:DoTasks()
                     return
 
                 end
-
-                self:InvalidatePath( "getting weapon, killing old path" )
 
             end,
             BehaveUpdate = function( self, data )
@@ -3490,7 +3490,9 @@ function ENT:DoTasks()
 
                 end
 
-                if result then
+                if self.isUnstucking then return end
+
+                if result == true then
                     data:finishAfterwards( "reached the end of my path, no weapon tho" )
                     return
 
@@ -5153,7 +5155,7 @@ function ENT:DoTasks()
                 if lastInterceptPos and nextPath < CurTime() then
 
                     lastInterceptPosOffsetted = lastInterceptPos + Vector( 0, 0, 20 )
-                    data.nextPath = CurTime() + 0.8
+                    data.nextPath = CurTime() + 0.4
 
                     local predictedRelativeEnd = ( lastInterceptDir * math.random( 2500, 3500 ) )
                     local predictedTraceStart = lastInterceptPosOffsetted + ( lastInterceptDir * 100 )
@@ -5174,7 +5176,7 @@ function ENT:DoTasks()
                     -- limit silly behaviour where enemy is on a rooftop, and bots path to the streets below
                     -- don't remove entirely because the enemy could jump down there yknow 
                     if predictedPosOnSamePlane or ( flooredTr.Hit and math.random( 0, 100 ) < 25 ) then
-                        predictedPos = predictedPosFloored
+                        predictedPos = flooredTr.HitPos
 
                     else
                         predictedPos = lastInterceptPosOffsetted
@@ -5182,7 +5184,7 @@ function ENT:DoTasks()
                     end
 
                     -- first proper check
-                    if not self:CanDoNewPath( predictedPos ) then goto terminatorInterceptNewPathFail end
+                    if not self:primaryPathInvalidOrOutdated( predictedPos ) then goto terminatorInterceptNewPathFail end
 
                     local currDist2 = predictedPos:DistToSqr( lastInterceptPosOffsetted )
                     -- end here if this would place us closer to the enemy vs last time, we want to be far from the enemy if we can!
@@ -5208,6 +5210,8 @@ function ENT:DoTasks()
                     end
 
                     local interceptResult = terminator_Extras.getNearestPosOnNav( flankAroundPos )
+
+                    --debugoverlay.Cross( interceptResult.pos, 100, 5, color_white, true )
 
                     if interceptResult.area:IsValid() then
                         self:SetupFlankingPath( gotoResult.pos, interceptResult.area, flankBubble )
