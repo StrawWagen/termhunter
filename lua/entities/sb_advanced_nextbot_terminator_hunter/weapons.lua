@@ -1238,6 +1238,7 @@ end )
 function ENT:JudgeWeapon()
     if self:IsFists() then return end
     if not IsValid( self:GetEnemy() ) then return end
+    if not self.NothingOrBreakableBetweenEnemy then return end
 
     local myWeapon = self:GetActiveWeapon()
     if not IsValid( myWeapon ) then return end
