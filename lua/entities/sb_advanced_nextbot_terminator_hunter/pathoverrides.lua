@@ -8,6 +8,14 @@ function ENT:InvalidatePath( reason )
     local path = self:GetPath()
     if not path:IsValid() then return end
     path:Invalidate()
+
+    self.m_PathObstacleGoal = nil
+    self.m_PathObstacleRebuild = nil
+    self.m_PathObstacleAvoidPos = nil
+    self.m_PathObstacleAvoidTarget = nil
+    self.m_PathObstacleAvoidTimeout = 0
+
+    -- debug
     if not isCheats() then return end
 
     -- this is displayed when bot is used by a player
@@ -72,8 +80,8 @@ function ENT:GetNextPathArea( refArea, offset, visCheck )
     local myPathPoint = self:GetPath():GetCurrentGoal()
     local myShootPos = self:GetShootPos()
     local goalArea = NULL
-    local goalPathPoint = nil
-    local isNextArea = nil
+    local goalPathPoint
+    local isNextArea
 
     for _, pathPoint in ipairs( pathSegs ) do -- find the real next area
         if isNextArea == true and pathPoint.area ~= myPathPoint.area then
@@ -129,6 +137,65 @@ function ENT:primaryPathInvalidOrOutdated( destination )
     return not self:primaryPathIsValid() or ( self:primaryPathIsValid() and self:CanDoNewPath( destination ) )
 
 end
+
+local transientAreaCached = {}
+local nextTransientAreaCaches = {}
+local belowOffset = Vector( 0, 0, -45 )
+local hull = Vector( 5, 5, 1 )
+
+function ENT:transientAreaPathable( area, areasId )
+    local nextCache = nextTransientAreaCaches[areasId] or 0
+    if nextCache > CurTime() then return transientAreaCached[areasId] end
+    nextTransientAreaCaches[areasId] = CurTime() + math.Rand( 0.5, 1 )
+
+    local toCheckPositions = {}
+    local center = area:GetCenter()
+    table.insert( toCheckPositions, center )
+
+    for cornerInd = 0, 3 do
+        local corner = area:GetCorner( cornerInd )
+        local dirToCenter = terminator_Extras.dirToPos( corner, center )
+        local cornerOffsetted = corner + dirToCenter * 12.5
+
+        table.insert( toCheckPositions, cornerOffsetted )
+
+    end
+
+    local traceData = {
+        mask = MASK_SOLID,
+        mins = -hull,
+        maxs = hull,
+
+    }
+    local hits = 0
+    local misses = 0
+    local lastChecked
+    for _, currPos in ipairs( toCheckPositions ) do
+        -- simple check for already traced positions.
+        if lastChecked and currPos:DistToSqr( lastChecked ) < 25 then continue end -- 25 is 5^2 
+        lastChecked = currPos
+
+        traceData.start = currPos
+        traceData.endpos = currPos + belowOffset
+
+        local traceRes = util.TraceHull( traceData )
+        if ( traceRes.Hit and traceRes.HitNormal:Dot( vector_up ) > 0.65 ) or traceRes.StartSolid then
+            hits = hits + 1
+
+        else
+            misses = misses + 1
+
+        end
+    end
+
+    local isTraversable = hits >= 2 and misses < hits / 6
+    --debugoverlay.Text( center, tostring( hits ) .. " " .. tostring( misses ), 5 )
+    transientAreaCached[areasId] = isTraversable
+
+    return isTraversable
+
+end
+
 
 local badConnections = {}
 local lastBadFlags = {}
@@ -349,7 +416,9 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     local attributes = toArea:GetAttributes()
     local crouching
 
-    if band( attributes, NAV_MESH_CROUCH ) == 1 then
+    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not self:transientAreaPathable( toArea, toAreasId ) then return false end
+
+    if band( attributes, NAV_MESH_CROUCH ) ~= 0 then
         crouching = true
         if hunterIsFlanking then
             -- vents?
@@ -360,7 +429,7 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
         end
     end
 
-    if band( attributes, NAV_MESH_OBSTACLE_TOP ) == 1 then
+    if band( attributes, NAV_MESH_OBSTACLE_TOP ) ~= 0 then
         if fromArea:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
             dist = dist * 8
         else
@@ -373,7 +442,7 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     if sizeX < 26 or sizeY < 26 then
         -- generator often makes small 1x1 areas with this attribute, on very complex terrain
-        if band( attributes, NAV_MESH_NO_MERGE ) == 1 then
+        if band( attributes, NAV_MESH_NO_MERGE ) ~= 0 then
             dist = dist * 8
         else
             dist = dist * 1.25
@@ -385,16 +454,12 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
         dist = dist * 0.8
     end
 
-    if band( attributes, NAV_MESH_JUMP ) == 1 then
+    if band( attributes, NAV_MESH_JUMP ) ~= 0 then
         dist = dist * 1.5
     end
 
-    if band( attributes, NAV_MESH_AVOID ) == 1 then
+    if band( attributes, NAV_MESH_AVOID ) ~= 0 then
         dist = dist * 20
-    end
-
-    if band( attributes, NAV_MESH_TRANSIENT ) == 1 then
-        dist = dist * 2
     end
 
     if toArea:IsUnderwater() then
@@ -426,10 +491,10 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
             end
         else
             if hunterIsFlanking then
-                cost = cost * 1.5
+                cost = cost * 2
 
             else
-                cost = cost * 2
+                cost = cost * 3
 
             end
         end
@@ -441,22 +506,22 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
         cost = cost * 50000
 
     elseif not isReallyAngry and deltaZ <= -jumpHeight then
-        cost = cost * 4
+        cost = cost * 5
 
     elseif not isReallyAngry and deltaZ <= -stepHeight * 3 then
         if hunterIsFlanking then
-            cost = cost * 2
+            cost = cost * 3
+
+        else
+            cost = cost * 4
+
+        end
+    elseif deltaZ <= -stepHeight then
+        if hunterIsFlanking then
+            cost = cost * 1.5
 
         else
             cost = cost * 3
-
-        end
-    elseif not isReallyAngry and deltaZ <= -stepHeight then
-        if hunterIsFlanking then
-            cost = cost * 1.2
-
-        else
-            cost = cost * 2
 
         end
     end
@@ -588,14 +653,16 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     self:findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
 
     -- ok remember the areas as unreachable so we dont go through this again
-    -- unless there was a locked door!, or
-    -- we tried to mark our OWN AREA as unreachable!
-    if not wasABlockedArea and not invalidUnreachable then
+    -- unless there was a locked door!
+    if not wasABlockedArea then
         self:rememberAsUnreachable( endArea.area )
 
-        for _, area in ipairs( scoreData.areasToUnreachable ) do
-            self:rememberAsUnreachable( area )
+        -- stop after marking the path dest, IF the unreachable finder was invalid!
+        if not invalidUnreachable then
+            for _, area in ipairs( scoreData.areasToUnreachable ) do
+                self:rememberAsUnreachable( area )
 
+            end
         end
     end
 
@@ -605,7 +672,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     end
 
-    return true
+    return true, "extremefailure"
 
 end
 

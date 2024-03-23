@@ -171,7 +171,8 @@ local function OnDamaged( damaged, Hitgroup, Damage )
     elseif DamageDealt > 60 then
         ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
         table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-        Damage:SetDamage( math.Clamp( DamageDealt, 0, 150 ) )
+        DamageDealt = DamageDealt * 0.75
+        Damage:SetDamage( math.Clamp( DamageDealt, 0, 350 ) )
         BgDamage = 40
         damaged:CatDamage()
     end
@@ -236,8 +237,8 @@ function ENT:OnTakeDamage( Damage )
         ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
         BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
-    elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 300 then --combine ball!
-        Damage:SetDamage( 300 )
+    elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then --combine ball!
+        Damage:SetDamage( 455 )
         BgDamage = 140
 
         ToBGs = { 0, 1, 2, 3, 4, 5, 6 }

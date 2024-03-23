@@ -185,7 +185,11 @@ local function shouldNotSeeEnemy( me, enemy )
 
 end
 
-local GetConVar_Local = GetConVar
+local ignorePlayers = GetConVar( "ai_ignoreplayers" )
+function ENT:IgnoringPlayers()
+    return ignorePlayers:GetBool()
+
+end
 
 local entMeta = FindMetaTable( "Entity" )
 local _IsFlagSet = entMeta.IsFlagSet
@@ -214,7 +218,7 @@ function ENT:ShouldBeEnemy( ent )
 
     end
 
-    if isPly and GetConVar_Local( "ai_ignoreplayers" ):GetBool() then return false end
+    if isPly and self:IgnoringPlayers() then return false end
     if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
 
     local class = ent:GetClass()
@@ -248,6 +252,8 @@ function ENT:ClearEnemyMemory( enemy )
     end
 end
 
+local isentity = isentity
+
 function ENT:CanSeePosition( check )
     local pos = check
     if isentity( check ) then
@@ -262,7 +268,7 @@ function ENT:CanSeePosition( check )
         filter = self
     } )
 
-    local seeBasic = not tr.Hit or isentity( check ) and tr.Entity == check
+    local seeBasic = not tr.Hit or ( isentity( check ) and tr.Entity == check )
     return seeBasic
 
 end
@@ -541,25 +547,24 @@ function ENT:validSoundHint()
     local emitter = hint.emitter
     if IsValid( emitter ) then
         local interesting = emitter:IsPlayer() or emitter:IsNextBot() or emitter:IsNPC()
+        if interesting then return true end
 
-        if not interesting then
-            local id = emitter:GetCreationID()
-            local oldCount = self.heardThingCounts[ id ] or 0
-            self.heardThingCounts[ id ] = oldCount + 1
+        local id = emitter:GetCreationID()
+        local oldCount = self.heardThingCounts[ id ] or 0
+        self.heardThingCounts[ id ] = oldCount + 1
 
-            --print( emitter, oldCount )
+        --print( emitter, oldCount )
 
-            timer.Simple( 120, function()
-                if not IsValid( self ) then return end
-                self.heardThingCounts[ id ] = self.heardThingCounts[ id ] + -1
+        timer.Simple( 120, function()
+            if not IsValid( self ) then return end
+            self.heardThingCounts[ id ] = self.heardThingCounts[ id ] + -1
 
-            end )
+        end )
 
-            if oldCount > 5 then
-                self.lastHeardSoundHint = nil
-                return false
+        if oldCount > 8 then
+            self.lastHeardSoundHint = nil
+            return false
 
-            end
         end
     end
     return true

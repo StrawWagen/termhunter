@@ -58,6 +58,19 @@ function ENT:Give( wepname )
 
 end
 
+function ENT:HateBuggyWeapon( wep, successful )
+    if successful then return end
+    terminator_Extras.OverrideWeaponWeight( wep:GetClass(), -100 )
+    wep.terminatorCrappyWeapon = true
+    print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
+    -- drop weap without holstering it
+    self:DropWeapon( true )
+    self:Anger( 10 )
+
+    return true
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:GetActiveLuaWeapon
     Desc: Returns current weapon entity. If active weapon is engine weapon, returns lua analog.
@@ -96,7 +109,8 @@ function ENT:SetupWeapon( wep )
     end
 
     self.terminator_NeedsAWeaponNow = nil
-    ProtectedCall( function() self:OnWeaponEquip( wep ) end )
+    local successful = ProtectedCall( function() self:OnWeaponEquip( wep ) end )
+    self:HateBuggyWeapon( wep, successful )
 
     self:SetActiveWeapon( wep )
 
@@ -166,9 +180,12 @@ function ENT:SetupWeapon( wep )
 
     self:DoWeaponHacks( wep )
 
-    ProtectedCall( function() actwep:OwnerChanged() end )
-    ProtectedCall( function() actwep:Equip( self ) end )
-    ProtectedCall( function() actwep:Deploy( self ) end )
+    successful = ProtectedCall( function() actwep:OwnerChanged() end )
+    self:HateBuggyWeapon( wep, successful )
+    successful = ProtectedCall( function() actwep:Equip( self ) end )
+    self:HateBuggyWeapon( wep, successful )
+    successful = ProtectedCall( function() actwep:Deploy( self ) end )
+    self:HateBuggyWeapon( wep, successful )
 
     -- 'equip' sound
     self:EmitSound( "Flesh.Strain", 80, 160, 0.8 )
@@ -257,8 +274,10 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     wep:SetTransmitWithParent( false )
 
     if IsValid( actwep ) then
-        ProtectedCall( function() actwep:OwnerChanged() end )
-        ProtectedCall( function() actwep:OnDrop() end )
+        local successful = ProtectedCall( function() actwep:OwnerChanged() end )
+        self:HateBuggyWeapon( wep, successful )
+        successful = ProtectedCall( function() actwep:OnDrop() end )
+        self:HateBuggyWeapon( wep, successful )
 
         -- Restoring engine weapon from lua analog
         if wep ~= actwep then
@@ -292,7 +311,8 @@ function ENT:DropWeapon( noHolster, droppingOverride )
         end
     end
 
-    ProtectedCall( function() self:OnWeaponDrop( wep ) end )
+    local successful = ProtectedCall( function() self:OnWeaponDrop( wep ) end )
+    self:HateBuggyWeapon( wep, successful )
 
     wep:SetPos( self:GetShootPos() )
     wep:SetAngles( self:GetEyeAngles() )
@@ -387,29 +407,21 @@ function ENT:CanWeaponPrimaryAttack()
 
     if wep:GetMaxClip1() > 0 and wep:Clip1() <= 0 then return false end
 
-    local noErrors, result = nil, false
-    noErrors, result = pcall( function() -- no MORE ERRORS!
+    local canShoot = nil
 
+    -- xpcall because we need to pass self
+    local successful = ProtectedCall( function() -- no MORE ERRORS!
         local nextShoot = self:AssumeWeaponNextShootTime() or 0
 
-        if not wep then return false end
-        if nextShoot > CurTime() then return false end
-        if wep.CanPrimaryAttack and not wep:CanPrimaryAttack() then return false end
+        if not wep then canShoot = false return end
+        if nextShoot > CurTime() then canShoot = false return end
+        if wep.CanPrimaryAttack and not wep:CanPrimaryAttack() then canShoot = false return end
 
-        return true
+        canShoot = true
 
     end )
-    if noErrors == false then
-        -- this makes me SICK!
-        terminator_Extras.OverrideWeaponWeight( wep:GetClass(), -100 )
-        wep.terminatorCrappyWeapon = true
-        print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
-        ErrorNoHaltWithStack( result )
-        self:Anger( 10 )
-        return
-
-    end
-    return result
+    self:HateBuggyWeapon( wep, successful )
+    return canShoot
 
 end
 
@@ -427,20 +439,12 @@ function ENT:WeaponPrimaryAttack()
 
     local isSetupProperly = isfunction( wep.GetNPCBurstSettings ) and isfunction( wep.GetNPCRestTimes )
 
-    local noErrors, theError = pcall( function() -- cant be too safe here
+    local successful = ProtectedCall( function() -- cant be too safe here
 
         if isSetupProperly then --SB base weapon probably
 
-            local npcShootCall, shootCallsError = pcall( function() wep:NPCShoot_Primary( self:GetShootPos(), self:GetAimVector() ) end )
-            if npcShootCall == false then
-                wep.terminatorCrappyWeapon = true
-                print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
-                self:DropWeapon( true )
-                print( shootCallsError )
-                self:Anger( 10 )
-                return
-
-            end
+            local successfulShoot = ProtectedCall( function() wep:NPCShoot_Primary( self:GetShootPos(), self:GetAimVector() ) end )
+            self:HateBuggyWeapon( wep, successfulShoot )
 
             self:DoRangeGesture()
 
@@ -485,16 +489,7 @@ function ENT:WeaponPrimaryAttack()
 
         end
     end )
-    if noErrors == false then
-        -- disgustang
-        -- dont use it again!
-        terminator_Extras.OverrideWeaponWeight( wep:GetClass(), -100 )
-        wep.terminatorCrappyWeapon = true
-        print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
-        ErrorNoHaltWithStack( theError )
-        self:Anger( 10 )
-
-    else
+    if not self:HateBuggyWeapon( wep, successful ) then
         wep.terminator_FiredBefore = true
         self.terminator_LastAttack = CurTime()
 
@@ -527,7 +522,8 @@ function ENT:WeaponSecondaryAttack()
 
     local wep = self:GetActiveLuaWeapon()
 
-    ProtectedCall(function() wep:NPCShoot_Secondary(self:GetShootPos(),self:GetAimVector()) end)
+    local successful = ProtectedCall(function() wep:NPCShoot_Secondary(self:GetShootPos(),self:GetAimVector()) end)
+    self:HateBuggyWeapon( wep, successful )
     self:DoRangeGesture()
 end
 
@@ -576,7 +572,8 @@ function ENT:WeaponReload()
     if wep:Clip1() >= wep:GetMaxClip1() then return end
     if CurTime() < self.m_WeaponData.NextReloadTime then return end
 
-    ProtectedCall( function() wep:Reload() end )
+    local successful = ProtectedCall( function() wep:Reload() end )
+    self:HateBuggyWeapon( wep, successful )
     local reloadTime = self:DoReloadGesture()
 
     if not reloadTime then return end
@@ -1233,10 +1230,14 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
 
 end )
 
+
+local dropWeps = CreateConVar( "termhunter_dropuselessweapons", 1, FCVAR_NONE, "Detect and drop useless weapons? Does not stop bot from dropping erroring weapons" )
+
 -- is a weapon not being useful?
 
 function ENT:JudgeWeapon()
     if self:IsFists() then return end
+    if not dropWeps:GetBool() then return end
     if not IsValid( self:GetEnemy() ) then return end
     if not self.NothingOrBreakableBetweenEnemy then return end
 
@@ -1261,7 +1262,8 @@ function ENT:JudgeWeapon()
     local bonusAttackAttempts = 30
     local tolerance = 4
     if weapSpread( self:GetActiveLuaWeapon() ) or hasEvenDoneDamage then
-        -- weapon that shoots bullets??
+        -- weapon that has spread!?!!? (real bullets!)
+        -- or we've done damage with sometime in the past
         bonusAttackAttempts = 60
         tolerance = 8
 
@@ -1311,8 +1313,9 @@ function ENT:JudgeWeapon()
 end
 
 
-function ENT:WeaponIsPlacable()
-    local wep = self:GetWeapon()
+function ENT:WeaponIsPlacable( wep )
+    wep = wep or self:GetWeapon()
+
     if not wep.termPlace_ScoringFunc then return end
     if not wep.termPlace_PlacingFunc then return end
 

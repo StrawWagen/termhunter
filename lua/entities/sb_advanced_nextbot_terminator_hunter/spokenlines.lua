@@ -5,10 +5,16 @@ function ENT:InitializeSpeaking()
 
 end
 
-function ENT:PlaySentence( sentenceIn )
-    if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
-    if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
-    table.insert( self.StuffToSay, sentenceIn )
+function ENT:Term_PlaySentence( sentenceIn, conditionFunc )
+    if conditionFunc then
+        table.insert( self.StuffToSay, { sent = sentenceIn, cond = conditionFunc } )
+
+    else
+        if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
+        if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
+        table.insert( self.StuffToSay, { sent = sentenceIn } )
+
+    end
 
 end
 
@@ -17,8 +23,12 @@ function ENT:SpokenLinesThink()
     if self.NextSpokenLine > CurTime() then return end
     if #self.StuffToSay <= 0 then return end
 
-    local sentenceIn = table.remove( self.StuffToSay, 1 )
+    local sentenceDat = table.remove( self.StuffToSay, 1 )
 
+    local conditionFunc = sentenceDat.conditionFunc
+    if isfunction( conditionFunc ) and not conditionFunc( self ) then return end
+
+    local sentenceIn = sentenceDat.sent
     local sentence
 
     if istable( sentenceIn ) then
@@ -48,11 +58,23 @@ function ENT:SpeakLine( line )
 
 end
 
+hook.Add( "PlayerDeath", "terminator_killedenemy", function( _, _, killer )
+    if not killer.OnKilledPlayerEnemyLine then return end
+    killer.terminator_KilledPlayer = true
 
-hook.Add( "terminator_engagedenemywasbad", "supercop_killedenemy", function( self, enemyLost )
-    if not self.OnKilledEnemyLine then return end
+end )
+
+hook.Add( "terminator_engagedenemywasbad", "terminator_killedenemy", function( self, enemyLost )
+    if not self.OnKilledGenericEnemyLine then return end
     if not IsValid( enemyLost ) then return end
     if enemyLost:Health() <= 0 then
-        self:OnKilledEnemyLine( enemyLost )
+        if self.terminator_KilledPlayer and self.OnKilledPlayerEnemyLine then
+            self.terminator_KilledPlayer = nil
+            self:OnKilledPlayerEnemyLine( enemyLost )
+
+        else
+            self:OnKilledGenericEnemyLine( enemyLost )
+
+        end
     end
 end )

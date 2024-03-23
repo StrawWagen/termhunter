@@ -143,12 +143,21 @@ function SWEP:Swing()
             force = force / 5
 
         end
-
-        if force > 15000 then
-            self:DoFlyingSound( thrownFake, aimVec )
+        if owner.ThrowingForceMul then
+            force = force * owner.ThrowingForceMul
 
         end
 
+        if force > 15000 then
+            self:DoFlyingSound( thrownFake, aimVec, force )
+
+        end
+
+        if force > 150000 then
+            obj:SetDragCoefficient( 0 )
+            obj:SetMass( obj:GetMass() * 4 )
+
+        end
         obj:ApplyForceCenter( aimVec * force )
         obj:SetAngleVelocity( aimVec * force )
 
@@ -208,9 +217,48 @@ end
 
 local airSoundPath = "ambient/levels/canals/windmill_wind_loop1.wav"
 
-function SWEP:DoFlyingSound( thrown, direction )
+function SWEP:DoFlyingSound( thrown, direction, force )
     local filterAll = RecipientFilter()
     filterAll:AddAllPlayers()
+
+    if force > 200000 then
+        util.ScreenShake( self:GetOwner():WorldSpaceCenter(), 5, 20, 0.1, 3000, true, filterAll )
+        local owner = self:GetOwner()
+        for _, ent in ipairs( ents.FindByClass( "player" ) ) do
+            if ent:IsPlayer() then
+                local dist = owner:GetPos():Distance( ent:GetPos() )
+                if dist > 8000 then return end
+                local distInverted = ( 8000 - dist ) + 4000
+                timer.Simple( dist / 8000, function()
+                    if not IsValid( ent ) then return end
+                    if not IsValid( owner ) then return end
+                    if not IsValid( thrown ) then return end
+                    local filterJustEnt = RecipientFilter()
+                    filterJustEnt:AddPlayer( ent )
+                    util.ScreenShake( owner:WorldSpaceCenter(), 20, 20, 0.1, 4000, true, filterJustEnt )
+                    ent:EmitSound( "npc/sniper/sniper1.wav", 130, 80, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
+                    owner:EmitSound( "npc/sniper/echo1.wav", 100, 60, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
+                    if not thrown.isTerminatorHunterCrowbar then return end
+                    thrown:EmitSound( "weapons/crowbar/crowbar_impact" .. math.random( 1, 2 ) .. ".wav", 75, math.random( 40, 60 ), 0.75, CHAN_STATIC, nil, nil, filterJustEnt )
+
+                end )
+            end
+        end
+
+        local tracer = ents.Create( "env_spritetrail" )
+        tracer:SetKeyValue( "lifetime", "0.2" )
+        tracer:SetKeyValue( "startwidth", "2" )
+        tracer:SetKeyValue( "endwidth", "0" )
+        tracer:SetKeyValue( "spritename", "trails/laser.vmt" )
+        tracer:SetKeyValue( "rendermode", "5" )
+        tracer:SetKeyValue( "rendercolor", "255 255 255" )
+        tracer:SetPos( thrown:GetPos() )
+        tracer:Spawn()
+        tracer:Activate()
+
+        thrown.tracer = tracer
+
+    end
 
     local airSound = CreateSound( thrown, airSoundPath, filterAll )
     airSound:SetSoundLevel( 90 )
@@ -223,6 +271,9 @@ function SWEP:DoFlyingSound( thrown, direction )
         timer.Remove( timerName )
         if not IsValid( thrown ) then return end
         thrown:StopSound( airSoundPath )
+
+        if not IsValid( thrown.tracer ) then return end
+        SafeRemoveEntityDelayed( thrown.tracer, 0.2 )
     end
 
     timer.Create( timerName, 0, 0, function()
@@ -234,6 +285,9 @@ function SWEP:DoFlyingSound( thrown, direction )
         if pitch < 10 then StopAirSound() return end
         airSound:ChangePitch( pitch )
         airSound:ChangeVolume( volume )
+
+        if not IsValid( thrown.tracer ) then return end
+        thrown.tracer:SetPos( thrown:GetPos() )
 
     end )
 end

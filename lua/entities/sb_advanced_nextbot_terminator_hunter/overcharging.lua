@@ -6,6 +6,7 @@ function ENT:Overcharge()
     self.AccelerationSpeed = 3000
     self.ShockDamageImmune = true
     self.FistDamageMul = 4
+    self.ThrowingForceMul = 1000
 
     self:ReallyAnger( 999999 )
 
