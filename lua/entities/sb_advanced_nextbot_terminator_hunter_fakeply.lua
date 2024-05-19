@@ -38,6 +38,7 @@ ENT.InformRadius = 0
 ENT.alwaysManiac = true
 
 ENT.isTerminatorHunterChummy = false
+ENT.MetallicMoveSounds = false
 ENT.ReallyStrong = false
 ENT.HasFists = false
 

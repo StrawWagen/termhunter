@@ -17,6 +17,8 @@ local function cleanupListenerTbl()
     end
 end
 
+cleanupListenerTbl()
+
 function terminator_Extras.RegisterListener( listener )
     timer.Simple( 0, function()
         cleanupListenerTbl()

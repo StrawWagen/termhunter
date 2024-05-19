@@ -155,11 +155,11 @@ function SWEP:Swing()
 
         if force > 150000 then
             obj:SetDragCoefficient( 0 )
-            obj:SetMass( obj:GetMass() * 4 )
+            obj:SetMass( obj:GetMass() * 10 )
 
         end
         obj:ApplyForceCenter( aimVec * force )
-        obj:SetAngleVelocity( aimVec * force )
+        obj:SetAngleVelocityInstantaneous( aimVec * force * 10 )
 
         self:SwingingSound( thrownFake )
 

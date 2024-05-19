@@ -649,6 +649,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered )
     if IsValid( wepsParent ) and not doingHolstered then return false end
 
     if doingHolstered and wepsParent ~= self then return false end
+    if doingHolstered and wepsParent == self and not self:IsHolsteredWeap( wep ) then return false end -- we're already using this one... 
 
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
     if blockWeaponNoticing > CurTime() then return end
@@ -996,9 +997,9 @@ function ENT:NextWeapSearch( time )
 end
 
 function ENT:ResetWeaponSearchTimers()
-    self.nextNewPath = CurTime() + 0.1
     self.terminator_NextWeaponPickup = 0
     self.nextWeapSearch = CurTime() + 0.1
+    self.cachedNewWeaponDat = nil
 
 end
 

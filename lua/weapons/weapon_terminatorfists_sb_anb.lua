@@ -12,12 +12,12 @@ SWEP.HitMask = MASK_SOLID
 local className = "weapon_terminatorfists_sb_anb"
 if CLIENT then
     language.Add( className, SWEP.PrintName )
-    killicon.Add( className, "vgui/hud/killicon/" .. className .. ".vmt", color_white )
+    killicon.Add( className, "vgui/hud/killicon/" .. className .. ".png", color_white )
 
 else
     local doFastDl = CreateConVar( "terminator_fastdlkillicon", 1, { FCVAR_ARCHIVE }, "Toggle the killicon fastdl." )
     if doFastDl:GetBool() then
-        resource.AddFile( "materials/vgui/hud/killicon/" .. className .. ".vmt" )
+        resource.AddFile( "materials/vgui/hud/killicon/" .. className .. ".png" )
 
     end
 end

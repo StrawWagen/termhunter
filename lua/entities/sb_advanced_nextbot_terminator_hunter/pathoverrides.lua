@@ -693,11 +693,21 @@ function ENT:SetupPath( pos, options )
     stepHeightCached = self.loco:GetStepHeight()
     deathHeightCached = self.loco:GetDeathDropHeight()
 
+    -- areas that we took damage in
     self:AddAreasToAvoid( self.hazardousAreas, 10 )
 
     if self.awarenessDamaging then
         local damagingAreas = self:DamagingAreas()
-        self:AddAreasToAvoid( damagingAreas, 50 )
+        local avoidStrength = 100
+        -- blinded by rage
+        if self:IsReallyAngry() then
+            avoidStrength = 5
+
+        elseif self:IsAngry() then
+            avoidStrength = 50
+
+        end
+        self:AddAreasToAvoid( damagingAreas, avoidStrength )
 
     end
 

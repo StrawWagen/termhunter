@@ -229,6 +229,12 @@ function ENT:HolsterWeap( wep )
     end
     self.m_HolsteringSlots[ holsterDat.slot ] = wep
 
+    wep:CallOnRemove( "terminator_unholsteronremove", function( removedWep, myOwner )
+        if not IsValid( myOwner ) then return end
+        myOwner:UnHolsterWeap( removedWep )
+
+    end, self )
+
     -- 'equip' sound
     self:EmitSound( "Flesh.Strain", 80, 120, 0.8 )
 
@@ -238,5 +244,7 @@ function ENT:UnHolsterWeap( wep )
     local holsterDat = self:GetHolsterData( wep )
     self.m_HolsteredWeapons[ wep ] = nil
     self.m_HolsteringSlots[ holsterDat.slot ] = nil
+
+    wep:RemoveCallOnRemove( "terminator_unholsteronremove" )
 
 end

@@ -204,7 +204,7 @@ function ENT:StuckCheck()
             local oldWalk = self.forcedShouldWalk or 0
             self.forcedShouldWalk = math.max( oldWalk + added * mul, CurTime() + added * mul )
 
-            local overrideCr = ( self.overrideCrouch or 0 ) + 0.5
+            local overrideCr = ( self.overrideCrouch or 0 ) + 0.3
             overrideCr = math.Clamp( overrideCr, 0, CurTime() + 3 )
             self.overrideCrouch = math.max( CurTime() + -1, overrideCr )
 
@@ -697,10 +697,10 @@ function ENT:ShouldCrouch()
             local currArea = self:GetCurrentNavArea()
             local nextArea, goalPathPoint = self:GetNextPathArea()
             if currArea and currArea:IsValid() and currArea:HasAttributes( NAV_MESH_CROUCH ) then
-                self.overrideCrouch = CurTime() + 0.5
+                self.overrideCrouch = CurTime() + 0.35
                 return true
             elseif nextArea and nextArea:IsValid() and nextArea:HasAttributes( NAV_MESH_CROUCH ) and goalPathPoint.pos:DistToSqr( myPos ) < Squared60 then
-                self.overrideCrouch = CurTime() + 0.5
+                self.overrideCrouch = CurTime() + 0.35
                 return true
             end
         end
@@ -950,6 +950,69 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
     end
 end
 
+-- simple check, can the bot exist left/right in the direction of the goal.
+function ENT:CanStepAside( dir, goal )
+    local pos = self:GetPos() + vec_up15
+    local b1,b2 = self:BoundsAdjusted( 0.75 )
+    local mask = self:GetSolidMask()
+    local cgroup = self:GetCollisionGroup()
+
+    local distToTrace = ( pos - goal ):Length2D()
+    distToTrace = math.Clamp( distToTrace, 32, 64 )
+
+    local defEndPos = pos + dir * distToTrace
+
+    local myRight = self:GetRight()
+    local rightOffset = ( myRight * distToTrace )
+
+    local filter = TrFilterNoSelf( self )
+
+    -- do a trace in the dir we goin, likely flattened direction to next segment
+    local dirConfigLeft = {
+        start = pos - rightOffset,
+        endpos = defEndPos - rightOffset,
+        mins = b1,
+        maxs = b2,
+        filter = filter,
+        mask = mask,
+        collisiongroup = cgroup,
+    }
+
+    local leftResult = util.TraceHull( dirConfigLeft )
+
+    --local color = Color( 255, 255, 255, 25 )
+    --if leftResult.Hit then color = Color( 255,0,0, 25 ) end
+    --debugoverlay.Box( leftResult.HitPos, dirConfigLeft.mins, dirConfigLeft.maxs, 4, color )
+
+    if leftResult.Hit and not self:hitBreakable( dirConfigLeft, leftResult ) then
+        return true
+
+    end
+
+    local dirConfigRight = {
+        start = pos + rightOffset,
+        endpos = defEndPos + rightOffset,
+        mins = b1,
+        maxs = b2,
+        filter = filter,
+        mask = mask,
+        collisiongroup = cgroup,
+    }
+
+    local rightResult = util.TraceHull( dirConfigRight )
+
+    --local color = Color( 255, 255, 255, 25 )
+    --if rightResult.Hit then color = Color( 255,0,0, 25 ) end
+    --debugoverlay.Box( rightResult.HitPos, dirConfigRight.mins, dirConfigRight.maxs, 4, color )
+
+    if rightResult.Hit and not self:hitBreakable( dirConfigRight, rightResult ) then
+        return true
+
+    end
+    return false
+
+end
+
 -- rewrite this because the old logic was not working
 -- return 0 when no blocker
 -- returns 1 when its blocked but it can jump over
@@ -1025,7 +1088,7 @@ function ENT:GetJumpBlockState( dir, goal )
         }
         local finalCheckResult
 
-        -- do a trace from our pos to the jump offset's starting pos
+        -- do a trace from our pos to the jump offset's starting pos, finds ceilings, etc
         local vertConfig = {
             start = pos + fiftyZOffset,
             endpos = pos + fiftyZOffset,
@@ -1039,16 +1102,16 @@ function ENT:GetJumpBlockState( dir, goal )
 
         local maxjump = self.JumpHeight * 2
 
-        local i = 0
+        local height = 0
 
-        local offset = Vector( 0, 0, i )
+        local offset = Vector( 0, 0, height )
         local goalWithOverriddenZ = Vector( goal.x, goal.y, 0 )
 
-        while i <= maxjump do
+        while height <= maxjump do
 
-            i = math.Round( math.min( i + step * 0.75, maxjump ) )
+            height = math.Round( math.min( height + step * 0.75, maxjump ) )
 
-            offset.z = i
+            offset.z = height
             local newEndPos = defEndPos + offset
             local newStartPos = pos + offset
 
@@ -1057,6 +1120,7 @@ function ENT:GetJumpBlockState( dir, goal )
             -- vertConfig goes from the last start of the can step check, to the next start, so it checks if there's vertical space
             vertConfig.start = newStartPos
 
+            -- ceiling, we cant jump up here
             if vertResult.Hit and not self:hitBreakable( vertConfig, vertResult ) then
                 --local color = Color( 255, 255, 255, 25 )
                 --if vertResult.Hit then color = Color( 255,0,0, 25 ) end
@@ -1084,6 +1148,7 @@ function ENT:GetJumpBlockState( dir, goal )
 
             --debugoverlay.Line( dirConfig.start, finalCheckResult.HitPos, 2 )
 
+            -- if we hit a wall, checks hitnormal so it doesnt try to jump up slopes as often, or try to jump over walls that are diagonal to direction it's moving in
             local checkHit = dirResult.Hit and dirResult.HitNormal:Dot( dir ) < -0.5 and dirResult.HitNormal:Dot( vector_up ) < 0.5 and not hitThingWeCanBreak
 
             --local color = Color( 255, 255, 255, 25 )
@@ -1095,16 +1160,18 @@ function ENT:GetJumpBlockState( dir, goal )
 
             end
             if ( not checkHit and thisCheckCanCompleteJump ) or not finalCheckResult.Hit then
+                -- obstacle to jump over!
                 if checksThatHit >= 1 then
-                    return 1, dirConfig.start, i, dirConfig.endpos
+                    return 1, dirConfig.start, height, dirConfig.endpos
 
+                -- never hit anything, proceed as normal
                 else
                     return 0
 
                 end
             end
 
-            if i >= maxjump then break end
+            if height >= maxjump then break end
         end
 
         return 2 -- step back bot!
@@ -1635,7 +1702,7 @@ function ENT:MoveAlongPath( lookatgoal )
             end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight
-            local smallObstacleBlocking = smallObstacle and ( myVelLengSqr < speedToConsiderSmallJumps or self.wasDoingJumpOverSmallObstacle )
+            local smallObstacleBlocking = smallObstacle and ( myVelLengSqr < speedToConsiderSmallJumps or self.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
             local needsToFeelAround
             if jumpstate == 2 then
                 local nextAreasClosestPoint = aheadArea:GetClosestPointOnArea( myPos )
@@ -2070,7 +2137,10 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
             local dist2d = ( pos - myPos )
             dist2d.z = 0
             dist2d = dist2d:Length()
-            local adjustdedDiffNeeded = math.Clamp( ( heightDiffNeededToJump * 2 ) - dist2d^1.1, 0, math.huge )
+            local scaledDiffNeededToJump = heightDiffNeededToJump * 2
+            local distExp = dist2d^1.3
+            local adjustdedDiffNeeded = distExp - scaledDiffNeededToJump
+
             if zToPos > adjustdedDiffNeeded then
                 aboveUs = true
                 aboveUsJumpHeight = zToPos
@@ -2081,8 +2151,8 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
         end
 
         local onGround = self.loco:IsOnGround()
-        local jumpstate, _, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, pos, false )
         if onGround then
+            local jumpstate, _, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, pos, false )
             local goalBasedJump = jumpstate ~= 2 and aboveUs
             --print( jumpstate, jumpingHeight )
             if jumpstate == 1 or goalBasedJump then
