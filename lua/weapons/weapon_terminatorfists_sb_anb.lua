@@ -134,6 +134,10 @@ function SWEP:HandleDoor( tr )
         isBashableSlidDoor = doorsObj:GetVolume() < 48880 -- magic number! 10x mass of doors on terrortrain
 
     end
+    if owner.markAsTermUsed then
+        owner:markAsTermUsed( door )
+
+    end
 
     if isSlidingDoor and doorsLocked then
         local lockHealth = door.terminator_lockHealth
@@ -196,7 +200,10 @@ function SWEP:HandleDoor( tr )
             end
 
             if HitCount >= 5 then
-                terminator_Extras.DehingeDoor( self, door )
+                local debris = terminator_Extras.DehingeDoor( self, door )
+                if not IsValid( debris ) then return end
+                if not owner.markAsTermUsed then return end
+                owner:markAsTermUsed( debris )
 
             elseif HitCount < 5 then
                 terminator_Extras.DoorHitSound( door )

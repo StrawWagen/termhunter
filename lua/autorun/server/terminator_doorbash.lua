@@ -126,4 +126,6 @@ function terminator_Extras.DehingeDoor( attacker, door, noCollided )
     terminator_Extras.DoorHitSound( prop )
     terminator_Extras.BreakSound( prop )
 
+    return prop
+
 end

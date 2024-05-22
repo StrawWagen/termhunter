@@ -289,27 +289,26 @@ end
 function ENT:SetupEntityRelationship( ent )
     local disp,priority,theirdisp = self:GetDesiredEnemyRelationship( ent )
     self:SetEntityRelationship( ent, disp, priority )
-    if ( ent:IsNPC() or ent:IsNextBot() ) and ent.AddEntityRelationship then
-        if ent.SBAdvancedNextBot then
-            --print( self, ent, theirdisp )
-            timer.Simple( 0, function()
-                if not IsValid( ent ) then return end
-                if not IsValid( self ) then return end
-                ent:SetEntityRelationship( self, theirdisp, nil )
+    if not ( ent:IsNPC() or ent:IsNextBot() ) and not ( ent.AddEntityRelationship or ent.SetEntityRelationship ) then return end
+    timer.Simple( 0, function()
+        if not IsValid( ent ) then return end
+        if not IsValid( self ) then return end
+        --print( ent, "has relation with", self, theirdisp )
 
-            end )
+        if ent.SBAdvancedNextBot then
+            ent:SetEntityRelationship( self, theirdisp, nil )
             return
 
         end
-        ent:AddEntityRelationship( self, theirdisp, 1 )
+        ent:AddEntityRelationship( self, theirdisp, 0 )
+
         -- stupid hack
         if ent.IsVJBaseSNPC == true then
-            timer.Simple( 0, function()
-                if not IsValid( ent ) or not IsValid( self ) or not istable( ent.CurrentPossibleEnemies ) then return end
-                ent.CurrentPossibleEnemies[#ent.CurrentPossibleEnemies + 1] = self
-            end )
+            if not IsValid( ent ) or not IsValid( self ) or not istable( ent.CurrentPossibleEnemies ) then return end
+            ent.CurrentPossibleEnemies[#ent.CurrentPossibleEnemies + 1] = self
+
         end
-    end
+    end )
 end
 
 function ENT:SetupRelationships()

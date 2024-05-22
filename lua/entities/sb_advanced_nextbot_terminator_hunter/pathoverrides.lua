@@ -255,14 +255,16 @@ end
 
 
 -- flanking!
-local flankingDest
 local hunterIsFlanking
+local flankingDest
 local pathAreasAdditionalCost
 local isReallyAngry = nil
+local tooFarToFlank = 4000^2
 
 function ENT:AddAreasToAvoid( areas, mul )
     pathAreasAdditionalCost = pathAreasAdditionalCost or {}
     for _, avoid in ipairs( areas ) do
+        -- lagspike if we try to flank around area that contains the destination
         if avoid and ( avoid ~= flankingDest ) then
             local oldMul = pathAreasAdditionalCost[ avoid:GetID() ] or 0
             pathAreasAdditionalCost[ avoid:GetID() ] = oldMul + mul
@@ -275,31 +277,36 @@ end
 function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius )
     if not isvector( destination ) then return end
 
-    -- lagspike if we try to flank around area that contains the destination
-    flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
+    local myPos = self:GetPos()
 
-    if not flankingDest then return false end
+    if destination:DistToSqr( myPos ) < tooFarToFlank then
 
-    hunterIsFlanking = true
-    isReallyAngry = self:IsReallyAngry()
+        flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
+        if not flankingDest then return false end
 
-    if flankAvoidRadius then
-        self:flankAroundArea( areaToFlankAround, flankAvoidRadius )
+        hunterIsFlanking = true
+        isReallyAngry = self:IsReallyAngry()
+
+        if flankAvoidRadius then
+            self:flankAroundArea( areaToFlankAround, flankAvoidRadius )
+
+        else
+            self:flankAroundCorridorBetween( myPos, areaToFlankAround:GetCenter() )
+
+        end
+        if IsValid( self:GetEnemy() ) then
+            self:FlankAroundEasyEntraceToThing( areaToFlankAround:GetCenter(), self:GetEnemy() )
+
+        end
+
+        local _, _ = self:SetupPathShell( destination )
+
+        self:endFlankPath()
 
     else
-        self:flankAroundCorridorBetween( self:GetPos(), areaToFlankAround:GetCenter() )
+        local _, _ = self:SetupPathShell( destination )
 
     end
-    if IsValid( self:GetEnemy() ) then
-        self:FlankAroundEasyEntraceToThing( areaToFlankAround:GetCenter(), self:GetEnemy() )
-
-    end
-
-    --useful for debug
-    local _, _ = self:SetupPathShell( destination )
-
-    self:endFlankPath()
-
 end
 
 function ENT:flankAroundArea( bubbleArea, bubbleRadius )
