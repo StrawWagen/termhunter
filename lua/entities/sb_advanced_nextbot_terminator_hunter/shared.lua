@@ -1021,7 +1021,7 @@ function ENT:markAsTermUsed( ent )
 end
 
 -- handle double doors
-local function handleDoubleDoors( ent )
+local function handleDoubleDoors( ent, user )
     local ourName = ent:GetName()
     local parentDoor = ent
 
@@ -1035,7 +1035,7 @@ local function handleDoubleDoors( ent )
             doubleDoorName = potientalParentKeys["slavename"]
 
             if doubleDoorName == ourName then
-                self:markAsTermUsed( currDoor )
+                user:markAsTermUsed( currDoor )
                 return
 
             end
@@ -1045,7 +1045,7 @@ local function handleDoubleDoors( ent )
     local doubleDoors = ents.FindByName( doubleDoorName )
     for _, doubleDoor in ipairs( doubleDoors ) do
         if not IsValid( doubleDoor ) then continue end
-        self:markAsTermUsed( doubleDoor )
+        user:markAsTermUsed( doubleDoor )
 
     end
 end
@@ -1058,7 +1058,7 @@ function ENT:Use2( toUse )
 
     self:markAsTermUsed( toUse )
     if class == "prop_door_rotating" then
-        handleDoubleDoors( toUse )
+        handleDoubleDoors( toUse, self )
 
     end
 
