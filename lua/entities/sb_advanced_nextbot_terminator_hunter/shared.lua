@@ -278,9 +278,9 @@ local function AreaOrLadderGetAdjacentAreas( areaOrLadder )
 end
 
 local coroutine_yield = coroutine.yield
-local coroutine_yieldable = coroutine.isyieldable
+local coroutine_running = coroutine.running
 local function yieldIfWeCan( reason )
-    if not coroutine_yieldable() then return end
+    if not coroutine_running() then return end
     coroutine_yield( reason )
 
 end
