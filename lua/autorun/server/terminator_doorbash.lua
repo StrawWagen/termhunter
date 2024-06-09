@@ -95,7 +95,7 @@ function terminator_Extras.DehingeDoor( attacker, door, noCollided )
         toRid.terminator_busteddoor = true
 
     end
-    prop = ents.Create( "prop_physics" )
+    local prop = ents.Create( "prop_physics" )
     prop:SetPos( pos )
     prop:SetAngles( ang )
     prop:SetModel( mdl )

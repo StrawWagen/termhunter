@@ -206,6 +206,7 @@ function ENT:OnTakeDamage( Damage )
     self.lastDamagedTime = _CurTime()
     local attacker = Damage:GetAttacker()
     local BgDamage = 0
+    local ToBGs
 
     if IsValid( attacker ) then
         local class = attacker:GetClass()
@@ -356,6 +357,7 @@ function ENT:OnKilled( dmg )
     if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
         if dmg:IsDamageType( DMG_DISSOLVE ) then
             self:DissolveEntity()
+            hook.Run( "OnTerminatorKilledDissolve", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
         else
             hook.Run( "OnTerminatorKilledRagdoll", self, dmg:GetAttacker(), dmg:GetInflictor() )

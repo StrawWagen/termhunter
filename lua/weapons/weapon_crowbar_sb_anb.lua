@@ -222,7 +222,7 @@ function SWEP:DoFlyingSound( thrown, direction, force )
     filterAll:AddAllPlayers()
 
     if force > 200000 then
-        util.ScreenShake( self:GetOwner():WorldSpaceCenter(), 5, 20, 0.1, 3000, true, filterAll )
+        util.ScreenShake( self:GetOwner():WorldSpaceCenter(), 5, 20, 0.2, 3000, true, filterAll )
         local owner = self:GetOwner()
         for _, ent in ipairs( ents.FindByClass( "player" ) ) do
             if ent:IsPlayer() then
@@ -235,7 +235,8 @@ function SWEP:DoFlyingSound( thrown, direction, force )
                     if not IsValid( thrown ) then return end
                     local filterJustEnt = RecipientFilter()
                     filterJustEnt:AddPlayer( ent )
-                    util.ScreenShake( owner:WorldSpaceCenter(), 20, 20, 0.1, 4000, true, filterJustEnt )
+                    util.ScreenShake( owner:WorldSpaceCenter(), 40, 20, 0.2, 4000, true, filterJustEnt )
+                    util.ScreenShake( ent:WorldSpaceCenter(), 40, 20, 0.2, 3000, true, filterJustEnt )
                     ent:EmitSound( "npc/sniper/sniper1.wav", 130, 80, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
                     owner:EmitSound( "npc/sniper/echo1.wav", 100, 60, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
                     if not thrown.isTerminatorHunterCrowbar then return end

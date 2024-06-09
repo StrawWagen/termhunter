@@ -1,3 +1,11 @@
+local coroutine_yield = coroutine.yield
+local coroutine_yieldable = coroutine.isyieldable
+local function yieldIfWeCan( reason )
+    if not coroutine_yieldable() then return end
+    coroutine_yield( reason )
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:RunTask
     Desc: Runs active tasks callbacks with given event.
@@ -6,7 +14,6 @@
     Ret*: vararg | Callback return.
     EDITED to add a return end
 --]]------------------------------------
-
 
 function ENT:RunTask( event, ... )
     local m_ActiveTasksNum = self.m_ActiveTasksNum
@@ -34,7 +41,12 @@ function ENT:RunTask( event, ... )
         local callback = taskReal[event]
 
         if callback then
+            yieldIfWeCan()
+            --local old = SysTime()
             local args = { callback( self, data, ... ) }
+
+            --local cost = math.abs( old - SysTime() )
+            --if cost > 0.5 then ErrorNoHaltWithStack( task .. "  " .. event .. "  " .. cost ) PrintTable( data ) end
 
             if args[1] ~= nil then
                 if args[2] ~= nil then

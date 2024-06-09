@@ -11,6 +11,8 @@ local function setDropWeapons( ply, attacker, _ )
     if GAMEMODE.IsReallyHuntersGlee == true then return end
     if not doDropWeapons:GetBool() then return end
 
+    local plysActiveWeapon = ply:GetActiveWeapon()
+
     local weapsToDrop = ply:GetWeapons()
     ply.terminator_droppedweapons = ply.terminator_droppedweapons or {}
 
@@ -20,22 +22,25 @@ local function setDropWeapons( ply, attacker, _ )
         end
     end
 
-    table.sort( weapsToDrop, function( a, b )
-        return attacker:GetWeightOfWeapon( a ) < attacker:GetWeightOfWeapon( b )
-
-    end )
-
     local maxDrop = maxWeaponsToDrop:GetInt()
     if maxDrop <= -1 then
         maxDrop = defaultWepsToDrop
 
     end
 
-    -- randomly remove one of the worst weapons until we have just enough
-    while #weapsToDrop > maxDrop do
-        table.remove( weapsToDrop, math.random( 1, 4 ) )
+    local count = 0
+    -- randomly remove weapons until we have just enough
+    -- was removing all the worst weapons but that lead to all the bots using the same weapon
+    while #weapsToDrop > maxDrop - 1 do
+        count = count + 1
+        if count > 50 then break end
+
+        table.remove( weapsToDrop, math.random( 1, #weapsToDrop ) )
 
     end
+
+    -- always drop active weapon
+    table.insert( weapsToDrop, plysActiveWeapon )
 
     for _, wep in ipairs( weapsToDrop ) do
 

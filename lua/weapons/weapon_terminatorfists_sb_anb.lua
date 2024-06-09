@@ -451,8 +451,6 @@ function SWEP:DealDamage()
             hitEnt:TakeDamageInfo( dmginfo )
             SuppressHostEvents( owner )
 
-            hit = true
-
             local MEMORY_BREAKABLE = 4
 
             local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()

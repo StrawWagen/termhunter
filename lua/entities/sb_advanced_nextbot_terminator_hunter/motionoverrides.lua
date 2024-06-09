@@ -22,7 +22,7 @@ end
 
 local smallHull = Vector( 1, 1, 1 )
 
-function ENT:ClearOrBreakable( start, endpos, doSmallHull )
+function ENT:ClearOrBreakable( start, endpos, doSmallHull, hullMul )
     local b1
     local b2
     if doSmallHull then
@@ -30,7 +30,8 @@ function ENT:ClearOrBreakable( start, endpos, doSmallHull )
         b2 = smallHull
 
     else
-        b1, b2 = self:BoundsAdjusted( 0.5 )
+        hullMul = hullMul or 0.5
+        b1, b2 = self:BoundsAdjusted( hullMul )
 
     end
     local traceStruct = {
@@ -145,12 +146,15 @@ end
     Arg1: 
     Ret1: 
 --]]------------------------------------
+local vertOffs = Vector( 0,0,5 )
+
 function ENT:StuckCheck()
     if self:DisabledThinking() then return end
     if CurTime() >= self.m_StuckTime then
         local added = math.Rand( 0.15, 0.50 )
         self.m_StuckTime = CurTime() + added
 
+        local loco = self.loco
         local pos = self:GetPos()
         local moving
 
@@ -166,18 +170,37 @@ function ENT:StuckCheck()
 
         local b1,b2 = self:GetCollisionBounds()
 
-        if not self.loco:IsOnGround() or self.isUnstucking or self.loco:GetVelocity():Length2DSqr() < 5^2 then
+        local sizeIncrease = 0
+        local checkOrigin = pos
+
+        if not loco:IsOnGround() then
+            sizeIncrease = sizeIncrease + 2
+
+        else
+            checkOrigin = checkOrigin + vertOffs
+
+        end
+        if self.isUnstucking then
+            sizeIncrease = sizeIncrease + 1
+
+        end
+        if loco:GetVelocity():Length2DSqr() < 5^2 then
+            sizeIncrease = sizeIncrease + 1
+
+        end
+
+        if sizeIncrease > 0 then
             -- prevents getting stuck in air, and getting stuck in doors that slide into us
-            b1.x = b1.x - 4
-            b1.y = b1.y - 4
-            b2.x = b2.x + 4
-            b2.y = b2.y + 4
+            b1.x = b1.x - sizeIncrease
+            b1.y = b1.y - sizeIncrease
+            b2.x = b2.x + sizeIncrease
+            b2.y = b2.y + sizeIncrease
 
         end
 
         local tr = util.TraceHull( {
-            start = pos,
-            endpos = pos,
+            start = checkOrigin,
+            endpos = checkOrigin,
             filter = TrFilterNoSelf( self ),
             mask = self:GetSolidMask(),
             collisiongroup = self:GetCollisionGroup(),
@@ -216,6 +239,7 @@ function ENT:StuckCheck()
 
                 if self.m_StuckTime2 >= 1 then -- changed from 5 to 1
                     self:OnStuck()
+                    --print( "onstuck" )
 
                 end
             else
@@ -237,7 +261,7 @@ local function TryStuck( self, endPos, t, tr )
     util.TraceHull( t )
 
     if not tr.Hit then
-        -- check if we're going through something to get there
+        -- simple check to see if we're going through something to get there
         local traceStruct = {
             start = self:GetPos(),
             endpos = endPos,
@@ -250,7 +274,6 @@ local function TryStuck( self, endPos, t, tr )
 
         if clearPath then
             self:SetPos( endPos )
-            self.loco:SetVelocity( vector_origin )
             self.loco:ClearStuck()
 
             self:OnUnStuck()
@@ -489,7 +512,7 @@ function ENT:isConfinedSlope( area )
         endpos = traceCheckPos,
         mask = MASK_SOLID_BRUSHONLY,
     }
-    trace = util.TraceLine( traceData )
+    local trace = util.TraceLine( traceData )
 
     --debugoverlay.Line( areaC, trace.HitPos )
     if not trace.Hit then return end
@@ -878,7 +901,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
             local currScore
 
             -- perfect trace!
-            if not dirResult.Hit and self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround ) and not haveToJump then
+            if not dirResult.Hit and self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround, false, 2 ) and not haveToJump then
                 --debugoverlay.Line( startPos, newStartPos, 5, color_green, true )
                 --debugoverlay.Line( newStartPos, newEndPos, 5, color_green, true )
                 self.cachedBringUsTowards = newStartPos
@@ -950,10 +973,12 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
     end
 end
 
+local scalar = 0.75
+
 -- simple check, can the bot exist left/right in the direction of the goal.
 function ENT:CanStepAside( dir, goal )
     local pos = self:GetPos() + vec_up15
-    local b1,b2 = self:BoundsAdjusted( 0.75 )
+    local b1,b2 = self:BoundsAdjusted( scalar )
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
 
@@ -985,7 +1010,7 @@ function ENT:CanStepAside( dir, goal )
     --debugoverlay.Box( leftResult.HitPos, dirConfigLeft.mins, dirConfigLeft.maxs, 4, color )
 
     if leftResult.Hit and not self:hitBreakable( dirConfigLeft, leftResult ) then
-        return true
+        return false
 
     end
 
@@ -1006,10 +1031,10 @@ function ENT:CanStepAside( dir, goal )
     --debugoverlay.Box( rightResult.HitPos, dirConfigRight.mins, dirConfigRight.maxs, 4, color )
 
     if rightResult.Hit and not self:hitBreakable( dirConfigRight, rightResult ) then
-        return true
+        return false
 
     end
-    return false
+    return true
 
 end
 
@@ -1021,8 +1046,8 @@ function ENT:GetJumpBlockState( dir, goal )
 
     local enemy = self:GetEnemy()
     local pos = self:GetPos() + vec_up15
-    local b1,b2 = self:BoundsAdjusted( 0.75 )
-    local step = self.loco:GetStepHeight()
+    local b1,b2 = self:BoundsAdjusted( scalar )
+    local step = self.loco:GetStepHeight() * scalar
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
 
@@ -1070,7 +1095,7 @@ function ENT:GetJumpBlockState( dir, goal )
 
     local checksThatHit = 0
 
-    -- we got up to enemy, act like nothing is there!
+    -- we got up to enemy, dont jump over them....
     if dirResult.Hit and IsValid( enemy ) and dirResult.Entity == enemy then
         return 0
 
@@ -1080,8 +1105,8 @@ function ENT:GetJumpBlockState( dir, goal )
     if dirResult.Hit or ( didSight and sightResult.Hit ) then
         -- final trace to see if a jump at height will actually take us all the way to goal
         local finalCheckConfig = {
-            mins = b1 / 0.75,
-            maxs = b2 / 0.75,
+            mins = b1 * scalar,
+            maxs = b2 * scalar,
             filter = filter,
             mask = mask,
             collisiongroup = cgroup,
@@ -1109,9 +1134,9 @@ function ENT:GetJumpBlockState( dir, goal )
 
         while height <= maxjump do
 
-            height = math.Round( math.min( height + step * 0.75, maxjump ) )
-
             offset.z = height
+            height = math.Round( math.min( height + step, maxjump ) )
+
             local newEndPos = defEndPos + offset
             local newStartPos = pos + offset
 
@@ -1285,6 +1310,7 @@ local cheats = GetConVar( "sv_cheats" )
 function ENT:EntIsInMyWay( ent, tolerance, aheadSegment )
     local myPos = self:GetPos()
     local segmentAheadOfMe = aheadSegment
+    local _
     if not istable( segmentAheadOfMe ) then
         _, segmentAheadOfMe = self:GetNextPathArea( self:GetTrueCurrentNavArea() )
 
@@ -1353,14 +1379,14 @@ function ENT:MoveAlongPath( lookatgoal )
 
     if ( lookatgoal or movingSlow ) and self:PathIsValid() then
         local ang
-        local lookAtPos = aheadSegment.pos
+        local lookAtPos = aheadSegment.pos + vec_up25
         if not self:IsOnGround() or movingSlow then
             if IsValid( disrespecting ) then
                 lookAtPos = self:getBestPos( disrespecting )
                 --debugoverlay.Cross( lookAtPos, 10, 10, color_white, true )
 
             else
-                lookAtPos = aheadSegment.pos
+                lookAtPos = aheadSegment.pos + vec_up25
 
             end
             local aheadPos = aheadSegment.pos
@@ -1390,14 +1416,16 @@ function ENT:MoveAlongPath( lookatgoal )
             -- attempt to look farther ahead
             local _, segmentAheadOfUs = self:GetNextPathArea( myArea, 3, true )
             if segmentAheadOfUs then
-                lookAtPos = segmentAheadOfUs.pos
-
-            else
-                cantSeeThePath = true
+                lookAtPos = segmentAheadOfUs.pos  + vec_up25
 
             end
         end
-        ang = ( lookAtPos - self:GetShootPos() ):Angle()
+        local myShoot = self:GetShootPos()
+        if lookAtPos.z > myPos.z - 25 and lookAtPos.z < myPos.z + 25 then
+            lookAtPos.z = myShoot.z
+
+        end
+        ang = ( lookAtPos - myShoot ):Angle()
         local notADramaticHeightChange = ( lookAtPos.z > myPos.z + -100 ) or ( lookAtPos.z < myPos.z + 100 )
         if notADramaticHeightChange and not laddering and not IsValid( disrespecting ) then
             ang.p = 0
@@ -1447,7 +1475,7 @@ function ENT:MoveAlongPath( lookatgoal )
         local progressed = obstacleGoal and obstacleGoal ~= aheadSegment.pos
         if progressed then
             if self.m_PathObstacleRebuild then
-                self:InvalidatePath( "obstacle avoid" )
+                self:InvalidatePath( "obstacle avoid 1" )
                 return
 
             end
@@ -1464,7 +1492,9 @@ function ENT:MoveAlongPath( lookatgoal )
         local _, _, seeGoal = self:ClearOrBreakable( myPos + vec_up15, obstacleTarget + vec_up15 )
 
         if not seePos or seeGoal then
-            self:InvalidatePath( "obstacle avoid" )
+            --debugoverlay.Line( myPos + vec_up15, obstacleAvoid + vec_up15, 0.5, color_white, true )
+            --debugoverlay.Line( myPos + vec_up15, obstacleTarget + vec_up15, 0.5, color_green, true )
+            self:InvalidatePath( "obstacle avoid 2" )
             return
 
         end
@@ -1491,7 +1521,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
         if timeout or atAvoidPos then
             if self.m_PathObstacleRebuild then
-                self:InvalidatePath( "obstacle avoid" )
+                self:InvalidatePath( "obstacle avoid 3" )
                 return
 
             end
@@ -1555,8 +1585,8 @@ function ENT:MoveAlongPath( lookatgoal )
     local droppingType = aheadType == 1 or currType == 1
     local dropIsReallyJustAGap = nil
     if droppingType then
-        local _, jumpBottomSeg = self:GetNextPathArea( myArea, 1 )
-        local _, segAfterTheDrop = self:GetNextPathArea( myArea, 2 )
+        local _, jumpBottomSeg = self:GetNextPathArea( myArea )
+        local _, segAfterTheDrop = self:GetNextPathArea( myArea, 1 )
         if jumpBottomSeg and segAfterTheDrop then
             local middleWeighted = ( currSegment.pos + ( jumpBottomSeg.pos * 0.5 ) ) / 1.5
 
@@ -1577,13 +1607,14 @@ function ENT:MoveAlongPath( lookatgoal )
             if hitBelowDest and not result.StartSolid then
                 dropIsReallyJustAGap = true
                 aheadSegment = segAfterTheDrop
+                self.m_PathObstacleAvoidPos = nil
                 self.wasADropTypeInterpretedAsAGap = true
 
             end
+            -- landed jump, recalculate
             if iAmOnGround and myPos.z < segAfterTheDrop.pos.z + 25 and self.wasADropTypeInterpretedAsAGap then
-                currSegment.pos = myPos
-
-                return false -- pls recalculate path!
+                self:InvalidatePath( "did a fake dropdown gap jump" )
+                return false
 
             end
         end
@@ -1682,7 +1713,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
             -- jump height that matches gap we're jumping over
             if gapping and aheadSegment then
-                jumpingHeight = ( myPos - aheadSegment.pos ):Length2D() * 0.5
+                jumpingHeight = ( myPos - aheadSegment.pos ):Length2D() * 0.8
                 if jumpingHeight > 0 then
                     jumpingHeight = jumpingHeight + myHeightToNext
 
@@ -1754,7 +1785,7 @@ function ENT:MoveAlongPath( lookatgoal )
                 -- droptypes have a habit of being over-generated, find a path "downwards" even if it's not a direct path
                 elseif dropTypeToDealwith then
                     self.m_PathJump = true
-                    local _, segDropdownBottom = self:GetNextPathArea( aheadArea )
+                    local _, segDropdownBottom = self:GetNextPathArea( aheadArea, 1 )
                     local segAfterTheDrop = segDropdownBottom or aheadSegment
 
                     local dropdownClearPos = self:PosThatWillBringUsTowards( myPos + vec_up15, segAfterTheDrop.pos )
@@ -1778,7 +1809,6 @@ function ENT:MoveAlongPath( lookatgoal )
 
                     self.wasDoingJumpOverSmallObstacle = smallObstacle
                     self.jumpBlockClearPos = jumpBlockClearPos
-                    self.loco:SetVelocity( vector_origin )
 
                     self:Jump( jumpingHeight )
                     doPathUpdate = true
@@ -1989,6 +2019,7 @@ end
 function ENT:TermHandleLadder( aheadSegment, currSegment )
 
     if not aheadSegment then
+        local _
         _, aheadSegment = self:GetNextPathArea( myArea ) -- top of the jump
     end
     if not currSegment then
@@ -2316,7 +2347,7 @@ end
 
 local airSoundPath = "ambient/wind/wind_rooftop1.wav"
 
-function StartFallingSound( falling )
+local function StartFallingSound( falling )
     local timerName = "terminator_falling_manage_sound_" .. falling:GetCreationID()
     falling:StopSound( airSoundPath )
     timer.Remove( timerName )

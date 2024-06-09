@@ -1107,6 +1107,8 @@ function ENT:FindWeapon()
 
     end
 
+    local isBox
+
     for _, potentialWeap in ipairs( ents.FindInSphere( self:GetPos(), searchrange ) ) do
 
         if not _CanPickupWeapon( self, potentialWeap ) then continue end

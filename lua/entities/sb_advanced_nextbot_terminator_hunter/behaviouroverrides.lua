@@ -6,6 +6,10 @@ function ENT:BehaveStart()
 
 end
 
+local coroutine_yield = coroutine.yield
+local coroutine_resume = coroutine.resume
+local SysTime = SysTime
+
 function ENT:BehaveUpdate( interval )
     self.BehaveInterval = interval
 
@@ -17,7 +21,7 @@ function ENT:BehaveUpdate( interval )
 
     local disable = self:DisableBehaviour()
 
-    if !disable then
+    if not disable then
         local crouch = self:ShouldCrouch()
         if crouch ~= self:IsCrouching() and ( crouch or self:CanStandUp() ) then
             self:SwitchCrouch( crouch )
@@ -30,7 +34,7 @@ function ENT:BehaveUpdate( interval )
     self:ProcessFootsteps()
     self.m_FallSpeed = -self.loco:GetVelocity().z
 
-    if !disable then
+    if not disable then
         self:SetupEyeAngles()
         self:UpdatePhysicsObject()
         self:ForgetOldEnemies()
@@ -65,10 +69,14 @@ function ENT:BehaveUpdate( interval )
             local thread = self.BehaviourThread
             if thread then
                 local oldTime = SysTime()
-                while math.abs( oldTime - SysTime() ) < 0.01 do
-                    local noErrors, result = coroutine.resume( thread, self )
+                while math.abs( oldTime - SysTime() ) < 0.005 do
+                    local noErrors, result = coroutine_resume( thread, self )
                     if noErrors == false then
+                        self.BehaviourThread = nil
                         ErrorNoHaltWithStack( result )
+                        break
+                    elseif result == "wait" then
+                        break
 
                     elseif result == "done" then
                         self.BehaviourThread = nil
@@ -84,14 +92,14 @@ function ENT:BehaveUpdate( interval )
 end
 
 function ENT:BehaviourCoroutine()
-    while true do
-        -- Calling behaviour with think type
-        self:BehaviourThink()
+    -- Calling behaviour with think type
+    self:BehaviourThink()
 
-        -- Calling task callbacks
-        self:RunTask( "BehaveUpdate", interval )
+    coroutine_yield()
 
-        coroutine.yield( "done" )
+    -- Calling task callbacks
+    self:RunTask( "BehaveUpdate", interval )
 
-    end
+    coroutine_yield( "done" )
+
 end

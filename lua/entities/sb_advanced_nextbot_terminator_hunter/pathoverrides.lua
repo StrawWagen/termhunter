@@ -1,3 +1,11 @@
+local coroutine_yield = coroutine.yield
+local coroutine_yieldable = coroutine.isyieldable
+local function yieldIfWeCan( reason )
+    if not coroutine_yieldable() then return end
+    coroutine_yield( reason )
+
+end
+
 local cheatsVar = GetConVar( "sv_cheats" )
 local function isCheats()
     return cheatsVar:GetBool()
@@ -400,7 +408,9 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     if IsValid( ladder ) then
         laddering = true
-        dist = ladder:GetLength() * 4
+        -- ladders are kinda dumb
+        -- avoid if we can
+        dist = ladder:GetLength() * 2
         dist = dist + 400
     elseif len > 0 then
         dist = len
@@ -438,9 +448,9 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     if band( attributes, NAV_MESH_OBSTACLE_TOP ) ~= 0 then
         if fromArea:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
-            dist = dist * 8
+            dist = dist * 4
         else
-            dist = dist * 2 -- these usually look goofy
+            dist = dist * 1.5 -- these usually look goofy
         end
     end
 
@@ -450,19 +460,15 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     if sizeX < 26 or sizeY < 26 then
         -- generator often makes small 1x1 areas with this attribute, on very complex terrain
         if band( attributes, NAV_MESH_NO_MERGE ) ~= 0 then
-            dist = dist * 8
+            dist = dist * 4
         else
             dist = dist * 1.25
         end
     end
     if sizeX > 151 and sizeY > 151 and not hunterIsFlanking then --- mmm very simple terrain
-        dist = dist * 0.6
+        dist = dist * 0.75
     elseif sizeX > 76 and sizeY > 76 then -- this makes us prefer paths thru simple terrain, it's cheaper!
-        dist = dist * 0.8
-    end
-
-    if band( attributes, NAV_MESH_JUMP ) ~= 0 then
-        dist = dist * 1.5
+        dist = dist * 0.9
     end
 
     if band( attributes, NAV_MESH_AVOID ) ~= 0 then
@@ -482,53 +488,53 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
         if deltaZ >= jumpHeight then return -1 end
         if deltaZ > stepHeight * 4 then
             if hunterIsFlanking then
-                cost = cost * 4
+                cost = cost * 2
 
             else
-                cost = cost * 6
+                cost = cost * 4
 
             end
         elseif deltaZ > stepHeight * 2 then
             if hunterIsFlanking then
-                cost = cost * 3
+                cost = cost * 1.5
 
             else
-                cost = cost * 5
+                cost = cost * 2.5
 
             end
         else
             if hunterIsFlanking then
-                cost = cost * 2
+                cost = cost * 1.25
 
             else
-                cost = cost * 3
+                cost = cost * 1.5
 
             end
         end
         if crouching then
-            cost = cost * 20
+            cost = cost * 10
 
         end
-    elseif deltaZ <= -deathHeightCached then
+    elseif not isReallyAngry and deltaZ <= -deathHeightCached then
         cost = cost * 50000
 
     elseif not isReallyAngry and deltaZ <= -jumpHeight then
-        cost = cost * 5
+        cost = cost * 2.5
 
     elseif not isReallyAngry and deltaZ <= -stepHeight * 3 then
-        if hunterIsFlanking then
-            cost = cost * 3
-
-        else
-            cost = cost * 4
-
-        end
-    elseif deltaZ <= -stepHeight then
         if hunterIsFlanking then
             cost = cost * 1.5
 
         else
-            cost = cost * 3
+            cost = cost * 2
+
+        end
+    elseif deltaZ <= -stepHeight then
+        if hunterIsFlanking then
+            cost = cost * 1.25
+
+        else
+            cost = cost * 1.5
 
         end
     end
@@ -563,6 +569,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
     -- prevents paths to really small collections of navareas that don't connect back to the bot. ( and the lagspikes that come from those! )
     local pathDestinationIsAnOrphan, encounteredABlockedArea = self:AreaIsOrphan( endArea.area )
+
+    yieldIfWeCan()
 
     -- not an orphan, proceed as normal!
     if pathDestinationIsAnOrphan ~= true then
@@ -603,13 +611,15 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         end
     end
 
+    yieldIfWeCan()
+
+    -- only get to here if the path failed
+
     -- first blocked area check, got it from the orphan checker? probably a locked door, store that for the door bashing stuff
     if encounteredABlockedArea then
         self.encounteredABlockedAreaWhenPathing = true
 
     end
-
-    -- only get to here if the path failed
 
     if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
     if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 10 then return end
@@ -658,6 +668,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     end
     self:findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
+
+    yieldIfWeCan()
 
     -- ok remember the areas as unreachable so we dont go through this again
     -- unless there was a locked door!
@@ -722,13 +734,13 @@ function ENT:SetupPath( pos, options )
     options.mindist = options.mindist or self.PathMinLookAheadDistance
     options.tolerance = options.tolerance or self.PathGoalTolerance
 
-    if not options.generator and not self:UsingNodeGraph() then
+    if not options.generator then
         options.generator = function( area, from, ladder, elevator, len )
             return self:NavMeshPathCostGenerator( self:GetPath(), area, from, ladder, elevator, len )
         end
     end
 
-    local path = self:UsingNodeGraph() and self:NodeGraphPath() or Path( "Follow" )
+    local path = Path( "Follow" )
     self.m_Path = path
 
     path:SetMinLookAheadDistance( options.mindist )
