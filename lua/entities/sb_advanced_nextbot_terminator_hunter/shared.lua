@@ -2435,8 +2435,12 @@ function ENT:Initialize()
 
     if #navmesh.GetAllNavAreas() <= 0 then
         SafeRemoveEntity( self )
+
+        if game.IsDedicated() then print( "Term nextbot, tried to spawn with no navmesh." ) return end
+
         PrintMessage( HUD_PRINTCENTER, "NO NAVMESH FOUND!" )
         PrintMessage( HUD_PRINTTALK, "NO NAVMESH FOUND!" )
+
         return
 
     end
