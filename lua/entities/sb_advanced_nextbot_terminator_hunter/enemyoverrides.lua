@@ -245,7 +245,10 @@ function ENT:SetupEntityRelationship( ent )
             return
 
         end
-        ent:AddEntityRelationship( self, theirdisp, 0 )
+        if ent.AddEntityRelationship then
+            ent:AddEntityRelationship( self, theirdisp, 0 )
+
+        end
 
         -- stupid hack
         if ent.IsVJBaseSNPC == true then
