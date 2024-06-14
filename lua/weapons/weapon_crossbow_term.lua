@@ -1,7 +1,7 @@
 AddCSLuaFile()
 
 if CLIENT then
-    killicon.AddFont("weapon_crossbow_sb_anb_better","HL2MPTypeDeath","1",Color(255,80,0))
+    killicon.AddFont( "weapon_crossbow_term","HL2MPTypeDeath","1",Color( 255, 80, 0 ) )
 end
 
 SWEP.PrintName = "#HL2_Crossbow"
@@ -28,7 +28,7 @@ SWEP.Secondary = {
 terminator_Extras.SetupAnalogWeight( SWEP )
 
 function SWEP:Initialize()
-    self:SetHoldType("crossbow")
+    self:SetHoldType( "crossbow" )
 
 end
 
@@ -39,7 +39,7 @@ function SWEP:CanPrimaryAttack()
 
     if not owner.NothingOrBreakableBetweenEnemy then return end
 
-    return CurTime() >= self:GetNextPrimaryFire() and self:Clip1()>0
+    return CurTime() >= self:GetNextPrimaryFire() and self:Clip1() > 0
 end
 
 function SWEP:CanSecondaryAttack()

@@ -1,24 +1,24 @@
 AddCSLuaFile()
 
-ENT.Base = "sb_advanced_nextbot_terminator_hunter"
+ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator"
-list.Set( "NPC", "sb_advanced_nextbot_terminator_hunter_snail_disguised", {
+list.Set( "NPC", "terminator_nextbot_snail_disguised", {
     Name = "Terminator Doppleganger",
-    Class = "sb_advanced_nextbot_terminator_hunter_snail_disguised",
-    Category = "SB Advanced Nextbots",
-    Weapons = { "weapon_terminatorfists_sb_anb" },
+    Class = "terminator_nextbot_snail_disguised",
+    Category = "Terminator Nextbot",
+    Weapons = { "weapon_terminatorfists_term" },
 } )
 
 if CLIENT then
-    language.Add( "sb_advanced_nextbot_terminator_hunter_snail_disguised", ENT.PrintName )
+    language.Add( "terminator_nextbot_snail_disguised", ENT.PrintName )
 
 end
 
 local isADoppleGanger
 
 local function checkIfThereIsADoppleganger()
-    if #ents.FindByClass( "sb_advanced_nextbot_terminator_hunter_snail_disguised" ) > 0 then
+    if #ents.FindByClass( "terminator_nextbot_snail_disguised" ) > 0 then
         isADoppleGanger = true
 
     else

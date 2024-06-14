@@ -1,19 +1,19 @@
 -- Lua analogs to engine/unsupported weapons
 local EngineAnalogs = {
-    weapon_ar2 = "weapon_ar2_sb_anb",
-    weapon_smg1 = "weapon_smg1_sb_anb",
-    weapon_pistol = "weapon_pistol_sb_anb",
-    weapon_357 = "weapon_357_sb_anb",
-    weapon_crossbow = "weapon_crossbow_sb_anb_better",
-    weapon_rpg = "weapon_rpg_sb_anb_better",
-    weapon_shotgun = "weapon_shotgun_sb_anb",
-    weapon_crowbar = "weapon_crowbar_sb_anb",
-    weapon_stunstick = "weapon_stunstick_sb_anb",
-    manhack_welder = "manhack_welder_sb_anb",
-    weapon_flechettegun = "weapon_flechettegun_sb_anb",
-    gmod_camera = "gmod_camera_sb_anb",
-    weapon_frag = "weapon_frag_sb_anb",
-    weapon_slam = "weapon_slam_sb_anb",
+    weapon_ar2 = "weapon_ar2_term",
+    weapon_smg1 = "weapon_smg1_term",
+    weapon_pistol = "weapon_pistol_term",
+    weapon_357 = "weapon_357_term",
+    weapon_crossbow = "weapon_crossbow_term",
+    weapon_rpg = "weapon_rpg_term",
+    weapon_shotgun = "weapon_shotgun_term",
+    weapon_crowbar = "weapon_crowbar_term",
+    weapon_stunstick = "weapon_stunstick_term",
+    manhack_welder = "manhack_welder_term",
+    weapon_flechettegun = "weapon_flechettegun_term",
+    gmod_camera = "gmod_camera_term",
+    weapon_frag = "weapon_frag_term",
+    weapon_slam = "weapon_slam_term",
 
 }
 
@@ -965,9 +965,9 @@ function ENT:SetupEyeAngles()
 
 end
 
-hook.Add( "PlayerCanPickupWeapon", "SBAdvancedNextBot", function( ply,wep )
+hook.Add( "PlayerCanPickupWeapon", "TerminatorNextBot", function( ply,wep )
     -- Do not allow pickup when bot carries this weapon
-    if IsValid( wep:GetOwner() ) and wep:GetOwner().SBAdvancedNextBot then
+    if IsValid( wep:GetOwner() ) and wep:GetOwner().TerminatorNextBot then
         return false
     end
 

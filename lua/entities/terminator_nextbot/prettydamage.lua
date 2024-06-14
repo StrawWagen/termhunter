@@ -197,7 +197,7 @@ local function OnDamaged( damaged, Hitgroup, Damage )
 
 end
 
-hook.Add( "ScaleNPCDamage", "sb_anb_straw_terminator_damage", OnDamaged )
+hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", OnDamaged )
 
 -- dmg w/o bodygroup data
 

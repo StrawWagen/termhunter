@@ -1,20 +1,20 @@
 AddCSLuaFile()
 
-ENT.Base = "sb_advanced_nextbot_terminator_hunter"
+ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Paparazzi"
 ENT.Spawnable = false
-list.Set( "NPC", "sb_advanced_nextbot_terminator_hunter_fakeply", {
+list.Set( "NPC", "terminator_nextbot_fakeply", {
     Name = "Paparazzi",
-    Class = "sb_advanced_nextbot_terminator_hunter_fakeply",
-    Category = "SB Advanced Nextbots",
+    Class = "terminator_nextbot_fakeply",
+    Category = "Terminator Nextbot",
     Weapons = {
         "gmod_camera",
     },
 } )
 
 if CLIENT then
-    language.Add( "sb_advanced_nextbot_terminator_hunter_fakeply", ENT.PrintName )
+    language.Add( "terminator_nextbot_fakeply", ENT.PrintName )
     return
 
 end
@@ -95,11 +95,11 @@ function ENT:DoHardcodedRelations()
     self:SetClassRelationship( "player", D_HT,1 )
     self:SetClassRelationship( "npc_lambdaplayer", D_HT,1 )
     self:SetClassRelationship( "rpg_missile", D_NU )
-    self:SetClassRelationship( "sb_advanced_nextbot_terminator_hunter", D_HT, 1 )
-    self:SetClassRelationship( "sb_advanced_nextbot_terminator_hunter_slower", D_HT, 1 )
-    self:SetClassRelationship( "sb_advanced_nextbot_soldier_follower", D_HT )
-    self:SetClassRelationship( "sb_advanced_nextbot_soldier_friendly", D_HT )
-    self:SetClassRelationship( "sb_advanced_nextbot_soldier_hostile", D_HT )
+    self:SetClassRelationship( "terminator_nextbot", D_HT, 1 )
+    self:SetClassRelationship( "terminator_nextbot_slower", D_HT, 1 )
+    self:SetClassRelationship( "terminator_nextbot_soldier_follower", D_HT )
+    self:SetClassRelationship( "terminator_nextbot_soldier_friendly", D_HT )
+    self:SetClassRelationship( "terminator_nextbot_soldier_hostile", D_HT )
 
 end
 

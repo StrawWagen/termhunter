@@ -140,6 +140,18 @@ function ENT:DisableBehaviour()
     return self:IsPostureActive() or self:IsGestureActive( true ) or self:DisabledThinking() and not self:IsControlledByPlayer() or self:RunTask( "DisableBehaviour" )
 end
 
+function ENT:PhysicallyPushEnt( ent, strength )
+    local itsObj = ent:GetPhysicsObject()
+    if not IsValid( itsObj ) or not itsObj:IsMotionEnabled() then return end
+
+    local myNearestPointToIt = self:NearestPoint( itsObj:GetMassCenter() )
+    local itsNearestPointToMyNearestPoint = ent:NearestPoint( myNearestPointToIt )
+    local forceStart = self:WorldSpaceCenter()
+    local awayFromMe = terminator_Extras.dirToPos( forceStart, itsNearestPointToMyNearestPoint )
+    itsObj:ApplyForceOffset( ( self:GetForward() + awayFromMe ) * strength, itsNearestPointToMyNearestPoint )
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:StuckCheck
     Desc: (INTERNAL) Updates bot stuck status.
@@ -211,13 +223,9 @@ function ENT:StuckCheck()
         --debugoverlay.Box( pos, b1, b2, 0.5, Color( 255, 255, 255, 150 ) )
 
         -- push thing out the way!
-        if IsValid( tr.Entity ) and IsValid( tr.Entity:GetPhysicsObject() ) and tr.Entity:GetPhysicsObject():IsMotionEnabled() then
-            local obj = tr.Entity:GetPhysicsObject()
-            local forceStart = self:WorldSpaceCenter()
-            local forceEnd = tr.Entity:WorldSpaceCenter()
-            local force = terminator_Extras.dirToPos( forceStart, forceEnd ) * 30000
-            obj:ApplyForceOffset( force, forceEnd )
-
+        local hitEnt = tr.Entity
+        if IsValid( hitEnt ) then
+            self:PhysicallyPushEnt( hitEnt, 15000 )
         end
 
         local hit = TraceHit( tr )
@@ -716,7 +724,7 @@ function ENT:ShouldCrouch()
             end
         end
 
-        if not self:UsingNodeGraph() and self:PathIsValid() then
+        if self:PathIsValid() then
             local currArea = self:GetCurrentNavArea()
             local nextArea, goalPathPoint = self:GetNextPathArea()
             if currArea and currArea:IsValid() and currArea:HasAttributes( NAV_MESH_CROUCH ) then
@@ -1370,9 +1378,17 @@ function ENT:MoveAlongPath( lookatgoal )
     local laddering = aheadType == 4 or currType == 4 or aheadType == 5 or currType == 5
     local disrespecting = self:GetCachedDisrespector()
     local speedToStopLookingFarAhead = defaultSpeedToAimAtProps
-    if not self.LookAheadOnlyWhenBlocked and IsValid( disrespecting ) and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
-        speedToStopLookingFarAhead = interruptedSpeedToAimAtProps
+    if IsValid( disrespecting ) then
+        local myNearestPointToIt = self:NearestPoint( disrespecting:WorldSpaceCenter() )
+        local itsNearestPointToMyNearestPoint = disrespecting:NearestPoint( myNearestPointToIt )
+        if myNearestPointToIt:DistToSqr( itsNearestPointToMyNearestPoint ) < 8^2 then
+            self:PhysicallyPushEnt( disrespecting, 250 )
 
+        end
+        if not self.LookAheadOnlyWhenBlocked and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
+            speedToStopLookingFarAhead = interruptedSpeedToAimAtProps
+
+        end
     end
     local myVelLengSqr = self.loco:GetVelocity():LengthSqr()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
@@ -1685,7 +1701,7 @@ function ENT:MoveAlongPath( lookatgoal )
     local droptype = droppingType and not dropIsReallyJustAGap
     local dropTypeToDealwith = droptype and closeToGoal
 
-    local good = self:PathIsValid() and not self:UsingNodeGraph() and iAmOnGround
+    local good = self:PathIsValid() and iAmOnGround
     local areaSimple = self:GetCurrentNavArea()
 
     local myHeightToNext = aheadSegment.pos.z - myPos.z
@@ -2682,7 +2698,7 @@ function ENT:SwitchCrouch( crouch )
 end
 
 hook.Add( "OnPhysgunPickup", "terminatorNextBotResetPhysgunned", function( _,  ent )
-    if ent.SBAdvancedNextBot and ent.isTerminatorHunterBased then
+    if ent.TerminatorNextBot and ent.isTerminatorHunterBased then
         ent.m_Physguned = true
         ent.loco:SetGravity( 0 )
         ent.lastGroundLeavingPos = ent:GetPos()
@@ -2690,7 +2706,7 @@ hook.Add( "OnPhysgunPickup", "terminatorNextBotResetPhysgunned", function( _,  e
 end )
 
 hook.Add( "PhysgunDrop", "terminatorNextBotResetPhysgunned", function( _, ent )
-    if ent.SBAdvancedNextBot and ent.isTerminatorHunterBased then
+    if ent.TerminatorNextBot and ent.isTerminatorHunterBased then
         ent.m_Physguned = false
         ent.loco:SetGravity( ent.DefaultGravity )
         ent.lastGroundLeavingPos = ent:GetPos()

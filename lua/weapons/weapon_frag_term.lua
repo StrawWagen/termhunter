@@ -1,10 +1,10 @@
 AddCSLuaFile()
 
 if CLIENT then
-    killicon.AddFont( "weapon_frag_sb_anb", "HL2MPTypeDeath", "1", Color( 255, 80, 0 ) )
+    killicon.AddFont( "weapon_frag_term", "HL2MPTypeDeath", "1", Color( 255, 80, 0 ) )
 end
 
-SWEP.Base = "weapon_crowbar_sb_anb"
+SWEP.Base = "weapon_crowbar_term"
 SWEP.PrintName = "#HL2_Frag"
 SWEP.Spawnable = false
 SWEP.Author = "Shadow Bonnie (RUS)"

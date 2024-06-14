@@ -1,7 +1,0 @@
-"UnlitGeneric"
-{
-	"$basetexture" "vgui/hud/killicon/weapon_terminatorfists_sb_anb.vtf"
-	"$translucent" 1
-	"$vertexalpha" 1
-	"$vertexcolor" 1
-}

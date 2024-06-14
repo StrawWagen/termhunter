@@ -27,8 +27,7 @@ terminator_Extras.SetupAnalogWeight = function( wep )
 
     local class = wep.Folder
     class = string.TrimLeft( class, "weapons/" ) -- HACK HACK HACK
-    class = string.TrimRight( class, "_better" ) -- HACK HACK HACK
-    class = string.TrimRight( class, "_sb_anb" ) -- HACK
+    class = string.TrimRight( class, "_term" ) -- HACK
 
     local weight = terminator_Extras.EngineAnalogWeights[ class ]
     if not weight then
@@ -43,4 +42,4 @@ terminator_Extras.OverrideWeaponWeight = function( class, newWeight )
 
 end
 
--- see ENT:GetWeightOfWeapon( wep ) in entities/sb_advanced_nextbot_terminator_hunter/weapons.lua
+-- see ENT:GetWeightOfWeapon( wep ) in entities/terminator_nextbot/weapons.lua

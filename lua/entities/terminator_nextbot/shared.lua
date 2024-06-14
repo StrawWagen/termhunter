@@ -1,26 +1,26 @@
 AddCSLuaFile()
 
-ENT.Base = "sb_advanced_nextbot_soldier_base"
+ENT.Base = "terminator_nextbot_soldier_base"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator"
 
-list.Set( "NPC", "sb_advanced_nextbot_terminator_hunter", {
+list.Set( "NPC", "terminator_nextbot", {
     Name = "Terminator Overcharged",
-    Class = "sb_advanced_nextbot_terminator_hunter",
-    Category = "SB Advanced Nextbots",
-    Weapons = { "weapon_terminatorfists_sb_anb" },
+    Class = "terminator_nextbot",
+    Category = "Terminator Nextbot",
+    Weapons = { "weapon_terminatorfists_term" },
 } )
 
 -- these need to be shared
 include( "compatibilityhacks.lua" )
 
-
 if CLIENT then
-    language.Add( "sb_advanced_nextbot_terminator_hunter", ENT.PrintName )
+    language.Add( "terminator_nextbot", ENT.PrintName )
 
     function ENT:AdditionalClientInitialize() end
 
     function ENT:Initialize()
+        BaseClass.Initialize( self )
         self:AdditionalClientInitialize()
 
     end
@@ -56,7 +56,7 @@ terminator_Extras.LineOfSightMask = LineOfSightMask
 -- this is wiped whenever any bot's fists hit a locked door
 terminator_Extras.lockedDoorAttempts = terminator_Extras.lockedDoorAttempts or {}
 
-ENT.TERM_FISTS = "weapon_terminatorfists_sb_anb"
+ENT.TERM_FISTS = "weapon_terminatorfists_term"
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 ENT.ARNOLD_MODEL = ARNOLD_MODEL
 

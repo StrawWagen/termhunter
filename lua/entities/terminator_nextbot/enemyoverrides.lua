@@ -171,8 +171,8 @@ function ENT:ShouldBeEnemy( ent )
 
     if class == "rpg_missile" then return false end
     if class == "env_flare" then return false end
-    if not ent.SBAdvancedNextBot and isDeadNPC then return false end
-    if ( ent.SBAdvancedNextBot or not ent:IsNPC() ) and ent:Health() <= 0 then return false end
+    if not ent.TerminatorNextBot and isDeadNPC then return false end
+    if ( ent.TerminatorNextBot or not ent:IsNPC() ) and ent:Health() <= 0 then return false end
 
     local killerNotChummy = killer and ent.isTerminatorHunterChummy ~= self.isTerminatorHunterChummy
     local memory, _ = self:getMemoryOfObject( ent )
@@ -240,7 +240,7 @@ function ENT:SetupEntityRelationship( ent )
         if not IsValid( self ) then return end
         --print( ent, "has relation with", self, theirdisp )
 
-        if ent.SBAdvancedNextBot then
+        if ent.TerminatorNextBot then
             ent:SetEntityRelationship( self, theirdisp, nil )
             return
 
@@ -264,7 +264,7 @@ function ENT:SetupRelationships()
         self:SetupEntityRelationship( ent )
     end
 
-    local hookId = "sb_anb_terminator_relations_" .. self:GetCreationID()
+    local hookId = "term_terminator_relations_" .. self:GetCreationID()
 
     hook.Add( "OnEntityCreated", hookId, function( ent )
         if not IsValid( self ) then hook.Remove( "OnEntityCreated", hookId ) return end
@@ -393,12 +393,12 @@ function ENT:DoHardcodedRelations()
     self:SetClassRelationship( "player", D_HT,1 )
     self:SetClassRelationship( "npc_lambdaplayer", D_HT,1 )
     self:SetClassRelationship( "rpg_missile", D_NU )
-    self:SetClassRelationship( "sb_advanced_nextbot_terminator_hunter", D_LI )
-    self:SetClassRelationship( "sb_advanced_nextbot_terminator_hunter_slower", D_LI )
-    self:SetClassRelationship( "sb_advanced_nextbot_terminator_hunter_fakeply", D_HT )
-    self:SetClassRelationship( "sb_advanced_nextbot_soldier_follower", D_HT )
-    self:SetClassRelationship( "sb_advanced_nextbot_soldier_friendly", D_HT )
-    self:SetClassRelationship( "sb_advanced_nextbot_soldier_hostile", D_HT )
+    self:SetClassRelationship( "terminator_nextbot", D_LI )
+    self:SetClassRelationship( "terminator_nextbot_slower", D_LI )
+    self:SetClassRelationship( "terminator_nextbot_fakeply", D_HT )
+    self:SetClassRelationship( "terminator_nextbot_soldier_follower", D_HT )
+    self:SetClassRelationship( "terminator_nextbot_soldier_friendly", D_HT )
+    self:SetClassRelationship( "terminator_nextbot_soldier_hostile", D_HT )
 
 end
 
@@ -418,7 +418,7 @@ function ENT:AnotherHunterIsHeadingToEnemy()
     local enemysPos = myEnemy:GetPos()
     local enemysShootPos = self:EntShootPos( myEnemy )
 
-    local otherHunters = ents.FindByClass( "sb_advanced_nextbot_terminator_hunter*" )
+    local otherHunters = ents.FindByClass( "terminator_nextbot*" )
     table.Shuffle( otherHunters )
 
     local myDirToEnemy = _dirToPos( self:GetPos(), enemysPos )
@@ -451,7 +451,7 @@ function ENT:AnotherHunterIsHeadingToEnemy()
 end
 
 function ENT:GetOtherHuntersProbableEntrance()
-    local otherHunters = ents.FindByClass( "sb_advanced_nextbot_terminator_hunter*" )
+    local otherHunters = ents.FindByClass( "terminator_nextbot*" )
     table.Shuffle( otherHunters )
 
     -- find a long path

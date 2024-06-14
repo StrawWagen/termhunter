@@ -56,7 +56,7 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     end
     local thingInternal = thing or NULL
     if thingInternal.usedByTerm then return end
-    local terms = ents.FindByClass( "sb_advanced_nextbot_terminator_hunter*" )
+    local terms = ents.FindByClass( "terminator_nextbot*" )
     --[[
     if thing and not thing.isTerminatorHunterChummy then
         debugoverlay.Sphere( src, range, math.Clamp( range / 1000, 0.5, 10 ) )

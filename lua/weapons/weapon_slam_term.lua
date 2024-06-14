@@ -1,6 +1,6 @@
 AddCSLuaFile()
 
-SWEP.Base = "weapon_frag_sb_anb"
+SWEP.Base = "weapon_frag_term"
 SWEP.PrintName = "#HL2_Slam"
 SWEP.Spawnable = true
 SWEP.Author = "straw wagen"

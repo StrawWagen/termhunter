@@ -1,9 +1,9 @@
 AddCSLuaFile()
 
 if SERVER then
-    util.AddNetworkString( "weapon_rpg_sb_anb.muzzleflash" )
+    util.AddNetworkString( "weapon_rpg_term.muzzleflash" )
 else
-    killicon.AddFont( "weapon_rpg_sb_anb_better", "HL2MPTypeDeath", "3", Color( 255, 80, 0 ) )
+    killicon.AddFont( "weapon_rpg_term", "HL2MPTypeDeath", "3", Color( 255, 80, 0 ) )
 end
 
 SWEP.PrintName = "#HL2_RPG"
@@ -168,7 +168,7 @@ end
 
 function SWEP:DoMuzzleFlash()
     if SERVER then
-        net.Start( "weapon_rpg_sb_anb.muzzleflash", true )
+        net.Start( "weapon_rpg_term.muzzleflash", true )
             net.WriteEntity( self )
         net.SendPVS( self:GetPos() )
     else
@@ -184,7 +184,7 @@ function SWEP:DoMuzzleFlash()
 end
 
 if CLIENT then
-    net.Receive( "weapon_rpg_sb_anb.muzzleflash", function( _ )
+    net.Receive( "weapon_rpg_term.muzzleflash", function( _ )
         local ent = net.ReadEntity()
 
         if IsValid( ent ) and ent.DoMuzzleFlash then
