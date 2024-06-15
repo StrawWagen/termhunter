@@ -106,7 +106,7 @@ end
 function ENT:GetDesiredEnemyRelationship( ent )
     local disp = D_HT
     local theirdisp = D_NU
-    local priority = 1000
+    local priority = 1
 
     if ent:GetClass() == self:GetClass() then
         disp = D_LI
@@ -114,7 +114,8 @@ function ENT:GetDesiredEnemyRelationship( ent )
     end
 
     if ent:IsPlayer() then
-        priority = 1
+        priority = 1000
+
     elseif ent:IsNPC() or ent:IsNextBot() then
         local memories = {}
         if self.awarenessMemory then
@@ -123,15 +124,15 @@ function ENT:GetDesiredEnemyRelationship( ent )
         local key = self:getAwarenessKey( ent )
         local memory = memories[key]
         if memory == MEMORY_WEAPONIZEDNPC then
-            priority = priority + -300
+            priority = priority + 300
         else
             disp = D_NU
             --print("boringent" )
-            priority = priority + -100
+            priority = priority + 100
         end
     end
 
-    return disp,priority,theirdisp
+    return disp, priority, theirdisp
 end
 
 function ENT:GetAimVector()

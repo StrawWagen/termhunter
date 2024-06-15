@@ -47,7 +47,7 @@ end
 
 if SERVER then
     function ENT:DrG_SetRelationship( ent, _ )
-        self:AddEntityRelationship( ent, D_HT )
+        self:Term_SetEntityRelationship( ent, D_HT )
 
     end
 

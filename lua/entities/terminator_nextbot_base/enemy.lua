@@ -34,14 +34,14 @@ function ENT:SetClassRelationship(class,d,priority)
 end
 
 --[[------------------------------------
-	Name: NEXTBOT:SetEntityRelationship
+	Name: NEXTBOT:Term_SetEntityRelationship
 	Desc: Sets how bot feels towards entity.
 	Arg1: Entity | ent | Entity to apply relationship
 	Arg2: number | d | Disposition. See D_* Enums
 	Arg3: (optional) number | priority | How strong relationship is.
 	Ret1: 
 --]]------------------------------------
-function ENT:SetEntityRelationship(ent,d,priority)
+function ENT:Term_SetEntityRelationship(ent,d,priority)
 	self.m_EntityRelationships[ent] = {d,priority or DEF_RELATIONSHIP_PRIORITY}
 end
 

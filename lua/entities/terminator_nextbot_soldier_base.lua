@@ -431,7 +431,7 @@ ENT.TaskList = {
 			end
 		end,
 		InformReceive = function(self,data,enemy,pos)
-			self:SetEntityRelationship(enemy,D_HT,1)
+			self:Term_SetEntityRelationship(enemy,D_HT,1)
 			self:UpdateEnemyMemory(enemy,pos)
 			
 			if self:IsTaskActive("movement_randomwalk") then
@@ -551,7 +551,7 @@ function ENT:SetupEntityRelationship(ent)
 	
 	if stdd then
 		local d = self:GetDesiredEnemyRelationship(ent,stdd)
-		self:SetEntityRelationship(ent,d)
+		self:Term_SetEntityRelationship(ent,d)
 	
 		if ent:IsNPC() then
 			ent:AddEntityRelationship(self,d)
@@ -673,7 +673,7 @@ function ENT:OnInjured(dmg)
 	local att = dmg:GetAttacker()
 	
 	if IsValid(att) and self:GetRelationship(att)==D_NU and (ENEMY_CLASSES[att:GetClass()] or att:IsPlayer()) then
-		self:SetEntityRelationship(att,D_HT)
+		self:Term_SetEntityRelationship(att,D_HT)
 	end
 end
 

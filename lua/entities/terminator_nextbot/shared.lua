@@ -837,14 +837,14 @@ end
 function ENT:GetDesiredEnemyRelationship( ent )
     local disp = D_HT
     local theirdisp = D_HT
-    local priority = 1000
+    local priority = 1
 
     if ( ent.isTerminatorHunterChummy == self.isTerminatorHunterChummy ) or ( ent:GetClass() == self:GetClass() ) then
         disp = D_LI
         theirdisp = D_LI
 
     elseif ent:IsPlayer() then
-        priority = 1
+        priority = 1000
 
     elseif ent:IsNPC() or ent:IsNextBot() then
         local memories = {}
@@ -855,13 +855,13 @@ function ENT:GetDesiredEnemyRelationship( ent )
         local key = self:getAwarenessKey( ent )
         local memory = memories[key]
         if memory == MEMORY_WEAPONIZEDNPC then
-            priority = priority + -300
+            priority = priority + 300
 
         else
             -- what usually happens, npc is flagged as boring
             disp = D_NU
             --print("boringent" )
-            priority = priority + -100
+            priority = priority + 100
 
         end
         if ent.Health and ent:Health() < self:Health() / 100 then
@@ -1946,18 +1946,15 @@ function ENT:ControlPath2( AimMode )
     return result
 end
 
+local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks?" )
+
 -- do this so we can get data about current tasks easily
 function ENT:StartTask2( Task, Data, Reason )
     yieldIfWeCan()
-    --if not Reason then
-        --error( "task started with no reason" )
+    if debugPrintTasks:GetBool() then
+        print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
 
-    --end
-    --print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
-    --if istable( Data ) then
-    --    PrintTable( Data )
-
-    --end
+    end
     self.BlockNewPaths = nil -- make sure this never persists between tasks
     local Data2 = Data or {}
     Data2.taskStartTime = CurTime()
@@ -2273,7 +2270,7 @@ function ENT:EnemyIsUnkillable( enemy )
 
     if unkillable and not increasedPriorities[enemy] then
         self.terminator_IncreasedPriorities = increasedPriorities
-        self:SetEntityRelationship( enemy, D_HT, 1 )
+        self:Term_SetEntityRelationship( enemy, D_HT, 2000 )
 
     end
     return unkillable
@@ -2372,7 +2369,7 @@ ENT.ThrowingForceMul = 1000
 
 ENT.duelEnemyTimeoutMul = 1
 -- bot ignores enemy priority if enemy is this close
-ENT.CloseEnemyDistance = 200
+ENT.CloseEnemyDistance = 50
 
 -- translated to TERM_MODEL
 ENT.Models = { "terminator" }

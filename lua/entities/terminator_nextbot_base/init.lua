@@ -293,7 +293,7 @@ function ENT:SetSchedule(schedule) end
 function ENT:SetNPCState(state) end
 function ENT:GetNPCState() return NPC_STATE_NONE end
 
-function ENT:AddEntityRelationship(target,disposition,priority) self:SetEntityRelationship(target,disposition,prioroty) end
+function ENT:AddEntityRelationship(target,disposition,priority) self:Term_SetEntityRelationship(target,disposition,priority) end
 function ENT:AddRelationship(str)
 	local explode = string.Explode(" ",str)
 	

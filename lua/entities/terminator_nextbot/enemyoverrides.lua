@@ -231,17 +231,59 @@ function ENT:FindEnemies()
     end
 end
 
+function ENT:FindPriorityEnemy()
+    local notsee = {}
+    local enemy, bestRange, priority
+    local ignorePriority = false
+
+    for curr, _ in pairs( self.m_EnemiesMemory ) do
+        if not IsValid( curr ) or not self:ShouldBeEnemy( curr ) then continue end
+
+        if not self:CanSeePosition( curr ) then
+            notsee[#notsee + 1] = curr
+            continue
+        end
+
+        local rang = self:GetRangeSquaredTo( curr )
+        local _, pr = self:GetRelationship( curr )
+
+        if not ignorePriority and rang <= self.CloseEnemyDistance^2 then
+            -- too close, ignore priority
+            ignorePriority = true
+        end
+
+        if not enemy or Either( ignorePriority, rang < bestRange, Either( pr == priority, rang < bestRange, pr > priority ) ) then
+            enemy, bestRange, priority = curr, rang, pr
+
+        end
+    end
+
+    if not enemy then
+        -- we dont see any enemy, but we know last position
+
+        for _, curr in ipairs( notsee ) do
+            local rang = self:GetRangeSquaredTo( self:GetLastEnemyPosition( curr ) )
+
+            if not enemy or rang < bestRange then
+                enemy, bestRange = curr, rang
+            end
+        end
+    end
+
+    return enemy or NULL
+end
+
 function ENT:SetupEntityRelationship( ent )
     local disp,priority,theirdisp = self:GetDesiredEnemyRelationship( ent )
-    self:SetEntityRelationship( ent, disp, priority )
-    if not ( ent:IsNPC() or ent:IsNextBot() ) and not ( ent.AddEntityRelationship or ent.SetEntityRelationship ) then return end
+    self:Term_SetEntityRelationship( ent, disp, priority )
+    if not ( ent:IsNPC() or ent:IsNextBot() ) and not ( ent.AddEntityRelationship or ent.Term_SetEntityRelationship ) then return end
     timer.Simple( 0, function()
         if not IsValid( ent ) then return end
         if not IsValid( self ) then return end
         --print( ent, "has relation with", self, theirdisp )
 
         if ent.TerminatorNextBot then
-            ent:SetEntityRelationship( self, theirdisp, nil )
+            ent:Term_SetEntityRelationship( self, theirdisp, nil )
             return
 
         end
@@ -287,10 +329,10 @@ function ENT:MakeFeud( enemy )
     local bothChummy = enemy.isTerminatorHunterChummy == self.isTerminatorHunterChummy
     if bothChummy and not maniacHunter then return end
 
-    local Disp = self:Disposition( enemy )
-    if not Disp then return end
+    local disp = self:Disposition( enemy )
+    if not disp then return end
     if enemy:IsPlayer() then
-        self:AddEntityRelationship( enemy, D_HT, 1 ) -- hate players more than anything else
+        self:AddEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else
 
     else
         self:AddEntityRelationship( enemy, D_HT )

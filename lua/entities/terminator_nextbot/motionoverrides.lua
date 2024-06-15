@@ -985,6 +985,11 @@ local scalar = 0.75
 
 -- simple check, can the bot exist left/right in the direction of the goal.
 function ENT:CanStepAside( dir, goal )
+
+    -- attempt to make bot ignore this when stuck in stuff
+    local crouch = self.overrideCrouch or 0
+    if crouch > CurTime() then return false end
+
     local pos = self:GetPos() + vec_up15
     local b1,b2 = self:BoundsAdjusted( scalar )
     local mask = self:GetSolidMask()
@@ -1017,8 +1022,8 @@ function ENT:CanStepAside( dir, goal )
     --if leftResult.Hit then color = Color( 255,0,0, 25 ) end
     --debugoverlay.Box( leftResult.HitPos, dirConfigLeft.mins, dirConfigLeft.maxs, 4, color )
 
-    if leftResult.Hit and not self:hitBreakable( dirConfigLeft, leftResult ) then
-        return false
+    if not leftResult.Hit or self:hitBreakable( dirConfigLeft, leftResult ) then
+        return true
 
     end
 
@@ -1038,11 +1043,11 @@ function ENT:CanStepAside( dir, goal )
     --if rightResult.Hit then color = Color( 255,0,0, 25 ) end
     --debugoverlay.Box( rightResult.HitPos, dirConfigRight.mins, dirConfigRight.maxs, 4, color )
 
-    if rightResult.Hit and not self:hitBreakable( dirConfigRight, rightResult ) then
-        return false
+    if not rightResult.Hit or self:hitBreakable( dirConfigRight, rightResult ) then
+        return true
 
     end
-    return true
+    return false
 
 end
 
