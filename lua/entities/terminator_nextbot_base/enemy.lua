@@ -164,7 +164,7 @@ function ENT:FindEnemies()
 	local UpdateEnemyMemory = self.UpdateEnemyMemory
 	local EntShootPos = self.EntShootPos
 
-	for k,v in ipairs(ents.GetAll()) do
+	for k,v in ents.Iterator() do
 		if v==self or !ShouldBeEnemy(self,v) or !CanSeePosition(self,v) then continue end
 		
 		UpdateEnemyMemory(self,v,EntShootPos(self,v))

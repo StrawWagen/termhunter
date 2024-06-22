@@ -1,3 +1,10 @@
+local coroutine_yield = coroutine.yield
+local coroutine_running = coroutine.running
+local function yieldIfWeCan( reason )
+    if not coroutine_running() then return end
+    coroutine_yield( reason )
+
+end
 
 local gapJumpHull = Vector( 5, 5, 5 )
 local down = Vector( 0, 0, -1 )
@@ -328,6 +335,7 @@ function ENT:OnStuck()
     local w = b2.x-b1.x
 
     for z = 0, w * 1.2, w * 0.2 do
+        yieldIfWeCan()
         for x = 0, w * 1.2, w * 0.2 do
             for y = 0, w * 1.2, w * 0.2 do
                 if TryStuck( self, pos + Vector( x, y, z ),     t, tr ) then return end
@@ -834,6 +842,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
 
         -- most of these will fail, allow lots!
         while attempts < 250 do
+            yieldIfWeCan()
             attempts = attempts + 0.1
 
             -- if we're just at the start, try to stay close in case we're in a hallway or something
@@ -1146,6 +1155,7 @@ function ENT:GetJumpBlockState( dir, goal )
         local goalWithOverriddenZ = Vector( goal.x, goal.y, 0 )
 
         while height <= maxjump do
+            yieldIfWeCan()
 
             offset.z = height
             height = math.Round( math.min( height + step, maxjump ) )

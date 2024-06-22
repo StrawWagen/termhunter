@@ -36,6 +36,7 @@ function ENT:EntShootPos( ent, random )
 
             local pos = LocalToWorld( theCenter, angle_zero, bonem:GetTranslation(), bonem:GetAngles() )
             return pos
+
         end
     end
 
@@ -143,6 +144,7 @@ function ENT:ShouldBeEnemy( ent )
     if _IsFlagSet( ent, FL_NOTARGET ) then return false end
     local isObject = _IsFlagSet( ent, FL_OBJECT )
     local isPly = ent:IsPlayer()
+
     local killer = ent.isTerminatorHunterKiller
     local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
     local krangledKiller
@@ -167,10 +169,11 @@ function ENT:ShouldBeEnemy( ent )
     if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
 
     local class = ent:GetClass()
-    local isDeadNPC = ent:IsNPC() and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )
-
     if class == "rpg_missile" then return false end
     if class == "env_flare" then return false end
+
+    local isDeadNPC = ent:IsNPC() and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )
+
     if not ent.TerminatorNextBot and isDeadNPC then return false end
     if ( ent.TerminatorNextBot or not ent:IsNPC() ) and ent:Health() <= 0 then return false end
 
@@ -223,9 +226,10 @@ function ENT:FindEnemies()
     local CanSeePosition = self.CanSeePosition
     local UpdateEnemyMemory = self.UpdateEnemyMemory
     local EntShootPos = self.EntShootPos
+    local alwaysTargPlayers = self.AlwaysTargetPlayers
 
-    for _, ent in ipairs( ents.GetAll() ) do
-        if ent == self or not ShouldBeEnemy( self, ent ) or not CanSeePosition( self, ent ) then continue end
+    for _, ent in ents.Iterator() do
+        if ent == self or not ShouldBeEnemy( self, ent, alwaysTargPlayers ) or not CanSeePosition( self, ent ) then continue end
         UpdateEnemyMemory( self, ent, EntShootPos( self, ent ) )
 
     end
@@ -302,7 +306,7 @@ function ENT:SetupEntityRelationship( ent )
 end
 
 function ENT:SetupRelationships()
-    for _, ent in ipairs( ents.GetAll() ) do
+    for _, ent in ents.Iterator() do
         self:SetupEntityRelationship( ent )
     end
 

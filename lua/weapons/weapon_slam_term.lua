@@ -2,7 +2,7 @@ AddCSLuaFile()
 
 SWEP.Base = "weapon_frag_term"
 SWEP.PrintName = "#HL2_Slam"
-SWEP.Spawnable = true
+SWEP.Spawnable = false
 SWEP.Author = "straw wagen"
 SWEP.Purpose = "Should only be used internally by advanced nextbots!"
 

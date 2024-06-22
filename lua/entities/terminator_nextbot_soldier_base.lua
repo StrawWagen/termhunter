@@ -527,7 +527,7 @@ function ENT:IsFriendly()
 end
 
 function ENT:SetupRelationships()
-	for k,v in ipairs(ents.GetAll()) do
+	for k,v in ents.Iterator() do
 		self:SetupEntityRelationship(v)
 	end
 	
@@ -612,7 +612,7 @@ function ENT:FindWeapon()
 	
 	local wep,range,weight
 
-	for k,v in ipairs(ents.GetAll()) do
+	for k,v in ents.Iterator() do
 		local r = self:GetRangeSquaredTo(v)
 	
 		if r>searchrange or !self:CanPickupWeapon(v) or !self:CanSeePosition(v) then continue end

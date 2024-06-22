@@ -3529,27 +3529,28 @@ function ENT:DoTasks()
                 if data.taskKilled then return end
 
                 if not data:updateWep() then return end
-                if not IsValid( data.Wep ) then return end
+                local currWep = data.Wep
+                if not IsValid( currWep ) then return end
 
                 if self:CanBashLockedDoor( self:GetPos(), 500 ) and self:BashLockedDoor( "movement_getweapon" ) then
                     return
 
                 end
 
-                local canNewPath = self:primaryPathInvalidOrOutdated( data.Wep:GetPos() )
+                local canNewPath = self:primaryPathInvalidOrOutdated( currWep:GetPos() )
 
                 if canNewPath then
                     if self:EnemyIsLethalInMelee() then
                         local result = terminator_Extras.getNearestPosOnNav( self:GetEnemy():GetPos() )
                         if result and IsValid( result.area ) then
-                            self:SetupFlankingPath( data.Wep:GetPos(), result.area, self.DistToEnemy * 0.8 )
+                            self:SetupFlankingPath( currWep:GetPos(), result.area, self.DistToEnemy * 0.8 )
                             yieldIfWeCan()
 
                         end
                     end
 
                     if not self:primaryPathIsValid() then
-                        self:SetupPathShell( data.Wep:GetPos() )
+                        self:SetupPathShell( currWep:GetPos() )
                         data.wasAValidPath = true
 
                     end
@@ -3571,15 +3572,16 @@ function ENT:DoTasks()
                 local result = self:ControlPath2( not self.IsSeeEnemy )
 
                 if data:handleCrate() == true then return end
+                if not IsValid( currWep ) then return end
 
-                local rangeToWep = self:GetRangeTo( data.Wep )
+                local rangeToWep = self:GetRangeTo( currWep )
                 if rangeToWep < 125 then
-                    self:crouchToGetCloserTo( data.Wep:GetPos() )
+                    self:crouchToGetCloserTo( currWep:GetPos() )
 
                 end
 
-                if rangeToWep < self.PathGoalToleranceFinal + 20 and self:CanPickupWeapon( data.Wep ) then
-                    self:SetupWeapon( data.Wep )
+                if rangeToWep < self.PathGoalToleranceFinal + 20 and self:CanPickupWeapon( currWep ) then
+                    self:SetupWeapon( currWep )
                     data:finishAfterwards( "reached the wep" )
                     return
 
@@ -3587,7 +3589,7 @@ function ENT:DoTasks()
 
                 local bestFound = self.terminator_BestWeaponIEverFound or NULL
                 -- dont give up if we NEED the weapon!
-                local giveUp = data.giveUpTime < CurTime() and data.Wep ~= bestFound
+                local giveUp = data.giveUpTime < CurTime() and currWep ~= bestFound
 
                 if self.IsSeeEnemy and ( self.DistToEnemy < self.CloseEnemyDistance or giveUp ) then
                     self:EnemyAcquired( "movement_getweapon" )
@@ -6799,14 +6801,13 @@ function ENT:DoTasks()
                     self:StartTask2( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
                 elseif #data.potentialPerchables >= 1 then
                     for _ = 1, 18 do
+                        yieldIfWeCan()
                         if #data.potentialPerchables == 0 then break end
                         local perchableArea = table.remove( data.potentialPerchables, 1 )
                         local checkPositions = getUsefulPositions( perchableArea )
-                        local lastCheck
 
                         for _, checkPos in ipairs( checkPositions ) do
                             checkPos = checkPos + plus25Z
-                            lastCheck = checkPos
                             local dat = {
                                 start = checkPos,
                                 endpos = checkPos + negativeFiveHundredZ,
