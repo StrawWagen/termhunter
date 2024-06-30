@@ -732,6 +732,9 @@ function ENT:understandObject( ent )
     end
 end
 
+function ENT:AdditionalUnderstand()
+end
+
 local vecMeta = FindMetaTable( "Vector" )
 local distToSqr = vecMeta.DistToSqr
 
@@ -785,6 +788,9 @@ function ENT:understandSurroundings()
         table_insert( self.awarenessSubstantialStuff, currEnt )
 
     end
+
+    self:AdditionalUnderstand( substantialStuff )
+
 end
 
 function ENT:getShootableVolatile( enemy )
@@ -1401,7 +1407,14 @@ function ENT:canHitEnt( ent )
     local _, hitTrace = terminator_Extras.PosCanSeeComplex( myShootPos, behindObj, self, mask )
     --debugoverlay.Cross( hitTrace.HitPos, 10, 10 )
 
-    local closenessSqr = myShootPos:DistToSqr( objPos )
+    local closenessSqr
+    if hitTrace.Entity == ent then
+        closenessSqr = myShootPos:DistToSqr( hitTrace.HitPos )
+
+    else
+        closenessSqr = myShootPos:DistToSqr( objPos )
+
+    end
     local weapDist = self:GetWeaponRange() + -20
     local hitReallyClose = SqrDistLessThan( hitTrace.HitPos:DistToSqr( behindObj ), 30 ) or SqrDistLessThan( hitTrace.HitPos:DistToSqr( objPos ), 30 )
     local visible = ( hitTrace.Entity == ent ) or hitReallyClose
@@ -1519,26 +1532,28 @@ function ENT:beatUpEnt( ent, unstucking )
                 terminator_Extras.lockedDoorAttempts[entsCreationId] = oldCount + 1
 
                 local thaArea = table_Random( adjacents )
-                -- the adjacent area is also blocked....
-                if thaArea:IsBlocked() then
-                    forcePath = false
+                if IsValid( thaArea ) then
+                    -- the adjacent area is also blocked....
+                    if thaArea:IsBlocked() then
+                        forcePath = false
+
+                    end
+
+                    local maxSize = math.max( thaArea:GetSizeX(), thaArea:GetSizeY() )
+                    local ratio = 0.9
+
+                    if maxSize < 125 then
+                        ratio = 0.6
+
+                    end
+
+                    local ratio2 = 1 - ratio
+                    local closestComp = thaArea:GetClosestPointOnArea( entsRealPos ) * ratio
+                    local centerComp = thaArea:GetCenter() * ratio2
+
+                    pathPos = closestComp + centerComp
 
                 end
-
-                local maxSize = math.max( thaArea:GetSizeX(), thaArea:GetSizeY() )
-                local ratio = 0.9
-
-                if maxSize < 125 then
-                    ratio = 0.6
-
-                end
-
-                local ratio2 = 1 - ratio
-                local closestComp = thaArea:GetClosestPointOnArea( entsRealPos ) * ratio
-                local centerComp = thaArea:GetCenter() * ratio2
-
-                pathPos = closestComp + centerComp
-
             end
         end
 
@@ -1964,7 +1979,7 @@ function ENT:StartTask2( Task, Data, Reason )
     -- additional debugging tool
     self.taskHistory = self.taskHistory or {}
 
-    table.insert( self.taskHistory, Task .. " " .. Reason )
+    table.insert( self.taskHistory, SysTime() .. " " .. Task .. " " .. Reason )
 
 end
 
@@ -6845,8 +6860,17 @@ function ENT:DoTasks()
                         local bestPos = data.scoredPerchables[ bestPosScore ]
                         if not bestPos then return end
 
-                        self:shootAt( bestPos, true )
+                        if self:GetRangeTo( bestPos ) > 500 then
+                            if self:primaryPathInvalidOrOutdated( bestPos ) then
+                                self:SetupPathShell( bestPos )
 
+                            end
+                            local oldWalk = self.forcedShouldWalk or 0
+                            self.forcedShouldWalk = math.max( oldWalk, CurTime() + 0.25 )
+
+                            self:ControlPath2( not self.IsSeeEnemy )
+
+                        end
                     end
                 elseif not data.bestPos then
                     data.bestPosScore = table.maxn( data.scoredPerchables )
@@ -6877,10 +6901,6 @@ function ENT:DoTasks()
                         --debugoverlay.Text( data.bestPos, tolerance .. " " .. nookScore, 240 )
                         self:TaskComplete( "movement_perch" )
                         self:StartTask2( "movement_camp", { maxNoSeeing = tolerance }, "i got to my camping spot" )
-
-                    elseif result == false then
-                        self:TaskComplete( "movement_perch" )
-                        self:StartTask2( "movement_biginertia", nil, "i couldnt get there" )
 
                     end
                 end

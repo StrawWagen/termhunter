@@ -1074,7 +1074,7 @@ function ENT:FindWeapon()
     local range
     local weight = -1
 
-    -- also returns item_item_crate(s)
+    -- also returns true for item_item_crate(s)
     local _CanPickupWeapon = self.CanPickupWeapon
 
     local seesEnemy = self.IsSeeEnemy
@@ -1125,7 +1125,8 @@ function ENT:FindWeapon()
                     continue
 
                 end
-                weight = wepWeight + ( -tr.Fraction * 5 ) + ( -failedPathsToWeap * 20 )
+                local clearness = tr.Fraction - 1
+                weight = wepWeight + ( clearness * 5 ) + ( -failedPathsToWeap * 20 )
                 range = self:GetWeaponRange( potentialWeap )
                 isBox = wep:GetClass() == "item_item_crate"
 
