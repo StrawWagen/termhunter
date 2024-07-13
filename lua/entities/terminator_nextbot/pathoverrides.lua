@@ -120,6 +120,7 @@ function ENT:GetNextPathArea( refArea, offset, visCheck )
 end
 
 -- good for approaching enemy from multiple angles
+-- eg, check other hunter's halfway points, flank around them
 function ENT:GetPathHalfwayPoint()
     local myPos = self:GetPos()
     if not self:PathIsValid() then return myPos end
@@ -133,16 +134,28 @@ function ENT:GetPathHalfwayPoint()
 
 end
 
--- used in tasks to not call a fail if bot is unstucking
-function ENT:primaryPathIsValid()
+-- helper, used in tasks to not call a fail if bot is unstucking
+function ENT:primaryPathIsValid( path )
+    path = path or self:GetPath()
     if self.isUnstucking then return true end -- dont start new paths
     -- behave normally
-    return self:PathIsValid()
+    return self:PathIsValid( path )
 
 end
 
+function ENT:MyPathLength( path )
+    path = path or self:GetPath()
+    if not self:PathIsValid( path ) then return 0 end
+
+    return path:GetLength()
+
+end
+
+-- helper
 function ENT:primaryPathInvalidOrOutdated( destination )
-    return not self:primaryPathIsValid() or ( self:primaryPathIsValid() and self:CanDoNewPath( destination ) )
+    local path = self:GetPath()
+    local valid = self:primaryPathIsValid( path )
+    return not valid or ( valid and self:CanDoNewPath( destination ) )
 
 end
 
@@ -283,7 +296,7 @@ function ENT:AddAreasToAvoid( areas, mul )
 end
 
 function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius )
-    if not isvector( destination ) then return end
+    if not isvector( destination ) then return false end
 
     local myPos = self:GetPos()
 
@@ -544,6 +557,7 @@ end
 
 -- do this so we can store extra stuff about new paths
 function ENT:SetupPathShell( endpos, isUnstuck )
+    if not endpos then ErrorNoHaltWithStack( "no endpos" ) return nil, "error1" end
     -- block path spamming
     -- exceptions for unstucker paths, they're VIP
     if not isUnstuck and not self:nextNewPathIsGood() then return nil, "blocked1" end

@@ -38,6 +38,11 @@ if SERVER then
         end )
     end
 
+    function ENT:ZBaseUpdateRelationships()
+        return
+
+    end
+
 end
 
 --see SetupEntityRelationship in the big shared.lua file for more vj base stuff

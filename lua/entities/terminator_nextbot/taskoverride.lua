@@ -19,6 +19,7 @@ function ENT:RunTask( event, ... )
     local m_ActiveTasksNum = self.m_ActiveTasksNum
     if not m_ActiveTasksNum then return end
 
+    local nextYield = 10
     local m_TaskList = self.m_TaskList
     local PassedTasks = {}
 
@@ -41,7 +42,12 @@ function ENT:RunTask( event, ... )
         local callback = taskReal[event]
 
         if callback then
-            yieldIfWeCan()
+            -- always yields every ten 'k'
+            if k > nextYield then
+                nextYield = k + 10
+                yieldIfWeCan()
+
+            end
             --local old = SysTime()
             local args = { callback( self, data, ... ) }
 

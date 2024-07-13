@@ -18,6 +18,7 @@ local function TraceHit( tr )
 end
 
 local CurTime = CurTime
+local math_Rand = math.Rand
 
 local function TrFilterNoSelf( me )
     local filterTbl = table.Copy( me:GetChildren() )
@@ -170,7 +171,7 @@ local vertOffs = Vector( 0,0,5 )
 function ENT:StuckCheck()
     if self:DisabledThinking() then return end
     if CurTime() >= self.m_StuckTime then
-        local added = math.Rand( 0.15, 0.50 )
+        local added = math_Rand( 0.15, 0.50 )
         self.m_StuckTime = CurTime() + added
 
         local loco = self.loco
@@ -193,7 +194,7 @@ function ENT:StuckCheck()
         local checkOrigin = pos
 
         if not loco:IsOnGround() then
-            sizeIncrease = sizeIncrease + 2
+            sizeIncrease = sizeIncrease + 4
 
         else
             checkOrigin = checkOrigin + vertOffs
@@ -204,7 +205,7 @@ function ENT:StuckCheck()
 
         end
         if loco:GetVelocity():Length2DSqr() < 5^2 then
-            sizeIncrease = sizeIncrease + 1
+            sizeIncrease = sizeIncrease + 2
 
         end
 
@@ -237,7 +238,7 @@ function ENT:StuckCheck()
 
         local hit = TraceHit( tr )
         if hit then
-            -- fix bot getting stuck running up stairs
+            -- fix bot getting stuck running up stairs ( by not running up stairs.. )
             local mul = 1.1
             local oldWalk = self.forcedShouldWalk or 0
             self.forcedShouldWalk = math.max( oldWalk + added * mul, CurTime() + added * mul )
@@ -250,7 +251,7 @@ function ENT:StuckCheck()
 
         if not moving and not self.m_Stuck then
             if hit then
-                self.m_StuckTime2 = self.m_StuckTime2 + math.Rand( 0.5, 0.75 )
+                self.m_StuckTime2 = self.m_StuckTime2 + math_Rand( 0.5, 0.75 )
 
                 if self.m_StuckTime2 >= 1 then -- changed from 5 to 1
                     self:OnStuck()
@@ -597,7 +598,7 @@ function ENT:IsAngry()
     local checkIsAngry = self.terminator_CheckIsAngry or 0
 
     if checkIsAngry < CurTime() then
-        self.terminator_CheckIsAngry = CurTime() + math.Rand( 0.9, 1.1 )
+        self.terminator_CheckIsAngry = CurTime() + math_Rand( 0.9, 1.1 )
         local enemy = self:GetEnemy()
 
         if enemy and ( enemy.isTerminatorHunterKiller or enemy.terminator_CantConvinceImFriendly ) then
@@ -783,6 +784,9 @@ end
 local color_green = Color( 0, 255, 0 )
 local color_red = Color( 255, 0, 0 )
 
+local random1 = Vector( 0, 0, 0 )
+local random2 = Vector( 0, 0, 0 )
+
 -- find pos to path to, for geting around any kind of obstacle
 function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
     local timerName = "terminator_obliteratetowardscache_" .. self:GetCreationID()
@@ -840,16 +844,20 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
         local jumpHeight = self.loco:GetMaxJumpHeight()
         local stepHeight = self.loco:GetStepHeight()
 
+        local nextYield = 50
+
         -- most of these will fail, allow lots!
         while attempts < 250 do
             yieldIfWeCan()
-            attempts = attempts + 0.1
+            attempts = attempts + 0.25
 
             -- if we're just at the start, try to stay close in case we're in a hallway or something
+            -- after a while just go all out, big traces
             local doBigTraces = attempts > 55
             local zMul = 0.65
             local randCompDivisor = 8
             if doBigTraces then
+                -- allow bigger Z offsets, divide the random components less
                 zMul = 0.8
                 randCompDivisor = 5
 
@@ -857,8 +865,11 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
 
             local offsetScale = math.log( traceDist, 10 ) * 150
 
-            local trueRandComp = VectorRand() * offsetScale / randCompDivisor
-            local offset = VectorRand()
+            random1:Random( -1, 1 )
+            random2:Random( -1, 1 )
+
+            local trueRandComp = random1 * offsetScale / randCompDivisor
+            local offset = random2
             offset = dir:Cross( offset ) * offsetScale
             offset = offset + trueRandComp
             offset.z = offset.z * zMul
@@ -890,6 +901,12 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
 
             else
                 traceDist = traceDist + 0.1
+
+            end
+
+            if nextYield < attempts then
+                nextYield = attempts + 50
+                yieldIfWeCan()
 
             end
 
@@ -939,7 +956,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
                     -- if there's a doorway, start picking ones that only go through the doorway
                     local isATrulyClearTrace = self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround )
                     if isATrulyClearTrace or wasAClearBestScore then
-                        currScore = math.Clamp( currScore, 0, math.Rand( 1.4, 1.5 ) )
+                        currScore = math.Clamp( currScore, 0, math_Rand( 1.4, 1.5 ) )
 
                     end
                     if isATrulyClearTrace and not wasAClearBestScore then
@@ -1303,7 +1320,13 @@ function ENT:MoveInAirTowardsVisible( toChoose, destinationArea )
 
         end
 
-        self.overrideCrouch = CurTime() + 0.75
+        if self:IsReallyAngry() then
+            self.overrideCrouch = CurTime() + 0.15
+
+        else
+            self.overrideCrouch = CurTime() + 0.75
+
+        end
 
         local beginSetposCrouchJump = IsValid( destinationArea ) and indexThatWasVisible <= 4 and destinationArea:HasAttributes( NAV_MESH_CROUCH ) and not hitBreakable
         local justSetposUsThere = IsValid( destinationArea ) and ( self.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( destinationArea:GetClosestPointOnArea( myPos ) ) < 40^2
@@ -1419,29 +1442,6 @@ function ENT:MoveAlongPath( lookatgoal )
             else
                 lookAtPos = aheadSegment.pos + vec_up25
 
-            end
-            local aheadPos = aheadSegment.pos
-            if not currSegment.area:HasAttributes( NAV_MESH_CROUCH ) and not aheadArea:HasAttributes( NAV_MESH_CROUCH ) then
-                timer.Simple( 1, function()
-                    if not IsValid( self ) then return end
-                    if self.m_PathObstacleAvoidPos then return end
-                    local velLengSqr2 = self.loco:GetVelocity():LengthSqr()
-                    if velLengSqr2 > defaultSpeedToAimAtProps then return end
-
-                    local myCurrPos = self:GetPos()
-                    local dirToAheadPos = terminator_Extras.dirToPos( myCurrPos, aheadPos )
-                    local reverse = -dirToAheadPos * 15
-
-                    local goodPosToGoto, wasNothingGreat = self:PosThatWillBringUsTowards( myCurrPos + reverse * vec_up15, aheadPos )
-                    self.m_PathObstacleAvoidPos = goodPosToGoto
-                    self.m_PathObstacleAvoidTarget = aheadPos
-                    self.m_PathObstacleAvoidTimeout = CurTime() + 4
-                    if not goodPosToGoto or wasNothingGreat then
-                        -- speed up the connection flagging unstucker, we cant get thru here
-                        self:OnHardBlocked()
-
-                    end
-                end )
             end
         elseif lookAtPos:DistToSqr( myPos ) < 400^2 then
             -- attempt to look farther ahead

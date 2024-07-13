@@ -227,11 +227,13 @@ function ENT:FindEnemies()
     local UpdateEnemyMemory = self.UpdateEnemyMemory
     local EntShootPos = self.EntShootPos
     local alwaysTargPlayers = self.AlwaysTargetPlayers
+    local found = ents.FindInSphere( self:GetPos(), self.MaxSeeEnemyDistance )
 
-    for _, ent in ents.Iterator() do
+    for i = 1, #found do
+        local ent = found[i]
         if ent == self or not ShouldBeEnemy( self, ent, alwaysTargPlayers ) or not CanSeePosition( self, ent ) then continue end
-        UpdateEnemyMemory( self, ent, EntShootPos( self, ent ) )
 
+        UpdateEnemyMemory( self, ent, EntShootPos( self, ent ), true )
     end
 end
 

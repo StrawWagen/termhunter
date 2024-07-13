@@ -586,8 +586,9 @@ end
 	Arg1: 
 	Ret1: bool | PathFollower object is valid or not
 --]]------------------------------------
-function ENT:PathIsValid()
-	return self:GetPath():IsValid()
+function ENT:PathIsValid( path )
+	path = path or self:GetPath()
+	return path:IsValid()
 end
 
 --[[------------------------------------
@@ -737,6 +738,10 @@ end
 	Saving new area as current. Also stops bot if area has NAV_MESH_STOP attribute.
 --]]------------------------------------
 function ENT:OnNavAreaChanged(old,new)
+
+	-- detect modified navmesh!
+	if not new then return end
+
 	self.m_NavArea = new
 	
 	if new:HasAttributes(NAV_MESH_STOP) and self.loco:IsOnGround() then
