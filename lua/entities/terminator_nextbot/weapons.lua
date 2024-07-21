@@ -190,7 +190,8 @@ function ENT:SetupWeapon( wep )
     -- 'equip' sound
     self:EmitSound( "Flesh.Strain", 80, 160, 0.8 )
 
-    self.terminator_DontImmiediatelyFire = CurTime() + math.Rand( 0.75, 1.25 )
+    local oldFire = self.terminator_DontImmiediatelyFire or 0
+    self.terminator_DontImmiediatelyFire = math.max( CurTime() + math.Rand( 0.75, 1.25 ), oldFire )
     self.terminator_FiringIsAllowed = nil
     self.terminator_LastFiringIsAllowed = 0
     self:NextWeapSearch( 0 )
@@ -232,16 +233,18 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
     if not IsValid( wep ) then return end
 
+
+    self:SetActiveWeapon( NULL )
+
     if wep:GetClass() == self.TERM_FISTS then
         SafeRemoveEntity( wep )
+        return
 
     end
 
     local actwep = self:GetActiveLuaWeapon()
     local velocity = self:GetEyeAngles():Forward() * 10
 
-
-    self:SetActiveWeapon( NULL )
 
     -- Unparenting weapon. Very similar to engine code.
 
@@ -1008,10 +1011,6 @@ function ENT:canGetWeapon()
     local nextNewPath = self.nextNewPath or 0
     if nextNewPath > CurTime() then return false end
 
-    -- dont allow spam, this is set at the end of dropweapon!
-    local nextWeaponPickup = self.terminator_NextWeaponPickup or 0
-    if nextWeaponPickup > CurTime() then return false end
-
     local armed = not self:IsFists()
     local nextSearch = self.nextWeapSearch or 0
     if nextSearch < CurTime() then
@@ -1019,10 +1018,21 @@ function ENT:canGetWeapon()
         self.cachedNewWeaponDat = self:FindWeapon()
 
     end
+
     local wepDat = self.cachedNewWeaponDat or {}
     local newWeap = wepDat.wep
 
     if not IsValid( newWeap ) then return false, nil end
+
+    local justPickupTheDamnWep = not armed and self:IsReallyAngry() and not IsValid( newWeap:GetParent() ) and self:GetRangeTo( newWeap ) < 500
+
+    -- we're pissed, just pick it up!
+    if not justPickupTheDamnWep then
+        -- by default, dont allow spam, this is set at the end of dropweapon!
+        local nextWeaponPickup = self.terminator_NextWeaponPickup or 0
+        if nextWeaponPickup > CurTime() then return false end
+
+    end
 
     -- crazy unholstering logic
     if armed then

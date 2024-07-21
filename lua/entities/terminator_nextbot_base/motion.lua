@@ -217,16 +217,16 @@ local IdleActivityTranslate = {
 function ENT:TranslateActivity(act)
 	local task = self:RunTask("TranslateActivity",act)
 	if task then return task end
-	
+
 	if self:HasWeapon() then
-		self.m_PassIsNPCCheck = false
+		self:DontRegisterAsNpc()
 		local newact
 		ProtectedCall(function() newact = self:GetActiveLuaWeapon():TranslateActivity(act) end)
-		self.m_PassIsNPCCheck = true
-		
+		self:ReRegisterAsNpc()
+
 		return newact
 	end
-	
+
 	return IdleActivityTranslate[act] or IdleActivity
 end
 

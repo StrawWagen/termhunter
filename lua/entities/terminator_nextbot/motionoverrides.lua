@@ -21,7 +21,7 @@ local CurTime = CurTime
 local math_Rand = math.Rand
 
 local function TrFilterNoSelf( me )
-    local filterTbl = table.Copy( me:GetChildren() )
+    local filterTbl = me:GetChildren()
     table.insert( filterTbl, me )
 
     return filterTbl
@@ -552,7 +552,7 @@ end
 
 function ENT:IsReallyAngry()
     local reallyAngryTime = self.terminator_ReallyAngryTime or CurTime()
-    local checkIsReallyAngry = self.terminator_CheckIsReallyAngry or 0
+    local checkIsReallyAngry = self.terminator_CheckIsReallyAngry
 
     if checkIsReallyAngry < CurTime() then
         self.terminator_CheckIsReallyAngry = CurTime() + 1
@@ -595,7 +595,7 @@ function ENT:IsAngry()
 
     if permaAngry then return true end
     local angryTime = self.terminator_AngryTime or CurTime()
-    local checkIsAngry = self.terminator_CheckIsAngry or 0
+    local checkIsAngry = self.terminator_CheckIsAngry
 
     if checkIsAngry < CurTime() then
         self.terminator_CheckIsAngry = CurTime() + math_Rand( 0.9, 1.1 )
@@ -616,7 +616,7 @@ function ENT:IsAngry()
         elseif self:getLostHealth() > 0.5 then
             angryTime = angryTime + math.random( 1, 10 )
 
-        elseif enemy and ( not self.IsSeeEnemy or self.DistToEnemy > self.MoveSpeed * 3.5 ) then
+        elseif enemy and ( not self.IsSeeEnemy or self.DistToEnemy > self.MoveSpeed * 10 ) then
             angryTime = angryTime + 1.1
 
         elseif not IsValid( enemy ) and self:GetPath() and self:GetPath():GetLength() > 1000 then
@@ -646,7 +646,9 @@ function ENT:IsAngry()
 end
 
 function ENT:canDoRun()
-    if not self:IsAngry() then return end
+    local angry = self:IsAngry()
+    if not angry and self.IsSeeEnemy and self:Health() == self:GetMaxHealth() then return end
+
     if self.forcedShouldWalk and self.forcedShouldWalk > CurTime() then return end
     if self.isInTheMiddleOfJump then return end
     local nearObstacleBlockRunning = self.nearObstacleBlockRunning or 0
@@ -671,7 +673,9 @@ function ENT:canDoRun()
 end
 
 function ENT:shouldDoWalk()
+    if self.IsSeeEnemy and self:Health() == self:GetMaxHealth() then return true end
     if self.forcedShouldWalk and self.forcedShouldWalk > CurTime() then return true end
+
     local area = self:GetCurrentNavArea()
     if not area then return end
     if not area:IsValid() then return end
@@ -1408,6 +1412,8 @@ function ENT:MoveAlongPath( lookatgoal )
 
     if not currSegment then return false end
 
+    local cur = CurTime()
+
     local aheadType = aheadSegment.type
     local currType = currSegment.type
 
@@ -1428,12 +1434,39 @@ function ENT:MoveAlongPath( lookatgoal )
 
         end
     end
+    local lookAtPos
     local myVelLengSqr = self.loco:GetVelocity():LengthSqr()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
+    local hint = self.lastHeardSoundHint
+    local curiosity = 0.5
 
-    if ( lookatgoal or movingSlow ) and self:PathIsValid() then
-        local ang
-        local lookAtPos = aheadSegment.pos + vec_up25
+    local lookAtEnemyLastPos = self.LookAtEnemyLastPos or 0
+    local shouldLookTime = lookAtEnemyLastPos > cur
+
+    if hint and hint.valuable then
+        curiosity = 2
+
+    end
+
+    if not self.IsSeeEnemy and self.interceptPeekTowardsEnemy and self.lastInterceptTime + 2 > cur then
+        lookAtPos = self.lastInterceptPos
+
+    elseif not self.IsSeeEnemy and hint and hint.time + curiosity > cur then
+        lookAtPos = hint.source
+
+    elseif not self.IsSeeEnemy and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( self.EnemyLastPos ) ) ) then
+        if not shouldLookTime then
+            self.LookAtEnemyLastPos = cur + curiosity
+
+        end
+        lookAtPos = self.EnemyLastPos
+
+    elseif laddering then
+        lookAtPos = myPos + self:GetVelocity() * 100
+
+    elseif ( lookatgoal or movingSlow ) and self:PathIsValid() then
+        lookAtPos = aheadSegment.pos + vec_up25
+
         if not self:IsOnGround() or movingSlow then
             if IsValid( disrespecting ) then
                 lookAtPos = self:getBestPos( disrespecting )
@@ -1451,12 +1484,15 @@ function ENT:MoveAlongPath( lookatgoal )
 
             end
         end
+    end
+
+    if lookAtPos then
         local myShoot = self:GetShootPos()
         if lookAtPos.z > myPos.z - 25 and lookAtPos.z < myPos.z + 25 then
             lookAtPos.z = myShoot.z
 
         end
-        ang = ( lookAtPos - myShoot ):Angle()
+        local ang = ( lookAtPos - myShoot ):Angle()
         local notADramaticHeightChange = ( lookAtPos.z > myPos.z + -100 ) or ( lookAtPos.z < myPos.z + 100 )
         if notADramaticHeightChange and not laddering and not IsValid( disrespecting ) then
             ang.p = 0
@@ -1548,7 +1584,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
         end
 
-        local timeout = self.m_PathObstacleAvoidTimeout < CurTime()
+        local timeout = self.m_PathObstacleAvoidTimeout < cur
 
         if timeout or atAvoidPos then
             if self.m_PathObstacleRebuild then
@@ -1732,7 +1768,7 @@ function ENT:MoveAlongPath( lookatgoal )
         end
         local blockJump = areaSimple:HasAttributes( NAV_MESH_NO_JUMP ) or tryingToJumpUpStairs or prematureGapJump
 
-        if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( self.nextPathJump or 0 ) < CurTime() then
+        if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( self.nextPathJump or 0 ) < cur then
             local dir = aheadSegment.pos-myPos
             dir.z = 0
             dir:Normalize()
@@ -1805,7 +1841,7 @@ function ENT:MoveAlongPath( lookatgoal )
                     self.m_PathJump = true
                     self.m_PathObstacleAvoidPos = goodPosToGoto
                     self.m_PathObstacleAvoidTarget = bitFurtherAheadSegment.pos
-                    self.m_PathObstacleAvoidTimeout = CurTime() + 4
+                    self.m_PathObstacleAvoidTimeout = cur + 4
                     if not goodPosToGoto or wasNothingGreat then
                         -- speed up the connection flagging unstucker, we cant get thru here
                         self:OnHardBlocked()
@@ -1828,7 +1864,7 @@ function ENT:MoveAlongPath( lookatgoal )
                     else
                         self.m_PathObstacleAvoidPos = dropdownClearPos
                         self.m_PathObstacleAvoidTarget = segAfterTheDrop.pos
-                        self.m_PathObstacleAvoidTimeout = CurTime() + 4
+                        self.m_PathObstacleAvoidTimeout = cur + 4
 
                         self.m_PathObstacleRebuild = true
 

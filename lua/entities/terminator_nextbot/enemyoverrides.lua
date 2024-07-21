@@ -137,10 +137,29 @@ function ENT:IgnoringPlayers()
 
 end
 
+local bearingToPos = terminator_Extras.BearingToPos
+local math_abs = math.abs
+
+local function IsInMyFov( self, ent, fov )
+    fov = fov or self.Term_FOV
+    if fov < 180 then
+        local myAng = self:GetEyeAngles()
+        -- this is dumb
+        local fovInverse = bearingToPos( self:GetPos(), myAng, ent:GetPos(), myAng )
+        return ( math_abs( fovInverse ) - 180 ) > -fov
+
+    else
+        return true
+
+    end
+end
+
+ENT.IsInMyFov = IsInMyFov
+
 local entMeta = FindMetaTable( "Entity" )
 local _IsFlagSet = entMeta.IsFlagSet
 
-function ENT:ShouldBeEnemy( ent )
+function ENT:ShouldBeEnemy( ent, fov )
     if _IsFlagSet( ent, FL_NOTARGET ) then return false end
     local isObject = _IsFlagSet( ent, FL_OBJECT )
     local isPly = ent:IsPlayer()
@@ -181,7 +200,14 @@ function ENT:ShouldBeEnemy( ent )
     local memory, _ = self:getMemoryOfObject( ent )
     local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or self:GetRelationship( ent ) == D_HT or krangledKiller or killerNotChummy
     if not knowsItsAnEnemy then return false end
-    if self:GetRangeTo( ent ) > self.MaxSeeEnemyDistance and not isPly then return false end
+
+    local inFov = IsInMyFov( self, ent, fov )
+    local rangeTo = self:GetRangeTo( ent )
+
+    local maxSeeingDist = self.MaxSeeEnemyDistance
+
+    if not inFov and rangeTo > 200 then return false end
+    if rangeTo > maxSeeingDist and not isPly then return false end
 
     -- if player then, if they are transparent, randomly don't see them, unless we already saw them.
     if isPly and shouldNotSeeEnemy( self, ent ) then return false end
@@ -226,12 +252,19 @@ function ENT:FindEnemies()
     local CanSeePosition = self.CanSeePosition
     local UpdateEnemyMemory = self.UpdateEnemyMemory
     local EntShootPos = self.EntShootPos
-    local alwaysTargPlayers = self.AlwaysTargetPlayers
-    local found = ents.FindInSphere( self:GetPos(), self.MaxSeeEnemyDistance )
+    local myFov = self.Term_FOV
+    local found
+    if myFov >= 180 then
+        found = ents.FindInSphere( self:GetPos(), self.MaxSeeEnemyDistance )
+
+    else
+        found = ents.FindInCone( self:GetShootPos(), self:GetEyeAngles():Forward(), self.MaxSeeEnemyDistance, math.cos( math.rad( myFov ) ) )
+
+    end
 
     for i = 1, #found do
         local ent = found[i]
-        if ent == self or not ShouldBeEnemy( self, ent, alwaysTargPlayers ) or not CanSeePosition( self, ent ) then continue end
+        if ent == self or not ShouldBeEnemy( self, ent, myFov ) or not CanSeePosition( self, ent ) then continue end
 
         UpdateEnemyMemory( self, ent, EntShootPos( self, ent ), true )
     end

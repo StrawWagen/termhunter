@@ -35,6 +35,8 @@ ENT.AccelerationSpeed = 1500
 ENT.DeathDropHeight = 200
 ENT.InformRadius = 0
 
+ENT.ThrowingForceMul = 0.5
+
 ENT.alwaysManiac = true
 
 ENT.isTerminatorHunterChummy = false

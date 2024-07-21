@@ -602,7 +602,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         if self:primaryPathIsValid() then
             self.setupPath2NoNavs = nil
             local cost = ( after - before )
-            self.nextNewPath = CurTime() + cost * 4
+            self.nextNewPath = CurTime() + cost * 8
             if cost > 0.03 then
                 self.term_ExpensivePath = true
 

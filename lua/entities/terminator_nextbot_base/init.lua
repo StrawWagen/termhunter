@@ -105,12 +105,14 @@ function ENT:Initialize()
 	self:SetModel(self.Model)
 	self:SetSolidMask(self.SolidMask)
 	self:SetCollisionGroup(COLLISION_GROUP_PLAYER)
-	
+
 	self:SetMaxHealth(self.SpawnHealth)
 	self:SetHealth(self:GetMaxHealth())
-	
+
 	self:AddFlags(FL_OBJECT)
-	
+
+	self:IsNPCHackRegister()
+
 	self.BehaveInterval = 0
 	self.m_Path = Path("Follow")
 	self.m_PathPos = Vector()
@@ -132,26 +134,25 @@ function ENT:Initialize()
 	self.m_StuckPos = self:GetPos()
 	self.m_HullType = HULL_HUMAN
 	self.m_DuckHullType = HULL_TINY
-	self.m_PassIsNPCCheck = true
 	self.m_PitchAim = 0
 	self.m_Conditions = {}
-	
+
 	self.loco:SetGravity(self.DefaultGravity)
 	self.loco:SetAcceleration(self.AccelerationSpeed)
 	self.loco:SetDeceleration(self.DecelerationSpeed)
 	self.loco:SetStepHeight(self.StepHeight)
 	self.loco:SetJumpHeight(self.JumpHeight)
 	self.loco:SetDeathDropHeight(self.DeathDropHeight)
-	
+
 	self:SetupCollisionBounds()
 	self:ReloadWeaponData()
 	self:SetDesiredEyeAngles(self:GetAngles())
 	self:SetupDefaultCapabilities()
-	
+
 	self:SetLagCompensated(true)
-	
+
 	self:AddCallback("PhysicsCollide",self.PhysicsObjectCollide)
-	
+
 	local wep = self:GetKeyValue("additionalequipment") or self.DefaultWeapon
 	if wep then
 		self:Give(wep)
@@ -307,13 +308,76 @@ function ENT:AddRelationship(str)
 end
 function ENT:Disposition(ent) return self:GetRelationship(ent) end
 
---HACK
-local meta = FindMetaTable("Entity")
 
-if !meta.term_IsNPC then
-	meta.term_IsNPC = meta.IsNPC
-	
-	meta.IsNPC = function(s)
-		return s:term_IsNPC() or s.TerminatorNextBot and s.m_PassIsNPCCheck or false
+local terms = {}
+local function onTermsTableUpdate()
+	local count = 0
+
+	for term, _ in pairs( terms ) do
+		if not IsValid( term ) then
+			terms[term] = nil
+
+		else
+			count = count + 1
+
+		end
 	end
+
+	if count > 0 then
+		terminator_Extras.setupIsNPCHack()
+
+	else
+		terminator_Extras.teardownIsNPCHack()
+
+	end
+end
+
+function ENT:IsNPCHackRegister()
+	terms[self] = true
+	onTermsTableUpdate()
+
+	self:CallOnRemove( "term_cleanuptermcache", function( ent )
+		terms[ent] = nil
+		timer.Simple( 0, function()
+			onTermsTableUpdate()
+
+		end )
+	end )
+end
+
+function ENT:DontRegisterAsNpc()
+	terms[self] = nil
+end
+
+function ENT:ReRegisterAsNpc()
+	terms[self] = true
+end
+
+
+--HACK because nothing really expects nextbots to be :USE ing them, sweps dont expect to be equipped by nextbots, but some expect to be picked up by npcs!
+local meta = FindMetaTable( "Entity" )
+
+meta.term_Old_IsNPC = meta.term_Old_IsNPC or meta.IsNPC
+
+local function termIsNPCHack( ent )
+	if terms[ent] then return true end
+	return ent:term_Old_IsNPC()
+
+end
+
+local wasHacking
+
+function terminator_Extras.setupIsNPCHack()
+	if wasHacking then return end
+	wasHacking = true
+
+	meta.IsNPC = termIsNPCHack
+
+end
+function terminator_Extras.teardownIsNPCHack()
+	if not wasHacking then return end
+	wasHacking = nil
+
+	meta.IsNPC = meta.term_Old_IsNPC
+
 end

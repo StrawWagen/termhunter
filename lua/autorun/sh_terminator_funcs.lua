@@ -27,7 +27,7 @@ terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     local collisiongroup = nil
 
     if IsValid( filter ) then
-        filterTbl = table.Copy( filter:GetChildren() )
+        filterTbl = filter:GetChildren()
         table.insert( filterTbl, filter )
 
         collisiongroup = filter:GetCollisionGroup()
