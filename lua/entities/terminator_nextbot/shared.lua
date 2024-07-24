@@ -5622,7 +5622,11 @@ function ENT:DoTasks()
                 local result = self:ControlPath2( not self.IsSeeEnemy )
                 -- get WEAP
                 local canWep, potentialWep = self:canGetWeapon()
-                if canWep and self:getTheWeapon( "movement_approachforcedcheckposition", potentialWep, "movement_approachforcedcheckposition" ) then
+                if not data.forcedCheckKey then
+                    self:TaskFail( "movement_approachforcedcheckposition" )
+                    self:StartTask2( "movement_handler", nil, "no pos to check!" )
+
+                elseif canWep and self:getTheWeapon( "movement_approachforcedcheckposition", potentialWep, "movement_approachforcedcheckposition" ) then
                     return
                 elseif self:CanBashLockedDoor( toPos, 800 ) then
                     self:BashLockedDoor( "movement_approachforcedcheckposition" )

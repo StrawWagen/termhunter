@@ -69,7 +69,7 @@ function ENT:BehaveUpdate( interval )
             local thread = self.BehaviourThread
             if thread then
                 local oldTime = SysTime()
-                while math.abs( oldTime - SysTime() ) < 0.008 do
+                while math.abs( oldTime - SysTime() ) < 0.005 do
                     local noErrors, result = coroutine_resume( thread, self )
                     if noErrors == false then
                         self.BehaviourThread = nil
