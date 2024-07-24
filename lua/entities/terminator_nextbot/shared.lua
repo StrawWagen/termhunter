@@ -6857,6 +6857,7 @@ function ENT:DoTasks()
 
                 -- get to the pos
                 else
+                    local myShootPos = self:GetShootPos()
                     local oldDist = data.oldDistToBestPos
                     local newDist = myShootPos:Distance( data.bestPos )
                     data.oldDistToBestPos = newDist
