@@ -231,6 +231,12 @@ if SERVER then
 
     function ENT:SwitchToDefaultWeapon()
         self:Give( self.TERM_FISTS )
+
+    end
+
+    function ENT:GetNavType()
+        return -1 --NAV_NONE
+
     end
 
 end

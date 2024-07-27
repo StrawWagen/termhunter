@@ -2668,6 +2668,7 @@ function ENT:OnLandOnGround( ent )
             dmg:SetDamageType( DMG_CLUB )
             dmg:SetDamage( damage )
             dmg:SetDamageForce( vecDown * killScale * 10 )
+            dmg:SetDamagePosition( myPos )
             entToKill:TakeDamageInfo( dmg )
 
         end

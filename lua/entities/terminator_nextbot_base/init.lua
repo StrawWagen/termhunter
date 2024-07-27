@@ -91,7 +91,7 @@ ENT.PathGoalToleranceFinal = 25
 ENT.PathRecompute = 5
 
 -- Draws path if valid. Used for debug
-ENT.DrawPath = CreateConVar("term_drawpath",0)
+ENT.DrawPath = CreateConVar("term_debugpath",0)
 
 --[[-------------------------------------------------------
 	NEXTBOT Meta Table Setup

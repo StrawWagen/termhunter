@@ -2498,6 +2498,8 @@ function ENT:Initialize()
     BaseClass.Initialize( self )
     terminator_Extras.RegisterListener( self )
 
+    local myPos = self:GetPos()
+
     self.terminator_DontImmiediatelyFire = CurTime()
     self:CreateShootingTimer()
 
@@ -2527,7 +2529,11 @@ function ENT:Initialize()
     self.SearchBadNavAreas = {} -- nav areas that never should be checked
 
     -- used for jumping fall damage/effects
-    self.lastGroundLeavingPos = self:GetPos()
+    self.lastGroundLeavingPos = myPos
+
+    -- just here so these are never nil
+    self.EnemyLastPos = myPos
+    self.EnemyLastPosOffsetted = myPos
 
     self.LineOfSightMask = LineOfSightMask
 
@@ -2917,7 +2923,6 @@ function ENT:DoTasks()
                         elseif IsValid( enemy ) then
                             newenemy = enemy
                             local enemyPos = enemy:GetPos()
-                            if not self.EnemyLastPos then self.EnemyLastPos = enemyPos end
 
                             self.LastEnemySpotTime = CurTime()
                             self.DistToEnemy = self:GetPos():Distance( enemyPos )
@@ -4326,7 +4331,7 @@ function ENT:DoTasks()
                     local scoreData = {}
                     scoreData.canDoUnderWater = self:isUnderWater()
                     scoreData.self = self
-                    scoreData.bearingCompare = self.EnemyLastPos or self:GetPos()
+                    scoreData.bearingCompare = self.EnemyLastPos
 
                     local scoreFunction = function( scoreData, area1, area2 )
                         local dropToArea = area1:ComputeAdjacentConnectionHeightChange( area2 )
@@ -5256,7 +5261,7 @@ function ENT:DoTasks()
                         self:StartTask2( "movement_perch", { requiredTarget = whereWeNeedToSee, perchRadius = self:GetRangeTo( whereWeNeedToSee ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
 
                     -- if bot is low health then it does perching
-                    elseif ratio < 1 and data.stalksSinceLastSeen > 2 then
+                    elseif not self:IsMeleeWeapon() and ratio < 1 and data.stalksSinceLastSeen > 2 then
                         self:TaskComplete( "movement_stalkenemy" )
                         self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5, distanceWeight = 0.01 }, "time to snipe!" )
 
@@ -5548,7 +5553,10 @@ function ENT:DoTasks()
                     --print( "unreach" )
                     self:TaskFail( "movement_intercept" )
                     self:GetTheBestWeapon()
-                    self:StartTask2( "movement_perch", { requiredTarget = lastInterceptPos, perchRadius = self:GetRangeTo( lastInterceptPos ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" ) -- exit
+
+                    local target = lastInterceptPos or self.EnemyLastPos
+                    self:StartTask2( "movement_perch", { requiredTarget = target, perchRadius = self:GetRangeTo( target ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
+
                 elseif self.IsSeeEnemy and pathIsMostlyDone then
                     self:EnemyAcquired( "movement_intercept" )
                 elseif pathIsMostlyDone and self:WeaponIsPlacable( self:GetWeapon() ) then
@@ -5677,7 +5685,7 @@ function ENT:DoTasks()
             end,
             BehaveUpdate = function( self, data )
                 local enemy = self:GetEnemy()
-                local toPos = data.pos or self.EnemyLastPos or self:GetLastEnemyPosition( enemy ) or nil
+                local toPos = data.pos or self.EnemyLastPos
                 local goodEnemy = self.IsSeeEnemy and IsValid( enemy )
                 local givenItAChance = data.approachAfter < CurTime() -- this schedule didn't JUST start.
 
@@ -5763,7 +5771,7 @@ function ENT:DoTasks()
 
                 local enemy = self:GetEnemy()
                 local validEnemy = IsValid( enemy )
-                local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPos or nil
+                local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPosOffsetted
                 local aliveOrHp = ( validEnemy and enemy.Alive and enemy:Alive() ) or ( validEnemy and enemy.Health and enemy:Health() > 0 )
                 local GoodEnemy = self.IsSeeEnemy and validEnemy and aliveOrHp
                 local toPos = enemyPos
@@ -5888,7 +5896,7 @@ function ENT:DoTasks()
             end,
             BehaveUpdate = function( self, data )
                 local enemy = self:GetEnemy()
-                local enemyPos = self.EnemyLastPos or self:GetLastEnemyPosition( enemy ) or nil
+                local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPosOffsetted
                 local myPos = self:GetPos()
                 local _ = self:ControlPath2( not self.IsSeeEnemy )
                 local maxDuelDist = self.DuelEnemyDist + 200
@@ -6519,7 +6527,9 @@ function ENT:DoTasks()
             OnStart = function( self, data )
                 local enemy = self:GetEnemy()
                 data.neverSeenEnemy = true
-                data.startingEnemyPos = self.EnemyLastPos
+
+                -- static enemy pos
+                data.startingEnemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPos
 
                 if not self.isUnstucking then
                     self:InvalidatePath( "camping, killing old path" )
@@ -6537,6 +6547,8 @@ function ENT:DoTasks()
                 data.notSeeToLookAround = 0
                 data.campingTarget = math.random( 40, 90 )
                 data.targetModulo = data.campingTarget
+
+                -- where we look at
                 data.campingStarePos = self.EnemyLastPos
 
                 if IsValid( enemy ) and self:enemyBearingToMeAbs() < 15 then
