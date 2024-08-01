@@ -1451,17 +1451,17 @@ function ENT:MoveAlongPath( lookatgoal )
     if not self.IsSeeEnemy and self.interceptPeekTowardsEnemy and self.lastInterceptTime + 2 > cur then
         lookAtPos = self.lastInterceptPos
 
-    elseif not self.IsSeeEnemy and hint and hint.time + curiosity > cur then
+    elseif lookatgoal and not self.IsSeeEnemy and hint and hint.time + curiosity > cur then
         lookAtPos = hint.source
 
-    elseif not self.IsSeeEnemy and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( self.EnemyLastPos ) ) ) then
+    elseif lookatgoal and not self.IsSeeEnemy and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( self.EnemyLastPos ) ) ) then
         if not shouldLookTime then
             self.LookAtEnemyLastPos = cur + curiosity
 
         end
         lookAtPos = self.EnemyLastPos
 
-    elseif laddering then
+    elseif lookatgoal and laddering then
         lookAtPos = myPos + self:GetVelocity() * 100
 
     elseif ( lookatgoal or movingSlow ) and self:PathIsValid() then
@@ -2596,20 +2596,19 @@ function ENT:OnLandOnGround( ent )
         self:LethalFallDamage()
         killScale = 100
         killBoxScale = 8
+
     elseif fellOnSky and fallHeight > 500 then
         self:FallIntoTheVoid()
 
-    elseif fallHeight >= 50 and self.ReallyHeavy then
+    elseif fallHeight >= 50 then
         local layer = self:AddGesture( self:TranslateActivity( ACT_LAND ) )
 
         if fallHeight >= 500 then
-            if not self:IsSilentStepping() then
+            if not self:IsSilentStepping() and self.MetallicMoveSounds then
                 util.ScreenShake( self:GetPos(), 16, 20, 0.4, 3000 )
-                if self.MetallicMoveSounds then
-                    self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 100, 60, 1, CHAN_STATIC )
-                    self:EmitSound( "physics/metal/metal_computer_impact_bullet2.wav", 100, 30, 1, CHAN_STATIC )
+                self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 100, 60, 1, CHAN_STATIC )
+                self:EmitSound( "physics/metal/metal_computer_impact_bullet2.wav", 100, 30, 1, CHAN_STATIC )
 
-                end
                 for _ = 1, 3 do
                     self:EmitSound( table.Random( self.Whaps ), 75, math.random( 115, 120 ), 1, CHAN_STATIC )
 
@@ -2620,13 +2619,11 @@ function ENT:OnLandOnGround( ent )
 
         elseif fallHeight >= 250 then
             self:MakeFootstepSound( 1 )
-            if not self:IsSilentStepping() then
+            if not self:IsSilentStepping() and self.MetallicMoveSounds then
                 util.ScreenShake( self:GetPos(), 4, 20, 0.1, 800 )
-                if self.MetallicMoveSounds then
-                    self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 84, 90, 1, CHAN_STATIC )
-                    self:EmitSound( "physics/metal/metal_computer_impact_bullet2.wav", 84, 40, 0.6, CHAN_STATIC )
+                self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 84, 90, 1, CHAN_STATIC )
+                self:EmitSound( "physics/metal/metal_computer_impact_bullet2.wav", 84, 40, 0.6, CHAN_STATIC )
 
-                end
             end
             self:SetLayerPlaybackRate( layer, 0.2 )
             self:SetLayerWeight( layer, 100 )
@@ -2635,17 +2632,22 @@ function ENT:OnLandOnGround( ent )
 
         else
             self:MakeFootstepSound( 1 )
-            if not self:IsSilentStepping() then
-                self:EmitSound( "physics/flesh/flesh_impact_hard1.wav", 80, 40, 0.3, CHAN_STATIC )
+            if not self:IsSilentStepping() and self.MetallicMoveSounds then
                 util.ScreenShake( self:GetPos(), 0.5, 20, 0.1, 600 )
-                if self.MetallicMoveSounds then
-                    self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 80, 40, 0.3, CHAN_STATIC )
+                self:EmitSound( "physics/flesh/flesh_impact_hard1.wav", 80, 40, 0.3, CHAN_STATIC )
+                self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 80, 40, 0.3, CHAN_STATIC )
 
-                end
             end
             self:SetLayerPlaybackRate( layer, 1 )
             killScale = 20
             killBoxScale = 0.8
+
+        end
+
+        local heightToStartTakingDamage = self.HeightToStartTakingDamage
+        if fallHeight > heightToStartTakingDamage then
+            local damage = math.abs( fallHeight - heightToStartTakingDamage )
+            self:TakeDamage( damage )
 
         end
     end
@@ -2683,7 +2685,7 @@ function ENT:OnLandOnGround( ent )
 end
 
 function ENT:FallIntoTheVoid()
-    if not self:IsSilentStepping() then
+    if self.ReallyHeavy and not self:IsSilentStepping() then
         local snd = CreateSound( self, "ambient/levels/canals/windmill_wind_loop1.wav" )
         snd:SetSoundLevel( 100 )
         snd:PlayEx( 1, 100 )
@@ -2696,8 +2698,10 @@ function ENT:FallIntoTheVoid()
         end )
     end
 
-    self:TakeDamage( math.huge )
+    if self.TakesFallDamage then
+        self:TakeDamage( math.huge )
 
+    end
 end
 
 
@@ -2715,8 +2719,10 @@ function ENT:LethalFallDamage()
         end
     end
 
-    self:TakeDamage( math.huge )
+    if self.TakesFallDamage then
+        self:TakeDamage( math.huge )
 
+    end
 end
 
 

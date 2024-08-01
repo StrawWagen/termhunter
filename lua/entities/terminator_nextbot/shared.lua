@@ -2416,6 +2416,10 @@ ENT.DeathDropHeight = 2000 --not afraid of heights
 ENT.LastEnemySpotTime = 0
 ENT.InformRadius = 20000
 
+ENT.TakesFallDamage = true
+ENT.HeightToStartTakingDamage = 100
+ENT.FallDamagePerHeight = 0.05
+
 ENT.FistDamageMul = 4
 ENT.ThrowingForceMul = 1000 -- speed we throw crowbars, this is the overcharged one so it's 1k
 
