@@ -239,7 +239,7 @@ function ENT:OnTakeDamage( Damage )
         BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
     elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then --combine ball!
-        Damage:SetDamage( 455 )
+        Damage:SetDamage( terminator_Extras.healthDefault * 0.55 )
         BgDamage = 140
 
         ToBGs = { 0, 1, 2, 3, 4, 5, 6 }

@@ -2363,10 +2363,10 @@ if not termModel() then
 end
 
 local fovDefault = 95
-local fovVar = CreateConVar( "termhunter_fovoverride", -1, FCVAR_ARCHIVE, "Override the terminator's FOV, -1 for default, " .. fovDefault, -1, fovDefault )
+local fovVar = CreateConVar( "termhunter_fovoverride", -1, FCVAR_ARCHIVE, "Override the terminator's FOV, -1 for default, ( " .. fovDefault .. ")", -1, fovDefault )
 local fovCached
 
-local function varThink()
+local function fovVarThink()
     local valRaw = fovVar:GetInt()
     if valRaw <= -1 then
         fovCached = fovDefault
@@ -2383,13 +2383,27 @@ local function varThink()
     end
 end
 
-varThink()
+fovVarThink()
 
 cvars.AddChangeCallback( "termhunter_fovoverride", function()
-    varThink()
+    fovVarThink()
 
 end )
 
+
+terminator_Extras.healthDefault = 900
+local healthVar = CreateConVar( "termhunter_health", -1, FCVAR_ARCHIVE, "Override the terminator's health, -1 for default, ( " .. terminator_Extras.healthDefault .. " )", -1, 99999999 )
+
+local function healthFunc()
+    local valRaw = healthVar:GetInt()
+    if valRaw <= -1 then
+        return terminator_Extras.healthDefault
+
+    else
+        return valRaw
+
+    end
+end
 
 
 -- config var
@@ -2406,7 +2420,7 @@ ENT.StandingStepHeight = ENT.DefaultStepHeight * 1.5
 ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
 ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
-ENT.SpawnHealth = 900
+ENT.SpawnHealth = healthFunc
 ENT.AimSpeed = 480
 ENT.WalkSpeed = 130
 ENT.MoveSpeed = 300
@@ -5155,10 +5169,12 @@ function ENT:DoTasks()
                 local tooCloseToDangerousAndGettingCloser = tooDangerousToApproach and self.DistToEnemy < tooCloseToDangerous and posImHeadingTo and enemyPos and SqrDistLessThan( posImHeadingTo:DistToSqr( enemyPos ), self.DistToEnemy )
 
                 local canGetWeap, potentialWep = self:canGetWeapon()
+                local unholstering = potentialWep and potentialWep:GetParent() == self
+                local hiddenOrUnholstering = self.IsSeeEnemy or unholstering
 
                 local result = self:ControlPath2( not self.IsSeeEnemy and self.WasHidden )
                 -- weap
-                if canGetWeap and not self.IsSeeEnemy and self:getTheWeapon( "movement_stalkenemy", potentialWep, "movement_stalkenemy" ) then
+                if canGetWeap and hiddenOrUnholstering and self:getTheWeapon( "movement_stalkenemy", potentialWep, "movement_stalkenemy" ) then
                     self.WasHidden = nil
                     self.PreventShooting = nil
                     return
@@ -5375,11 +5391,14 @@ function ENT:DoTasks()
                     self.PreventShooting = nil
                 end
 
+                local belowHalfHealth = ( self:Health() < self:GetMaxHealth() * 0.5 )
+                local scared = ( belowHalfHealth and self:inSeriousDanger() ) or self:EnemyIsLethalInMelee()
+
                 local result = self:ControlPath2( not self.IsSeeEnemy )
                 local canWep, potentialWep = self:canGetWeapon()
                 if canWep and not self.IsSeeEnemy and self:getTheWeapon( "movement_flankenemy", potentialWep, "movement_flankenemy" ) then
                     exit = true
-                elseif ( self:inSeriousDanger() or self:EnemyIsLethalInMelee() ) and not data.wasStalk and enemyBearingToMeAbs < 80 then
+                elseif scared and not data.wasStalk and enemyBearingToMeAbs < 80 then
                     self:TaskComplete( "movement_flankenemy" )
                     self:GetTheBestWeapon()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "that hurt!" )
@@ -5829,7 +5848,7 @@ function ENT:DoTasks()
                 local canWep, potentialWep = self:canGetWeapon()
                 if canWep and not GoodEnemy and self:getTheWeapon( "movement_followenemy", potentialWep, "movement_followenemy" ) then
                     return
-                elseif ( self:inSeriousDanger() and GoodEnemy and not self:IsReallyAngry() ) or self:EnemyIsLethalInMelee() then
+                elseif ( self:inSeriousDanger() and GoodEnemy and not ( self:IsReallyAngry() or self:Health() < self:GetMaxHealth() * 0.5 ) ) or self:EnemyIsLethalInMelee() then
                     self:TaskFail( "movement_followenemy" )
                     self:GetTheBestWeapon()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5, quickFlank = true }, "i dont want to die" )
@@ -6667,7 +6686,7 @@ function ENT:DoTasks()
                 else
                     local myShootPos = self:GetShootPos()
 
-                    if not data.campingStarePos or data.notSeeCount > data.notSeeToLookAround then
+                    if not data.campingStarePos or ( data.notSeeCount > data.notSeeToLookAround ) then
                         local didOne
                         for _ = 1, 5 do
                             local offset = VectorRand()
@@ -6676,7 +6695,7 @@ function ENT:DoTasks()
                             offset = offset * 500
                             local offsetted = myShootPos + offset
                             if terminator_Extras.PosCanSeeComplex( myShootPos, data.bestPos, self ) then
-                                data.notSeeToLookAround = data.notSeeToLookAround + math.random( 100, 300 )
+                                data.notSeeToLookAround = data.notSeeToLookAround + math.random( 10, 50 )
                                 data.campingStarePos = offsetted
                                 didOne = true
                                 break
@@ -6684,7 +6703,7 @@ function ENT:DoTasks()
                             end
                         end
                         if not didOne then
-                            data.notSeeToLookAround = data.notSeeToLookAround + math.random( 10, 20 )
+                            data.notSeeToLookAround = data.notSeeToLookAround + math.random( 5, 10 )
 
                         end
                     end

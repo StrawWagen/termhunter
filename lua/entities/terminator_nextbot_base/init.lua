@@ -106,8 +106,13 @@ function ENT:Initialize()
 	self:SetSolidMask(self.SolidMask)
 	self:SetCollisionGroup(COLLISION_GROUP_PLAYER)
 
-	self:SetMaxHealth(self.SpawnHealth)
-	self:SetHealth(self:GetMaxHealth())
+	local spawnHealth = self.SpawnHealth
+	if isfunction( spawnHealth ) then
+		spawnHealth = spawnHealth()
+
+	end
+	self:SetMaxHealth( spawnHealth )
+	self:SetHealth( self:GetMaxHealth() )
 
 	self:AddFlags(FL_OBJECT)
 
