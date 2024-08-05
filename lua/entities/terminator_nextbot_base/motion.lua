@@ -367,7 +367,7 @@ function ENT:SetupGesturePosture()
 		local len = self:SetSequence(seq)
 		self:ResetSequenceInfo()
 		self:SetCycle(0)
-		self:SetPlaybackRate(spd)
+		self:SetPlaybackRate( math.Clamp( spd, 0, 12 ) )
 		
 		self.m_CurPosture = {CurTime()+len/spd,autokill}
 	end
