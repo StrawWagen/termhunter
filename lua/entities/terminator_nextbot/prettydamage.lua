@@ -143,6 +143,8 @@ local function OnDamaged( damaged, Hitgroup, Damage )
     if not damaged.isTerminatorHunterBased then return end
     damaged:MakeFeud( Damage:GetAttacker() )
 
+    damaged:PostTookDamage( Damage )
+
     if not damaged.DoMetallicDamage then return end
     damaged.lastDamagedTime = _CurTime()
     local ToBGs = nil
@@ -202,6 +204,9 @@ hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", OnDamaged )
 -- dmg w/o bodygroup data
 
 function ENT:OnTakeDamage( Damage )
+
+    self:PostTookDamage( Damage )
+
     if not self.DoMetallicDamage then return end
     self.lastDamagedTime = _CurTime()
     local attacker = Damage:GetAttacker()
@@ -377,4 +382,20 @@ function ENT:OnKilled( dmg )
         child:SetNoDraw( true )
 
     end
+end
+
+function ENT:PostTookDamage( dmg )
+    local dmgPos = self:getBestPos( dmg:GetAttacker() )
+    self.TookDamagePos = dmgPos
+    local time = math.Rand( 0.5, 1 )
+    if self:IsAngry() then
+        time = time * 0.5
+
+    end
+    timer.Simple( time, function()
+        if not IsValid( self ) then return end
+        if self.TookDamagePos ~= dmgPos then return end
+        self.TookDamagePos = nil
+
+    end )
 end

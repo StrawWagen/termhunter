@@ -1392,6 +1392,7 @@ local interruptedSpeedToAimAtProps = 100^2
     overriden to fuck with the broken jumping, hopefully making it more reliable.
 --]]------------------------------------
 function ENT:MoveAlongPath( lookatgoal )
+    local myTbl = self:GetTable()
     local path = self:GetPath()
     --local drawingPath
 
@@ -1402,7 +1403,7 @@ function ENT:MoveAlongPath( lookatgoal )
     end
     local myPos = self:GetPos()
     local myArea = self:GetTrueCurrentNavArea()
-    local iAmOnGround = self.loco:IsOnGround()
+    local iAmOnGround = myTbl.loco:IsOnGround()
     local _, aheadSegment = self:GetNextPathArea( myArea ) -- top of the jump
     local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
 
@@ -1429,18 +1430,18 @@ function ENT:MoveAlongPath( lookatgoal )
             self:PhysicallyPushEnt( disrespecting, 250 )
 
         end
-        if not self.LookAheadOnlyWhenBlocked and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
+        if not myTbl.LookAheadOnlyWhenBlocked and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
             speedToStopLookingFarAhead = interruptedSpeedToAimAtProps
 
         end
     end
     local lookAtPos
-    local myVelLengSqr = self.loco:GetVelocity():LengthSqr()
+    local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
-    local hint = self.lastHeardSoundHint
+    local hint = myTbl.lastHeardSoundHint
     local curiosity = 0.5
 
-    local lookAtEnemyLastPos = self.LookAtEnemyLastPos or 0
+    local lookAtEnemyLastPos = myTbl.LookAtEnemyLastPos or 0
     local shouldLookTime = lookAtEnemyLastPos > cur
 
     if hint and hint.valuable then
@@ -1448,18 +1449,21 @@ function ENT:MoveAlongPath( lookatgoal )
 
     end
 
-    if not self.IsSeeEnemy and self.interceptPeekTowardsEnemy and self.lastInterceptTime + 2 > cur then
-        lookAtPos = self.lastInterceptPos
+    if not myTbl.IsSeeEnemy and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
+        lookAtPos = myTbl.lastInterceptPos
 
-    elseif lookatgoal and not self.IsSeeEnemy and hint and hint.time + curiosity > cur then
+    elseif myTbl.TookDamagePos then
+        lookAtPos = myTbl.TookDamagePos
+
+    elseif lookatgoal and not myTbl.IsSeeEnemy and hint and hint.time + curiosity > cur then
         lookAtPos = hint.source
 
-    elseif lookatgoal and not self.IsSeeEnemy and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( self.EnemyLastPos ) ) ) then
+    elseif lookatgoal and not myTbl.IsSeeEnemy and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
         if not shouldLookTime then
-            self.LookAtEnemyLastPos = cur + curiosity
+            myTbl.LookAtEnemyLastPos = cur + curiosity
 
         end
-        lookAtPos = self.EnemyLastPos
+        lookAtPos = myTbl.EnemyLastPos
 
     elseif lookatgoal and laddering then
         lookAtPos = myPos + self:GetVelocity() * 100
@@ -1512,9 +1516,9 @@ function ENT:MoveAlongPath( lookatgoal )
         return
     end
 
-    if self.terminator_HandlingLadder then
+    if myTbl.terminator_HandlingLadder then
         self:ExitLadder( aheadSegment.pos )
-        self.terminator_HandlingLadder = nil
+        myTbl.terminator_HandlingLadder = nil
 
     end
 
@@ -1527,29 +1531,29 @@ function ENT:MoveAlongPath( lookatgoal )
     end
 
     local doPathUpdate = nil
-    local obstacleAvoid = self.m_PathObstacleAvoidPos
+    local obstacleAvoid = myTbl.m_PathObstacleAvoidPos
     if obstacleAvoid then
-        local obstacleTarget = self.m_PathObstacleAvoidTarget
+        local obstacleTarget = myTbl.m_PathObstacleAvoidTarget
 
-        local obstacleGoal = self.m_PathObstacleGoal
+        local obstacleGoal = myTbl.m_PathObstacleGoal
         if not obstacleGoal then
             obstacleGoal = aheadSegment.pos
-            self.m_PathObstacleGoal = obstacleGoal
+            myTbl.m_PathObstacleGoal = obstacleGoal
 
         end
 
         -- it got us along the path
         local progressed = obstacleGoal and obstacleGoal ~= aheadSegment.pos
         if progressed then
-            if self.m_PathObstacleRebuild then
+            if myTbl.m_PathObstacleRebuild then
                 self:InvalidatePath( "obstacle avoid 1" )
                 return
 
             end
-            self.m_PathObstacleGoal = nil
-            self.m_PathObstacleAvoidPos = nil
-            self.m_PathObstacleAvoidTarget = nil
-            self.m_PathObstacleAvoidTimeout = 0
+            myTbl.m_PathObstacleGoal = nil
+            myTbl.m_PathObstacleAvoidPos = nil
+            myTbl.m_PathObstacleAvoidTarget = nil
+            myTbl.m_PathObstacleAvoidTimeout = 0
             return
 
         end
@@ -1580,23 +1584,23 @@ function ENT:MoveAlongPath( lookatgoal )
         local distToPos = self:NearestPoint( goingTo ):DistToSqr( goingTo )
         local atAvoidPos = not seeGoal and distToPos < 1
         if seeGoal then
-            self.m_PathObstacleAvoidTimeout = self.m_PathObstacleAvoidTimeout + -0.2
+            myTbl.m_PathObstacleAvoidTimeout = myTbl.m_PathObstacleAvoidTimeout + -0.2
 
         end
 
-        local timeout = self.m_PathObstacleAvoidTimeout < cur
+        local timeout = myTbl.m_PathObstacleAvoidTimeout < cur
 
         if timeout or atAvoidPos then
-            if self.m_PathObstacleRebuild then
+            if myTbl.m_PathObstacleRebuild then
                 self:InvalidatePath( "obstacle avoid 3" )
                 return
 
             end
-            self.m_PathObstacleGoal = nil
-            self.m_PathObstacleRebuild = nil
-            self.m_PathObstacleAvoidPos = nil
-            self.m_PathObstacleAvoidTarget = nil
-            self.m_PathObstacleAvoidTimeout = 0
+            myTbl.m_PathObstacleGoal = nil
+            myTbl.m_PathObstacleRebuild = nil
+            myTbl.m_PathObstacleAvoidPos = nil
+            myTbl.m_PathObstacleAvoidTarget = nil
+            myTbl.m_PathObstacleAvoidTimeout = 0
 
         else
             --debugoverlay.Line( myPos, goingTo, 0.5, color_white, true )
@@ -1609,7 +1613,7 @@ function ENT:MoveAlongPath( lookatgoal )
         end
     end
 
-    local checkTolerance = self.PathGoalTolerance * 4
+    local checkTolerance = myTbl.PathGoalTolerance * 4
 
     --figuring out what kind of terrian we passing
     -- filter with me + my children
@@ -1633,7 +1637,7 @@ function ENT:MoveAlongPath( lookatgoal )
         if not result.Hit then
             reallyJustAGap = true
 
-        elseif result.HitPos.z < lowestSegmentsZ + -self.loco:GetStepHeight() * 2 then
+        elseif result.HitPos.z < lowestSegmentsZ + -myTbl.loco:GetStepHeight() * 2 then
             reallyJustAGap = true
             --debugoverlay.Cross( aheadSegment.pos, 10, 10, color_white, true )
             --debugoverlay.Cross( middle, 10, 10, color_white, true )
@@ -1674,12 +1678,12 @@ function ENT:MoveAlongPath( lookatgoal )
             if hitBelowDest and not result.StartSolid then
                 dropIsReallyJustAGap = true
                 aheadSegment = segAfterTheDrop
-                self.m_PathObstacleAvoidPos = nil
-                self.wasADropTypeInterpretedAsAGap = true
+                myTbl.m_PathObstacleAvoidPos = nil
+                myTbl.wasADropTypeInterpretedAsAGap = true
 
             end
             -- landed jump, recalculate
-            if iAmOnGround and myPos.z < segAfterTheDrop.pos.z + 25 and self.wasADropTypeInterpretedAsAGap then
+            if iAmOnGround and myPos.z < segAfterTheDrop.pos.z + 25 and myTbl.wasADropTypeInterpretedAsAGap then
                 self:InvalidatePath( "did a fake dropdown gap jump" )
                 return false
 
@@ -1729,7 +1733,7 @@ function ENT:MoveAlongPath( lookatgoal )
 
             end
 
-            if result.HitPos.z < aheadSegment.pos.z + -self.loco:GetStepHeight() then
+            if result.HitPos.z < aheadSegment.pos.z + -myTbl.loco:GetStepHeight() then
                 realGapJump = true
 
             end
@@ -1756,7 +1760,7 @@ function ENT:MoveAlongPath( lookatgoal )
     local areaSimple = self:GetCurrentNavArea()
 
     local myHeightToNext = aheadSegment.pos.z - myPos.z
-    local jumpableHeight = myHeightToNext < self.JumpHeight
+    local jumpableHeight = myHeightToNext < myTbl.JumpHeight
 
     if areaSimple and good then
 
@@ -1768,15 +1772,15 @@ function ENT:MoveAlongPath( lookatgoal )
         end
         local blockJump = areaSimple:HasAttributes( NAV_MESH_NO_JUMP ) or tryingToJumpUpStairs or prematureGapJump
 
-        if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( self.nextPathJump or 0 ) < cur then
+        if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( myTbl.nextPathJump or 0 ) < cur then
             local dir = aheadSegment.pos-myPos
             dir.z = 0
             dir:Normalize()
 
             local jumpstate, jumpBlockerJumpOver, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, aheadSegment.pos )
 
-            self.moveAlongPathJumpingHeight = jumpingHeight or self.moveAlongPathJumpingHeight
-            self.jumpBlockerJumpOver = jumpBlockerJumpOver or self.jumpBlockerJumpOver
+            myTbl.moveAlongPathJumpingHeight = jumpingHeight or myTbl.moveAlongPathJumpingHeight
+            myTbl.jumpBlockerJumpOver = jumpBlockerJumpOver or myTbl.jumpBlockerJumpOver
 
             -- jump height that matches gap we're jumping over
             if gapping and aheadSegment then
@@ -1800,31 +1804,31 @@ function ENT:MoveAlongPath( lookatgoal )
             end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight
-            local smallObstacleBlocking = smallObstacle and ( myVelLengSqr < speedToConsiderSmallJumps or self.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
+            local smallObstacleBlocking = smallObstacle and ( myVelLengSqr < speedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
             local needsToFeelAround
             if jumpstate == 2 then
                 local nextAreasClosestPoint = aheadArea:GetClosestPointOnArea( myPos )
                 local myAreasClosestPointToNext = areaSimple:GetClosestPointOnArea( nextAreasClosestPoint )
-                needsToFeelAround = ( nextAreasClosestPoint.z - myAreasClosestPointToNext.z ) > self.loco:GetStepHeight()
+                needsToFeelAround = ( nextAreasClosestPoint.z - myAreasClosestPointToNext.z ) > myTbl.loco:GetStepHeight()
 
             end
 
-            --print( myHeightToNext, self.loco:GetStepHeight() )
+            --print( myHeightToNext, myTbl.loco:GetStepHeight() )
             --print( aheadType == 2, currType == 2, realGapJump, reallyJustAGap, validDroptypeInterpretedAsGap )
-            --print( jumpstate, smallObstacle, jumptype, dropTypeToDealwith, smallObstacleBlocking, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, self.m_PathJump and jumpstate == 1, jumpstate == 2, needsToFeelAround )
+            --print( jumpstate, smallObstacle, jumptype, dropTypeToDealwith, smallObstacleBlocking, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, myTbl.m_PathJump and jumpstate == 1, jumpstate == 2, needsToFeelAround )
             if
                 jumptype or                                                     -- jump segment
                 dropTypeToDealwith or
                 smallObstacleBlocking or
                 areaSimple:HasAttributes( NAV_MESH_JUMP ) or                    -- jump area
                 droptype and jumpstate == 1 or                                  -- dropping down and there's obstacle
-                self.m_PathJump and jumpstate == 1 or
+                myTbl.m_PathJump and jumpstate == 1 or
                 jumpstate == 2 or
                 needsToFeelAround
 
             then
-                local beenCloseToTheBottomOfTheJump = closeToGoal or self.beenCloseToTheBottomOfTheJump
-                self.beenCloseToTheBottomOfTheJump = beenCloseToTheBottomOfTheJump
+                local beenCloseToTheBottomOfTheJump = closeToGoal or myTbl.beenCloseToTheBottomOfTheJump
+                myTbl.beenCloseToTheBottomOfTheJump = beenCloseToTheBottomOfTheJump
 
                 -- obstacle, we have to move around if we want to go past it
                 if jumpstate == 2 then
@@ -1838,20 +1842,20 @@ function ENT:MoveAlongPath( lookatgoal )
 
                     local reverseOffs = -dir * 15
                     local goodPosToGoto, wasNothingGreat = self:PosThatWillBringUsTowards( myPos + reverseOffs + vec_up15, bitFurtherAheadSegment.pos )
-                    self.m_PathJump = true
-                    self.m_PathObstacleAvoidPos = goodPosToGoto
-                    self.m_PathObstacleAvoidTarget = bitFurtherAheadSegment.pos
-                    self.m_PathObstacleAvoidTimeout = cur + 4
+                    myTbl.m_PathJump = true
+                    myTbl.m_PathObstacleAvoidPos = goodPosToGoto
+                    myTbl.m_PathObstacleAvoidTarget = bitFurtherAheadSegment.pos
+                    myTbl.m_PathObstacleAvoidTimeout = cur + 4
                     if not goodPosToGoto or wasNothingGreat then
                         -- speed up the connection flagging unstucker, we cant get thru here
                         self:OnHardBlocked()
-                        self.m_PathObstacleRebuild = true
+                        myTbl.m_PathObstacleRebuild = true
 
                     end
 
                 -- droptypes have a habit of being over-generated, find a path "downwards" even if it's not a direct path
                 elseif dropTypeToDealwith then
-                    self.m_PathJump = true
+                    myTbl.m_PathJump = true
                     local _, segDropdownBottom = self:GetNextPathArea( aheadArea, 1 )
                     local segAfterTheDrop = segDropdownBottom or aheadSegment
 
@@ -1862,11 +1866,11 @@ function ENT:MoveAlongPath( lookatgoal )
                         self:OnHardBlocked()
 
                     else
-                        self.m_PathObstacleAvoidPos = dropdownClearPos
-                        self.m_PathObstacleAvoidTarget = segAfterTheDrop.pos
-                        self.m_PathObstacleAvoidTimeout = cur + 4
+                        myTbl.m_PathObstacleAvoidPos = dropdownClearPos
+                        myTbl.m_PathObstacleAvoidTarget = segAfterTheDrop.pos
+                        myTbl.m_PathObstacleAvoidTimeout = cur + 4
 
-                        self.m_PathObstacleRebuild = true
+                        myTbl.m_PathObstacleRebuild = true
 
                     end
 
@@ -1874,8 +1878,8 @@ function ENT:MoveAlongPath( lookatgoal )
                 elseif jumpstate == 1 or ( ( gapping or jumptype ) and beenCloseToTheBottomOfTheJump ) or ( droptype and jumpstate == 1 ) then
                     -- Performing jump
 
-                    self.wasDoingJumpOverSmallObstacle = smallObstacle
-                    self.jumpBlockClearPos = jumpBlockClearPos
+                    myTbl.wasDoingJumpOverSmallObstacle = smallObstacle
+                    myTbl.jumpBlockClearPos = jumpBlockClearPos
 
                     self:Jump( jumpingHeight )
                     doPathUpdate = true
@@ -1885,10 +1889,10 @@ function ENT:MoveAlongPath( lookatgoal )
                 -- Trying deal with jump, don't update path
                 isHandlingJump = true
                 doingJump = closeToGoal
-            elseif iAmOnGround and self.m_PathJump and jumpstate == 0 then
-                self.m_PathJump = false
-                self.wasDoingJumpOverSmallObstacle = nil
-                self.jumpBlockClearPos = nil
+            elseif iAmOnGround and myTbl.m_PathJump and jumpstate == 0 then
+                myTbl.m_PathJump = false
+                myTbl.wasDoingJumpOverSmallObstacle = nil
+                myTbl.jumpBlockClearPos = nil
 
             end
         end
@@ -1909,10 +1913,10 @@ function ENT:MoveAlongPath( lookatgoal )
             local destinationRelativeToBot = nil
             local validJumpableBotRelative = nil
             local validJumpablePathRelative = nil
-            local validJumpableHeightOffset = self.moveAlongPathJumpingHeight
+            local validJumpableHeightOffset = myTbl.moveAlongPathJumpingHeight
 
-            if self.wasDoingJumpOverSmallObstacle then
-                smallJumpEnd = self.jumpBlockClearPos
+            if myTbl.wasDoingJumpOverSmallObstacle then
+                smallJumpEnd = myTbl.jumpBlockClearPos
 
             end
             if aheadSegment.pos then
@@ -1977,8 +1981,8 @@ function ENT:MoveAlongPath( lookatgoal )
 
         end
     elseif not isHandlingJump and iAmOnGround then
-        self.WasSetposCrouchJump = nil
-        self.wasADropTypeInterpretedAsAGap = nil
+        myTbl.WasSetposCrouchJump = nil
+        myTbl.wasADropTypeInterpretedAsAGap = nil
         doPathUpdate = true
         --debugoverlay.Cross( aheadSegment.pos, 100, 0.1, color_white, true )
 
@@ -2011,12 +2015,12 @@ function ENT:MoveAlongPath( lookatgoal )
             end
 
             -- detect when bot falls down and we need to repath
-            local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegment.pos.z ), self.loco:GetMaxJumpHeight() * 1.5 )
+            local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegment.pos.z ), myTbl.loco:GetMaxJumpHeight() * 1.5 )
             local changeToSegment = math.abs( myPos.z - currSegment.pos.z )
 
             if changeToSegment > maxHeightChange * 1.25 then
                 --print( "invalid", changeToSegment, maxHeightChange * 2 )
-                self.terminator_FellOffPath = true
+                myTbl.terminator_FellOffPath = true
                 self:InvalidatePath( "i fell off my path" )
 
             end
@@ -2030,27 +2034,27 @@ function ENT:MoveAlongPath( lookatgoal )
         end
 
         -- dampen sideways vel when in air
-        local myVel = self.loco:GetVelocity()
+        local myVel = myTbl.loco:GetVelocity()
         local newVel = myVel * 1
         newVel.x = newVel.x * 0.9
         newVel.y = newVel.y * 0.9
 
-        self.loco:SetVelocity( newVel )
+        myTbl.loco:SetVelocity( newVel )
 
     end
 
-    local oldPathSegment = self.oldWasClosePathSegment
+    local oldPathSegment = myTbl.oldWasClosePathSegment
     if oldPathSegment ~= aheadSegment then
-        self.oldWasClosePathSegment = aheadSegment
-        self.beenCloseToTheBottomOfTheJump = nil
+        myTbl.oldWasClosePathSegment = aheadSegment
+        myTbl.beenCloseToTheBottomOfTheJump = nil
 
     end
 
-    self.isInTheMiddleOfJump = doingJump
+    myTbl.isInTheMiddleOfJump = doingJump
 
     local range = self:GetRangeTo( self:GetPathPos() )
 
-    if not path:IsValid() and range <= self.m_PathOptions.tolerance or range < self.PathGoalToleranceFinal then
+    if not path:IsValid() and range <= myTbl.m_PathOptions.tolerance or range < myTbl.PathGoalToleranceFinal then
         self:InvalidatePath( "i reached the end of my path!" )
         return true -- reached end
     elseif path:IsValid() then

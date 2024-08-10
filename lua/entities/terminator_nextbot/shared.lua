@@ -1074,6 +1074,7 @@ function ENT:Use2( toUse )
         if not toUse.GetPhysicsObject then return end
         local obj = toUse:GetPhysicsObject()
         if not obj or not obj.IsValid or not obj:IsValid() then return end
+        if self:GetRangeTo( toUse:GetPos() ) > 100 then return end
 
         obj:ApplyForceCenter( VectorRand() * 1000 )
 
@@ -2173,7 +2174,11 @@ function ENT:walkArea()
     local walkedArea = self:GetCurrentNavArea()
     if not walkedArea then return end
 
-    self:rememberAsReachable( walkedArea )
+    if not self:areaIsReachable( walkedArea ) and self.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
+        self.unreachableAreas = {}
+        self.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
+
+    end
 
     local nextFloodMark = self.nextFloodMarkWalkable or 0
 
@@ -2527,6 +2532,7 @@ function ENT:Initialize()
     self.walkedAreaTimes = {} -- times we walked/saw them
     self.hazardousAreas = {} -- areas we took damage in, used in pathoverrides
     self.unreachableAreas = {}
+    self.nextUnreachableWipe = 0
     self.failedPlacingAreas = {} -- areas we couldnt place stuff at
     self.awarenessBash = {}
     self.awarenessMemory = {}
@@ -5854,10 +5860,14 @@ function ENT:DoTasks()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5, quickFlank = true }, "i dont want to die" )
                 elseif self:CanBashLockedDoor( self:GetPos(), 1000 ) then
                     self:BashLockedDoor( "movement_followenemy" )
-                elseif data.Unreachable and GoodEnemy then
+                elseif data.Unreachable and GoodEnemy and self.IsSeeEnemy then
                     self:TaskFail( "movement_followenemy" )
                     self:GetTheBestWeapon()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i cant get to them" )
+                elseif data.Unreachable and GoodEnemy and not self.IsSeeEnemy then
+                    self:TaskFail( "movement_followenemy" )
+                    self:GetTheBestWeapon()
+                    self:StartTask2( "movement_perch", { requiredTarget = enemyPos, perchRadius = self:GetRangeTo( enemyPos ) * 1.5, distanceWeight = 0.01 }, "i cant get to them, lets see if i can get LOS" )
                 elseif data.Unreachable and not GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
                     self:GetTheBestWeapon()
