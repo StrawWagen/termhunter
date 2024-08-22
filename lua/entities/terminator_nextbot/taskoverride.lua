@@ -42,9 +42,9 @@ function ENT:RunTask( event, ... )
         local callback = taskReal[event]
 
         if callback then
-            -- always yields every ten 'k'
+            -- always yields every 2 'k'
             if k > nextYield then
-                nextYield = k + 10
+                nextYield = k + 2
                 yieldIfWeCan()
 
             end

@@ -274,6 +274,13 @@ function ENT:flagConnectionAsShit( area1, area2 )
     end )
 end
 
+hook.Add( "PostCleanupMap", "terminator_clear_connectionflags", function()
+    badConnections = {}
+    lastBadFlags = {}
+    superBadConnections = {}
+    lastSuperBadFlags = {}
+end )
+
 
 -- flanking!
 local hunterIsFlanking
@@ -580,6 +587,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     end
 
+    yieldIfWeCan()
+
     -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
     -- prevents paths to really small collections of navareas that don't connect back to the bot. ( and the lagspikes that come from those! )
     local pathDestinationIsAnOrphan, encounteredABlockedArea = self:AreaIsOrphan( endArea.area )
@@ -607,7 +616,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
                 self.term_ExpensivePath = true
 
             end
-            return nil, "blocked5"
+            return nil, "blocked5 ( the good ending )"
 
         -- no path! something failed
         else
@@ -636,7 +645,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     end
 
     if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
-    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 10 then return end
+    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 25 then return end -- if endpos is off the navmesh then dont create false unreachable flags
 
     --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
 
@@ -657,7 +666,10 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
         -- uhhh we got back to our own area....
         if area2 == scoreData.myArea then
-            invalidUnreachable = true
+            if score > 1 then -- really screwed
+                invalidUnreachable = true
+
+            end
             return math.huge
 
         -- we are dealing with a locked door, not an orphan/elevated area!
@@ -704,6 +716,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         self.overrideVeryStuck = true
 
     end
+
+    self:RunTask( "OnPathFail" )
 
     return true, "extremefailure"
 

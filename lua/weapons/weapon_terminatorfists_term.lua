@@ -106,7 +106,7 @@ local slidingDoors = {
 
 }
 
-function SWEP:HandleDoor( tr )
+function SWEP:HandleDoor( tr, strength )
     if CLIENT or not IsValid( tr.Entity ) then return end
     local door = tr.Entity
     if door.realDoor then
@@ -152,7 +152,7 @@ function SWEP:HandleDoor( tr )
 
         end
 
-        local lockDamage = 15
+        local lockDamage = 15 * strength
 
         lockHealth = lockHealth + -lockDamage
 
@@ -184,7 +184,7 @@ function SWEP:HandleDoor( tr )
 
     elseif class == "func_door_rotating" or isProperDoor or isBashableSlidDoor then
         local HitCount = door.term_PunchedCount or 0
-        door.term_PunchedCount = HitCount + 1
+        door.term_PunchedCount = HitCount + strength
 
         if terminator_Extras.CanBashDoor( door ) == false then
             terminator_Extras.DoorHitSound( door )
@@ -407,19 +407,21 @@ function SWEP:DealDamage()
         local Class = hitEnt:GetClass()
         local IsGlass = Class == "func_breakable_surf"
         -- teamkilling is funny but also stupid
-        local friendly = hitEnt:IsNPC() and Class == owner:GetClass() and owner:Disposition( hitEnt ) ~= D_HT
+        local friendly = hitEnt:IsNPC() and hitEnt.isTerminatorHunterChummy == owner.isTerminatorHunterChummy and owner:Disposition( hitEnt ) ~= D_HT
+
+        local strength = owner.FistDamageMul or 1
+
         if IsGlass then
             hitEnt:Fire( "Shatter", tr.HitPos )
         else
             local _, entMemoryKey = owner.getMemoryOfObject and owner:getMemoryOfObject( hitEnt )
 
-            local dmgMul = owner.FistDamageMul or 1
+            local dmgMul = strength
             if friendly then
                 dmgMul = 0.05
                 hitEnt.overrideMiniStuck = true
 
             end
-
             -- break not plauer stuff fast
             if not hitEnt:IsPlayer() then
                 dmgMul = dmgMul + 1
@@ -472,7 +474,7 @@ function SWEP:DealDamage()
 
 
         end
-        self:HandleDoor( tr )
+        self:HandleDoor( tr, strength )
     end
     if SERVER then
         if IsValid( hitEnt ) then

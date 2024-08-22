@@ -37,6 +37,8 @@ ENT.ThrowingForceMul = 1
 
 ENT.duelEnemyTimeoutMul = 5
 
+local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )
+
 -- copied the original function
 function ENT:MakeFootstepSound( volume, surface, mul )
     mul = mul or 1
@@ -73,17 +75,8 @@ function ENT:MakeFootstepSound( volume, surface, mul )
 
         if not self:OnFootstep( pos, foot, sound, volume, filter ) then
 
-            self.stepSoundPatches = self.stepSoundPatches or {}
-
             local intVolume = volume or 1
-            local stepSound = self.stepSoundPatches[sound]
-            if not stepSound then
-                stepSound = CreateSound( self, sound, filter )
-                self.stepSoundPatches[sound] = stepSound
-            end
-            stepSound:Stop()
-            stepSound:SetSoundLevel( 88 * mul )
-            stepSound:PlayEx( intVolume, 85 * mul )
+            self:EmitSound( sound, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
 
             local clompingLvl = 80
 
