@@ -2482,7 +2482,7 @@ ENT.IsStupid = nil -- enables optimisations/simplifcations that make sense for d
 
 ENT.TakesFallDamage = true
 ENT.HeightToStartTakingDamage = ENT.JumpHeight
-ENT.FallDamagePerHeight = 0.001
+ENT.FallDamagePerHeight = 0.05
 
 ENT.FistDamageMul = 4
 ENT.ThrowingForceMul = 1000 -- speed we throw crowbars, this is the overcharged one so it's 1k
