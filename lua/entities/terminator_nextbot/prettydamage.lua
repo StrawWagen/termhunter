@@ -179,8 +179,6 @@ local function OnDamaged( damaged, Hitgroup, Damage )
         damaged:CatDamage()
     end
 
-    damaged:TakenDamage( Damage )
-
     if BgDmg then
         if damaged:GetModel() ~= ARNOLD_MODEL then return end
         ToBGs = damaged.HitTranslate[Hitgroup] -- get bodygroups to do stuff to
@@ -280,15 +278,31 @@ function ENT:OnTakeDamage( Damage )
 
     end
 
-    self:TakenDamage( Damage )
-
 end
 
 local MEMORY_VOLATILE = 8
 local MEMORY_DAMAGING = 64
 
-function ENT:TakenDamage( damage )
-    if damage:GetDamage() <= 75 then return end
+function ENT:PostTookDamage( dmg )
+
+    self:RunTask( "OnDamaged", dmg )
+
+    local dmgPos = self:getBestPos( dmg:GetAttacker() )
+    self.TookDamagePos = dmgPos
+    local time = math.Rand( 0.5, 1 )
+    if self:IsAngry() then
+        time = time * 0.5
+
+    end
+    timer.Simple( time, function()
+        if not IsValid( self ) then return end
+        if self.TookDamagePos ~= dmgPos then return end
+        self.TookDamagePos = nil
+
+    end )
+
+
+    if dmg:GetDamage() <= 75 then return end
 
     -- make group of bots react to 1 getting damaged
     local ourChummy = self.isTerminatorHunterChummy
@@ -302,17 +316,19 @@ function ENT:TakenDamage( damage )
         end )
     end
 
+    if self.IsStupid then return end
+
     -- dont walk in this area ever again!
-    local areas = navmesh.Find( self:GetPos(), damage:GetDamage(), self.JumpHeight, self.JumpHeight )
+    local areas = navmesh.Find( self:GetPos(), dmg:GetDamage(), self.JumpHeight, self.JumpHeight )
     for _, area in ipairs( areas ) do
         table.insert( self.hazardousAreas, area )
 
     end
 
-    local inflictor = damage:GetInflictor()
+    local inflictor = dmg:GetInflictor()
     local trueDamager = IsValid( inflictor ) and not IsValid( inflictor:GetOwner() ) and not inflictor:IsPlayer() and not inflictor:IsNPC()
     if trueDamager then
-        if damage:IsExplosionDamage() then
+        if dmg:IsExplosionDamage() then
             self:memorizeEntAs( inflictor, MEMORY_VOLATILE )
 
         else
@@ -359,9 +375,16 @@ function ENT:OnKilled( dmg )
 
     end
 
+    if self.term_IdleLoopingSound then
+        self.term_IdleLoopingSound:Stop()
+        self.term_IdleLoopingSound = nil
+
+    end
+
     if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
         if dmg:IsDamageType( DMG_DISSOLVE ) then
             self:DissolveEntity()
+            self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
             hook.Run( "OnTerminatorKilledDissolve", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
         else
@@ -382,20 +405,4 @@ function ENT:OnKilled( dmg )
         child:SetNoDraw( true )
 
     end
-end
-
-function ENT:PostTookDamage( dmg )
-    local dmgPos = self:getBestPos( dmg:GetAttacker() )
-    self.TookDamagePos = dmgPos
-    local time = math.Rand( 0.5, 1 )
-    if self:IsAngry() then
-        time = time * 0.5
-
-    end
-    timer.Simple( time, function()
-        if not IsValid( self ) then return end
-        if self.TookDamagePos ~= dmgPos then return end
-        self.TookDamagePos = nil
-
-    end )
 end

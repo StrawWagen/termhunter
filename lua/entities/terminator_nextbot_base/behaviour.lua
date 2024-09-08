@@ -148,6 +148,7 @@ function ENT:BehaviourPlayerControlThink(ply)
 	local forward,right = eyeang:Forward(),eyeang:Right()
 	local f = self:ControlPlayerKeyDown(IN_FORWARD) and 1 or self:ControlPlayerKeyDown(IN_BACK) and -1 or 0
 	local r = self:ControlPlayerKeyDown(IN_MOVELEFT) and 1 or self:ControlPlayerKeyDown(IN_MOVERIGHT) and -1 or 0
+	local use = self:ControlPlayerKeyDown( IN_USE )
 	
 	if f!=0 or r!=0 then
 		local eyeang = ply:EyeAngles()
@@ -157,9 +158,17 @@ function ENT:BehaviourPlayerControlThink(ply)
 		
 		self:Approach(self:GetPos()+movedir*100)
 	end
+
+	if use then
+		local toUse = util.QuickTrace( self:GetShootPos(), self:GetAimVector() * 110, self ).Entity
+		if IsValid( toUse ) then
+			self:Use2( toUse )
+
+		end
+	end
 	
 	if self:ControlPlayerKeyPressed(IN_JUMP) then
-		self:Jump()
+		self:Jump( self.JumpHeight )
 	end
 	
 	if self:HasWeapon() then

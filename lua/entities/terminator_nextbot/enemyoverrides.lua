@@ -365,8 +365,8 @@ function ENT:MakeFeud( enemy )
     if enemy:GetClass() == "rpg_missile" then return end -- crazy fuckin bug
     if enemy:GetClass() == "env_flare" then return end
     local maniacHunter = ( self:GetCreationID() % 15 ) == 1 or self.alwaysManiac
-    local bothChummy = enemy.isTerminatorHunterChummy == self.isTerminatorHunterChummy
-    if bothChummy and not maniacHunter then return end
+    local sameChummy = enemy.isTerminatorHunterChummy == self.isTerminatorHunterChummy
+    if sameChummy and not maniacHunter then return end
 
     local disp = self:Disposition( enemy )
     if not disp then return end
@@ -470,16 +470,15 @@ function ENT:HasToCrouchToSeeEnemy()
     end
 end
 
+-- all other relationships are created by MakeFeud when something damages us
+-- means bot viciously attacks enemies that can hurt it!
 function ENT:DoHardcodedRelations()
-    self:SetClassRelationship( "player", D_HT,1 )
-    self:SetClassRelationship( "npc_lambdaplayer", D_HT,1 )
+    self:SetClassRelationship( "player", D_HT, 1 )
+    self:SetClassRelationship( "npc_lambdaplayer", D_HT, 1 )
     self:SetClassRelationship( "rpg_missile", D_NU )
     self:SetClassRelationship( "terminator_nextbot", D_LI )
     self:SetClassRelationship( "terminator_nextbot_slower", D_LI )
     self:SetClassRelationship( "terminator_nextbot_fakeply", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_follower", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_friendly", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_hostile", D_HT )
 
 end
 
@@ -688,4 +687,16 @@ function ENT:HandleFakeCrouching( data, enemy )
         self.overrideCrouch = CurTime() + crouch
 
     end
+end
+
+function ENT:GetNearbyAllies()
+    local allies = {}
+    for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
+        if ent == self or ent.isTerminatorHunterChummy ~= self.isTerminatorHunterChummy or self:GetPos():DistToSqr( ent:GetPos() ) > self.InformRadius^2 then continue end
+
+        table.insert( allies, ent )
+
+    end
+    return allies
+
 end

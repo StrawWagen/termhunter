@@ -495,6 +495,7 @@ function ENT:WeaponPrimaryAttack()
     if not self:HateBuggyWeapon( wep, successful ) then
         wep.terminator_FiredBefore = true
         self.terminator_LastAttack = CurTime()
+        self:RunTask( "OnAttack" )
 
     end
 end

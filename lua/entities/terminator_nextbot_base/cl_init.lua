@@ -8,7 +8,7 @@ function ENT:Initialize()
 	self.m_TaskList = {}
 	self.m_ActiveTasks = {}
 	self.m_ActiveTasksID = {}
-	
+
 	self:SetupTaskList(self.m_TaskList)
 	self:SetupTasks()
 end
@@ -19,7 +19,7 @@ end
 --]]------------------------------------
 function ENT:Draw()
 	self:DrawModel()
-	
+
 	self:RunTask("Draw")
 end
 

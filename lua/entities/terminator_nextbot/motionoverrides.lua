@@ -28,6 +28,15 @@ local function TrFilterNoSelf( me )
 
 end
 
+local singleplayer = game.SinglePlayer()
+
+function ENT:SetPosNoTeleport( pos )
+    if not singleplayer then self:PhysicsDestroy() end -- HACK to fix stupid buggy movement that's plauged the bots for years, literally just CTRL-V'ed it from drgbase
+    self:SetPos( pos )
+    if not singleplayer then self:PhysicsInitShadow() end
+
+end
+
 local smallHull = Vector( 1, 1, 1 )
 
 function ENT:ClearOrBreakable( start, endpos, doSmallHull, hullMul )
@@ -281,7 +290,7 @@ local function TryStuck( self, endPos, t, tr )
         local traceStruct = {
             start = self:GetPos(),
             endpos = endPos,
-            mask = MASK_SOLID,
+            mask = self:GetSolidMask(),
             filter = TrFilterNoSelf( self ),
         }
         local traceRes = util.TraceHull( traceStruct )
@@ -289,7 +298,7 @@ local function TryStuck( self, endPos, t, tr )
         local clearPath = traceRes.StartSolid or not traceRes.Hit
 
         if clearPath then
-            self:SetPos( endPos )
+            self:SetPosNoTeleport( endPos )
             self.loco:ClearStuck()
 
             self:OnUnStuck()
@@ -420,6 +429,8 @@ function ENT:ProcessFootsteps()
     end
 end
 
+local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )
+
 function ENT:MakeFootstepSound( volume, surface, mul )
     mul = mul or 1
     local foot = self.m_FootstepFoot
@@ -438,17 +449,6 @@ function ENT:MakeFootstepSound( volume, surface, mul )
         surface = tr.SurfaceProps
     end
 
-    -- do this before the surface check
-    local intVolume = volume or 1
-    local clompingLvl = 86
-    if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
-        clompingLvl = 76
-
-    end
-    clompingLvl = clompingLvl * mul
-
-    self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, math.random( 20, 30 ) / mul, intVolume / 1.5, CHAN_STATIC )
-
     if not surface then return end
 
     surface = util.GetSurfaceData( surface )
@@ -463,21 +463,19 @@ function ENT:MakeFootstepSound( volume, surface, mul )
         filter:AddAllPlayers()
 
         if not self:OnFootstep( pos, foot, sound, volume, filter ) then
+            local intVolume = volume or 1
+            local clompingLvl = 86
+            if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
+                clompingLvl = 76
 
-            self.stepSoundPatches = self.stepSoundPatches or {}
-
-            local stepSound = self.stepSoundPatches[sound]
-            if not stepSound then
-                stepSound = CreateSound( self, sound, filter )
-                self.stepSoundPatches[sound] = stepSound
             end
-            stepSound:Stop()
-            stepSound:SetSoundLevel( 88 * mul )
-            stepSound:PlayEx( intVolume, 85 * mul )
+            clompingLvl = clompingLvl * mul
+
+            self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, math.random( 20, 30 ) / mul, intVolume / 1.5, CHAN_STATIC )
+            self:EmitSound( sound, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
 
         end
     end
-
 end
 
 function ENT:isUnderWater()
@@ -546,6 +544,10 @@ end
 
 function ENT:ReallyAnger( time )
     local reallyAngryTime = self.terminator_ReallyAngryTime or CurTime()
+    if reallyAngryTime < CurTime() then
+        self:RunTask( "OnReallyAnger" )
+
+    end
     self.terminator_ReallyAngryTime = math.max( reallyAngryTime + time, CurTime() )
 
 end
@@ -556,6 +558,7 @@ function ENT:IsReallyAngry()
 
     if checkIsReallyAngry < CurTime() then
         self.terminator_CheckIsReallyAngry = CurTime() + 1
+        local oldReallyAngryTime = reallyAngryTime
         local enemy = self:GetEnemy()
 
         if enemy and enemy.isTerminatorHunterKiller then
@@ -574,6 +577,10 @@ function ENT:IsReallyAngry()
             reallyAngryTime = reallyAngryTime + 10
 
         end
+        if reallyAngryTime ~= oldReallyAngryTime and oldReallyAngryTime <= CurTime() then
+            self:RunTask( "OnReallyAnger" )
+
+        end
     end
 
     local reallyAngry = reallyAngryTime > CurTime()
@@ -586,6 +593,10 @@ end
 
 function ENT:Anger( time )
     local angryTime = self.terminator_AngryTime or CurTime()
+    if angryTime < CurTime() then
+        self:RunTask( "OnAnger" )
+
+    end
     self.terminator_AngryTime = math.max( angryTime + time, CurTime() )
 
 end
@@ -599,6 +610,7 @@ function ENT:IsAngry()
 
     if checkIsAngry < CurTime() then
         self.terminator_CheckIsAngry = CurTime() + math_Rand( 0.9, 1.1 )
+        local oldAngryTime = angryTime
         local enemy = self:GetEnemy()
 
         if enemy and ( enemy.isTerminatorHunterKiller or enemy.terminator_CantConvinceImFriendly ) then
@@ -634,6 +646,10 @@ function ENT:IsAngry()
         if not self.IsSeeEnemy then
             local angrynotseeing_Increment = self.terminator_AngryNotSeeing or 0
             self.terminator_AngryNotSeeing = angrynotseeing_Increment + 1
+
+        end
+        if angryTime ~= oldAngryTime and oldAngryTime <= CurTime() then
+            self:RunTask( "OnAnger" )
 
         end
     end
@@ -792,7 +808,8 @@ local random1 = Vector( 0, 0, 0 )
 local random2 = Vector( 0, 0, 0 )
 
 -- find pos to path to, for geting around any kind of obstacle
-function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
+function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
+    maxAttempts = maxAttempts or 250
     local timerName = "terminator_obliteratetowardscache_" .. self:GetCreationID()
     timer.Remove( timerName )
     timer.Create( timerName, 0.9, 1, function()
@@ -851,7 +868,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos )
         local nextYield = 50
 
         -- most of these will fail, allow lots!
-        while attempts < 250 do
+        while attempts < maxAttempts do
             yieldIfWeCan()
             attempts = attempts + 0.25
 
@@ -1338,7 +1355,7 @@ function ENT:MoveInAirTowardsVisible( toChoose, destinationArea )
         -- i HATE VENTS!
         if justSetposUsThere then
             local setPosDist = math.Clamp( dist2d, 5, 35 )
-            self:SetPos( myPos + dir * setPosDist )
+            self:SetPosNoTeleport( myPos + dir * setPosDist )
             self.loco:SetVelocity( dir * setPosDist )
             self.WasSetposCrouchJump = true
 
@@ -2189,7 +2206,7 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
     -- snap onto the ladder
     elseif dist2DToLadder < 50 and not wasHandlingLadder then
         self.jumpingPeak = self:GetPos()
-        self:SetPos( closestToLadderPos )
+        self:SetPosNoTeleport( closestToLadderPos )
         self.loco:SetVelocity( vector_origin )
 
     -- walk to the ladder
@@ -2256,15 +2273,16 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
         if onGround then
             local jumpstate, _, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, pos, false )
             local goalBasedJump = jumpstate ~= 2 and aboveUs
+            local readyToJump = not self.nextPathJump or self.nextPathJump < CurTime()
             --print( jumpstate, jumpingHeight )
-            if jumpstate == 1 or goalBasedJump then
+            if readyToJump and ( jumpstate == 1 or goalBasedJump ) then
                 jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
                 self:Jump( jumpingHeight + 20 )
                 self.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
                 self.moveAlongPathJumpingHeight = jumpingHeight
                 return
-            elseif jumpstate == 2 and not noAdapt then
-                local goodPosToGoto = self:PosThatWillBringUsTowards( myPos + vec_up15, pos )
+            elseif jumpstate == 2 and not noAdapt and not ( self.IsFodder and math.random( 1, 100 ) > 90 ) then
+                local goodPosToGoto = self:PosThatWillBringUsTowards( myPos + vec_up15, pos, 50 )
                 if not goodPosToGoto then return end
                 self.loco:Approach( goodPosToGoto, 10000 )
                 return
@@ -2278,6 +2296,8 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
 
             }
             if self:MoveInAirTowardsVisible( toChoose ) ~= true then return end
+
+            return
 
         end
 
@@ -2349,7 +2369,7 @@ function ENT:ExitLadder( exit, recalculate )
     -- if bot is set to a pos that makes it conflict with world, it bugs out
     local clearResult = util.TraceHull( findHighestClearPos )
 
-    self:SetPos( clearResult.HitPos )
+    self:SetPosNoTeleport( clearResult.HitPos )
     self.loco:SetVelocity( vector_up )
 
     -- finally, set our vel towards the ladder exit

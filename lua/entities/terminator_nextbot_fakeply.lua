@@ -110,7 +110,7 @@ function ENT:GetDesiredEnemyRelationship( ent )
     local theirdisp = D_NU
     local priority = 1
 
-    if ent:GetClass() == self:GetClass() then
+    if ent:GetClass() == self:GetClass() or ( ent.isTerminatorHunterChummy and ent.isTerminatorHunterChummy == self.isTerminatorHunterChummy ) then
         disp = D_LI
         theirdisp = D_LI
     end

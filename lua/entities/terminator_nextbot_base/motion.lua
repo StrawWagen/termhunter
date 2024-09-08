@@ -224,7 +224,10 @@ function ENT:TranslateActivity(act)
 		ProtectedCall(function() newact = self:GetActiveLuaWeapon():TranslateActivity(act) end)
 		self:ReRegisterAsNpc()
 
-		return newact
+		if newact then
+			return newact
+
+		end
 	end
 
 	return IdleActivityTranslate[act] or IdleActivity

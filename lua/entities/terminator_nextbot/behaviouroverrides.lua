@@ -6,6 +6,7 @@ function ENT:BehaveStart()
 
 end
 
+local math_abs = math.abs
 local coroutine_yield = coroutine.yield
 local coroutine_resume = coroutine.resume
 local SysTime = SysTime
@@ -61,6 +62,8 @@ function ENT:BehaveUpdate( interval )
 
             self.m_ControlPlayerOldButtons = self.m_ControlPlayerButtons
         else
+            -- do shoot blocking thinking
+            self:BehaviourThink()
             -- Calling behaviour with coroutine type
             if not self.BehaviourThread then
                 self.BehaviourThread = coroutine.create( function( self ) self:BehaviourCoroutine() end )
@@ -69,7 +72,12 @@ function ENT:BehaveUpdate( interval )
             local thread = self.BehaviourThread
             if thread then
                 local oldTime = SysTime()
-                while math.abs( oldTime - SysTime() ) < 0.005 do
+                local thresh = self.CoroutineThresh
+                if self.IsFodder and not IsValid( self:GetEnemy() ) then
+                    thresh = thresh / 2
+
+                end
+                while math_abs( oldTime - SysTime() ) < thresh do
                     local noErrors, result = coroutine_resume( thread, self )
                     if noErrors == false then
                         self.BehaviourThread = nil
@@ -92,11 +100,6 @@ function ENT:BehaveUpdate( interval )
 end
 
 function ENT:BehaviourCoroutine()
-    -- Calling behaviour with think type
-    self:BehaviourThink()
-
-    coroutine_yield()
-
     -- Calling task callbacks
     self:RunTask( "BehaveUpdate", interval )
 
