@@ -470,6 +470,8 @@ function ENT:HasToCrouchToSeeEnemy()
     end
 end
 
+-- all other relationships are created by MakeFeud when something damages us
+-- means bot viciously attacks enemies that can hurt it!
 function ENT:DoHardcodedRelations()
     self:SetClassRelationship( "player", D_HT, 1 )
     self:SetClassRelationship( "npc_lambdaplayer", D_HT, 1 )
@@ -477,9 +479,6 @@ function ENT:DoHardcodedRelations()
     self:SetClassRelationship( "terminator_nextbot", D_LI )
     self:SetClassRelationship( "terminator_nextbot_slower", D_LI )
     self:SetClassRelationship( "terminator_nextbot_fakeply", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_follower", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_friendly", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_hostile", D_HT )
 
 end
 

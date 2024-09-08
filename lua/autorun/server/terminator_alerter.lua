@@ -57,16 +57,9 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     local thingInternal = thing or NULL
     if thingInternal.usedByTerm then return end
     local terms = ents.FindByClass( "terminator_nextbot*" )
-    --[[
-    if thing and not thing.isTerminatorHunterChummy then
-        debugoverlay.Sphere( src, range, math.Clamp( range / 1000, 0.5, 10 ) )
-
-        print( thing, range )
-
-    end--]]
 
     for _, currTerm in pairs( terms ) do
-        if IsValid( thing ) and currTerm.isTerminatorHunterChummy == thing.isTerminatorHunterChummy then goto nextSoundHintPlease end
+        if IsValid( thing ) and currTerm.isTerminatorHunterChummy == thing.isTerminatorHunterChummy then goto nextSoundHintPlease end -- bots know when sounds are coming from buddies
         local isNotMe = thing ~= currTerm
         if isNotMe and sqrDistLessThan( currTerm:GetPos():DistToSqr( src ), range ) then
             --debugoverlay.Line( currTerm:GetPos(), src, 10, Vector(255,255,255), true )

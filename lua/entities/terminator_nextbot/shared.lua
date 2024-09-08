@@ -2481,8 +2481,8 @@ ENT.IsFodder = nil -- enables optimisations that make sense on bullet fodder ene
 ENT.IsStupid = nil -- enables optimisations/simplifcations that make sense for dumb enemies
 
 ENT.TakesFallDamage = true
-ENT.HeightToStartTakingDamage = 100
-ENT.FallDamagePerHeight = 0.05
+ENT.HeightToStartTakingDamage = ENT.JumpHeight
+ENT.FallDamagePerHeight = 0.001
 
 ENT.FistDamageMul = 4
 ENT.ThrowingForceMul = 1000 -- speed we throw crowbars, this is the overcharged one so it's 1k
