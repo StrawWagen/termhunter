@@ -1093,10 +1093,11 @@ function ENT:tryToOpen( blocker, blockerTrace )
 
     end
     local startedTryingToOpen = self.startedTryingToOpen or 0
+    local sinceStarted = CurTime() - startedTryingToOpen
 
     local doorTimeIsGood = CurTime() - OpenTime > 2
-    local doorIsStale = CurTime() - startedTryingToOpen > 2
-    local doorIsVeryStale = CurTime() - startedTryingToOpen > 8
+    local doorIsStale = sinceStarted > 2
+    local doorIsVeryStale = sinceStarted > 8
 
 
     local memory, _ = self:getMemoryOfObject( blocker )
@@ -1107,15 +1108,10 @@ function ENT:tryToOpen( blocker, blockerTrace )
             return
 
         elseif self:IsReallyAngry() then
-            if doorIsStale then
-                self:beatUpEnt( blocker, true )
+            self:WeaponPrimaryAttack()
 
-            else
-                self:WeaponPrimaryAttack()
-
-            end
-        elseif breakableMemory then
-            self:beatUpEnt( blocker, true )
+        elseif sinceStarted > 0.5 and math.random( 0, 100 ) < 10 then
+            self:WeaponPrimaryAttack()
 
         elseif doorIsStale then
             self:WeaponPrimaryAttack()
@@ -1287,6 +1283,7 @@ end
 function ENT:CanDoNewPath( pathTarget )
     if not isvector( pathTarget ) then return false end
     if not self:nextNewPathIsGood() then return false end
+    if self.isUnstucking and self:PathIsValid() then return false end -- dont rebuild the path if we're handling an unstuck
     if self.BlockNewPaths then return false end
     if self:primaryPathIsValid() and self.terminator_HandlingLadder then self:TermHandleLadder() return false end
     local NewPathDist = 1
@@ -2198,7 +2195,8 @@ function ENT:markAsWalked( area )
     if not IsValid( area ) then return end
     self.walkedAreas[area:GetID()] = true
     self.walkedAreaTimes[area:GetID()] = CurTime()
-    timer.Simple( 60, function()
+
+    timer.Simple( 45, function()
         if not IsValid( self ) then return end
         if not IsValid( area ) then return end
         table.remove( self.walkedAreas, area:GetID() )
@@ -2211,6 +2209,8 @@ local offset25z = Vector( 0, 0, 25 )
 
 -- very useful for searching!
 function ENT:walkArea()
+    if not self.walkedAreas then return end -- can disable this for fodder enemies
+
     local walkedArea = self:GetCurrentNavArea()
     if not walkedArea then return end
 
@@ -2453,7 +2453,7 @@ end
 
 -- config var
 ENT.TERM_FISTS = "weapon_terminatorfists_term"
-ENT.CoroutineThresh = 0.005
+ENT.CoroutineThresh = 0.007 -- how much processing time this bot is allowed to take up
 
 -- custom values for the nextbot base to use
 -- i set these as multiples of defaults
@@ -2618,6 +2618,12 @@ function ENT:Initialize()
 
     end
     self:SetModel( model )
+    local scale = self.TERM_MODELSCALE or 1
+    if isfunction( scale ) then
+        scale = scale( self )
+
+    end
+    self:SetModelScale( scale, .00001 )
 
     -- "config" stuff, ONLY edit if you DONT know what you're doing!
     self.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
@@ -2638,6 +2644,8 @@ function ENT:Initialize()
     -- for stuff based on this
     self:AdditionalInitialize()
     self:InitializeSpeaking()
+
+    self:RunTask( "OnCreated" )
 
 end
 
@@ -3661,6 +3669,7 @@ function ENT:DoDefaultTasks()
                 if data:handleCrate() == true then return end
 
                 if self:GetRangeTo( data.Wep ) < 25 and self:CanPickupWeapon( data.Wep ) then
+                    self:RunTask( "GetWeapon" )
                     self:SetupWeapon( data.Wep )
 
                     data:finishAfterwards( "i started the task on top of the wep!" )
@@ -3725,6 +3734,7 @@ function ENT:DoDefaultTasks()
                 end
 
                 if rangeToWep < self.PathGoalToleranceFinal + 20 and self:CanPickupWeapon( currWep ) then
+                    self:RunTask( "GetWeapon" )
                     self:SetupWeapon( currWep )
                     data:finishAfterwards( "reached the wep" )
                     return
@@ -4496,7 +4506,6 @@ function ENT:DoDefaultTasks()
                         end
                     end
                 end
-
                 yieldIfWeCan()
 
                 local result = self:ControlPath2( not self.IsSeeEnemy )
@@ -4590,6 +4599,9 @@ function ENT:DoDefaultTasks()
                     enem.terminator_TerminatorsWatching = old
 
                 end
+
+                self:RunTask( "StartStaring" )
+
             end,
             BehaveUpdate = function( self, data )
                 local enemy = self:GetEnemy()
@@ -5640,7 +5652,6 @@ function ENT:DoDefaultTasks()
 
                     end
                 end
-
                 yieldIfWeCan()
 
                 local result = self:ControlPath2( not self.IsSeeEnemy )
@@ -5968,7 +5979,9 @@ function ENT:DoDefaultTasks()
                             if not visible then continue end -- dont go behind corners!
                             local pathPos = potVisiblePos
                             if not terminator_Extras.PosCanSeeComplex( pathPos + plus25Z, enemysShootPos, self ) then continue end
-                            if SqrDistGreaterThan( myPos:DistToSqr( pathPos ), maxDuelDist ) then continue end
+                            local newsDistToEnemy = pathPos:DistToSqr( enemysShootPos )
+                            if SqrDistGreaterThan( newsDistToEnemy, maxDuelDist ) then continue end
+                            if SqrDistLessThan( newsDistToEnemy, maxDuelDist / 4 ) then continue end
 
                             self:SetupPathShell( pathPos )
                             if not self:primaryPathIsValid() then break end
@@ -6883,8 +6896,6 @@ function ENT:DoDefaultTasks()
                     Vector( 0.35, 0.35, -0.3 ),
                     Vector( 0.35, -0.35, -0.3 ),
 
-                    -- up
-                    Vector( 0, 0, 1 ),
                 }
 
             end,
@@ -6908,7 +6919,7 @@ function ENT:DoDefaultTasks()
                     self:StartTask2( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
                 elseif #data.potentialPerchables >= 1 then
                     local enemysLastPos = self.EnemyLastPos
-                    for _ = 1, 10 do
+                    for _ = 1, 5 do
                         yieldIfWeCan()
                         if #data.potentialPerchables == 0 then break end
                         local perchableArea = table.remove( data.potentialPerchables, 1 )

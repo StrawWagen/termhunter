@@ -330,9 +330,11 @@ local function onTermsTableUpdate()
 
 	if count > 0 then
 		terminator_Extras.setupIsNPCHack()
+		hook.Run( "terminator_nextbot_oneterm_exists" )
 
 	else
 		terminator_Extras.teardownIsNPCHack()
+		hook.Run( "terminator_nextbot_noterms_exist" )
 
 	end
 end

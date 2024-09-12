@@ -723,6 +723,10 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
 end
 
+-- stub
+function ENT:AdditionalAvoidAreas()
+end
+
 --[[------------------------------------
     Name: NEXTBOT:SetupPath
     Desc: Creates new PathFollower object and computes path to goal. Invalidates old path.
@@ -740,8 +744,19 @@ function ENT:SetupPath( pos, options )
     stepHeightCached = self.loco:GetStepHeight()
     deathHeightCached = self.loco:GetDeathDropHeight()
 
-    -- areas that we took damage in
-    self:AddAreasToAvoid( self.hazardousAreas, 10 )
+    if not self.IsFodder then -- fodder npcs usually dont live long enough for this to matter.
+        -- areas that we took damage in
+        self:AddAreasToAvoid( self.hazardousAreas, 10 )
+
+    end
+
+    local adjusted = self:AdditionalAvoidAreas( pathAreasAdditionalCost )
+    if istable( adjusted ) then
+        pathAreasAdditionalCost = adjusted
+
+    end
+
+    pathAreasAdditionalCost = pathAreasAdditionalCost or {}
 
     if self.awarenessDamaging then
         local damagingAreas = self:DamagingAreas()

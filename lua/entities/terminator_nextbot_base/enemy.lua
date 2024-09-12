@@ -42,6 +42,7 @@ end
 	Ret1: 
 --]]------------------------------------
 function ENT:Term_SetEntityRelationship(ent,d,priority)
+	if not self.m_EntityRelationships then return end
 	self.m_EntityRelationships[ent] = {d,priority or DEF_RELATIONSHIP_PRIORITY}
 end
 

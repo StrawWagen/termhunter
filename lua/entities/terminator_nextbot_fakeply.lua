@@ -39,7 +39,7 @@ ENT.ThrowingForceMul = 0.5
 
 ENT.alwaysManiac = true
 
-ENT.isTerminatorHunterChummy = false
+ENT.isTerminatorHunterChummy = "paparazzi"
 ENT.MetallicMoveSounds = false
 ENT.ReallyStrong = false
 ENT.HasFists = false

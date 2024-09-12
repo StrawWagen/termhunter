@@ -202,82 +202,133 @@ hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", OnDamaged )
 -- dmg w/o bodygroup data
 
 function ENT:OnTakeDamage( Damage )
-
     self:PostTookDamage( Damage )
 
-    if not self.DoMetallicDamage then return end
-    self.lastDamagedTime = _CurTime()
-    local attacker = Damage:GetAttacker()
-    local BgDamage = 0
-    local ToBGs
+    if self.DoMetallicDamage then
+        self.lastDamagedTime = _CurTime()
+        local attacker = Damage:GetAttacker()
+        local BgDamage = 0
+        local ToBGs
 
-    if IsValid( attacker ) then
-        local class = attacker:GetClass()
+        if IsValid( attacker ) then
+            local class = attacker:GetClass()
 
-        if class == "func_door_rotating" or class == "func_door" then
-            Damage:ScaleDamage( 0 )
-            self.overrideMiniStuck = true
+            if class == "func_door_rotating" or class == "func_door" then
+                Damage:ScaleDamage( 0 )
+                self.overrideMiniStuck = true
 
+            end
         end
-    end
 
-    if Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) then -- that has no effect on my skeleton!
-        Damage:ScaleDamage( 0 )
-        BgDamage = 40
+        if Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) then -- that has no effect on my skeleton!
+            Damage:ScaleDamage( 0 )
+            BgDamage = 40
 
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
-    elseif Damage:IsDamageType( DMG_SHOCK ) then
-        if self.ShockDamageImmune then
-            Damage:ScaleDamage( 0.01 )
+        elseif Damage:IsDamageType( DMG_SHOCK ) then
+            if self.ShockDamageImmune then
+                Damage:ScaleDamage( 0.01 )
 
-        else
+            else
+                Damage:ScaleDamage( 0.5 )
+
+            end
+            BgDamage = 140
+
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
+
+        elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then --combine ball!
+            Damage:SetDamage( terminator_Extras.healthDefault * 0.55 )
+            BgDamage = 140
+
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+            table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
+
+            local potentialBall = Damage:GetInflictor()
+
+            if string.find( potentialBall:GetClass(), "ball" ) then
+                potentialBall:Fire( "Explode" )
+
+            end
+
+            self:CatDamage()
+            self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
+
+        elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or Damage:IsDamageType( DMG_DIRECT ) then -- fire damage!
+            Damage:ScaleDamage( 0 )
+            BgDamage = 1
+
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+            table.remove( ToBGs, math.random( 0, 6 ) )
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
+
+        elseif Damage:IsDamageType( DMG_CLUB ) then -- likely another terminator punching us!
+            local DamageDamage = Damage:GetDamage()
+            BgDamage = DamageDamage / 2
+
             Damage:ScaleDamage( 0.5 )
 
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+            table.remove( ToBGs, math.random( 0, 6 ) )
+            table.remove( ToBGs, math.random( 0, 6 ) )
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
+
+        elseif Damage:IsDamageType( DMG_SLASH ) then
+            local DamageDamage = Damage:GetDamage()
+            BgDamage = DamageDamage / 1.5 -- takes chunks out of us 
+
+            Damage:ScaleDamage( 0.15 ) -- but our skeleton is tough!
+
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+            table.remove( ToBGs, math.random( 0, 6 ) )
+            table.remove( ToBGs, math.random( 0, 6 ) )
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
+
+        elseif Damage:IsDamageType( DMG_CRUSH ) then
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+
+            if Damage:GetDamage() < 100 then -- try harder!
+                Damage:ScaleDamage( 0.15 )
+
+                table.remove( ToBGs, math.random( 0, 6 ) )
+                table.remove( ToBGs, math.random( 0, 6 ) )
+                table.remove( ToBGs, math.random( 0, 6 ) )
+
+            else -- tried too hard!
+                Damage:ScaleDamage( 1.5 )
+
+            end
+
+            local DamageDamage = Damage:GetDamage()
+            BgDamage = DamageDamage -- takes chunks out of us 
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
+
         end
-        BgDamage = 140
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-
     elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then --combine ball!
-        Damage:SetDamage( terminator_Extras.healthDefault * 0.55 )
-        BgDamage = 140
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-
         local potentialBall = Damage:GetInflictor()
-
         if string.find( potentialBall:GetClass(), "ball" ) then
-            potentialBall:Fire( "Explode" )
+            local ballHealth = potentialBall.term_Ballhealth or 1000
+            local healthTaken = self:Health()
+            ballHealth = ballHealth - healthTaken
+            if ballHealth <= 1 then
+                potentialBall:Fire( "Explode" )
 
+            else
+                util.ScreenShake( self:GetPos(), healthTaken * 0.25, 20, 0.25, 500 + healthTaken )
+                potentialBall.term_Ballhealth = ballHealth
+
+            end
         end
 
-        self:CatDamage()
+        self:ReallyAnger( 60 )
+
         self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
 
-    elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or Damage:IsDamageType( DMG_DIRECT ) then -- fire damage!
-        Damage:ScaleDamage( 0 )
-        BgDamage = 1
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, 6 ) )
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage )
-
-    elseif Damage:IsDamageType( DMG_CLUB ) then -- likely another terminator punching us!
-        local DamageDamage = Damage:GetDamage()
-        BgDamage = DamageDamage / 2
-
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, 6 ) )
-        table.remove( ToBGs, math.random( 0, 6 ) )
-        BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
-
     end
-
 end
 
 local MEMORY_VOLATILE = 8
@@ -392,6 +443,7 @@ function ENT:OnKilled( dmg )
 
         end
         self:BecomeRagdoll( dmg )
+
     end
 
     self:RunTask( "OnKilled", dmg )

@@ -2,36 +2,72 @@
 local MEMORY_WEAPONIZEDNPC = 32
 
 local IsValid = IsValid
+local LocalToWorld = LocalToWorld
+local entMeta = FindMetaTable( "Entity" )
+
+-- i love overoptimisation
+local playersCache = {} -- not nil cause of autorefresh 
+local cacheTimerName = ""
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
+    timer.Create( cacheTimerName, 0.1, 0, function()
+        playersCache = {}
+        for _, ply in player.Iterator() do
+            playersCache[ply] = true
+
+        end
+    end )
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
+    timer.Remove( cacheTimerName )
+    playersCache = {}
+
+end )
 
 function ENT:EntShootPos( ent, random )
     local hitboxes = {}
-    if not IsValid( ent ) then return end
-    local sets = ent:GetHitboxSetCount()
+    if not ent then return end
 
-    local isCrouchingPlayer = ent:IsPlayer() and ent:Crouching()
+    local sets = entMeta.GetHitboxSetCount( ent )
+
+    local isCrouchingPlayer = playersCache[ent] and ent:Crouching()
 
     if not isCrouchingPlayer and sets then
-        for i = 0, sets - 1 do
-            for j = 0,ent:GetHitBoxCount( i ) - 1 do
-                local group = ent:GetHitBoxHitGroup( j, i )
 
-                hitboxes[group] = hitboxes[group] or {}
-                hitboxes[group][#hitboxes[group] + 1] = { ent:GetHitBoxBone( j, i ), ent:GetHitBoxBounds( j, i ) }
+        local data = ent.cachedHitboxData or nil
+
+        if not data then
+            for num1 = 0, sets - 1 do
+                for num2 = 0, entMeta.GetHitBoxCount( ent, num1 ) - 1 do
+                    local group = entMeta.GetHitBoxHitGroup( ent, num2, num1 )
+
+                    hitboxes[group] = hitboxes[group] or {}
+                    hitboxes[group][#hitboxes[group] + 1] = { entMeta.GetHitBoxBone( ent, num2, num1 ), entMeta.GetHitBoxBounds( ent, num2, num1 ) }
+
+                end
             end
-        end
 
-        local data
+            if hitboxes[HITGROUP_HEAD] then
+                data = hitboxes[HITGROUP_HEAD][ random and math.random( #hitboxes[HITGROUP_HEAD] ) or 1 ]
 
-        if hitboxes[HITGROUP_HEAD] then
-            data = hitboxes[HITGROUP_HEAD][ random and math.random( #hitboxes[HITGROUP_HEAD] ) or 1 ]
-        elseif hitboxes[HITGROUP_CHEST] then
-            data = hitboxes[HITGROUP_CHEST][ random and math.random( #hitboxes[HITGROUP_CHEST] ) or 1 ]
-        elseif hitboxes[HITGROUP_GENERIC] then
-            data = hitboxes[HITGROUP_GENERIC][ random and math.random( #hitboxes[HITGROUP_GENERIC] ) or 1 ]
+            elseif hitboxes[HITGROUP_CHEST] then
+                data = hitboxes[HITGROUP_CHEST][ random and math.random( #hitboxes[HITGROUP_CHEST] ) or 1 ]
+
+            elseif hitboxes[HITGROUP_GENERIC] then
+                data = hitboxes[HITGROUP_GENERIC][ random and math.random( #hitboxes[HITGROUP_GENERIC] ) or 1 ]
+
+            end
+            ent.cachedHitboxData = data
+            -- just in case their model changes
+            timer.Simple( math.Rand( 5, 10 ), function()
+                if not IsValid( self ) then return end
+                if not IsValid( ent ) then return end
+                ent.cachedHitboxData = nil
+
+            end )
         end
 
         if data then
-            local bonem = ent:GetBoneMatrix( data[1] )
+            local bonem = entMeta.GetBoneMatrix( ent, data[1] )
             local theCenter = data[2] + ( data[3] - data[2] ) / 2
 
             local pos = LocalToWorld( theCenter, angle_zero, bonem:GetTranslation(), bonem:GetAngles() )
@@ -41,8 +77,8 @@ function ENT:EntShootPos( ent, random )
     end
 
     --debugoverlay.Cross( ent:WorldSpaceCenter(), 5, 10, Color( 255,255,255 ), true )
-
     return ent:WorldSpaceCenter()
+
 end
 
 
@@ -156,36 +192,36 @@ end
 
 ENT.IsInMyFov = IsInMyFov
 
-local entMeta = FindMetaTable( "Entity" )
 local _IsFlagSet = entMeta.IsFlagSet
 
-function ENT:ShouldBeEnemy( ent, fov )
+function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     if _IsFlagSet( ent, FL_NOTARGET ) then return false end
     local isObject = _IsFlagSet( ent, FL_OBJECT )
-    local isPly = ent:IsPlayer()
+    local isPly = playersCache[ent]
 
-    local killer = ent.isTerminatorHunterKiller
-    local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
+    local killer
     local krangledKiller
 
-    -- not interesting but it killed terminators? interesting!
-    -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-    if killer and not ( interesting or isObject ) then
-        local class = ent:GetClass()
-        if isKiller and not ( ent:IsNextBot() or ent:IsNPC() or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then
+    if not ent.isTerminatorHunterKiller then
+        local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
+        if not isObject and not interesting then
             return false
 
         end
-
+    else
+        -- if an ent has killed terminators, we do more thurough checks on it!
+        -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
+        local class = ent:GetClass()
+        if not ( isPly or ent:IsNextBot() or ent:IsNPC() or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then return false end
         krangledKiller = true
 
-    elseif not isObject and not interesting then
-        return false
-
     end
+    -- most ents never get past this point!
 
-    if isPly and self:IgnoringPlayers() then return false end
-    if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
+    entsTbl = entsTbl or entMeta.GetTable( ent )
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    if isPly and myTbl.IgnoringPlayers( self ) then return false end
 
     local class = ent:GetClass()
     if class == "rpg_missile" then return false end
@@ -193,18 +229,20 @@ function ENT:ShouldBeEnemy( ent, fov )
 
     local isDeadNPC = ent:IsNPC() and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )
 
-    if not ent.TerminatorNextBot and isDeadNPC then return false end
-    if ( ent.TerminatorNextBot or not ent:IsNPC() ) and ent:Health() <= 0 then return false end
+    if not entsTbl.TerminatorNextBot and isDeadNPC then return false end
+    if ( entsTbl.TerminatorNextBot or not ent:IsNPC() ) and ent:Health() <= 0 then return false end
 
-    local killerNotChummy = killer and ent.isTerminatorHunterChummy ~= self.isTerminatorHunterChummy
-    local memory, _ = self:getMemoryOfObject( ent )
-    local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or self:GetRelationship( ent ) == D_HT or krangledKiller or killerNotChummy
+    local killerNotChummy = killer and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
+    local memory, _ = myTbl.getMemoryOfObject( self, ent )
+    local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.GetRelationship( self, ent ) == D_HT or krangledKiller or killerNotChummy
     if not knowsItsAnEnemy then return false end
+
+    if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
 
     local inFov = IsInMyFov( self, ent, fov )
     local rangeTo = self:GetRangeTo( ent )
 
-    local maxSeeingDist = self.MaxSeeEnemyDistance
+    local maxSeeingDist = myTbl.MaxSeeEnemyDistance
 
     if not inFov and rangeTo > 200 then return false end
     if rangeTo > maxSeeingDist and not isPly then return false end
@@ -248,23 +286,24 @@ function ENT:CanSeePosition( check )
 end
 
 function ENT:FindEnemies()
-    local ShouldBeEnemy = self.ShouldBeEnemy
-    local CanSeePosition = self.CanSeePosition
-    local UpdateEnemyMemory = self.UpdateEnemyMemory
-    local EntShootPos = self.EntShootPos
-    local myFov = self.Term_FOV
+    local myTbl = self:GetTable()
+    local ShouldBeEnemy = myTbl.ShouldBeEnemy
+    local CanSeePosition = myTbl.CanSeePosition
+    local UpdateEnemyMemory = myTbl.UpdateEnemyMemory
+    local EntShootPos = myTbl.EntShootPos
+    local myFov = myTbl.Term_FOV
     local found
     if myFov >= 180 then
-        found = ents.FindInSphere( self:GetPos(), self.MaxSeeEnemyDistance )
+        found = ents.FindInSphere( self:GetPos(), myTbl.MaxSeeEnemyDistance )
 
     else
-        found = ents.FindInCone( self:GetShootPos(), self:GetEyeAngles():Forward(), self.MaxSeeEnemyDistance, math.cos( math.rad( myFov ) ) )
+        found = ents.FindInCone( self:GetShootPos(), self:GetEyeAngles():Forward(), myTbl.MaxSeeEnemyDistance, math.cos( math.rad( myFov ) ) )
 
     end
 
     for i = 1, #found do
         local ent = found[i]
-        if ent == self or not ShouldBeEnemy( self, ent, myFov ) or not CanSeePosition( self, ent ) then continue end
+        if ent == self or not ShouldBeEnemy( self, ent, myFov, myTbl, ent:GetTable() ) or not CanSeePosition( self, ent ) then continue end
 
         UpdateEnemyMemory( self, ent, EntShootPos( self, ent ), true )
     end

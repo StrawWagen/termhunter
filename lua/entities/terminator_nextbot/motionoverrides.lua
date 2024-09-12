@@ -1,7 +1,7 @@
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
-local function yieldIfWeCan( reason )
-    if not coroutine_running() then return end
+local function yieldIfWeCan( reason, skipCheck )
+    if not skipCheck and not coroutine_running() then return end
     coroutine_yield( reason )
 
 end
@@ -184,11 +184,11 @@ function ENT:StuckCheck()
         self.m_StuckTime = CurTime() + added
 
         local loco = self.loco
-        local pos = self:GetPos()
+        local myPos = self:GetPos()
         local moving
 
-        if self.m_StuckPos ~= pos then
-            self.m_StuckPos = pos
+        if self.m_StuckPos ~= myPos then
+            self.m_StuckPos = myPos
             self.m_StuckTime2 = 0
             moving = true
 
@@ -200,10 +200,10 @@ function ENT:StuckCheck()
         local b1,b2 = self:GetCollisionBounds()
 
         local sizeIncrease = 0
-        local checkOrigin = pos
+        local checkOrigin = myPos
 
         if not loco:IsOnGround() then
-            sizeIncrease = sizeIncrease + 4
+            sizeIncrease = sizeIncrease + 6
 
         else
             checkOrigin = checkOrigin + vertOffs
@@ -268,6 +268,7 @@ function ENT:StuckCheck()
 
                 end
             else
+                self.lastNotStuckPos = myPos
                 self.m_StuckTime2 = 0
             end
         else
@@ -287,10 +288,11 @@ local function TryStuck( self, endPos, t, tr )
 
     if not tr.Hit then
         -- simple check to see if we're going through something to get there
+        local centerOffset = self:OBBCenter()
         local traceStruct = {
-            start = self:GetPos(),
-            endpos = endPos,
-            mask = self:GetSolidMask(),
+            start = self:GetPos() + centerOffset,
+            endpos = endPos + centerOffset,
+            mask = MASK_SOLID,
             filter = TrFilterNoSelf( self ),
         }
         local traceRes = util.TraceHull( traceStruct )
@@ -343,10 +345,12 @@ function ENT:OnStuck()
     }
 
     local w = b2.x-b1.x
+    local skipCheck = coroutine_running()
 
     for z = 0, w * 1.2, w * 0.2 do
-        yieldIfWeCan()
+        yieldIfWeCan( nil, skipCheck )
         for x = 0, w * 1.2, w * 0.2 do
+            yieldIfWeCan( nil, skipCheck )
             for y = 0, w * 1.2, w * 0.2 do
                 if TryStuck( self, pos + Vector( x, y, z ),     t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, y, z ),    t, tr ) then return end
@@ -822,7 +826,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
     -- lots of traces ahead, use caching please!
     local nextCache = self.nextBringUsTowardsCache or 0
     if nextCache > CurTime() and self.cachedBringUsTowards then return self.cachedBringUsTowards end
-    self.nextBringUsTowardsCache = CurTime() + 0.4
+    self.nextBringUsTowardsCache = CurTime() + 0.8
 
     local b1,b2 = self:BoundsAdjusted( 0.75 )
     local mask = self:GetSolidMask()
@@ -831,7 +835,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
     local aheadPosOffGround = aheadPos + vec_up15
     local dir = terminator_Extras.dirToPos( startPos, aheadPosOffGround )
 
-    local trLength = math.Clamp( startPos:Distance( aheadPosOffGround ), 100, 300 )
+    local trLength = math.Clamp( startPos:Distance( aheadPosOffGround ), 100, 400 )
     local defEndPos = startPos + ( dir * trLength )
 
     -- do a trace in the dir we goin, likely flattened direction to next segment
@@ -876,11 +880,11 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
             -- after a while just go all out, big traces
             local doBigTraces = attempts > 55
             local zMul = 0.65
-            local randCompDivisor = 8
+            local randCompDivisor = 7
             if doBigTraces then
                 -- allow bigger Z offsets, divide the random components less
                 zMul = 0.8
-                randCompDivisor = 5
+                randCompDivisor = 4
 
             end
 
@@ -1262,6 +1266,10 @@ function ENT:GetJumpBlockState( dir, goal )
 
         return 2 -- step back bot!
     end
+
+    --local color = Color( 255, 255, 255, 25 )
+    --if dirResult.Hit then color = Color( 255,0,0, 25 ) end
+    --debugoverlay.Box( dirResult.HitPos, dirConfig.mins, dirConfig.maxs, 4, color )
 
     return 0
 end
@@ -1906,10 +1914,31 @@ function ENT:MoveAlongPath( lookatgoal )
                 -- Trying deal with jump, don't update path
                 isHandlingJump = true
                 doingJump = closeToGoal
-            elseif iAmOnGround and myTbl.m_PathJump and jumpstate == 0 then
-                myTbl.m_PathJump = false
-                myTbl.wasDoingJumpOverSmallObstacle = nil
-                myTbl.jumpBlockClearPos = nil
+            elseif iAmOnGround and jumpstate == 0 then
+                -- was jumping
+                if myTbl.m_PathJump then
+                    myTbl.m_PathJump = false
+                    myTbl.wasDoingJumpOverSmallObstacle = nil
+                    myTbl.jumpBlockClearPos = nil
+
+                end
+
+                -- GetJumpBlockState is expensive! dont spam it!
+                local time = 0.2
+                if self.IsFodder then
+                    time = 0.75
+
+                end
+                myTbl.nextPathJump = cur + time
+
+            elseif jumpstate ~= 0 then
+                -- GetJumpBlockState is expensive! dont spam it!
+                local time = 0.10
+                if self.IsFodder then
+                    time = 0.5
+
+                end
+                myTbl.nextPathJump = cur + time
 
             end
         end
@@ -2074,8 +2103,11 @@ function ENT:MoveAlongPath( lookatgoal )
     if not path:IsValid() and range <= myTbl.m_PathOptions.tolerance or range < myTbl.PathGoalToleranceFinal then
         self:InvalidatePath( "i reached the end of my path!" )
         return true -- reached end
+
     elseif path:IsValid() then
+        yieldIfWeCan()
         return nil -- not at end, stuck detection is done elsewhere
+
     end
 
     return false
@@ -2221,8 +2253,15 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
     if wasHandlingLadder and nextLadderSound < CurTime() then
         self.nextLadderSound = CurTime() + 0.5
         if not self:IsSilentStepping() then
-            self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", 94, math.random( 70, 80 ) )
-            util.ScreenShake( myPos, 0.5, 20, 0.1, 1000 )
+            local bite = 15
+            if self.ReallyHeavy then
+                bite = 0
+
+            end
+            local lvl = 93 + -bite
+            local pitch = math.random( 70, 80 ) + bite
+            self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", lvl, pitch )
+            util.ScreenShake( myPos, 0.5 / bite, 20, 0.1, 1000 )
 
         end
     end
@@ -2240,7 +2279,7 @@ end
 
 -- easy alias for approach
 function ENT:GotoPosSimple( pos, distance, noAdapt )
-    if distance ~= math.huge and self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
+    if self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
         local zToPos = ( pos.z - myPos.z )
         local dir = terminator_Extras.dirToPos( myPos, pos )
@@ -2252,6 +2291,7 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
         local aboveUsJumpHeight
         local heightDiffNeededToJump = simpleJumpMinHeight + 20
 
+        -- simple jump up to the pos
         if zToPos > heightDiffNeededToJump and self:IsAngry() then
             local dist2d = ( pos - myPos )
             dist2d.z = 0
@@ -2275,13 +2315,21 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
             local goalBasedJump = jumpstate ~= 2 and aboveUs
             local readyToJump = not self.nextPathJump or self.nextPathJump < CurTime()
             --print( jumpstate, jumpingHeight )
+            local adaptBlock = noAdapt
+            if self.IsFodder then
+                local hasCached = self.nextBringUsTowardsCache and self.nextBringUsTowardsCache > CurTime()
+                adaptBlock = not hasCached or ( self.IsFodder and math.random( 1, 100 ) > 90 )
+
+            end
+            -- jump if the jumpblock says we should, or if the simple jump up says we should
             if readyToJump and ( jumpstate == 1 or goalBasedJump ) then
                 jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
                 self:Jump( jumpingHeight + 20 )
                 self.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
                 self.moveAlongPathJumpingHeight = jumpingHeight
                 return
-            elseif jumpstate == 2 and not noAdapt and not ( self.IsFodder and math.random( 1, 100 ) > 90 ) then
+            -- adapt if the jumpstate says we need to
+            elseif jumpstate == 2 and not adaptBlock then
                 local goodPosToGoto = self:PosThatWillBringUsTowards( myPos + vec_up15, pos, 50 )
                 if not goodPosToGoto then return end
                 self.loco:Approach( goodPosToGoto, 10000 )
@@ -2313,8 +2361,15 @@ function ENT:EnterLadder()
     self.loco:SetGravity( 0 )
 
     if not self:IsSilentStepping() then
-        self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", 98, math.random( 60, 70 ) )
-        util.ScreenShake( self:GetPos(), 10, 20, 0.2, 1000 )
+        local bite = 15
+        if self.ReallyHeavy then
+            bite = 0
+
+        end
+        local lvl = 98 + -bite
+        local pitch = math.random( 60, 70 ) + bite
+        self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", lvl, pitch )
+        util.ScreenShake( self:GetPos(), 10 / bite, 20, 0.2, 1000 )
 
     end
 end
@@ -2385,8 +2440,15 @@ function ENT:ExitLadder( exit, recalculate )
     end )
 
     if not self:IsSilentStepping() then
-        self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", 98, math.random( 60, 70 ) )
-        util.ScreenShake( self:GetPos(), 10, 20, 0.2, 1000 )
+        local bite = 15
+        if self.ReallyHeavy then
+            bite = 0
+
+        end
+        local lvl = 98 + -bite
+        local pitch = math.random( 60, 70 ) + bite
+        self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", lvl, pitch )
+        util.ScreenShake( self:GetPos(), 10 / bite, 20, 0.2, 1000 )
 
     end
 end
@@ -2400,19 +2462,21 @@ end
 function ENT:Jump( height )
     if not self.loco:IsOnGround() then return end
 
+    local heightInternal = 0
+
     if height then
         -- jump a bit higher than we need ta
-        height = height + 20
+        heightInternal = height + 20
 
     else
         ErrorNoHaltWithStack( "TERMINATOR JUMPED WITH NO HEIGHT" )
 
     end
 
-    height = math.Clamp( height, 0, self.JumpHeight )
+    heightInternal = math.Clamp( heightInternal, 0, self.JumpHeight )
 
     local vel = self.loco:GetVelocity()
-    vel.z = ( 2.5 * self.loco:GetGravity() * height ) ^ 0.4986
+    vel.z = ( 2.5 * self.loco:GetGravity() * heightInternal ) ^ 0.4986
 
     local pos = self:GetPos()
 
@@ -2433,7 +2497,7 @@ function ENT:Jump( height )
 
     self.m_Jumping = true
 
-    self:RunTask( "OnJump" )
+    self:RunTask( "OnJump", height )
 end
 
 local airSoundPath = "ambient/wind/wind_rooftop1.wav"
@@ -2547,7 +2611,6 @@ function ENT:HandleInAir()
     if oldLevel ~= waterLevel then
         self.oldJumpingWaterLevel = waterLevel
         if oldLevel == 0 and self:IsSolid() then
-
             local traceStruc = {
                 start = self.jumpingPeak,
                 endpos = myPos,
@@ -2559,6 +2622,10 @@ function ENT:HandleInAir()
             local watersSurface = Vector( myPos.x, myPos.y, waterResult.HitPos.z )
 
             local scale = self:FallHeight() / 18
+            if not self.ReallyHeavy then
+                scale = scale / 100
+
+            end
 
             local sploosh = EffectData()
             sploosh:SetScale( math.Clamp( scale, 10, 20 ) )

@@ -18,8 +18,6 @@ function ENT:BehaveUpdate( interval )
         self.loco:SetVelocity( vector_origin )
     end
 
-    self:StuckCheck()
-
     local disable = self:DisableBehaviour()
 
     if not disable then
@@ -100,6 +98,8 @@ function ENT:BehaveUpdate( interval )
 end
 
 function ENT:BehaviourCoroutine()
+    self:StuckCheck()
+
     -- Calling task callbacks
     self:RunTask( "BehaveUpdate", interval )
 
