@@ -1474,16 +1474,18 @@ function ENT:MoveAlongPath( lookatgoal )
 
     end
 
-    if not myTbl.IsSeeEnemy and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
+    local seeEnem = myTbl.IsSeeEnemy
+
+    if not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
         lookAtPos = myTbl.lastInterceptPos
 
-    elseif myTbl.TookDamagePos then
+    elseif not seeEnem and myTbl.TookDamagePos then
         lookAtPos = myTbl.TookDamagePos
 
-    elseif lookatgoal and not myTbl.IsSeeEnemy and hint and hint.time + curiosity > cur then
+    elseif lookatgoal and not seeEnem and hint and hint.time + curiosity > cur then
         lookAtPos = hint.source
 
-    elseif lookatgoal and not myTbl.IsSeeEnemy and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
+    elseif lookatgoal and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
         if not shouldLookTime then
             myTbl.LookAtEnemyLastPos = cur + curiosity
 
