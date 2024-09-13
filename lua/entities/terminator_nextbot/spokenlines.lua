@@ -167,8 +167,8 @@ end
 function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
     specificPitchShift = specificPitchShift or 0
 
-    local pitShift = myTbl.term_SoundPitchShift or 0
-    local lvlShift = myTbl.term_SoundLevelShift or 0
+    local pitShift = self.term_SoundPitchShift or 0
+    local lvlShift = self.term_SoundLevelShift or 0
     if isfunction( pitShift ) then
         pitShift = pitShift( self )
 

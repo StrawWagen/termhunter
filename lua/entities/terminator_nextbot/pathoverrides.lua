@@ -415,6 +415,9 @@ end
 local jumpHeightCached
 local stepHeightCached
 local deathHeightCached
+local canLadderCached
+local maxExtentCached
+local currExtent
 
 local IsValid = IsValid
 local band = bit.band
@@ -422,11 +425,19 @@ local band = bit.band
 function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     if not IsValid( fromArea ) then return 0 end
 
+    if maxExtentCached then
+        currExtent = currExtent + 1
+        if currExtent > maxExtentCached then return -1 end
+
+    end
+
     local toAreasId = toArea:GetID()
     local dist
     local laddering
 
     if IsValid( ladder ) then
+        if not canLadderCached then return -1 end
+
         laddering = true
         -- ladders are kinda dumb
         -- avoid if we can
@@ -743,6 +754,9 @@ function ENT:SetupPath( pos, options )
     jumpHeightCached = self.loco:GetMaxJumpHeight()
     stepHeightCached = self.loco:GetStepHeight()
     deathHeightCached = self.loco:GetDeathDropHeight()
+    canLadderCached = self.CanUseLadders
+    maxExtentCached = self.MaxPathingIterations -- set this to like 5000 if you dont care about a specific bot having perfect paths
+    currExtent = 0
 
     if not self.IsFodder then -- fodder npcs usually dont live long enough for this to matter.
         -- areas that we took damage in
@@ -798,6 +812,9 @@ function ENT:SetupPath( pos, options )
     jumpHeightCached = nil
     stepHeightCached = nil
     deathHeightCached = nil
+    canLadderCached = nil
+    maxExtentCached = nil
+    currExtent = nil
 
     if not computed then
         self:InvalidatePath( "i failed to build a path" )

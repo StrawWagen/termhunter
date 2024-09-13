@@ -235,18 +235,27 @@ local function AreaOrLadderGetCenter( areaOrLadder )
     end
 end
 
-local function AreaOrLadderGetAdjacentAreas( areaOrLadder )
+local table_Add = table.Add
+
+local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
     local adjacents = {}
     if not areaOrLadder then return adjacents end
     if areaOrLadder.GetTop then -- is ladder
-        table.Add( adjacents, areaOrLadder:GetBottomArea() )
-        table.Add( adjacents, areaOrLadder:GetTopForwardArea() )
-        table.Add( adjacents, areaOrLadder:GetTopBehindArea() )
-        table.Add( adjacents, areaOrLadder:GetTopRightArea() )
-        table.Add( adjacents, areaOrLadder:GetTopLeftArea() )
+        if blockLadders then return end
+        table_Add( adjacents, areaOrLadder:GetBottomArea() )
+        table_Add( adjacents, areaOrLadder:GetTopForwardArea() )
+        table_Add( adjacents, areaOrLadder:GetTopBehindArea() )
+        table_Add( adjacents, areaOrLadder:GetTopRightArea() )
+        table_Add( adjacents, areaOrLadder:GetTopLeftArea() )
 
     else
-        adjacents = table.Add( areaOrLadder:GetAdjacentAreas(), areaOrLadder:GetLadders() )
+        if blockLadders then
+            adjacents = areaOrLadder:GetAdjacentAreas()
+
+        else
+            adjacents = table_Add( areaOrLadder:GetAdjacentAreas(), areaOrLadder:GetLadders() )
+
+        end
 
     end
     return adjacents
@@ -293,7 +302,9 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
     end
     if not cur or not cur:IsValid() then return nil, NULL, nil, nil end
+
     local curId = AreaOrLadderGetID( cur )
+    local blockLadders = self.CanUseLadders
 
     noMoreOptionsMin = noMoreOptionsMin or 8
 
@@ -380,7 +391,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
         end
 
-        local adjacents = AreaOrLadderGetAdjacentAreas( area )
+        local adjacents = AreaOrLadderGetAdjacentAreas( area, blockLadders )
 
         for _, adjArea in ipairs( adjacents ) do
             local adjID = AreaOrLadderGetID( adjArea )
@@ -2450,13 +2461,13 @@ local function healthFunc()
     end
 end
 
-
 -- config var
 ENT.TERM_FISTS = "weapon_terminatorfists_term"
 ENT.CoroutineThresh = 0.007 -- how much processing time this bot is allowed to take up
+ENT.MaxPathingIterations = nil -- set this to like 5000 if you dont care about a specific bot having perfect ( read, expensive ) paths
 
 -- custom values for the nextbot base to use
--- i set these as multiples of defaults
+-- i set these as multiples of defaults ( 70 )
 ENT.JumpHeight = 70 * 3.5
 ENT.DefaultStepHeight = 18
 -- allow us to have different step height when couching/standing
@@ -2466,6 +2477,7 @@ ENT.StandingStepHeight = ENT.DefaultStepHeight * 1.5
 ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
 ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
+ENT.CanUseLadders = true
 ENT.SpawnHealth = healthFunc
 ENT.AimSpeed = 480
 ENT.WalkSpeed = 130

@@ -60,13 +60,13 @@ local function detachAreaPortals( attacker, door )
 end
 
 function terminator_Extras.DoorHitSound( ent )
-    ent:EmitSound( "ambient/materials/door_hit1.wav", 100, math.random( 80, 120 ) )
+    ent:EmitSound( "ambient/materials/door_hit1.wav", 85, math.random( 80, 120 ) )
 
 end
 
 function terminator_Extras.BreakSound( ent )
     local Snd = "physics/wood/wood_furniture_break" .. tostring( math.random( 1, 2 ) ) .. ".wav"
-    ent:EmitSound( Snd, 110, math.random( 80, 90 ) )
+    ent:EmitSound( Snd, 95, math.random( 80, 90 ) )
 
 end
 
