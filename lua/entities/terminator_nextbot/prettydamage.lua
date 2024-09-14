@@ -1,7 +1,7 @@
 
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 
-local _CurTime = CurTime
+local CurTime = CurTime
 
 --cool dmage system stuff
 ENT.BGrpHealth = {}
@@ -143,57 +143,62 @@ local function OnDamaged( damaged, Hitgroup, Damage )
     if not damaged.isTerminatorHunterBased then return end
     damaged:MakeFeud( Damage:GetAttacker() )
 
-    damaged:PostTookDamage( Damage )
+    damaged.lastDamagedTime = CurTime()
 
-    if not damaged.DoMetallicDamage then return end
-    damaged.lastDamagedTime = _CurTime()
-    local ToBGs = nil
-    local BgDmg = false
-    local BgDamage = 0
-    local DamageDealt = Damage:GetDamage()
+    if damaged:PostTookDamage( Damage ) then return end
 
-    if not Damage:IsExplosionDamage() then
-        if DamageDealt >= damaged.HighCal then
-            BgDmg = true
-            BgDamage = Damage:GetDamage()
-            Damage:SetDamage( DamageDealt / 2.5 )
-            MedDamage( damaged, Damage )
-        elseif DamageDealt > damaged.MedCal then
-            BgDmg = true
-            BgDamage = Damage:GetDamage() / 3
-            Damage:SetDamage( 1 )
-            if Damage:IsBulletDamage() then
-                MedCalRics( damaged )
+    if damaged.DoMetallicDamage then
+        local ToBGs = nil
+        local BgDmg = false
+        local BgDamage = 0
+        local DamageDealt = Damage:GetDamage()
+
+        if not Damage:IsExplosionDamage() then
+            if DamageDealt >= damaged.HighCal then
+                BgDmg = true
+                BgDamage = Damage:GetDamage()
+                Damage:SetDamage( DamageDealt / 2.5 )
+                MedDamage( damaged, Damage )
+            elseif DamageDealt > damaged.MedCal then
+                BgDmg = true
+                BgDamage = Damage:GetDamage() / 3
+                Damage:SetDamage( 1 )
+                if Damage:IsBulletDamage() then
+                    MedCalRics( damaged )
+                end
+            else
+                BgDmg = true
+                BgDamage = Damage:GetDamage() / 13
+                Damage:SetDamage( 0 )
             end
-        else
-            BgDmg = true
-            BgDamage = Damage:GetDamage() / 13
-            Damage:SetDamage( 0 )
+        elseif DamageDealt > 60 then
+            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+            table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
+            DamageDealt = DamageDealt * 0.75
+            Damage:SetDamage( math.Clamp( DamageDealt, 0, 350 ) )
+            BgDamage = 40
+            damaged:CatDamage()
         end
-    elseif DamageDealt > 60 then
-        ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-        table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-        DamageDealt = DamageDealt * 0.75
-        Damage:SetDamage( math.Clamp( DamageDealt, 0, 350 ) )
-        BgDamage = 40
-        damaged:CatDamage()
+
+        if BgDmg then
+            if damaged:GetModel() ~= ARNOLD_MODEL then return end
+            ToBGs = damaged.HitTranslate[Hitgroup] -- get bodygroups to do stuff to
+
+            if not istable( ToBGs ) then return end
+
+            local Data = EffectData()
+            Data:SetOrigin( Damage:GetDamagePosition() )
+            Data:SetScale( 1 )
+            Data:SetRadius( 1 )
+            Data:SetMagnitude( 1 )
+            util.Effect( "Sparks", Data )
+        end
+
+        BodyGroupDamage( damaged, ToBGs, BgDamage, Damage )
+
     end
 
-    if BgDmg then
-        if damaged:GetModel() ~= ARNOLD_MODEL then return end
-        ToBGs = damaged.HitTranslate[Hitgroup] -- get bodygroups to do stuff to
-
-        if not istable( ToBGs ) then return end
-
-        local Data = EffectData()
-        Data:SetOrigin( Damage:GetDamagePosition() )
-        Data:SetScale( 1 )
-        Data:SetRadius( 1 )
-        Data:SetMagnitude( 1 )
-        util.Effect( "Sparks", Data )
-    end
-
-    BodyGroupDamage( damaged, ToBGs, BgDamage, Damage )
+    damaged:HandleFlinching( Damage, Hitgroup )
 
 end
 
@@ -202,10 +207,11 @@ hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", OnDamaged )
 -- dmg w/o bodygroup data
 
 function ENT:OnTakeDamage( Damage )
-    self:PostTookDamage( Damage )
+    self.lastDamagedTime = CurTime()
+
+    if self:PostTookDamage( Damage ) then return end
 
     if self.DoMetallicDamage then
-        self.lastDamagedTime = _CurTime()
         local attacker = Damage:GetAttacker()
         local BgDamage = 0
         local ToBGs
@@ -329,6 +335,9 @@ function ENT:OnTakeDamage( Damage )
         self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
 
     end
+
+    self:HandleFlinching( Damage, 0 )
+
 end
 
 local MEMORY_VOLATILE = 8
@@ -387,6 +396,56 @@ function ENT:PostTookDamage( dmg )
 
         end
     end
+end
+
+local flinchesForGroups = {
+    [HITGROUP_GENERIC] = ACT_FLINCH_PHYSICS,
+    [HITGROUP_HEAD] = ACT_FLINCH_HEAD,
+    [HITGROUP_CHEST] = ACT_FLINCH_CHEST,
+    [HITGROUP_STOMACH] = ACT_FLINCH_STOMACH,
+    [HITGROUP_LEFTARM] = ACT_FLINCH_LEFTARM,
+    [HITGROUP_RIGHTARM] = ACT_FLINCH_RIGHTARM,
+    [HITGROUP_LEFTLEG] = ACT_FLINCH_LEFTLEG,
+    [HITGROUP_RIGHTLEG] = ACT_FLINCH_RIGHTLEG,
+}
+
+-- it's very subtle, but yes this works
+function ENT:HandleFlinching( dmg, hitGroup )
+    local gesture = nil
+
+    if hitGroup then
+        gesture = flinchesForGroups[hitGroup]
+
+    end
+    if not gesture then return end
+    if istable( gesture ) then
+        gesture = gesture[math.random( 1, #gesture )]
+
+    end
+
+    local damageDealt = dmg:GetDamage()
+    local maxDamageWeight = math.min( self:GetMaxHealth() * .25, 50 )
+    local weight = damageDealt / maxDamageWeight
+    if weight < 0.05 then return end
+    weight = math.Clamp( weight, 0, 0.95 )
+
+    local playRate = 2 - ( weight * 1.15 )
+
+    if weight > 0.75 then
+        local old = self.overrideCrouch or 0
+        local added = math.max( old + weight * 0.25, CurTime() + weight * 0.5 )
+        if self:IsReallyAngry() then
+            added = added - 0.5
+
+        end
+        self.overrideCrouch = added
+
+    end
+
+    local layer = self:AddGesture( gesture )
+    self:SetLayerPlaybackRate( layer, playRate )
+    self:SetLayerWeight( layer, weight )
+
 end
 
 function ENT:HandleWeaponOnDeath( wep, dmg )

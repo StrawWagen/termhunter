@@ -1485,7 +1485,7 @@ function ENT:MoveAlongPath( lookatgoal )
     elseif lookatgoal and not seeEnem and hint and hint.time + curiosity > cur then
         lookAtPos = hint.source
 
-    elseif lookatgoal and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 3 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
+    elseif lookatgoal and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
         if not shouldLookTime then
             myTbl.LookAtEnemyLastPos = cur + curiosity
 

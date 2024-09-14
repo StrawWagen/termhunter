@@ -2657,7 +2657,11 @@ function ENT:Initialize()
     self:AdditionalInitialize()
     self:InitializeSpeaking()
 
-    self:RunTask( "OnCreated" )
+    timer.Simple( 0.1, function()
+        if not IsValid( self ) then return end
+        self:RunTask( "OnCreated" )
+
+    end )
 
 end
 
