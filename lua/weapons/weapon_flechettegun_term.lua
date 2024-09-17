@@ -2,7 +2,7 @@
 
 SWEP.Instructions    = "Shoot a prop to attach a Manhack.\nRight click to attach a rollermine."
 
-SWEP.Spawnable            = true
+SWEP.Spawnable            = false
 SWEP.AdminOnly            = true
 SWEP.UseHands            = true
 

@@ -170,6 +170,14 @@ function ENT:GetPlayerColor()
 
 end
 
+function ENT:GetFOV()
+    return self.Term_FOV
+
+end
+
+function ENT:SetFOV()
+end
+
 if SERVER then
 
     include( "weaponhacks.lua" )

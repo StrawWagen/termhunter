@@ -72,13 +72,18 @@ function ENT:ClearOrBreakable( start, endpos, doSmallHull, hullMul )
     end
     if IsValid( hitEntity ) then
         local enemy = self:GetEnemy()
-        local isVehicle = hitEntity:IsVehicle() and hitEntity:GetDriver() and hitEntity:GetDriver() == enemy
+        local isVehicle = hitEntity.GetDriver
+
+        local enemysVehicle = isVehicle and hitEntity:GetDriver() and hitEntity:GetDriver() == enemy
         if self:hitBreakable( traceStruct, traceRes ) then
             hitNothingOrHitBreakable = true
 
-        elseif enemy == hitEntity or isVehicle then
+        elseif enemy == hitEntity or enemysVehicle then
             hitNothingOrHitBreakable = true
             hitNothing = true
+
+        elseif isVehicle then
+            hitNothingOrHitBreakable = true
 
         end
     end
@@ -626,7 +631,7 @@ function ENT:IsAngry()
         elseif self.isUnstucking then
             angryTime = angryTime + 6
 
-        elseif self:inSeriousDanger() or self:EnemyIsUnkillable() then
+        elseif self:inSeriousDanger() or self:EnemyIsUnkillable() or ( enemy.InVehicle and enemy:InVehicle() ) then
             angryTime = angryTime + math.random( 5, 15 )
 
         elseif self:getLostHealth() > 0.5 then
@@ -1463,13 +1468,14 @@ function ENT:MoveAlongPath( lookatgoal )
     local lookAtPos
     local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
-    local hint = myTbl.lastHeardSoundHint
+    local sndHint = myTbl.lastHeardSoundHint
+    local genericHint = myTbl.term_GenericLookAtPos
     local curiosity = 0.5
 
     local lookAtEnemyLastPos = myTbl.LookAtEnemyLastPos or 0
     local shouldLookTime = lookAtEnemyLastPos > cur
 
-    if hint and hint.valuable then
+    if sndHint and sndHint.valuable then
         curiosity = 2
 
     end
@@ -1482,8 +1488,11 @@ function ENT:MoveAlongPath( lookatgoal )
     elseif not seeEnem and myTbl.TookDamagePos then
         lookAtPos = myTbl.TookDamagePos
 
-    elseif lookatgoal and not seeEnem and hint and hint.time + curiosity > cur then
-        lookAtPos = hint.source
+    elseif not seeEnem and sndHint and sndHint.time + curiosity > cur then
+        lookAtPos = sndHint.source
+
+    elseif not seeEnem and genericHint and genericHint.time + curiosity > cur then
+        lookAtPos = genericHint.source
 
     elseif lookatgoal and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
         if not shouldLookTime then

@@ -77,7 +77,7 @@ local function setDropWeapons( ply, attacker, _ )
 
         end
 
-        timer.Simple( math.random( 240, 280 ) + wepWeight * 40, function()
+        timer.Simple( math.random( 100, 140 ) + wepWeight * 40, function()
             if not IsValid( newWep ) then return end
             if IsValid( newWep:GetOwner() ) or IsValid( newWep:GetParent() ) then return end
 

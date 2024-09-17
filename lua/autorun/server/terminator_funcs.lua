@@ -64,6 +64,7 @@ local nookDirections = {
 terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     local directions = overrideDirections or nookDirections
     distance = distance or 800
+
     local facesBlocked = 0
     local hits = {}
     for _, direction in ipairs( directions ) do

@@ -1,5 +1,5 @@
 
-terminator_Extras.EngineAnalogWeights = nil
+terminator_Extras.EngineAnalogWeights = {}
 terminator_Extras.GoodWeight = 8
 
 local function AnalogWeightsCheck()

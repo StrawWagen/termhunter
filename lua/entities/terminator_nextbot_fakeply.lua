@@ -93,50 +93,6 @@ function ENT:MakeFootstepSound(volume,surface)
     end
 end
 
-function ENT:DoHardcodedRelations()
-    self:SetClassRelationship( "player", D_HT,1 )
-    self:SetClassRelationship( "npc_lambdaplayer", D_HT,1 )
-    self:SetClassRelationship( "rpg_missile", D_NU )
-    self:SetClassRelationship( "terminator_nextbot", D_HT, 1 )
-    self:SetClassRelationship( "terminator_nextbot_slower", D_HT, 1 )
-    self:SetClassRelationship( "terminator_nextbot_soldier_follower", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_friendly", D_HT )
-    self:SetClassRelationship( "terminator_nextbot_soldier_hostile", D_HT )
-
-end
-
-function ENT:GetDesiredEnemyRelationship( ent )
-    local disp = D_HT
-    local theirdisp = D_NU
-    local priority = 1
-
-    if ent:GetClass() == self:GetClass() or ( ent.isTerminatorHunterChummy and ent.isTerminatorHunterChummy == self.isTerminatorHunterChummy ) then
-        disp = D_LI
-        theirdisp = D_LI
-    end
-
-    if ent:IsPlayer() then
-        priority = 1000
-
-    elseif ent:IsNPC() or ent:IsNextBot() then
-        local memories = {}
-        if self.awarenessMemory then
-            memories = self.awarenessMemory
-        end
-        local key = self:getAwarenessKey( ent )
-        local memory = memories[key]
-        if memory == MEMORY_WEAPONIZEDNPC then
-            priority = priority + 300
-        else
-            disp = D_NU
-            --print("boringent" )
-            priority = priority + 100
-        end
-    end
-
-    return disp, priority, theirdisp
-end
-
 function ENT:GetAimVector()
     local dir = self:GetEyeAngles():Forward()
 

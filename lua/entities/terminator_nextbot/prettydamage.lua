@@ -141,7 +141,6 @@ end
 local function OnDamaged( damaged, Hitgroup, Damage )
 
     if not damaged.isTerminatorHunterBased then return end
-    damaged:MakeFeud( Damage:GetAttacker() )
 
     damaged.lastDamagedTime = CurTime()
 
@@ -346,6 +345,7 @@ local MEMORY_DAMAGING = 64
 function ENT:PostTookDamage( dmg )
 
     self:RunTask( "OnDamaged", dmg )
+    self:MakeFeud( dmg:GetAttacker() )
 
     local dmgPos = self:getBestPos( dmg:GetAttacker() )
     self.TookDamagePos = dmgPos
@@ -426,16 +426,17 @@ function ENT:HandleFlinching( dmg, hitGroup )
     local damageDealt = dmg:GetDamage()
     local maxDamageWeight = math.min( self:GetMaxHealth() * .25, 50 )
     local weight = damageDealt / maxDamageWeight
+
     if weight < 0.05 then return end
     weight = math.Clamp( weight, 0, 0.95 )
 
     local playRate = 2 - ( weight * 1.15 )
 
-    if weight > 0.75 then
+    if weight > 0.75 and self.loco:GetVelocity():Length() > ( self.RunSpeed * 0.75 ) then
         local old = self.overrideCrouch or 0
         local added = math.max( old + weight * 0.25, CurTime() + weight * 0.5 )
         if self:IsReallyAngry() then
-            added = added - 0.5
+            added = added - 1
 
         end
         self.overrideCrouch = added

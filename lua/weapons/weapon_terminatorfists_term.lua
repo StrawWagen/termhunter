@@ -327,7 +327,7 @@ function SWEP:HoldTypeThink()
         holdType = "fist"
         doFistsTime = math.max( doFistsTime, CurTime() + 10 )
 
-    elseif IsValid( enemy ) and self.DistToEnemy and self.DistToEnemy < self.Range * 4 then
+    elseif IsValid( enemy ) and owner.DistToEnemy and owner.DistToEnemy < self.Range * 4 then
         holdType = "fist"
 
     elseif owner:getLostHealth() > 0.01 then

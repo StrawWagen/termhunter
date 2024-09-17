@@ -7,9 +7,8 @@ local entMeta = FindMetaTable( "Entity" )
 
 -- i love overoptimisation
 local playersCache = {} -- not nil cause of autorefresh 
-local cacheTimerName = ""
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
-    timer.Create( cacheTimerName, 0.1, 0, function()
+    timer.Create( "term_cache_players", 0.1, 0, function()
         playersCache = {}
         for _, ply in player.Iterator() do
             playersCache[ply] = true
@@ -18,8 +17,22 @@ hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache"
     end )
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
-    timer.Remove( cacheTimerName )
+    timer.Remove( "term_cache_players" )
     playersCache = {}
+
+end )
+
+-- i love overoptimisation x 2
+local notEnemyCache = {} -- this cache is used to skip alot of _index calls, perf, on checking if props, static things are enemies
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_notenemycache", function()
+    timer.Create( "term_cache_isnotenemy", 5, 0, function()
+        notEnemyCache = {}
+
+    end )
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "setup_shouldbeenemy_notenemycache", function()
+    timer.Remove( "term_cache_isnotenemy" )
+    notEnemyCache = {}
 
 end )
 
@@ -29,9 +42,14 @@ function ENT:EntShootPos( ent, random )
 
     local sets = entMeta.GetHitboxSetCount( ent )
 
-    local isCrouchingPlayer = playersCache[ent] and ent:Crouching()
+    local isPly = playersCache[ent]
+    local isPlayerInVehicle = isPly and ent:InVehicle()
+    local isCrouchingPlayer = isPly and ent:Crouching()
 
-    if not isCrouchingPlayer and sets then
+    if isPlayerInVehicle then
+        return self:getBestPos( ent:GetVehicle() )
+
+    elseif not isCrouchingPlayer and sets then
 
         local data = ent.cachedHitboxData or nil
 
@@ -176,18 +194,26 @@ end
 local bearingToPos = terminator_Extras.BearingToPos
 local math_abs = math.abs
 
+local function PosIsInFov( self, myAng, myPos, checkPos, fov )
+    fov = fov or self.Term_FOV
+    if not fov or fov >= 180 then return true end
+
+    myAng = myAng or self:GetEyeAngles()
+    myPos = myPos or self:GetPos()
+    -- this is dumb
+    local fovInverse = bearingToPos( myPos, myAng, checkPos, myAng )
+    return ( math_abs( fovInverse ) - 180 ) > -fov
+
+end
+
+ENT.PosIsInFov = PosIsInFov
+
 local function IsInMyFov( self, ent, fov )
     fov = fov or self.Term_FOV
-    if fov < 180 then
-        local myAng = self:GetEyeAngles()
-        -- this is dumb
-        local fovInverse = bearingToPos( self:GetPos(), myAng, ent:GetPos(), myAng )
-        return ( math_abs( fovInverse ) - 180 ) > -fov
+    if not fov or fov >= 180 then return true end
 
-    else
-        return true
+    return PosIsInFov( self, nil, self:GetPos(), ent:GetPos() )
 
-    end
 end
 
 ENT.IsInMyFov = IsInMyFov
@@ -195,7 +221,12 @@ ENT.IsInMyFov = IsInMyFov
 local _IsFlagSet = entMeta.IsFlagSet
 
 function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
-    if _IsFlagSet( ent, FL_NOTARGET ) then return false end
+    if notEnemyCache[ent] then return false end
+    if _IsFlagSet( ent, FL_NOTARGET ) then
+        notEnemyCache[ent] = true
+        return false
+
+    end
     local isObject = _IsFlagSet( ent, FL_OBJECT )
     local isPly = playersCache[ent]
 
@@ -205,6 +236,7 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     if not ent.isTerminatorHunterKiller then
         local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
         if not isObject and not interesting then
+            notEnemyCache[ent] = true
             return false
 
         end
@@ -221,7 +253,11 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     entsTbl = entsTbl or entMeta.GetTable( ent )
     myTbl = myTbl or entMeta.GetTable( self )
 
-    if isPly and myTbl.IgnoringPlayers( self ) then return false end
+    if isPly and myTbl.IgnoringPlayers( self ) then
+        notEnemyCache[ent] = true
+        return false
+
+    end
 
     local class = ent:GetClass()
     if class == "rpg_missile" then return false end
@@ -303,9 +339,10 @@ function ENT:FindEnemies()
 
     for i = 1, #found do
         local ent = found[i]
-        if ent == self or not ShouldBeEnemy( self, ent, myFov, myTbl, ent:GetTable() ) or not CanSeePosition( self, ent ) then continue end
+        if ent ~= self and not notEnemyCache[ ent ] and ShouldBeEnemy( self, ent, myFov, myTbl, ent:GetTable() ) and CanSeePosition( self, ent ) then
+            UpdateEnemyMemory( self, ent, EntShootPos( self, ent ), true )
 
-        UpdateEnemyMemory( self, ent, EntShootPos( self, ent ), true )
+        end
     end
 end
 
@@ -407,13 +444,14 @@ function ENT:MakeFeud( enemy )
     local sameChummy = enemy.isTerminatorHunterChummy == self.isTerminatorHunterChummy
     if sameChummy and not maniacHunter then return end
 
-    local disp = self:Disposition( enemy )
-    if not disp then return end
     if enemy:IsPlayer() then
-        self:AddEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else
+        self:Term_SetEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else
+
+    elseif enemy:IsNPC() or enemy:IsNextBot() then
+        self:Term_SetEntityRelationship( enemy, D_HT, 100 )
 
     else
-        self:AddEntityRelationship( enemy, D_HT )
+        self:Term_SetEntityRelationship( enemy, D_HT, 1 )
 
     end
 
@@ -425,9 +463,11 @@ function ENT:MakeFeud( enemy )
         self:memorizeEntAs( enemy, MEMORY_WEAPONIZEDNPC )
 
     end
+
     if not enemy.Disposition then return end
     Disp = enemy:Disposition( self )
     if Disp == D_HT then return end
+    if not enemy.AddEntityRelationship then return end
     enemy:AddEntityRelationship( self, D_HT )
 
 end
@@ -509,15 +549,58 @@ function ENT:HasToCrouchToSeeEnemy()
     end
 end
 
--- all other relationships are created by MakeFeud when something damages us
--- means bot viciously attacks enemies that can hurt it!
-function ENT:DoHardcodedRelations()
-    self:SetClassRelationship( "player", D_HT, 1 )
-    self:SetClassRelationship( "npc_lambdaplayer", D_HT, 1 )
-    self:SetClassRelationship( "rpg_missile", D_NU )
-    self:SetClassRelationship( "terminator_nextbot", D_LI )
-    self:SetClassRelationship( "terminator_nextbot_slower", D_LI )
-    self:SetClassRelationship( "terminator_nextbot_fakeply", D_HT )
+function ENT:GetDesiredEnemyRelationship( ent )
+    local disp = D_HT
+    local theirdisp = D_HT
+    local priority = 1
+
+    local hardCodedRelation = self.term_HardCodedRelations[ent:GetClass()]
+    if hardCodedRelation then
+        disp = hardCodedRelation[1] or disp
+        theirdisp = hardCodedRelation[2] or theirdisp
+        priority = hardCodedRelation[3] or priority
+        return disp, priority, theirdisp
+
+    end
+
+    if ent.isTerminatorHunterChummy then
+        if ent.isTerminatorHunterChummy == self.isTerminatorHunterChummy then
+            disp = D_LI
+            theirdisp = D_LI
+
+        else
+            disp = D_HT
+            theirdisp = D_HT
+
+        end
+
+    elseif ent:IsPlayer() then
+        priority = 1000
+
+    elseif ent:IsNPC() or ent:IsNextBot() then
+        local memories = {}
+        if self.awarenessMemory then
+            memories = self.awarenessMemory
+
+        end
+        local key = self:getAwarenessKey( ent )
+        local memory = memories[key]
+        if memory == MEMORY_WEAPONIZEDNPC then
+            priority = priority + 300
+
+        else
+            -- what usually happens, npc is flagged as boring
+            disp = D_NU
+            --print("boringent" )
+            priority = priority + 100
+
+        end
+        if ent.Health and ent:Health() < self:Health() / 100 then
+            theirdisp = D_FR
+
+        end
+    end
+    return disp,priority,theirdisp
 
 end
 

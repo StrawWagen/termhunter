@@ -1218,7 +1218,15 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
 
     local enem = attacker:GetEnemy()
     if not IsValid( enem ) then return end
-    if enem ~= target then return end
+
+    local targetIsVehicle = target.GetDriver
+    if targetIsVehicle then
+        if enem ~= target:GetDriver() then return end
+
+    else
+        if enem ~= target then return end
+
+    end
 
     -- allow thrown crowbar + derivatives to actually get judged
     local inflictor = dmg:GetInflictor()
