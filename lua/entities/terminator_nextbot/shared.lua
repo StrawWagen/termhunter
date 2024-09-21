@@ -2709,8 +2709,9 @@ function ENT:DoDefaultTasks()
         ["shooting_handler"] = {
             OnStart = function( self, data )
             end,
-            BehaveUpdate = function( self, data, interval )
+            BehaveUpdatePriority = function( self, data, interval )
                 local enemy = self:GetEnemy()
+
                 local wep = self:GetActiveLuaWeapon() or self:GetActiveWeapon()
                 -- edge case
                 if not IsValid( wep ) then
@@ -2728,6 +2729,10 @@ function ENT:DoDefaultTasks()
 
                     end
                 end
+
+                local forcedToLook = self:Term_LookAround()
+                if forcedToLook then return end
+
                 local doShootingPrevent = self.PreventShooting
 
                 if wep.terminatorCrappyWeapon == true and self.HasFists then
@@ -2736,7 +2741,7 @@ function ENT:DoDefaultTasks()
                 elseif wep.Clip1 and wep:Clip1() <= 0 and wep:GetMaxClip1() > 0 and not self.IsReloadingWeapon then
                     self:WeaponReload()
 
-                -- allow us to not stop shooting at the witness player
+                -- allow us to not stop shooting at the witness player, glee
                 elseif IsValid( self.OverrideShootAtThing ) and self.OverrideShootAtThing:Health() > 0 then
                     self:shootAt( self:EntShootPos( self.OverrideShootAtThing ) )
                     self.lastShootingType = "witnessplayer"
@@ -2791,207 +2796,15 @@ function ENT:DoDefaultTasks()
                         self:shootAt( meleeAtPos, blockShoot )
 
                     end
-                elseif wep.Clip1 and ( wep:GetMaxClip1() > 0 ) and ( wep:Clip1() < wep:GetMaxClip1() / 2 ) and not self.IsReloadingWeapon then
-                    self:WeaponReload()
+                else
+                    if wep.Clip1 and ( wep:GetMaxClip1() > 0 ) and ( wep:Clip1() < wep:GetMaxClip1() / 2 ) and not self.IsReloadingWeapon then
+                        self:WeaponReload()
 
+                    end
                 end
             end,
             StartControlByPlayer = function( self, data, ply )
                 self:TaskFail( "shooting_handler" )
-            end,
-        },
-        ["awareness_handler"] = {
-            BehaveUpdate = function( self, data, interval )
-                local nextAware = data.nextAwareness or 0
-                if nextAware < CurTime() then
-                    data.nextAwareness = CurTime() + 1.5
-                    self:understandSurroundings()
-                end
-            end,
-        },
-        ["reallystuck_handler"] = { -- it's really stuck!!!!!!!
-            OnStart = function( self, data )
-                data.historicPositions = {}
-                data.historicNavs = {}
-                data.historicStucks = {}
-                data.maybeUnderCount = 0
-            end,
-            BehaveUpdate = function( self, data )
-                if not extremeUnstucking:GetBool() then return end
-                local nextCache = data.nextCache or 0
-                if nextCache < CurTime() then
-                    local myPos = self:GetPos()
-                    local currentNav = navmesh.GetNearestNavArea( myPos, false, 50, false, false, -2 )
-                    local size = 80
-
-                    --debugoverlay.Cross( myPos, 10, 10, Color( 255,255,255 ), true )
-
-                    data.nextCache = CurTime() + 1
-
-                    local noNav = self.loco:IsOnGround() and not ( currentNav and currentNav.IsValid and currentNav:IsValid() )
-                    local doAddCount = 1
-                    -- go faster
-                    if noNav then
-                        doAddCount = doAddCount * 4
-
-                    end
-                    if self.isUnstucking then
-                        doAddCount = doAddCount * 2
-
-                    end
-
-                    if myPos then
-                        for _ = 1, doAddCount do
-                            table.insert( data.historicPositions, 1, myPos )
-
-                        end
-                    end
-                    if currentNav then
-                        for _ = 1, doAddCount do
-                            table.insert( data.historicNavs, 1, currentNav )
-
-                        end
-                    end
-
-                    local stuck = nil
-                    local sortaStuck = nil
-                    local overrideStuck = self.overrideVeryStuck
-
-                    local nextDisplacementCheck = data.nextUnderDisplacementCheck or 0
-                    if nextDisplacementCheck < CurTime() then
-                        data.nextUnderDisplacementCheck = CurTime() + 5
-                        local isUnderDisplacement, maybeUnderDisplacement = self:IsUnderDisplacement()
-
-                        if maybeUnderDisplacement then
-                            data.maybeUnderCount = data.maybeUnderCount + 1
-
-                        elseif isUnderDisplacement then
-                            data.maybeUnderCount = data.maybeUnderCount + 3
-
-                        else
-                            data.maybeUnderCount = 0
-
-                        end
-                    end
-
-                    local underDisplacement = data.maybeUnderCount > 6
-
-                    if #data.historicPositions > size then
-                        if data.historicPositions[size + 1] then
-                            table.remove( data.historicPositions, size + 1 )
-                            table.remove( data.historicPositions, size + 1 )
-
-                        end
-                        if data.historicNavs[size + 1] then
-                            table.remove( data.historicNavs, size + 1 )
-                            table.remove( data.historicNavs, size + 1 )
-
-                        end
-
-                        -- start with assuming its true
-                        stuck = true
-                        sortaStuck = true
-
-                        for _, historicPos in ipairs( data.historicPositions ) do
-                            local distSqr = myPos:DistToSqr( historicPos )
-                            --debugoverlay.Line( myPos, historicPos, 1, color_white, true )
-                            if SqrDistGreaterThan( distSqr, 15 ) then
-                                stuck = nil
-                                break
-
-                            end
-                        end
-                        -- false if we haven't been here for x long
-                        for _, historicNav in ipairs( data.historicNavs ) do
-                            if historicNav ~= currentNav then
-                                sortaStuck = nil
-                                break
-
-                            end
-                        end
-                        if noNav and not self:PathIsValid() and not stuck and not navmesh.GetNearestNavArea( myPos, false, 200, false, false, -2 ) then
-                            if GAMEMODE.IsReallyHuntersGlee then
-                                SafeRemoveEntity( self )
-
-                            else
-                                stuck = true
-
-                            end
-                        end
-                    end
-
-                    if not self.IsSeeEnemy and ( stuck or sortaStuck or underDisplacement or overrideStuck ) then -- i have been in the same EXACT spot for S I Z E seconds
-                        --print( self:GetCreationID(), "damnitfoundmeasstuck ", stuck, sortaStuck, underDisplacement, overrideStuck )
-                        --PrintTable( data.historicNavs )
-                        --debugoverlay.Cross( myPos, 100, 100, color_white, true )
-
-                        self.overrideVeryStuck = nil
-                        local distToEnemy = 0
-                        local enemyPos = self:GetPos()
-                        if IsValid( self:GetEnemy() ) then
-                            distToEnemy = self.DistToEnemy
-                            enemyPos = self.EnemyLastPos or self:GetEnemy():GetPos()
-
-                        end
-
-                        local scoreData = {}
-                        scoreData.startPos = self:GetPos()
-                        scoreData.distToEnemySqared = distToEnemy^2
-                        scoreData.enemyPos = enemyPos
-
-                        local scoreFunction = function( scoreData, _, area2 )
-                            local area2Center = area2:GetCenter()
-                            local score = area2Center:DistToSqr( scoreData.startPos ) ^ math.Rand( 0.9, 1.1 )
-                            if area2Center:DistToSqr( scoreData.enemyPos ) < scoreData.distToEnemySqared then -- dont get closer
-                                --debugoverlay.Cross( area2Center, 10, 10, Color( 255,255,255 ), true )
-                                score = 0
-                            end
-
-                            return score
-
-                        end
-                        local freedomPos = nil
-                        -- foolproof.. maybe
-                        local nearestNavArea = navmesh.GetNearestNavArea( self:GetPos(), false, 10000, false, true, 2 )
-
-                        for _ = 1, 10 do
-                            freedomPos = self:findValidNavResult( scoreData, nearestNavArea, math.random( 2000, 3000 ), scoreFunction ) -- huge position shunt since we're so stuck.
-                            if freedomPos then break end
-                        end
-
-
-                        --debugoverlay.Cross( freedomPos, 50, 20, Color( 255, 0, 0 ), true )
-                        --print( self:GetCreationID(), "bigunstuck ", stuck, sortastuck, underDisplacement, overrideStuck, noNavAndNotStaring )
-
-                        if freedomPos then
-                            self:SetPosNoTeleport( freedomPos )
-                            self:InvalidatePath( "i was hard unstucked! bailing path." )
-                            self.loco:SetVelocity( vec_zero )
-                            self.loco:ClearStuck()
-
-                        elseif GAMEMODE.getValidHunterPos then
-                            freedomPos = GAMEMODE:getValidHunterPos()
-
-                            if freedomPos then
-                                self:SetPosNoTeleport( freedomPos )
-                                self:InvalidatePath( "i was hard unstucked! bailing path. 2" )
-
-                                self.loco:SetVelocity( vec_zero )
-                                self.loco:ClearStuck()
-
-                            end
-                        elseif not self:PathIsValid() then -- only remove if its not pathing!
-                            SafeRemoveEntity( self )
-
-                        end
-
-                        data.nextUnderDisplacementCheck = 0 -- CHECK NOW!
-
-                        data.historicPositions = {}
-                        data.historicNavs = {}
-
-                    end
-                end
             end,
         },
         ["enemy_handler"] = {
@@ -3186,11 +2999,205 @@ function ENT:DoDefaultTasks()
                     self:SetEnemy( newenemy )
                 end
             end,
-            BehaveUpdate = function( self, data, interval )
+            BehaveUpdatePriority = function( self, data, interval )
                 self.UpdateEnemyHandler()
             end,
             StartControlByPlayer = function( self, data, ply )
                 self:TaskFail( "enemy_handler" )
+            end,
+        },
+        ["awareness_handler"] = {
+            BehaveUpdatePriority = function( self, data, interval )
+                local nextAware = data.nextAwareness or 0
+                if nextAware < CurTime() then
+                    data.nextAwareness = CurTime() + 1.5
+                    self:understandSurroundings()
+                end
+            end,
+        },
+        ["reallystuck_handler"] = { -- it's really stuck!!!!!!!
+            OnStart = function( self, data )
+                data.historicPositions = {}
+                data.historicNavs = {}
+                data.historicStucks = {}
+                data.maybeUnderCount = 0
+            end,
+            BehaveUpdateMotion = function( self, data )
+                if not extremeUnstucking:GetBool() then return end
+                local nextCache = data.nextCache or 0
+                if nextCache < CurTime() then
+                    local myPos = self:GetPos()
+                    local currentNav = navmesh.GetNearestNavArea( myPos, false, 50, false, false, -2 )
+                    local size = 80
+
+                    --debugoverlay.Cross( myPos, 10, 10, Color( 255,255,255 ), true )
+
+                    data.nextCache = CurTime() + 1
+
+                    local noNav = self.loco:IsOnGround() and not ( currentNav and currentNav.IsValid and currentNav:IsValid() )
+                    local doAddCount = 1
+                    -- go faster
+                    if noNav then
+                        doAddCount = doAddCount * 4
+
+                    end
+                    if self.isUnstucking then
+                        doAddCount = doAddCount * 2
+
+                    end
+
+                    if myPos then
+                        for _ = 1, doAddCount do
+                            table.insert( data.historicPositions, 1, myPos )
+
+                        end
+                    end
+                    if currentNav then
+                        for _ = 1, doAddCount do
+                            table.insert( data.historicNavs, 1, currentNav )
+
+                        end
+                    end
+
+                    local stuck = nil
+                    local sortaStuck = nil
+                    local overrideStuck = self.overrideVeryStuck
+
+                    local nextDisplacementCheck = data.nextUnderDisplacementCheck or 0
+                    if nextDisplacementCheck < CurTime() then
+                        data.nextUnderDisplacementCheck = CurTime() + 5
+                        local isUnderDisplacement, maybeUnderDisplacement = self:IsUnderDisplacement()
+
+                        if maybeUnderDisplacement then
+                            data.maybeUnderCount = data.maybeUnderCount + 1
+
+                        elseif isUnderDisplacement then
+                            data.maybeUnderCount = data.maybeUnderCount + 3
+
+                        else
+                            data.maybeUnderCount = 0
+
+                        end
+                    end
+
+                    local underDisplacement = data.maybeUnderCount > 6
+
+                    if #data.historicPositions > size then
+                        if data.historicPositions[size + 1] then
+                            table.remove( data.historicPositions, size + 1 )
+                            table.remove( data.historicPositions, size + 1 )
+
+                        end
+                        if data.historicNavs[size + 1] then
+                            table.remove( data.historicNavs, size + 1 )
+                            table.remove( data.historicNavs, size + 1 )
+
+                        end
+
+                        -- start with assuming its true
+                        stuck = true
+                        sortaStuck = true
+
+                        for _, historicPos in ipairs( data.historicPositions ) do
+                            local distSqr = myPos:DistToSqr( historicPos )
+                            --debugoverlay.Line( myPos, historicPos, 1, color_white, true )
+                            if SqrDistGreaterThan( distSqr, 15 ) then
+                                stuck = nil
+                                break
+
+                            end
+                        end
+                        -- false if we haven't been here for x long
+                        for _, historicNav in ipairs( data.historicNavs ) do
+                            if historicNav ~= currentNav then
+                                sortaStuck = nil
+                                break
+
+                            end
+                        end
+                        if noNav and not self:PathIsValid() and not stuck and not navmesh.GetNearestNavArea( myPos, false, 200, false, false, -2 ) then
+                            if GAMEMODE.IsReallyHuntersGlee then
+                                SafeRemoveEntity( self )
+
+                            else
+                                stuck = true
+
+                            end
+                        end
+                    end
+
+                    if not self.IsSeeEnemy and ( stuck or sortaStuck or underDisplacement or overrideStuck ) then -- i have been in the same EXACT spot for S I Z E seconds
+                        --print( self:GetCreationID(), "damnitfoundmeasstuck ", stuck, sortaStuck, underDisplacement, overrideStuck )
+                        --PrintTable( data.historicNavs )
+                        --debugoverlay.Cross( myPos, 100, 100, color_white, true )
+
+                        self.overrideVeryStuck = nil
+                        local distToEnemy = 0
+                        local enemyPos = self:GetPos()
+                        if IsValid( self:GetEnemy() ) then
+                            distToEnemy = self.DistToEnemy
+                            enemyPos = self.EnemyLastPos or self:GetEnemy():GetPos()
+
+                        end
+
+                        local scoreData = {}
+                        scoreData.startPos = self:GetPos()
+                        scoreData.distToEnemySqared = distToEnemy^2
+                        scoreData.enemyPos = enemyPos
+
+                        local scoreFunction = function( scoreData, _, area2 )
+                            local area2Center = area2:GetCenter()
+                            local score = area2Center:DistToSqr( scoreData.startPos ) ^ math.Rand( 0.9, 1.1 )
+                            if area2Center:DistToSqr( scoreData.enemyPos ) < scoreData.distToEnemySqared then -- dont get closer
+                                --debugoverlay.Cross( area2Center, 10, 10, Color( 255,255,255 ), true )
+                                score = 0
+                            end
+
+                            return score
+
+                        end
+                        local freedomPos = nil
+                        -- foolproof.. maybe
+                        local nearestNavArea = navmesh.GetNearestNavArea( self:GetPos(), false, 10000, false, true, 2 )
+
+                        for _ = 1, 10 do
+                            freedomPos = self:findValidNavResult( scoreData, nearestNavArea, math.random( 2000, 3000 ), scoreFunction ) -- huge position shunt since we're so stuck.
+                            if freedomPos then break end
+                        end
+
+
+                        --debugoverlay.Cross( freedomPos, 50, 20, Color( 255, 0, 0 ), true )
+                        --print( self:GetCreationID(), "bigunstuck ", stuck, sortastuck, underDisplacement, overrideStuck, noNavAndNotStaring )
+
+                        if freedomPos then
+                            self:SetPosNoTeleport( freedomPos )
+                            self:InvalidatePath( "i was hard unstucked! bailing path." )
+                            self.loco:SetVelocity( vec_zero )
+                            self.loco:ClearStuck()
+
+                        elseif GAMEMODE.getValidHunterPos then
+                            freedomPos = GAMEMODE:getValidHunterPos()
+
+                            if freedomPos then
+                                self:SetPosNoTeleport( freedomPos )
+                                self:InvalidatePath( "i was hard unstucked! bailing path. 2" )
+
+                                self.loco:SetVelocity( vec_zero )
+                                self.loco:ClearStuck()
+
+                            end
+                        elseif not self:PathIsValid() then -- only remove if its not pathing!
+                            SafeRemoveEntity( self )
+
+                        end
+
+                        data.nextUnderDisplacementCheck = 0 -- CHECK NOW!
+
+                        data.historicPositions = {}
+                        data.historicNavs = {}
+
+                    end
+                end
             end,
         },
         ["movement_handler"] = {
@@ -3275,7 +3282,7 @@ function ENT:DoDefaultTasks()
 
                 end
             end,
-            BehaveUpdate = function( self, data, interval )
+            BehaveUpdateMotion = function( self, data, interval )
 
                 if not IsValid( aBashingFrenzyTerminator ) and #ents.FindByClass( self:GetClass() ) >= 2 then
                     -- global var!!!
@@ -3425,7 +3432,7 @@ function ENT:DoDefaultTasks()
                 --print( data.object )
 
             end,
-            BehaveUpdate = function( self, data, interval )
+            BehaveUpdateMotion = function( self, data, interval )
                 local pathLengthThresh = 125
                 local definitelyAttacked = ( data.definitelyAttacked or 0 ) < CurTime() and data.attacked
                 local internalUnderstandAtt = data.understandAttempts or 0
@@ -3594,7 +3601,7 @@ function ENT:DoDefaultTasks()
                 data.startedLooking = self.IsSeeEnemy
                 data.time = CurTime() + ( data.time or math.Rand( 0.1, 0.2 ) )
             end,
-            BehaveUpdate = function( self, data, interval )
+            BehaveUpdateMotion = function( self, data, interval )
                 if self.IsSeeEnemy and not data.startedLooking then
                     self:EnemyAcquired( "movement_wait" )
 
@@ -3626,8 +3633,14 @@ function ENT:DoDefaultTasks()
 
                 data.crapWep = function()
                     local failedWeaponPaths = data.Wep.failedWeaponPaths or 0
-                    data.Wep.failedWeaponPaths = failedWeaponPaths + 1
-                    if data.Wep.failedWeaponPaths > 15 then
+                    local wasExpensivePath = self.term_ExpensivePath
+                    local added = 1
+                    if wasExpensivePath then
+                        added = 5
+
+                    end
+                    data.Wep.failedWeaponPaths = failedWeaponPaths + added
+                    if data.Wep.failedWeaponPaths > 5 then
                         data.Wep.terminatorCrappyWeapon = true
 
                     end
@@ -3733,34 +3746,39 @@ function ENT:DoDefaultTasks()
                 end
 
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 if data.taskKilled then return end
 
                 if not data:updateWep() then return end
                 local currWep = data.Wep
                 if not IsValid( currWep ) then return end
+                local wepsPos = currWep:GetPos()
 
                 if self:CanBashLockedDoor( self:GetPos(), 500 ) and self:BashLockedDoor( "movement_getweapon" ) then
                     return
 
                 end
 
-                local canNewPath = self:primaryPathInvalidOrOutdated( currWep:GetPos() )
+                local canNewPath = self:primaryPathInvalidOrOutdated( wepsPos )
 
                 if canNewPath then
                     if self:EnemyIsLethalInMelee() then
                         local result = terminator_Extras.getNearestPosOnNav( self:GetEnemy():GetPos() )
                         if result and IsValid( result.area ) then
-                            self:SetupFlankingPath( currWep:GetPos(), result.area, self.DistToEnemy * 0.8 )
+                            self:SetupFlankingPath( wepsPos, result.area, self.DistToEnemy * 0.8 )
+                            data.wasAValidPath = true
                             yieldIfWeCan()
 
                         end
                     end
 
                     if not self:primaryPathIsValid() then
-                        self:SetupPathShell( currWep:GetPos() )
-                        data.wasAValidPath = true
+                        local result = terminator_Extras.getNearestPosOnNav( wepsPos )
+                        if result and IsValid( result.area ) and self:areaIsReachable( result.area ) then
+                            self:SetupPathShell( wepsPos )
+                            data.wasAValidPath = true
 
+                        end
                     end
 
                     if not self:primaryPathIsValid() then
@@ -3858,7 +3876,7 @@ function ENT:DoDefaultTasks()
                 data.time = CurTime() + timeOffset
 
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 if data.time and data.time > CurTime() then return end
                 local myPos = self:GetPos()
 
@@ -4180,7 +4198,7 @@ function ENT:DoDefaultTasks()
                 data.checkNavId = checkNav:GetID()
 
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local doneCount = data.doneCount or 0
 
                 if data.InvalidAfterwards and data.doneSearchesNearby < 5 then
@@ -4496,7 +4514,7 @@ function ENT:DoDefaultTasks()
                     data.InvalidAfterwards = true
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 if data.InvalidAfterwards then
                     if self.IsSeeEnemy then
                         self:EnemyAcquired( "movement_searchlastdir" )
@@ -4628,7 +4646,7 @@ function ENT:DoDefaultTasks()
                 self:RunTask( "StartStaring" )
 
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
                 local enemyBearingToMeAbs = math.huge
@@ -5135,7 +5153,7 @@ function ENT:DoDefaultTasks()
                 end
                 data.InvalidAfterwards = true
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local exit = nil
                 local valid = nil
 
@@ -5481,7 +5499,7 @@ function ENT:DoDefaultTasks()
                 end
                 data.InvalidAfterwards = true
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local exit = nil
                 local keepHidden = nil
                 if data.InvalidAfterwards then
@@ -5580,7 +5598,7 @@ function ENT:DoDefaultTasks()
                     self:InvalidatePath( "approaching a forced check pos, killing old path" )
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local toPos = data.forcedCheckPosition
                 if not toPos then
                     data.forcedCheckPosition, data.forcedCheckKey = table_Random( self.forcedCheckPositions )
@@ -5674,7 +5692,7 @@ function ENT:DoDefaultTasks()
                     self:InvalidatePath( "approaching last seen, killing old path" )
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
                 local toPos = data.pos or self.EnemyLastPos
                 local goodEnemy = self.IsSeeEnemy and IsValid( enemy )
@@ -5757,7 +5775,7 @@ function ENT:DoDefaultTasks()
                     self:InvalidatePath( "followenemy" )
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
 
                 local enemy = self:GetEnemy()
                 local validEnemy = IsValid( enemy )
@@ -5888,7 +5906,7 @@ function ENT:DoDefaultTasks()
 
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPosOffsetted
                 local myPos = self:GetPos()
@@ -6248,7 +6266,7 @@ function ENT:DoDefaultTasks()
                     return
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local result = self:ControlPath2( not self.IsSeeEnemy )
 
                 local canWep, potentialWep = self:canGetWeapon()
@@ -6431,7 +6449,7 @@ function ENT:DoDefaultTasks()
 
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 -- gives up on self.bigInertiaPreserveBeenAreas if we know for a fact that the enemy has moved
 
                 local want = data.Want or 0
@@ -6569,7 +6587,7 @@ function ENT:DoDefaultTasks()
 
                 end
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
                 local tooDangerousToApproach = self:EnemyIsLethalInMelee( enemy )
                 local enemyBearingToMeAbs = math.huge
@@ -6776,7 +6794,7 @@ function ENT:DoDefaultTasks()
                 data.oldDistToBestPos = math.huge
                 self:InvalidatePath( "placing wep, remove old path!" )
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 local wep = self:GetWeapon()
                 local armed = self:IsFists()
 
@@ -6952,7 +6970,7 @@ function ENT:DoDefaultTasks()
                 }
 
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 if self.IsSeeEnemy and IsValid( self:GetEnemy() ) and self:GetEnemy().isTerminatorHunterKiller then
                     self.PreventShooting = nil
 
@@ -7146,7 +7164,7 @@ function ENT:DoDefaultTasks()
                 data.gaveItAChanceTime = CurTime() + 4
                 data.time = CurTime() + math.Rand( 0.01, 0.2 )
             end,
-            BehaveUpdate = function( self, data )
+            BehaveUpdateMotion = function( self, data )
                 if data.time and data.time > CurTime() then return end
 
                 local lastInterceptPos              = self.lastInterceptPos
@@ -7300,7 +7318,7 @@ function ENT:DoDefaultTasks()
                     end
                 end
             end,
-            BehaveUpdate = function( self, data, interval )
+            BehaveUpdateMotion = function( self, data, interval )
                 local enemy = self:GetEnemy()
                 if not IsValid( enemy ) then return end
                 if not self.IsSeeEnemy then return end

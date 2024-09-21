@@ -36,6 +36,11 @@ hook.Add( "terminator_nextbot_noterms_exist", "setup_shouldbeenemy_notenemycache
 
 end )
 
+local function pals( ent1, ent2 )
+    return ent1.isTerminatorHunterChummy == ent2.isTerminatorHunterChummy
+
+end
+
 function ENT:EntShootPos( ent, random )
     local hitboxes = {}
     if not ent then return end
@@ -254,7 +259,6 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
     if isPly and myTbl.IgnoringPlayers( self ) then
-        notEnemyCache[ent] = true
         return false
 
     end
@@ -416,6 +420,61 @@ function ENT:SetupEntityRelationship( ent )
     end )
 end
 
+function ENT:GetDesiredEnemyRelationship( ent )
+    local disp = D_HT
+    local theirdisp = D_HT
+    local priority = 1
+
+    local hardCodedRelation = self.term_HardCodedRelations[ent:GetClass()]
+    if hardCodedRelation then
+        disp = hardCodedRelation[1] or disp
+        theirdisp = hardCodedRelation[2] or theirdisp
+        priority = hardCodedRelation[3] or priority
+        return disp, priority, theirdisp
+
+    end
+
+    if ent.isTerminatorHunterChummy then
+        if pals( self, ent ) then
+            disp = D_LI
+            theirdisp = D_LI
+
+        else
+            disp = D_HT
+            theirdisp = D_HT
+
+        end
+
+    elseif ent:IsPlayer() then
+        priority = 1000
+
+    elseif ent:IsNPC() or ent:IsNextBot() then
+        local memories = {}
+        if self.awarenessMemory then
+            memories = self.awarenessMemory
+
+        end
+        local key = self:getAwarenessKey( ent )
+        local memory = memories[key]
+        if memory == MEMORY_WEAPONIZEDNPC then
+            priority = priority + 300
+
+        else
+            -- what usually happens, npc is flagged as boring
+            disp = D_NU
+            --print("boringent" )
+            priority = priority + 100
+
+        end
+        if ent.Health and ent:Health() < self:Health() / 100 then
+            theirdisp = D_FR
+
+        end
+    end
+    return disp,priority,theirdisp
+
+end
+
 function ENT:SetupRelationships()
     for _, ent in ents.Iterator() do
         self:SetupEntityRelationship( ent )
@@ -441,8 +500,8 @@ function ENT:MakeFeud( enemy )
     if enemy:GetClass() == "rpg_missile" then return end -- crazy fuckin bug
     if enemy:GetClass() == "env_flare" then return end
     local maniacHunter = ( self:GetCreationID() % 15 ) == 1 or self.alwaysManiac
-    local sameChummy = enemy.isTerminatorHunterChummy == self.isTerminatorHunterChummy
-    if sameChummy and not maniacHunter then return end
+    local arePals = pals( self, enemy )
+    if arePals and not maniacHunter then return end
 
     if enemy:IsPlayer() then
         self:Term_SetEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else
@@ -547,66 +606,6 @@ function ENT:HasToCrouchToSeeEnemy()
         self.tryCrouchingToSeeEnemy = true
         self.shouldCrouchToSeeWeight = 0
     end
-end
-
-function ENT:GetDesiredEnemyRelationship( ent )
-    local disp = D_HT
-    local theirdisp = D_HT
-    local priority = 1
-
-    local hardCodedRelation = self.term_HardCodedRelations[ent:GetClass()]
-    if hardCodedRelation then
-        disp = hardCodedRelation[1] or disp
-        theirdisp = hardCodedRelation[2] or theirdisp
-        priority = hardCodedRelation[3] or priority
-        return disp, priority, theirdisp
-
-    end
-
-    if ent.isTerminatorHunterChummy then
-        if ent.isTerminatorHunterChummy == self.isTerminatorHunterChummy then
-            disp = D_LI
-            theirdisp = D_LI
-
-        else
-            disp = D_HT
-            theirdisp = D_HT
-
-        end
-
-    elseif ent:IsPlayer() then
-        priority = 1000
-
-    elseif ent:IsNPC() or ent:IsNextBot() then
-        local memories = {}
-        if self.awarenessMemory then
-            memories = self.awarenessMemory
-
-        end
-        local key = self:getAwarenessKey( ent )
-        local memory = memories[key]
-        if memory == MEMORY_WEAPONIZEDNPC then
-            priority = priority + 300
-
-        else
-            -- what usually happens, npc is flagged as boring
-            disp = D_NU
-            --print("boringent" )
-            priority = priority + 100
-
-        end
-        if ent.Health and ent:Health() < self:Health() / 100 then
-            theirdisp = D_FR
-
-        end
-    end
-    return disp,priority,theirdisp
-
-end
-
-local function pals( ent1, ent2 )
-    return ent1.isTerminatorHunterChummy == ent2.isTerminatorHunterChummy
-
 end
 
 local _dirToPos = terminator_Extras.dirToPos
@@ -814,11 +813,133 @@ end
 function ENT:GetNearbyAllies()
     local allies = {}
     for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
-        if ent == self or ent.isTerminatorHunterChummy ~= self.isTerminatorHunterChummy or self:GetPos():DistToSqr( ent:GetPos() ) > self.InformRadius^2 then continue end
+        if ent == self or pals( self, ent ) or self:GetPos():DistToSqr( ent:GetPos() ) > self.InformRadius^2 then continue end
 
         table.insert( allies, ent )
 
     end
     return allies
 
+end
+
+local vec_up25 = Vector( 0, 0, 25 )
+
+function ENT:Term_LookAround()
+    local cur = CurTime()
+    local myTbl = self:GetTable()
+    local myPos = self:GetPos()
+
+    local myArea = myTbl.GetTrueCurrentNavArea( self )
+    local _, aheadSegment = myTbl.GetNextPathArea( self, myArea ) -- top of the jump
+    if not aheadSegment then
+        aheadSegment = self:GetPath():GetCurrentGoal()
+
+    end
+    local laddering = myTbl.terminator_HandlingLadder
+
+    local lookAtGoalTime = myTbl.term_LookAtPathGoal or 0
+    local lookAtGoal = lookAtGoalTime > cur
+    local disrespecting = myTbl.GetCachedDisrespector( self )
+    local speedToStopLookingFarAhead = terminator_Extras.term_DefaultSpeedToAimAtProps
+    if IsValid( disrespecting ) then
+        local myNearestPointToIt = self:NearestPoint( disrespecting:WorldSpaceCenter() )
+        local itsNearestPointToMyNearestPoint = disrespecting:NearestPoint( myNearestPointToIt )
+        if myNearestPointToIt:DistToSqr( itsNearestPointToMyNearestPoint ) < 8^2 then
+            myTbl.PhysicallyPushEnt( self, disrespecting, 250 )
+
+        end
+        if not myTbl.LookAheadOnlyWhenBlocked and myTbl.EntIsInMyWay( self, disrespecting, 140, aheadSegment ) then
+            speedToStopLookingFarAhead = terminator_Extras.term_InterruptedSpeedToAimAtProps
+
+        end
+    end
+    local lookAtPos
+    local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
+    local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
+    local sndHint = myTbl.lastHeardSoundHint
+    local genericHint = myTbl.term_GenericLookAtPos
+    local curiosity = 0.5
+
+    local lookAtEnemyLastPos = myTbl.LookAtEnemyLastPos or 0
+    local shouldLookTime = lookAtEnemyLastPos > cur
+
+    if sndHint and sndHint.valuable then
+        curiosity = 2
+
+    end
+
+    local seeEnem = myTbl.IsSeeEnemy
+    --local lookAtType
+
+    if not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
+        lookAtPos = myTbl.lastInterceptPos
+        --lookAtType = "intercept"
+
+    elseif not seeEnem and myTbl.TookDamagePos then
+        lookAtPos = myTbl.TookDamagePos
+        --lookAtType = "tookdamage"
+
+    elseif not seeEnem and sndHint and sndHint.time + curiosity > cur then
+        lookAtPos = sndHint.source
+        --lookAtType = "soundhint"
+
+    elseif not seeEnem and genericHint and genericHint.time + curiosity > cur then
+        lookAtPos = genericHint.source
+        --lookAtType = "generichint"
+
+    elseif lookAtGoal and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
+        if not shouldLookTime then
+            myTbl.LookAtEnemyLastPos = cur + curiosity
+
+        end
+        lookAtPos = myTbl.EnemyLastPos
+        --lookAtType = "enemylastpos"
+
+    elseif lookAtGoal and not seeEnem and laddering then
+        lookAtPos = myPos + self:GetVelocity() * 100
+        --lookAtType = "laddering"
+
+    elseif ( lookAtGoal or movingSlow ) and myTbl.PathIsValid( self ) then
+        lookAtPos = aheadSegment.pos + vec_up25
+        --lookAtType = "lookatpath1"
+
+        if not self:IsOnGround() or movingSlow then
+            if IsValid( disrespecting ) then
+                lookAtPos = myTbl.getBestPos( self, disrespecting )
+                --lookAtType = "lookatpath_disrespector"
+
+            else
+                lookAtPos = aheadSegment.pos + vec_up25
+                --lookAtType = "lookatpath2"
+
+            end
+        elseif lookAtPos:DistToSqr( myPos ) < 400^2 then
+            -- attempt to look farther ahead
+            local _, segmentAheadOfUs = myTbl.GetNextPathArea( self, myArea, 3, true )
+            if segmentAheadOfUs then
+                lookAtPos = segmentAheadOfUs.pos + vec_up25
+                --lookAtType = "lookatpath3"
+
+            end
+        end
+    end
+
+    if lookAtPos then
+        local myShoot = self:GetShootPos()
+        if lookAtPos.z > myPos.z - 25 and lookAtPos.z < myPos.z + 25 then
+            lookAtPos.z = myShoot.z
+
+        end
+        local ang = ( lookAtPos - myShoot ):Angle()
+        local notADramaticHeightChange = ( lookAtPos.z > myPos.z + -100 ) or ( lookAtPos.z < myPos.z + 100 )
+        if notADramaticHeightChange and not laddering and not IsValid( disrespecting ) then
+            ang.p = 0
+
+        end
+
+        self:SetDesiredEyeAngles( ang )
+
+        return true
+
+    end
 end

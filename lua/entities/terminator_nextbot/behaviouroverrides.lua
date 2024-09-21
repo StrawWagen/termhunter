@@ -12,18 +12,19 @@ local coroutine_resume = coroutine.resume
 local SysTime = SysTime
 
 function ENT:BehaveUpdate( interval )
-    self.BehaveInterval = interval
+    local myTbl = self:GetTable()
+    myTbl.BehaveInterval = interval
 
-    if self.m_Physguned then
-        self.loco:SetVelocity( vector_origin )
+    if myTbl.m_Physguned then
+        myTbl.loco:SetVelocity( vector_origin )
     end
 
-    local disable = self:DisableBehaviour()
+    local disable = myTbl.DisableBehaviour( self )
 
     if not disable then
-        local crouch = self:ShouldCrouch()
-        if crouch ~= self:IsCrouching() and ( crouch or self:CanStandUp() ) then
-            self:SwitchCrouch( crouch )
+        local crouch = myTbl.ShouldCrouch( self )
+        if crouch ~= myTbl.IsCrouching( self ) and ( crouch or myTbl.CanStandUp( self ) ) then
+            myTbl.SwitchCrouch( self, crouch )
 
         end
     end
@@ -60,32 +61,43 @@ function ENT:BehaveUpdate( interval )
 
             self.m_ControlPlayerOldButtons = self.m_ControlPlayerButtons
         else
-            -- do shoot blocking thinking
-            self:BehaviourThink()
             -- Calling behaviour with coroutine type
-            if not self.BehaviourThread then
-                self.BehaviourThread = coroutine.create( function( self ) self:BehaviourCoroutine() end )
+            local threads = self.BehaviourThreads
+            if not threads then
+                threads = {}
+                self.BehaviourThreads = threads
 
             end
-            local thread = self.BehaviourThread
-            if thread then
-                local oldTime = SysTime()
-                local thresh = self.CoroutineThresh
-                if self.IsFodder and not IsValid( self:GetEnemy() ) then
-                    thresh = thresh / 2
 
-                end
+            if not threads.priorityCor then
+                threads.priorityCor = coroutine.create( function( self ) self:BehaviourPriorityCoroutine() end )
+
+            end
+            if not threads.motionCor then
+                threads.motionCor = coroutine.create( function( self ) self:BehaviourMotionCoroutine() end )
+
+            end
+
+            local thresh = self.CoroutineThresh
+            if self.IsFodder and not IsValid( self:GetEnemy() ) then
+                thresh = thresh / 2
+
+            end
+
+            for index, thread in pairs( threads ) do
+                local oldTime = SysTime()
+
                 while math_abs( oldTime - SysTime() ) < thresh do
                     local noErrors, result = coroutine_resume( thread, self )
                     if noErrors == false then
-                        self.BehaviourThread = nil
+                        threads[index] = nil
                         ErrorNoHaltWithStack( result )
                         break
                     elseif result == "wait" then
                         break
 
                     elseif result == "done" then
-                        self.BehaviourThread = nil
+                        threads[index] = nil
                         break
 
                     end
@@ -97,11 +109,23 @@ function ENT:BehaveUpdate( interval )
     self:SetupGesturePosture()
 end
 
-function ENT:BehaviourCoroutine()
+-- do enemy handling ( looking around, finding enemies, shooting ) off the coroutine
+function ENT:BehaviourPriorityCoroutine()
+    -- do shoot blocking thinking
+    self:BehaviourThink()
+
+    self:RunTask( "BehaveUpdatePriority" )
+
+    coroutine_yield( "done" )
+
+end
+
+-- do motion, anything super computationally expensive on the coroutine
+function ENT:BehaviourMotionCoroutine()
     self:StuckCheck()
 
     -- Calling task callbacks
-    self:RunTask( "BehaveUpdate", interval )
+    self:RunTask( "BehaveUpdateMotion" )
 
     coroutine_yield( "done" )
 

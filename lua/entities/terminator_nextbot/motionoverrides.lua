@@ -64,26 +64,20 @@ function ENT:ClearOrBreakable( start, endpos, doSmallHull, hullMul )
 
     local hitNothingOrHitBreakable = true
     local hitNothing = true
-    local hitEntity = traceRes.Entity
+    local hitEnt = traceRes.Entity
     if traceRes.Hit or traceRes.StartSolid then
         hitNothing = nil
         hitNothingOrHitBreakable = nil
 
     end
-    if IsValid( hitEntity ) then
+    if IsValid( hitEnt ) then
         local enemy = self:GetEnemy()
-        local isVehicle = hitEntity.GetDriver
-
-        local enemysVehicle = isVehicle and hitEntity:GetDriver() and hitEntity:GetDriver() == enemy
         if self:hitBreakable( traceStruct, traceRes ) then
             hitNothingOrHitBreakable = true
 
-        elseif enemy == hitEntity or enemysVehicle then
+        elseif enemy == hitEnt then
             hitNothingOrHitBreakable = true
             hitNothing = true
-
-        elseif isVehicle then
-            hitNothingOrHitBreakable = true
 
         end
     end
@@ -95,7 +89,7 @@ end
 -- should we assume that we will break this upon doing our path?
 function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
     local hitEnt = traceResult.Entity
-    if traceResult.MatType == MAT_GLASS and ( skipDistCheck or traceResult.HitPos:DistToSqr( traceStruct.endpos ) < 40^2 ) then
+    if traceResult.MatType == MAT_GLASS and ( skipDistCheck or traceResult.HitPos:DistToSqr( traceStruct.endpos ) < 55^2 ) then
         if IsValid( hitEnt ) then
             local class = hitEnt:GetClass()
             local isSurf = class == "func_breakable_surf"
@@ -130,6 +124,9 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
                 return true
 
             end
+        elseif hitEnt.GetDriver and IsValid( hitEnt:GetDriver() ) and hitEnt:GetDriver() == self:GetEnemy() then
+            return true
+
         else
             local obj = hitEnt:GetPhysicsObject()
             if obj and IsValid( obj ) and obj:IsMoveable() and obj:IsMotionEnabled() and obj:GetMass() <= 100 then
@@ -810,15 +807,12 @@ function ENT:BoundsAdjusted( hullSizeMul, assumeCrouch )
 
 end
 
-local color_green = Color( 0, 255, 0 )
-local color_red = Color( 255, 0, 0 )
-
 local random1 = Vector( 0, 0, 0 )
 local random2 = Vector( 0, 0, 0 )
 
 -- find pos to path to, for geting around any kind of obstacle
 function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
-    maxAttempts = maxAttempts or 250
+    maxAttempts = maxAttempts or 150
     local timerName = "terminator_obliteratetowardscache_" .. self:GetCreationID()
     timer.Remove( timerName )
     timer.Create( timerName, 0.9, 1, function()
@@ -856,6 +850,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
     }
 
     local dirResult = util.TraceHull( dirConfig )
+    --debugoverlay.Line( startPos, dirResult.HitPos, 5, color_white, true )
 
     if dirResult.Hit then
 
@@ -874,21 +869,26 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
         local jumpHeight = self.loco:GetMaxJumpHeight()
         local stepHeight = self.loco:GetStepHeight()
 
-        local nextYield = 50
+        local nextYield = 10
 
         -- most of these will fail, allow lots!
         while attempts < maxAttempts do
-            yieldIfWeCan()
+            if nextYield < attempts then
+                nextYield = attempts + 5
+                yieldIfWeCan()
+
+            end
+
             attempts = attempts + 0.25
 
             -- if we're just at the start, try to stay close in case we're in a hallway or something
             -- after a while just go all out, big traces
             local doBigTraces = attempts > 55
-            local zMul = 0.65
+            local zMul = 0.55
             local randCompDivisor = 7
             if doBigTraces then
                 -- allow bigger Z offsets, divide the random components less
-                zMul = 0.8
+                zMul = 0.9
                 randCompDivisor = 4
 
             end
@@ -916,7 +916,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
                     traceDist = traceDist + 2
 
                 else
-                    traceDist = traceDist + -1
+                    traceDist = traceDist + -0.5
 
                 end
                 continue
@@ -934,13 +934,18 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
             end
 
-            if nextYield < attempts then
-                nextYield = attempts + 50
-                yieldIfWeCan()
+            --debugoverlay.Line( startPos, newStartPos, 5, color_white, true )
 
-            end
+            local newEndPos = defEndPos + offset
+            local haveToJump = math.abs( newStartPos.z - startPos.z ) > stepHeight
 
-            if not self:ClearOrBreakable( startPos, newStartPos ) then
+            dirConfig.start = newStartPos
+            dirConfig.endpos = newEndPos
+
+            dirResult = util.TraceHull( dirConfig )
+            --debugoverlay.Line( newStartPos, dirResult.HitPos, 5, color_white, true )
+
+            if not dirResult.Hit and not self:ClearOrBreakable( startPos, newStartPos ) then
                 if doBigTraces then
                     traceDist = traceDist + 2
 
@@ -952,22 +957,11 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
             end
 
-            --debugoverlay.Line( startPos, newStartPos, 5, color_white, true )
-
-            local newEndPos = defEndPos + offset
-            local haveToJump = math.abs( newStartPos.z - startPos.z ) > stepHeight
-
-            dirConfig.start = newStartPos
-            dirConfig.endpos = newEndPos
-
-            dirResult = util.TraceHull( dirConfig )
-
             local currScore
 
             -- perfect trace!
-            if not dirResult.Hit and self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround, false, 2 ) and not haveToJump then
-                --debugoverlay.Line( startPos, newStartPos, 5, color_green, true )
-                --debugoverlay.Line( newStartPos, newEndPos, 5, color_green, true )
+            local perfectTrace = not dirResult.Hit and self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround, false, 2 ) and not haveToJump
+            if perfectTrace then
                 self.cachedBringUsTowards = newStartPos
                 return newStartPos
 
@@ -1016,16 +1010,9 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
         local clear = self:ClearOrBreakable( bestHitPosition, aheadPosOffGround )
         -- best fraction doesnt get us there
         if not bestFraction or ( bestScore < 0.35 ) or not clear then
-            --debugoverlay.Line( bestHitPosition, aheadPosOffGround, 5, color_red, true )
-            --debugoverlay.Cross( aheadPosOffGround, 10, 5, color_red, true )
             return bestFraction, true
 
-        else
-            --debugoverlay.Line( startPos, bestFraction, 5, color_green, true )
-
         end
-
-        --debugoverlay.Box( bestFraction, b1, b2, 2, color_white )
 
         self.cachedBringUsTowards = bestFraction
         return bestFraction
@@ -1410,9 +1397,9 @@ function ENT:EntIsInMyWay( ent, tolerance, aheadSegment )
 
 end
 
-local speedToConsiderSmallJumps = 30^2
-local defaultSpeedToAimAtProps = 30^2
-local interruptedSpeedToAimAtProps = 100^2
+terminator_Extras.term_SpeedToConsiderSmallJumps = 30^2
+terminator_Extras.term_DefaultSpeedToAimAtProps = 30^2
+terminator_Extras.term_InterruptedSpeedToAimAtProps = 100^2
 
 --[[------------------------------------
     Name: NEXTBOT:MoveAlongPath
@@ -1421,7 +1408,7 @@ local interruptedSpeedToAimAtProps = 100^2
     Ret1: bool | Path was completed right now
     overriden to fuck with the broken jumping, hopefully making it more reliable.
 --]]------------------------------------
-function ENT:MoveAlongPath( lookatgoal )
+function ENT:MoveAlongPath( lookAtGoal )
     local myTbl = self:GetTable()
     local path = self:GetPath()
     --local drawingPath
@@ -1444,6 +1431,10 @@ function ENT:MoveAlongPath( lookatgoal )
     if not currSegment then return false end
 
     local cur = CurTime()
+    if lookAtGoal then
+        myTbl.term_LookAtPathGoal = cur + 0.15
+
+    end
 
     local aheadType = aheadSegment.type
     local currType = currSegment.type
@@ -1451,97 +1442,6 @@ function ENT:MoveAlongPath( lookatgoal )
     local aheadArea = aheadSegment.area
 
     local laddering = aheadType == 4 or currType == 4 or aheadType == 5 or currType == 5
-    local disrespecting = self:GetCachedDisrespector()
-    local speedToStopLookingFarAhead = defaultSpeedToAimAtProps
-    if IsValid( disrespecting ) then
-        local myNearestPointToIt = self:NearestPoint( disrespecting:WorldSpaceCenter() )
-        local itsNearestPointToMyNearestPoint = disrespecting:NearestPoint( myNearestPointToIt )
-        if myNearestPointToIt:DistToSqr( itsNearestPointToMyNearestPoint ) < 8^2 then
-            self:PhysicallyPushEnt( disrespecting, 250 )
-
-        end
-        if not myTbl.LookAheadOnlyWhenBlocked and self:EntIsInMyWay( disrespecting, 140, aheadSegment ) then
-            speedToStopLookingFarAhead = interruptedSpeedToAimAtProps
-
-        end
-    end
-    local lookAtPos
-    local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
-    local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
-    local sndHint = myTbl.lastHeardSoundHint
-    local genericHint = myTbl.term_GenericLookAtPos
-    local curiosity = 0.5
-
-    local lookAtEnemyLastPos = myTbl.LookAtEnemyLastPos or 0
-    local shouldLookTime = lookAtEnemyLastPos > cur
-
-    if sndHint and sndHint.valuable then
-        curiosity = 2
-
-    end
-
-    local seeEnem = myTbl.IsSeeEnemy
-
-    if not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
-        lookAtPos = myTbl.lastInterceptPos
-
-    elseif not seeEnem and myTbl.TookDamagePos then
-        lookAtPos = myTbl.TookDamagePos
-
-    elseif not seeEnem and sndHint and sndHint.time + curiosity > cur then
-        lookAtPos = sndHint.source
-
-    elseif not seeEnem and genericHint and genericHint.time + curiosity > cur then
-        lookAtPos = genericHint.source
-
-    elseif lookatgoal and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
-        if not shouldLookTime then
-            myTbl.LookAtEnemyLastPos = cur + curiosity
-
-        end
-        lookAtPos = myTbl.EnemyLastPos
-
-    elseif lookatgoal and laddering then
-        lookAtPos = myPos + self:GetVelocity() * 100
-
-    elseif ( lookatgoal or movingSlow ) and self:PathIsValid() then
-        lookAtPos = aheadSegment.pos + vec_up25
-
-        if not self:IsOnGround() or movingSlow then
-            if IsValid( disrespecting ) then
-                lookAtPos = self:getBestPos( disrespecting )
-                --debugoverlay.Cross( lookAtPos, 10, 10, color_white, true )
-
-            else
-                lookAtPos = aheadSegment.pos + vec_up25
-
-            end
-        elseif lookAtPos:DistToSqr( myPos ) < 400^2 then
-            -- attempt to look farther ahead
-            local _, segmentAheadOfUs = self:GetNextPathArea( myArea, 3, true )
-            if segmentAheadOfUs then
-                lookAtPos = segmentAheadOfUs.pos  + vec_up25
-
-            end
-        end
-    end
-
-    if lookAtPos then
-        local myShoot = self:GetShootPos()
-        if lookAtPos.z > myPos.z - 25 and lookAtPos.z < myPos.z + 25 then
-            lookAtPos.z = myShoot.z
-
-        end
-        local ang = ( lookAtPos - myShoot ):Angle()
-        local notADramaticHeightChange = ( lookAtPos.z > myPos.z + -100 ) or ( lookAtPos.z < myPos.z + 100 )
-        if notADramaticHeightChange and not laddering and not IsValid( disrespecting ) then
-            ang.p = 0
-
-        end
-
-        self:SetDesiredEyeAngles( ang )
-
-    end
 
     if laddering then
         local result = self:TermHandleLadder( aheadSegment, currSegment )
@@ -1840,7 +1740,7 @@ function ENT:MoveAlongPath( lookatgoal )
             end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight
-            local smallObstacleBlocking = smallObstacle and ( myVelLengSqr < speedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
+            local smallObstacleBlocking = smallObstacle and ( myTbl.loco:GetVelocity():LengthSqr() < terminator_Extras.term_SpeedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
             local needsToFeelAround
             if jumpstate == 2 then
                 local nextAreasClosestPoint = aheadArea:GetClosestPointOnArea( myPos )

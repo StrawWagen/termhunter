@@ -1080,9 +1080,12 @@ function ENT:canGetWeapon()
 end
 
 function ENT:GetTheBestWeapon()
+    local nextGetBest = self.term_NextNeedsAWeaponNow or 0
+    if nextGetBest > CurTime() then return end
     -- dont need a wep!
     if IsValid( self:GetWeapon() ) and self:GetWeaponRange( self:GetWeapon() ) > self.DistToEnemy then return end
     self.terminator_NeedsAWeaponNow = true
+    self.term_NextNeedsAWeaponNow = CurTime() + math.random( 10, 20 )
 
 end
 

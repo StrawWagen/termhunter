@@ -615,18 +615,19 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
         local before = SysTime()
         self:SetupPath( endpos )
-
         local after = SysTime()
+
+        local cost = ( after - before )
+        if cost > 0.03 then
+            self.term_ExpensivePath = true
+
+        end
 
         -- good path, escape here
         if self:primaryPathIsValid() then
             self.setupPath2NoNavs = nil
-            local cost = ( after - before )
             self.nextNewPath = CurTime() + cost * 8
-            if cost > 0.03 then
-                self.term_ExpensivePath = true
 
-            end
             return nil, "blocked5 ( the good ending )"
 
         -- no path! something failed
