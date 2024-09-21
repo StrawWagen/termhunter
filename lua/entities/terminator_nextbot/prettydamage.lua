@@ -354,6 +354,10 @@ function ENT:PostTookDamage( dmg )
         time = time * 0.5
 
     end
+    if self.AimSpeed < 200 then
+        time = time + ( 200 - self.AimSpeed ) / 100
+
+    end
     timer.Simple( time, function()
         if not IsValid( self ) then return end
         if self.TookDamagePos ~= dmgPos then return end
