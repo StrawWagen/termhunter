@@ -460,15 +460,15 @@ function ENT:MakeFootstepSound( volume, surface, mul )
     surface = util.GetSurfaceData( surface )
     if not surface then return end
 
-    local sound = foot and surface.stepRightSound or surface.stepLeftSound
+    local theSnd = foot and surface.stepRightSound or surface.stepLeftSound
 
-    if sound then
+    if theSnd then
         local pos = self:GetPos()
 
         local filter = RecipientFilter()
         filter:AddAllPlayers()
 
-        if not self:OnFootstep( pos, foot, sound, volume, filter ) then
+        if not self:OnFootstep( pos, foot, theSnd, volume, filter ) then
             local intVolume = volume or 1
             local clompingLvl = 86
             if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
@@ -478,7 +478,7 @@ function ENT:MakeFootstepSound( volume, surface, mul )
             clompingLvl = clompingLvl * mul
 
             self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, math.random( 20, 30 ) / mul, intVolume / 1.5, CHAN_STATIC )
-            self:EmitSound( sound, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
+            self:EmitSound( theSnd, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
 
         end
     end
@@ -1466,6 +1466,7 @@ function ENT:MoveAlongPath( lookAtGoal )
 
     end
 
+    yieldIfWeCan()
     local doPathUpdate = nil
     local obstacleAvoid = myTbl.m_PathObstacleAvoidPos
     if obstacleAvoid then
@@ -1698,6 +1699,8 @@ function ENT:MoveAlongPath( lookAtGoal )
     local myHeightToNext = aheadSegment.pos.z - myPos.z
     local jumpableHeight = myHeightToNext < myTbl.JumpHeight
 
+    yieldIfWeCan()
+
     if areaSimple and good then
 
         -- dont jump if we're trying to jump up stairs!
@@ -1855,6 +1858,8 @@ function ENT:MoveAlongPath( lookAtGoal )
         end
     end
 
+    yieldIfWeCan()
+
     local inAirNoDestination = nil
     -- off ground
     if not iAmOnGround and aheadSegment then
@@ -1947,6 +1952,8 @@ function ENT:MoveAlongPath( lookAtGoal )
         doPathUpdate = true
 
     end
+
+    yieldIfWeCan()
 
     if doPathUpdate then
         local distAhead = myPos:DistToSqr( currSegment.pos )
@@ -2268,7 +2275,6 @@ end
 
 function ENT:EnterLadder()
     self.preLadderGravity = self.loco:GetGravity()
-
     self.loco:SetGravity( 0 )
 
     if not self:IsSilentStepping() then
@@ -2758,20 +2764,28 @@ function ENT:SwitchCrouch( crouch )
 
 end
 
-hook.Add( "OnPhysgunPickup", "terminatorNextBotResetPhysgunned", function( _,  ent )
-    if ent.TerminatorNextBot and ent.isTerminatorHunterBased then
-        ent.m_Physguned = true
-        ent.loco:SetGravity( 0 )
-        ent.lastGroundLeavingPos = ent:GetPos()
+hook.Add( "OnPhysgunPickup", "terminatorNextBotResetPhysgunned", function( ply,  ent )
+    if not ent.TerminatorNextBot or not ent.isTerminatorHunterBased then return end
+    if ply == ent:GetEnemy() then -- RAAAGH, HOW COULD YOU DO THIS!!!!
+        ent:ReallyAnger( 60 )
+
     end
+    ent.m_Physguned = true
+    ent.loco:SetGravity( 0 )
+    ent.lastGroundLeavingPos = ent:GetPos()
+
 end )
 
-hook.Add( "PhysgunDrop", "terminatorNextBotResetPhysgunned", function( _, ent )
-    if ent.TerminatorNextBot and ent.isTerminatorHunterBased then
-        ent.m_Physguned = false
-        ent.loco:SetGravity( ent.DefaultGravity )
-        ent.lastGroundLeavingPos = ent:GetPos()
+hook.Add( "PhysgunDrop", "terminatorNextBotResetPhysgunned", function( ply, ent )
+    if not ent.TerminatorNextBot or not ent.isTerminatorHunterBased then return end
+    if ply == ent:GetEnemy() then -- IM GONNA KILL YOU!!!!
+        ent:ReallyAnger( 60 )
+
     end
+    ent.m_Physguned = false
+    ent.loco:SetGravity( ent.DefaultGravity )
+    ent.lastGroundLeavingPos = ent:GetPos()
+
 end )
 
 function ENT:NotOnNavmesh()

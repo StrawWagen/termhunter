@@ -6,7 +6,6 @@ function ENT:BehaveStart()
 
 end
 
-local math_abs = math.abs
 local coroutine_yield = coroutine.yield
 local coroutine_resume = coroutine.resume
 local SysTime = SysTime
@@ -32,12 +31,14 @@ function ENT:BehaveUpdate( interval )
     self:SetupSpeed()
     self:SetupMotionType()
     self:ProcessFootsteps()
-    self.m_FallSpeed = -self.loco:GetVelocity().z
+    self:ChildrenCleanupHack( myTbl ) -- for some reason bots slowly accumulate themself in their _children table?????
+    myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z
 
     if not disable then
         self:SetupEyeAngles()
         self:UpdatePhysicsObject()
         self:ForgetOldEnemies()
+        self:HandlePathRemovedWhileOnladder()
 
         local ply = self:GetControlPlayer()
         if IsValid( ply ) then
@@ -59,13 +60,13 @@ function ENT:BehaveUpdate( interval )
             -- Calling task callbacks
             self:RunTask( "PlayerControlUpdate", interval, ply )
 
-            self.m_ControlPlayerOldButtons = self.m_ControlPlayerButtons
+            myTbl.m_ControlPlayerOldButtons = myTbl.m_ControlPlayerButtons
         else
             -- Calling behaviour with coroutine type
-            local threads = self.BehaviourThreads
+            local threads = myTbl.BehaviourThreads
             if not threads then
                 threads = {}
-                self.BehaviourThreads = threads
+                myTbl.BehaviourThreads = threads
 
             end
 
@@ -77,56 +78,100 @@ function ENT:BehaveUpdate( interval )
                 threads.motionCor = coroutine.create( function( self ) self:BehaviourMotionCoroutine() end )
 
             end
-
-            local thresh = self.CoroutineThresh
-            if self.IsFodder and not IsValid( self:GetEnemy() ) then
-                thresh = thresh / 2
-
-            end
-
-            for index, thread in pairs( threads ) do
-                local oldTime = SysTime()
-
-                while math_abs( oldTime - SysTime() ) < thresh do
-                    local noErrors, result = coroutine_resume( thread, self )
-                    if noErrors == false then
-                        threads[index] = nil
-                        ErrorNoHaltWithStack( result )
-                        break
-                    elseif result == "wait" then
-                        break
-
-                    elseif result == "done" then
-                        threads[index] = nil
-                        break
-
-                    end
-                end
-            end
         end
     end
 
     self:SetupGesturePosture()
+
 end
 
--- do enemy handling ( looking around, finding enemies, shooting ) off the coroutine
+-- process the threads every tick if we can
+function ENT:Think()
+    self:TermThink()
+    local threads = self.BehaviourThreads
+    if not threads then return end
+
+    local thresh = self.CoroutineThresh
+    if self.IsFodder and not IsValid( self:GetEnemy() ) then
+        thresh = thresh / 2
+
+    end
+
+    local doneSomething
+    for index, thread in pairs( threads ) do
+        local oldTime = SysTime()
+
+        while SysTime() - oldTime < thresh do
+            doneSomething = true
+            local noErrors, result = coroutine_resume( thread, self )
+            if noErrors == false then
+                threads[index] = nil
+                ErrorNoHaltWithStack( result )
+                break
+            elseif result == "wait" then
+                break
+
+            elseif result == "done" then
+                threads[index] = nil
+                break
+
+            end
+        end
+    end
+    if doneSomething then
+        self:NextThink( CurTime() )
+        return true
+
+    end
+end
+
+-- do enemy handling ( looking around, finding enemies, shooting ) asynced to the movement coroutine
 function ENT:BehaviourPriorityCoroutine()
     -- do shoot blocking thinking
     self:BehaviourThink()
 
+    -- Calling task callbacks
     self:RunTask( "BehaveUpdatePriority" )
 
     coroutine_yield( "done" )
 
 end
 
--- do motion, anything super computationally expensive on the coroutine
+-- do motion, anything super computationally expensive on this coroutine
 function ENT:BehaviourMotionCoroutine()
     self:StuckCheck()
+    self:walkArea()
 
     -- Calling task callbacks
     self:RunTask( "BehaveUpdateMotion" )
 
     coroutine_yield( "done" )
+
+end
+
+-- wtf is this bug?????
+function ENT:ChildrenCleanupHack( myTbl )
+    local nextCleanup = myTbl.term_NextChildrenCleanup or 0
+    if nextCleanup > CurTime() then return end
+    myTbl.term_NextChildrenCleanup = CurTime() + 5
+
+    local _children = myTbl._children
+    if not _children then return end
+    -- there were 87544!!!! copies of itself in _children when i left it spawned for 12+ minutes?!?!?!
+    -- one added every tick!
+    -- no wonder it was lagging so much....
+    -- SetParent is used 6 times in this repo and it's all related to weapons!
+    -- if you have any insight into this bug, please let me know.
+
+    local newTbl = {}
+
+    for _, child in pairs( _children ) do
+        if child ~= self then
+            newTbl[#newTbl + 1] = child
+
+        end
+    end
+
+    myTbl._children = newTbl
 
 end

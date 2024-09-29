@@ -36,8 +36,13 @@ function ENT:StartControlByPlayer(ply)
 	self.m_ControlPlayerOldButtons = 0
 	self.m_ControlPlayerButtons = 0
 	self:ReloadWeaponData()
-	
-	self:RunTask("StartControlByPlayer",ply)
+
+	self.PreventShooting = nil
+
+	self:RunTask( "StartControlByPlayer", ply )
+
+	-- kill all movement tasks
+	self:KillAllTasksWith( "movement" )
 end
 
 --[[------------------------------------

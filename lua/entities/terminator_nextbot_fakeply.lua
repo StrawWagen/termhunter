@@ -19,6 +19,9 @@ if CLIENT then
 
 end
 
+ENT.CoroutineThresh = 0.0005
+ENT.IsFodder = true
+
 ENT.JumpHeight = 70
 ENT.DefaultStepHeight = 18
 ENT.StandingStepHeight = ENT.DefaultStepHeight * 1 -- used in crouch toggle in motionoverrides

@@ -74,3 +74,20 @@ function ENT:RunTask( event, ... )
 
     end
 end
+
+local string_find = string.find
+
+function ENT:KillAllTasksWith( withStr )
+    local m_ActiveTasksNum = self.m_ActiveTasksNum
+    if not m_ActiveTasksNum then return end
+
+    for _, activeTaskDat in ipairs( m_ActiveTasksNum ) do
+        if not activeTaskDat then break end
+
+        local taskName = activeTaskDat[1]
+        if string_find( taskName, withStr ) then
+            self:TaskFail( taskName )
+
+        end
+    end
+end

@@ -159,6 +159,13 @@ function ENT:primaryPathInvalidOrOutdated( destination )
 
 end
 
+--[[function ENT:pathInvalidOrOutdated( destination )
+    local path = self:GetPath()
+    local valid = self:primaryPathIsValid( path )
+    return not valid or ( valid and self:CanDoNewPath( destination ) )
+
+end--]]
+
 local transientAreaCached = {}
 local nextTransientAreaCaches = {}
 local belowOffset = Vector( 0, 0, -45 )
@@ -819,9 +826,29 @@ function ENT:SetupPath( pos, options )
 
     if not computed then
         self:InvalidatePath( "i failed to build a path" )
+
+        -- this stuck edge case usually happens when the bot ends up in some orphan part of the navmesh with no way out, eg bottom of an elevator shaft
+        local old = self.term_ConsecutivePathFailures or 0
+        if old > 25 then
+            self.overrideVeryStuck = true
+
+        elseif old >= 5 then
+            local currNav = self:GetCurrentNavArea()
+            if not IsValid( currNav ) or self:AreaIsOrphan( currNav, true ) then
+                self.overrideVeryStuck = true
+
+            end
+        end
+
+        if self:IsOnGround() then
+            self.term_ConsecutivePathFailures = old + 1
+
+        end
         return false
 
     end
+
+    self.term_ConsecutivePathFailures = 0
 
     return path
 

@@ -1428,17 +1428,3 @@ function ENT:JumpToPos(pos,height)
 	
 	self.m_JumpingToPos = true
 end
-
-hook.Add("OnPhysgunPickup","TerminatorNextBots",function(ply,ent)
-	if ent.TerminatorNextBot then
-		ent.m_Physguned = true
-		ent.loco:SetGravity(0)
-	end
-end)
-
-hook.Add("PhysgunDrop","TerminatorNextBots",function(ply,ent)
-	if ent.TerminatorNextBot then
-		ent.m_Physguned = false
-		ent.loco:SetGravity(ent.DefaultGravity)
-	end
-end)

@@ -397,7 +397,7 @@ end
 --]]------------------------------------
 function ENT:CanWeaponPrimaryAttack()
     local dontImmiediatelyFire = self.terminator_DontImmiediatelyFire or 0
-    if not self:IsFists() and dontImmiediatelyFire > CurTime() then
+    if dontImmiediatelyFire > CurTime() and not ( self:IsReallyAngry() and self:Health() <= self:GetMaxHealth() * 0.25 )  then
         return false
 
     end

@@ -349,7 +349,7 @@ function ENT:PostTookDamage( dmg )
 
     local dmgPos = self:getBestPos( dmg:GetAttacker() )
     self.TookDamagePos = dmgPos
-    local time = math.Rand( 0.5, 1 )
+    local time = math.Rand( 1, 1.5 )
     if self:IsAngry() then
         time = time * 0.5
 

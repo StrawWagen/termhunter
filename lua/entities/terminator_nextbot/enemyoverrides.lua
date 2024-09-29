@@ -6,14 +6,18 @@ local LocalToWorld = LocalToWorld
 local entMeta = FindMetaTable( "Entity" )
 
 -- i love overoptimisation
-local playersCache = {} -- not nil cause of autorefresh 
-hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
-    timer.Create( "term_cache_players", 0.1, 0, function()
-        playersCache = {}
-        for _, ply in player.Iterator() do
-            playersCache[ply] = true
+local playersCache = {} -- not nil cause of autorefresh
+local function doPlayersCache()
+    playersCache = {}
+    for _, ply in player.Iterator() do
+        playersCache[ply] = true
 
-        end
+    end
+end
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
+    doPlayersCache()
+    timer.Create( "term_cache_players", 0.2, 0, function()
+        doPlayersCache()
     end )
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
@@ -35,6 +39,29 @@ hook.Add( "terminator_nextbot_noterms_exist", "setup_shouldbeenemy_notenemycache
     notEnemyCache = {}
 
 end )
+
+local fogRange
+-- from CFC's LFS fork, code by reeedox
+local function setFogRange()
+    local fogController = ents.FindByClass( "env_fog_controller" )[1]
+    if not IsValid( fogController ) then return end
+
+    local fogRangeInt = fogController:GetKeyValues().farz
+    if fogRangeInt == -1 then return end
+    fogRange = fogRangeInt -- bit of leeway
+
+end
+
+hook.Add( "InitPostEntity", "terminator_nextbot_setfogrange", setFogRange )
+setFogRange() -- autorefresh
+
+local function isBeyondFog( _, dist )
+    if not fogRange then return end
+    return dist > fogRange
+
+end
+
+ENT.IsBeyondFog = isBeyondFog
 
 local function pals( ent1, ent2 )
     return ent1.isTerminatorHunterChummy == ent2.isTerminatorHunterChummy
@@ -284,8 +311,17 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     local maxSeeingDist = myTbl.MaxSeeEnemyDistance
 
-    if not inFov and rangeTo > 200 then return false end
-    if rangeTo > maxSeeingDist and not isPly then return false end
+    if not inFov and rangeTo > 200 then return false end -- ignore fov if really close
+
+    if isPly then -- ignore maxSeeingDist for plys
+        if isBeyondFog( nil, rangeTo ) then -- but dont ignore fog 
+            return false
+
+        end
+    elseif rangeTo > maxSeeingDist then
+        return false
+
+    end
 
     -- if player then, if they are transparent, randomly don't see them, unless we already saw them.
     if isPly and shouldNotSeeEnemy( self, ent ) then return false end
@@ -838,7 +874,8 @@ function ENT:Term_LookAround()
     local laddering = myTbl.terminator_HandlingLadder
 
     local lookAtGoalTime = myTbl.term_LookAtPathGoal or 0
-    local lookAtGoal = lookAtGoalTime > cur
+    local lookAtGoal = lookAtGoalTime > cur and self:PathIsValid()
+
     local disrespecting = myTbl.GetCachedDisrespector( self )
     local speedToStopLookingFarAhead = terminator_Extras.term_DefaultSpeedToAimAtProps
     if IsValid( disrespecting ) then
@@ -853,6 +890,8 @@ function ENT:Term_LookAround()
 
         end
     end
+
+    local pathIsValid = myTbl.PathIsValid( self )
     local lookAtPos
     local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
@@ -869,48 +908,48 @@ function ENT:Term_LookAround()
     end
 
     local seeEnem = myTbl.IsSeeEnemy
-    --local lookAtType
+    local lookAtType
 
     if not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
         lookAtPos = myTbl.lastInterceptPos
-        --lookAtType = "intercept"
+        lookAtType = "intercept"
 
     elseif not seeEnem and myTbl.TookDamagePos then
         lookAtPos = myTbl.TookDamagePos
-        --lookAtType = "tookdamage"
+        lookAtType = "tookdamage"
 
     elseif not seeEnem and sndHint and sndHint.time + curiosity > cur then
         lookAtPos = sndHint.source
-        --lookAtType = "soundhint"
+        lookAtType = "soundhint"
 
     elseif not seeEnem and genericHint and genericHint.time + curiosity > cur then
         lookAtPos = genericHint.source
-        --lookAtType = "generichint"
+        lookAtType = "generichint"
 
-    elseif lookAtGoal and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
+    elseif lookAtGoal and pathIsValid and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
         if not shouldLookTime then
             myTbl.LookAtEnemyLastPos = cur + curiosity
 
         end
         lookAtPos = myTbl.EnemyLastPos
-        --lookAtType = "enemylastpos"
+        lookAtType = "enemylastpos"
 
-    elseif lookAtGoal and not seeEnem and laddering then
+    elseif lookAtGoal and pathIsValid and not seeEnem and laddering then
         lookAtPos = myPos + self:GetVelocity() * 100
-        --lookAtType = "laddering"
+        lookAtType = "laddering"
 
-    elseif ( lookAtGoal or movingSlow ) and myTbl.PathIsValid( self ) then
+    elseif lookAtGoal and ( movingSlow or pathIsValid ) then
         lookAtPos = aheadSegment.pos + vec_up25
-        --lookAtType = "lookatpath1"
+        lookAtType = "lookatpath1"
 
         if not self:IsOnGround() or movingSlow then
             if IsValid( disrespecting ) then
                 lookAtPos = myTbl.getBestPos( self, disrespecting )
-                --lookAtType = "lookatpath_disrespector"
+                lookAtType = "lookatpath_disrespector"
 
             else
                 lookAtPos = aheadSegment.pos + vec_up25
-                --lookAtType = "lookatpath2"
+                lookAtType = "lookatpath2"
 
             end
         elseif lookAtPos:DistToSqr( myPos ) < 400^2 then
@@ -918,7 +957,7 @@ function ENT:Term_LookAround()
             local _, segmentAheadOfUs = myTbl.GetNextPathArea( self, myArea, 3, true )
             if segmentAheadOfUs then
                 lookAtPos = segmentAheadOfUs.pos + vec_up25
-                --lookAtType = "lookatpath3"
+                lookAtType = "lookatpath3"
 
             end
         end
@@ -936,6 +975,8 @@ function ENT:Term_LookAround()
             ang.p = 0
 
         end
+
+        --print( "lookatpos", lookAtType, pathIsValid )
 
         self:SetDesiredEyeAngles( ang )
 

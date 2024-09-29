@@ -95,3 +95,29 @@ terminator_Extras.BearingToPos = function( pos1, ang1, pos2, ang2 )
     return bearing
 
 end
+
+--[[ find memory leaks!
+for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
+    local biggestSize = 0
+    local biggestKey
+    local biggest
+    local counts = {}
+    for key, value in pairs( ent:GetTable() ) do
+        if not istable( value ) then continue end
+        local count = table.Count( value )
+
+        counts[key] = count
+
+        if istable( value ) and count > biggestSize then
+            biggestSize = count
+            biggestKey = key
+            biggest = value
+
+        end
+    end
+    PrintTable( biggest )
+    print( biggestKey )
+    print( biggestSize )
+    PrintTable( counts )
+
+end--]]

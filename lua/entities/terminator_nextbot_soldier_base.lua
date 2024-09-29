@@ -207,7 +207,6 @@ ENT.TaskList = {
 			self:StartTask("enemy_handler")
 			self:StartTask("movement_wait")
 			self:StartTask("shooting_handler")
-			self:StartTask("movement_meleecontrol")
 		end,
 	},
 	["movement_getweapon"] = {
@@ -392,23 +391,6 @@ ENT.TaskList = {
 		end,
 		StartControlByPlayer = function(self,data,ply)
 			self:TaskFail("movement_custompos")
-		end,
-	},
-	["movement_meleecontrol"] = {
-		BehaveUpdate = function(self,data)
-			if !self:IsMeleeWeapon() or self:IsTaskActive("movement_followenemy") then return end
-			
-			if IsValid(self:GetEnemy()) and (!IsValid(self.Target) or self.Target:GetPos():DistToSqr(self:GetEnemy():GetPos())<300*300) then
-				self:TaskFail("movement_wait")
-				self:TaskFail("movement_followtarget")
-				self:TaskFail("movement_randomwalk")
-				self:TaskFail("movement_custompos")
-				
-				self:StartTask("movement_followenemy")
-			end
-		end,
-		StartControlByPlayer = function(self,data,ply)
-			self:TaskFail("movement_meleecontrol")
 		end,
 	},
 	["inform_handler"] = {
@@ -740,7 +722,6 @@ function ENT:SetupTasks()
 	self:StartTask("movement_handler")
 	self:StartTask("playercontrol_handler")
 	self:StartTask("inform_handler")
-	self:StartTask("movement_meleecontrol")
 end
 
 function ENT:SetupDefaultCapabilities()
