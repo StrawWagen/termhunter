@@ -368,16 +368,20 @@ function ENT:PostTookDamage( dmg )
 
     if dmg:GetDamage() <= 75 then return end
 
-    -- make group of bots react to 1 getting damaged
-    local ourChummy = self.isTerminatorHunterChummy
-    for _, curr in ipairs( self.awarenessSubstantialStuff ) do
-        if curr.isTerminatorHunterChummy ~= ourChummy then continue end
-        timer.Simple( math.Rand( 0.5, 1.5 ), function()
-            if not IsValid( curr ) then return end
-            if not curr.Anger then return end
-            curr:Anger( math.random( 5, 10 ) )
+    local attacker = dmg:GetAttacker()
+    if attacker and attacker == self:GetEnemy() then
+        -- make group of bots react to 1 getting damaged
+        local ourChummy = self.isTerminatorHunterChummy
+        for _, curr in ipairs( self.awarenessSubstantialStuff ) do
+            if curr.isTerminatorHunterChummy ~= ourChummy then continue end
+            if curr:GetEnemy() ~= attacker then continue end
+            timer.Simple( math.Rand( 0.5, 1.5 ), function()
+                if not IsValid( curr ) then return end
+                if not curr.Anger then return end
+                curr:Anger( math.random( 5, 10 ) )
 
-        end )
+            end )
+        end
     end
 
     if self.IsStupid then return end

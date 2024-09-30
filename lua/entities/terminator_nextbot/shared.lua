@@ -4311,6 +4311,8 @@ function ENT:DoDefaultTasks()
                     --print( rand2DOffset )
                     --debugoverlay.Cross( newSearchCenter, 100, 10, Color( 255,255,0 ), true )
 
+                    yieldIfWeCan( "wait" )
+
                     self:TaskFail( "movement_search" )
                     self:StartTask2( "movement_search", {
                         doneCount = doneCount,
