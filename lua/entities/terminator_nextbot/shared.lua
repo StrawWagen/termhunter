@@ -5061,12 +5061,12 @@ function ENT:DoDefaultTasks()
                 local oldBearing = data.bearingAdded
                 -- increment the "behind enemy" check, for big open maps where we never get a chance to be hidden.
                 if oldBearing then
-                    local step = 0.5
+                    local step = 1
                     if self:IsReallyAngry() then
-                        step = 2.5
+                        step = 5
 
                     elseif self:IsAngry() then
-                        step = 1
+                        step = 2
 
                     end
 

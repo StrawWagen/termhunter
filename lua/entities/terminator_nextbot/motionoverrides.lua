@@ -2085,7 +2085,7 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
 
     local top = ladder:GetTop()
     local bottom = ladder:GetBottom()
-    local laddersNormalOffset = ladder:GetNormal() * 16
+    local laddersNormalOffset = ladder:GetNormal() * 16 * self:GetModelScale()
     local closestToLadderPos = SnapToLadderAxis( bottom + laddersNormalOffset, top + laddersNormalOffset, myPos )
 
     local laddersUp = ( top - bottom ):GetNormalized()
