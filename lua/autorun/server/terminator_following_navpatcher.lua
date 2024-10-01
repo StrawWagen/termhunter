@@ -124,9 +124,31 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
     -- check if there's a simple-ish way from oldArea to currArea
     -- dont create a new connection if there is
     if not simple then
+
+        local oldsNearestToCurr = oldArea:GetClosestPointOnArea( currArea:GetCenter() )
+        local currsNearestToOld = currArea:GetClosestPointOnArea( oldsNearestToCurr )
+        local distFunc
+        if math.abs( oldsNearestToCurr.z - currsNearestToOld.z ) > 50 then
+            distFunc = connectionDistance
+
+        else
+            distFunc = distanceEdge
+
+        end
+
+        local returnBlacklist = {}
+        for _, area in ipairs( currArea:GetAdjacentAreas() ) do
+            returnBlacklist[area] = true
+
+        end
+
+        local smallestDist = distFunc( oldArea, currArea )
         local potentiallyBetterConnections = {}
         local doneAlready = {}
+
         for _, firstLayer in ipairs( oldArea:GetAdjacentAreas() ) do
+            if returnBlacklist[firstLayer] and distFunc( firstLayer, currArea ) <= smallestDist then debugPrint( "7" )  return end
+
             table.insert( potentiallyBetterConnections, firstLayer )
             doneAlready[firstLayer] = true
 
@@ -144,18 +166,6 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
             end
         end
 
-        local oldsNearestToCurr = oldArea:GetClosestPointOnArea( currArea:GetCenter() )
-        local currsNearestToOld = currArea:GetClosestPointOnArea( oldsNearestToCurr )
-        local distFunc
-        if math.abs( oldsNearestToCurr.z - currsNearestToOld.z ) > 50 then
-            distFunc = connectionDistance
-
-        else
-            distFunc = distanceEdge
-
-        end
-
-        local smallestDist = distFunc( oldArea, currArea )
         local smallestDistArea = nil
         for _, area in ipairs( potentiallyBetterConnections ) do
             if AreasAreConnectable( area, currArea ) then
@@ -168,7 +178,7 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
             end
         end
         if smallestDistArea and smallestDistArea ~= oldArea then
-            debugPrint( "7" )
+            debugPrint( "8" )
             lineBetween( smallestDistArea, currArea )
             return
 
@@ -206,7 +216,7 @@ local function navPatchingThink( ply )
         if not IsValid( currArea ) then return end
 
     else
-        currArea = navmesh.GetNearestNavArea( ply:GetPos(), false, 50, false, true, -2 )
+        currArea = navmesh.GetNearestNavArea( ply:GetPos(), false, 25, false, true, -2 )
         if not IsValid( currArea ) then return end
         local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
         distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
