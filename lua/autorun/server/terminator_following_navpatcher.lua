@@ -147,7 +147,12 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
         local doneAlready = {}
 
         for _, firstLayer in ipairs( oldArea:GetAdjacentAreas() ) do
-            if returnBlacklist[firstLayer] and distFunc( firstLayer, currArea ) <= smallestDist then debugPrint( "7" )  return end
+            if returnBlacklist[firstLayer] and distFunc( firstLayer, currArea ) <= smallestDist then
+                lineBetween( firstLayer, currArea )
+                debugPrint( "7" )
+                return
+
+            end
 
             table.insert( potentiallyBetterConnections, firstLayer )
             doneAlready[firstLayer] = true
@@ -204,7 +209,7 @@ local function navPatchingThink( ply )
     local badMovement = ply:GetMoveType() == MOVETYPE_NOCLIP or ply:Health() <= 0 or ply:GetObserverMode() ~= OBS_MODE_NONE or ply:InVehicle()
 
     if badMovement then
-        ply.patchingData = nil
+        ply.term_PatchingData = nil
         ply.oldPatchingArea = nil
         return
 
@@ -233,29 +238,36 @@ local function navPatchingThink( ply )
 
     end
 
-    local patchData = ply.patchingData
+    local plysCenter = ply:WorldSpaceCenter()
+    local patchData = ply.term_PatchingData
     if not patchData then
         patchData = {}
-        ply.patchingData = patchData
+        patchData.highestGotOffGround = plysCenter.z
+        ply.term_PatchingData = patchData
 
     end
-    if not ply:IsOnGround() then patchData.wasOffGround = true return end
+    if not ply:IsOnGround() then
+        patchData.highestGotOffGround = math.max( patchData.highestGotOffGround, plysCenter.z )
+        patchData.wasOffGround = true
+        return
+
+    end
 
     if currArea == oldArea then return end
 
     patchData = table.Copy( patchData )
 
-    ply.patchingData = nil
+    ply.term_PatchingData = nil
     ply.oldPatchingArea = currArea
 
     if oldArea:IsConnected( currArea ) and currArea:IsConnected( oldArea ) then return end
     if not AreasHaveAnyOverlap( oldArea, currArea ) then debugPrint( "0" ) return end
 
-    local plysCenter = ply:WorldSpaceCenter()
+    plysCenter = ply:WorldSpaceCenter()
 
     local currClosestPos = currArea:GetClosestPointOnArea( plysCenter )
     local oldClosestPos = oldArea:GetClosestPointOnArea( plysCenter )
-    local highestHeight = math.max( plysCenter.z, oldClosestPos.z + 25, currClosestPos.z + 25 )
+    local highestHeight = math.max( patchData.highestGotOffGround, oldClosestPos.z + 25, currClosestPos.z + 25 )
 
     local plysCenter2 = Vector( plysCenter.x, plysCenter.y, highestHeight ) -- yuck
     local currClosestPosInAir = Vector( currClosestPos.x, currClosestPos.y, highestHeight )
@@ -346,7 +358,7 @@ hook.Add( "terminator_nextbot_noterms_exist", "teardown_following_navpatcher", f
     hook.Remove( "terminator_enemythink", "terminator_cacheplysbeingchased" )
     for _, ply in player.Iterator() do
         ply.oldPatchingArea = nil
-        ply.patchingData = nil
+        ply.term_PatchingData = nil
 
     end
 end )
