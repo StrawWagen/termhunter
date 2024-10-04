@@ -849,7 +849,7 @@ end
 function ENT:GetNearbyAllies()
     local allies = {}
     for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
-        if ent == self or pals( self, ent ) or self:GetPos():DistToSqr( ent:GetPos() ) > self.InformRadius^2 then continue end
+        if ent == self or not pals( self, ent ) or self:GetPos():DistToSqr( ent:GetPos() ) > self.InformRadius^2 then continue end
 
         table.insert( allies, ent )
 
@@ -897,13 +897,23 @@ function ENT:Term_LookAround()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
     local sndHint = myTbl.lastHeardSoundHint
     local genericHint = myTbl.term_GenericLookAtPos
-    local curiosity = 0.5
+    local sndCuriosity = 0.5
+
+    local freshnessFocus = 0.25
+    if self:IsReallyAngry() then
+        freshnessFocus = 1.5
+
+    elseif self:IsAngry() then
+        freshnessFocus = 0.75
+
+    end
+    local enemyStillFresh = ( myTbl.LastEnemySpotTime - cur ) > freshnessFocus
 
     local lookAtEnemyLastPos = myTbl.LookAtEnemyLastPos or 0
     local shouldLookTime = lookAtEnemyLastPos > cur
 
     if sndHint and sndHint.valuable then
-        curiosity = 2
+        sndCuriosity = 2
 
     end
 
@@ -918,17 +928,17 @@ function ENT:Term_LookAround()
         lookAtPos = myTbl.TookDamagePos
         lookAtType = "tookdamage"
 
-    elseif not seeEnem and sndHint and sndHint.time + curiosity > cur then
+    elseif not seeEnem and sndHint and sndHint.time + sndCuriosity > cur then
         lookAtPos = sndHint.source
         lookAtType = "soundhint"
 
-    elseif not seeEnem and genericHint and genericHint.time + curiosity > cur then
+    elseif not seeEnem and genericHint and genericHint.time + sndCuriosity > cur then
         lookAtPos = genericHint.source
         lookAtType = "generichint"
 
-    elseif lookAtGoal and pathIsValid and not seeEnem and ( shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
+    elseif lookAtGoal and pathIsValid and not seeEnem and ( enemyStillFresh or shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
         if not shouldLookTime then
-            myTbl.LookAtEnemyLastPos = cur + curiosity
+            myTbl.LookAtEnemyLastPos = cur + sndCuriosity
 
         end
         lookAtPos = myTbl.EnemyLastPos

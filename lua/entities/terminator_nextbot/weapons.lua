@@ -862,6 +862,7 @@ function ENT:GetWeaponRange()
     if isnumber( wep.MeleeWeaponDistance ) then return wep.MeleeWeaponDistance end
     if isnumber( wep.HitRange ) then return wep.HitRange end
 
+    local shotgun = string.find( wep:GetClass(), "shotgun" )
     local spread = weapSpread( wep )
 
     if spread then
@@ -883,11 +884,16 @@ function ENT:GetWeaponRange()
         range = range ^ 2.05 -- this works p good
         range = range + 500 -- cut off the really spready stuff
 
+        if shotgun then
+            range = math.min( range, 800 )
+
+        end
+
         return range
 
     end
 
-    if string.find( wep:GetClass(), "shotgun" ) then return 1000 end
+    if shotgun then return 800 end
 
     return math.huge
 

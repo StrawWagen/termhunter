@@ -2003,19 +2003,28 @@ function ENT:Use( user )
 end
 
 
-function ENT:canIntercept( data )
+function ENT:interceptIfWeCan( currTask, data )
     local interceptTime = self.lastInterceptTime or 0
-    local notHeadingToEnd = self.lastInterceptPos and SqrDistGreaterThan( self.lastInterceptPos:DistToSqr( self:GetPath():GetEnd() ), 800 )
+    local notHeadingToEnd = self.lastInterceptPos and SqrDistGreaterThan( self.lastInterceptPos:DistToSqr( self:GetPath():GetEnd() ), 600 )
     local freshIntercept = true
-    if data.taskStartTime then
+    local shouldIntercept
+    if data and data.taskStartTime then
         local taskDidntJustStart = ( data.taskStartTime + 1 ) <= CurTime()
         local interceptIsNewer = interceptTime > ( data.taskStartTime + -1 )
         freshIntercept = interceptIsNewer and taskDidntJustStart
+        shouldIntercept = freshIntercept and notHeadingToEnd and not self.IsSeeEnemy
+
+    elseif not data then
+        shouldIntercept = true
 
     end
-    local intercept = freshIntercept and notHeadingToEnd and not self.IsSeeEnemy
 
-    return intercept
+    if shouldIntercept and currTask then
+        self:TaskComplete( currTask )
+        self:StartTask( "movement_intercept", nil, "intercepting because i can!" )
+
+    end
+    return shouldIntercept
 
 end
 
@@ -2128,9 +2137,8 @@ function ENT:EnemyAcquired( currentTask )
 
     local doFlank = ( lowOrRand or enemy.isTerminatorHunterKiller ) and not SqrDistLessThan( distToEnemySqr, 400 )
 
-    if not seeEnemy and self.lastInterceptPos and self:canIntercept( { startTime = 0 } ) then
-        self:TaskComplete( currentTask )
-        self:StartTask2( "movement_intercept", nil, "ea, i can intercept someone" )
+    if not seeEnemy and self.lastInterceptPos and self:interceptIfWeCan( currentTask ) then
+        -- we intercepted
     elseif isBeingFooled then
         self:TaskComplete( currentTask )
         self:StartTask2( "movement_watch", nil, "ea, this is gonna fool em so hard" )
@@ -2150,16 +2158,15 @@ function ENT:EnemyAcquired( currentTask )
         self:TaskComplete( currentTask )
         self:StartTask2( "movement_watch", nil, "ea, watching something" )
     elseif campDangerousEnemy then
-        local tolerance = self:campingTolerance()
         self:TaskComplete( currentTask )
-        self:StartTask2( "movement_camp", { maxNoSeeing = tolerance }, "ea, enemy is scary! camp them" )
+        self:StartTask2( "movement_camp", nil, "ea, enemy is scary! camp them" )
     elseif doCamp then
         self:TaskComplete( currentTask )
         local tolerance = self:campingTolerance()
         if tolerance > math.random( 1000, 3000 ) then
             self:StartTask2( "movement_camp", { maxNoSeeing = tolerance }, "ea, camp or perch, camped because we're already in a good spot" )
         else
-            self:StartTask2( "movement_perch", { requiredTarget = enemPos, perchRadius = math.sqrt( distToEnemySqr ), distanceWeight = 0.01 }, "ea, camp or perch, perch" )
+            self:StartTask2( "movement_perch", { requiredTarget = enemPos, earlyQuitIfSeen = true, perchRadius = math.sqrt( distToEnemySqr ), distanceWeight = 0.01 }, "ea, camp or perch, perch" )
         end
     elseif canRushKiller then
         self:TaskComplete( currentTask )
@@ -2897,9 +2904,9 @@ function ENT:DoDefaultTasks()
 
                             if self.IsSeeEnemy and not self.WasSeeEnemy then
                                 hook.Run( "terminator_spotenemy", self, enemy )
-                                local added = math.Rand( 0.3, 0.6 )
+                                local added = math.Rand( 0.4, 0.7 )
                                 if self.DistToEnemy > 2500 then
-                                    added = math.Rand( 0.9, 0.15 )
+                                    added = math.Rand( 0.9, 1.5 )
 
                                 end
                                 self.terminator_DontImmiediatelyFire = math.max( CurTime() + added, self.terminator_DontImmiediatelyFire )
@@ -3377,9 +3384,7 @@ function ENT:DoDefaultTasks()
                         self:EnemyAcquired( "movement_bashobject" )
                         return
 
-                    elseif self:canIntercept( data ) and not data.frenzy and not data.insane then
-                        self:TaskFail( "movement_bashobject" )
-                        self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                    elseif not data.frenzy and not data.insane and self:interceptIfWeCan( "movement_bashobject", data )  then
                         return
 
                     -- get broken nerd
@@ -3515,9 +3520,7 @@ function ENT:DoDefaultTasks()
                     self:EnemyAcquired( "movement_understandobject" )
                     return
 
-                elseif self:canIntercept( data ) then
-                    self:TaskFail( "movement_understandobject" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif self:interceptIfWeCan( "movement_understandobject", data ) then
                     return
 
                 elseif not IsValid( data.object ) or not data.object:IsSolid() then -- we lost the object OR we broke it
@@ -4061,10 +4064,8 @@ function ENT:DoDefaultTasks()
                 elseif self.IsSeeEnemy then
                     Done = true
                     self:EnemyAcquired( "movement_followsound" )
-                elseif self:canIntercept( data ) and not data.Valuable then
+                elseif data.Valuable and not self:interceptIfWeCan( "movement_followsound", data ) then
                     Done = true
-                    self:TaskFail( "movement_followsound" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone and my sound isn't valuable" )
                 elseif data.Unreachable then
                     Done = true
                     self:TaskFail( "movement_followsound" )
@@ -4170,6 +4171,7 @@ function ENT:DoDefaultTasks()
                     if scoreData.walkedAreas[area2sId] then
                         local time = scoreData.self.walkedAreaTimes[area2sId]
                         timeSince = math.abs( time - CurTime() )
+                        debugoverlay.Text( area2:GetCenter(), tostring( math.Round( timeSince ) ), 10 )
 
                     end
 
@@ -4182,7 +4184,7 @@ function ENT:DoDefaultTasks()
                             if terminator_Extras.PosCanSeeComplex( myShootPos, spotOffsetted, localSelf ) then
                                 localSelf.SearchCheckedNavs[area2sId] = true
                                 localSelf.SearchCheckedNavsCount = localSelf.SearchCheckedNavsCount + 1
-                                score = 1 / timeSince
+                                score = 100 / timeSince -- this spot makes us curious, search here
                                 break
 
                             end
@@ -4200,17 +4202,15 @@ function ENT:DoDefaultTasks()
 
                             elseif distToNew < distToOld then
                                 checkSpot = spotOffsetted
+                                return 200 / timeSince -- makes us curious, keep checking here
 
                             end
-                            return 1 / timeSince
-
                         end
                     else
                         score = math.min( score, 100 ) / timeSince
 
                     end
 
-                    --debugoverlay.Text( area2:GetCenter(), tostring( math.Round( timeSince ) ), 1 )
                     scoreData.decreasingScores[area2sId] = score + -1
 
                     if needsToDoANearbySearch then
@@ -4270,9 +4270,7 @@ function ENT:DoDefaultTasks()
                     self:StartTask2( "movement_biginertia", { Want = 10 }, "im all done searching and i was in a loop" )
                     return
 
-                elseif self:canIntercept( data ) then
-                    self:TaskFail( "movement_search" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif self:interceptIfWeCan( "movement_search", data ) then
                     return
 
                 elseif self.IsSeeEnemy and self:GetEnemy() then
@@ -4395,7 +4393,7 @@ function ENT:DoDefaultTasks()
                 -- all done!
                 if searchWantInternal <= 0 then
                     self:TaskComplete( "movement_search" )
-                    if math.random( 0, 100 ) < 20 and not self:IsMeleeWeapon( myWep ) then
+                    if math.random( 0, 100 ) < 40 and not self:IsMeleeWeapon( myWep ) then
                         self:StartTask2( "movement_perch", nil, "i was done searching with some luck and a real gun" )
 
                     else
@@ -4404,9 +4402,7 @@ function ENT:DoDefaultTasks()
                     end
                     return
 
-                elseif doneCount > 2 and self:canIntercept( data ) then
-                    self:TaskComplete( "movement_search" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif doneCount > 2 and self:interceptIfWeCan( "movement_search", data ) then
                     return
 
                 elseif doneCount >= 4 and self:WeaponIsPlacable( myWep ) then
@@ -4622,9 +4618,8 @@ function ENT:DoDefaultTasks()
                     return
                 elseif self.IsSeeEnemy then
                     self:EnemyAcquired( "movement_searchlastdir" )
-                elseif self:canIntercept( data ) then
-                    self:TaskComplete( "movement_searchlastdir" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif self:interceptIfWeCan( "movement_searchlastdir", data ) then
+                    return
                 elseif self:CanBashLockedDoor( nil, 800 ) then
                     self:BashLockedDoor( "movement_searchlastdir" )
                 elseif self:validSoundHint() then
@@ -4703,7 +4698,7 @@ function ENT:DoDefaultTasks()
                 local killerrr = enemy and enemy.isTerminatorHunterKiller
                 if killerrr and self:IsRangedWeapon() then -- ok u deserve to be sniped
                     self:TaskComplete( "movement_watch" )
-                    self:StartTask2( "movement_camp", { maxNoSeeing = 200 }, "i want to kill this thing" )
+                    self:StartTask2( "movement_camp", { maxNoSeeing = 400 }, "i want to kill this thing" )
 
                 else
                     self.PreventShooting = true -- this is not a SNIPING behaviour!
@@ -5268,7 +5263,7 @@ function ENT:DoDefaultTasks()
                             self:StartTask2( "movement_flankenemy", { Time = 0.2 }, "i can reach them, ill just go around" )
 
                         elseif doBackupCamp then
-                            self:StartTask2( "movement_camp", { maxNoSeeing = 200 }, "i failed to stand somewhere high too much, SHOOT!" )
+                            self:StartTask2( "movement_camp", { maxNoSeeing = 300 }, "i failed to stand somewhere high too much, SHOOT!" )
 
                         else
                             self:StartTask2( "movement_stalkenemy", { Time = 0.2, perchWhenHidden = true, standUpHighFails = oldUpHighFails + 1, bearingAdded = data.bearingAdded }, "i cant reach them, ill stand somewhere high up i can see them" )
@@ -5404,9 +5399,8 @@ function ENT:DoDefaultTasks()
                     self.WasHidden = nil
                     self.PreventShooting = nil
                     return
-                elseif self:canIntercept( data ) and ( self.WasHidden or interceptIsVeryGood ) then
-                    self:TaskComplete( "movement_stalkenemy" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif ( self.WasHidden or interceptIsVeryGood ) and self:interceptIfWeCan( "movement_stalkenemy", data ) then
+                    return
                 elseif tooCloseToDangerousAndGettingCloser then
                     local orbitDist = math.Clamp( self.DistToEnemy * 2, 1000, math.huge )
                     self:TaskFail( "movement_stalkenemy" )
@@ -5508,12 +5502,12 @@ function ENT:DoDefaultTasks()
                     elseif self.WasHidden and ( data.perchWhenHidden or shouldPerchBecauseTheyTooDeadly ) then
                         local whereWeNeedToSee = data.perchWhenHiddenPos or self.EnemyLastPos
                         self:TaskComplete( "movement_stalkenemy" )
-                        self:StartTask2( "movement_perch", { requiredTarget = whereWeNeedToSee, perchRadius = self:GetRangeTo( whereWeNeedToSee ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
+                        self:StartTask2( "movement_perch", { requiredTarget = whereWeNeedToSee, earlyQuitIfSeen = true, perchRadius = self:GetRangeTo( whereWeNeedToSee ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
 
                     -- if bot is low health then it does perching
                     elseif not self:IsMeleeWeapon() and ratio < 1 and data.stalksSinceLastSeen > 2 then
                         self:TaskComplete( "movement_stalkenemy" )
-                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5, distanceWeight = 0.01 }, "time to snipe!" )
+                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, earlyQuitIfSeen = true, perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5, distanceWeight = 0.01 }, "time to snipe!" )
 
                     elseif ( data.stalksSinceLastSeen or 0 ) < ( ratio * 5 ) then
                         local newDat = {}
@@ -5591,6 +5585,7 @@ function ENT:DoDefaultTasks()
             BehaveUpdateMotion = function( self, data )
                 local exit = nil
                 local keepHidden = nil
+                local duelEnemyDistInt = self.DuelEnemyDist
                 if data.InvalidAfterwards then
                     self.WasHidden = nil
                     self.PreventShooting = nil
@@ -5605,6 +5600,10 @@ function ENT:DoDefaultTasks()
                 local enemyBearingToMeAbs = math.huge
                 if IsValid( enemy ) then
                     enemyBearingToMeAbs = self:enemyBearingToMeAbs()
+                    if enemy.terminator_TerminatorsWatching and #enemy.terminator_TerminatorsWatching >= 1 and not self:IsAngry() then
+                        duelEnemyDistInt = duelEnemyDistInt / 2
+
+                    end
                 end
                 local goodBearing = enemyBearingToMeAbs < 30
                 local exposed = self.IsSeeEnemy and goodBearing
@@ -5634,13 +5633,11 @@ function ENT:DoDefaultTasks()
                 elseif self:CanBashLockedDoor( nil, 800 ) then
                     self:BashLockedDoor( "movement_flankenemy" )
                     exit = true
-                elseif self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < self.DuelEnemyDist and ( self:MyPathLength() * 0.5 ) < self.DistToEnemy then
+                elseif self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < duelEnemyDistInt and ( self:MyPathLength() * 0.5 ) < self.DistToEnemy then
                     self:TaskComplete( "movement_flankenemy" )
                     self:StartTask2( "movement_duelenemy_near", nil, "im close enough!" )
                     exit = true
-                elseif self:canIntercept( data ) and not self.IsSeeEnemy and self.WasHidden then
-                    self:TaskComplete( "movement_flankenemy" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif not self.IsSeeEnemy and self.WasHidden and self:interceptIfWeCan( "movement_flankenemy", data ) then
                     exit = true
                 elseif exposed and self.WasHidden then
                     self:TaskFail( "movement_flankenemy" )
@@ -5737,7 +5734,7 @@ function ENT:DoDefaultTasks()
                 elseif data.Unreachable and givenItAChance then
                     self:TaskFail( "movement_approachforcedcheckposition" )
                     if toPos then
-                        self:StartTask2( "movement_perch", { requiredTarget = toPos, perchRadius = self:GetRangeTo( toPos ) * 1.5, distanceWeight = 0.01 }, "i cant reach the pos, ill try looking at it?" )
+                        self:StartTask2( "movement_perch", { requiredTarget = toPos, earlyQuitIfSeen = true, perchRadius = self:GetRangeTo( toPos ) * 1.5, distanceWeight = 0.01 }, "i cant reach the pos, ill try looking at it?" )
 
                     else
                         self:StartTask2( "movement_search", { searchWant = 5 }, "i never went anywhere in the first place" )
@@ -5815,13 +5812,12 @@ function ENT:DoDefaultTasks()
                 elseif self:CanBashLockedDoor( toPos, 800 ) then
                     self:BashLockedDoor( "movement_approachlastseen" )
                 -- cant get to them
-                elseif self:canIntercept( data ) then
-                    self:TaskFail( "movement_approachlastseen" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif self:interceptIfWeCan( "movement_approachlastseen", data ) then
+                    return
                 elseif data.Unreachable and givenItAChance then
                     self:TaskFail( "movement_approachlastseen" )
                     self:GetTheBestWeapon()
-                    self:StartTask2( "movement_perch", { requiredTarget = toPos }, "i cant reach the pos, ill try looking at it?" )
+                    self:StartTask2( "movement_perch", { requiredTarget = toPos, earlyQuitIfSeen = true }, "i cant reach the pos, ill try looking at it?" )
                 -- i see you...
                 elseif goodEnemy then
                     self:EnemyAcquired( "movement_approachlastseen" )
@@ -5919,14 +5915,16 @@ function ENT:DoDefaultTasks()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5, quickFlank = true }, "i dont want to die" )
                 elseif self:CanBashLockedDoor( self:GetPos(), 1000 ) then
                     self:BashLockedDoor( "movement_followenemy" )
-                elseif data.Unreachable and GoodEnemy and self.IsSeeEnemy then
+                elseif data.Unreachable and GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
                     self:GetTheBestWeapon()
-                    self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i cant get to them" )
-                elseif data.Unreachable and GoodEnemy and not self.IsSeeEnemy then
-                    self:TaskFail( "movement_followenemy" )
-                    self:GetTheBestWeapon()
-                    self:StartTask2( "movement_perch", { requiredTarget = enemyPos, perchRadius = self:GetRangeTo( enemyPos ) * 1.5, distanceWeight = 0.01 }, "i cant get to them, lets see if i can get LOS" )
+                    if self.IsSeeEnemy and self:IsFists() then
+                        self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i cant get to them" )
+
+                    else
+                        self:StartTask2( "movement_perch", { requiredTarget = enemyPos, earlyQuitIfSeen = true, perchRadius = self:GetRangeTo( enemyPos ) * 1.5, distanceWeight = 0.01 }, "i cant get to them, lets see if i can get LOS" )
+
+                    end
                 elseif data.Unreachable and not GoodEnemy then
                     self:TaskFail( "movement_followenemy" )
                     self:GetTheBestWeapon()
@@ -6354,9 +6352,8 @@ function ENT:DoDefaultTasks()
 
                 elseif canWep and self:getTheWeapon( "movement_inertia", potentialWep, "movement_inertia" ) then
                     return
-                elseif self:canIntercept( data ) then
-                    self:TaskComplete( "movement_inertia" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif self:interceptIfWeCan( "movement_inertia", data ) then
+                    return
                 elseif self.IsSeeEnemy then
                     self:EnemyAcquired( "movement_inertia" )
                 elseif self:validSoundHint() then
@@ -6534,9 +6531,7 @@ function ENT:DoDefaultTasks()
                 if canWep and self:getTheWeapon( "movement_biginertia", potentialWep, "movement_biginertia" ) then
                     self.bigInertiaPreserveBeenAreas = data.beenAreas
                     return
-                elseif self:canIntercept( data ) then
-                    self:TaskComplete( "movement_biginertia" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif self:interceptIfWeCan( "movement_biginertia", data ) then
                     self.bigInertiaPreserveBeenAreas = nil
                 elseif self.IsSeeEnemy then
                     self:EnemyAcquired( "movement_biginertia" )
@@ -6626,7 +6621,7 @@ function ENT:DoDefaultTasks()
 
                 data.campingStaringTolerance = math.Clamp( 50 + -( self.campingFailures * 2 ), 10, 50 ) -- increases if the player gets wise to our camping
                 data.maxNoSeeing = data.maxNoSeeing or self:campingTolerance()
-                data.tooCloseDist = data.tooCloseDist or 1500
+                data.tooCloseDist = data.tooCloseDist or 750
                 data.campingCounter = 0
                 data.lookinRightAtMeCount = 0
                 data.notSeeCount = 0
@@ -6699,7 +6694,7 @@ function ENT:DoDefaultTasks()
                     -- oh sh-
                     if lostHp > 10 or self:inSeriousDanger() then
                         self:TaskComplete( "movement_camp" )
-                        self:StartTask2( "movement_stalkenemy", nil, "it shot me" )
+                        self:StartTask2( "movement_stalkenemy", { perchWhenHidden = true }, "it shot me" )
                         self.PreventShooting = nil
                         return
 
@@ -6803,7 +6798,7 @@ function ENT:DoDefaultTasks()
                             data.notSeeCount = data.notSeeCount + 8
 
                         end
-                    elseif self:canIntercept( data ) then
+                    elseif self:interceptIfWeCan( nil, data ) then
                         data.notSeeCount = data.notSeeCount + 10
 
                     else
@@ -6837,8 +6832,6 @@ function ENT:DoDefaultTasks()
 
                 -- where'd you go...
                 elseif enemyMovedReallyFar or ( data.neverSeenEnemy and not self.IsSeeEnemy and data.notSeeCount > data.maxNoSeeing ) then
-                    local perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5
-
                     local term_DontPerchAgain = self.term_DontPerchAgain or 0
 
                     if term_DontPerchAgain > CurTime() then -- we already did a perch with tight criteria
@@ -6848,9 +6841,10 @@ function ENT:DoDefaultTasks()
                         self:StartTask2( "movement_search", { searchCenter = self.EnemyLastPos, searchWant = 20, searchRadius = 1000 }, "i lost sight of them, and i was already perching hard" )
 
                     else -- start a new perching where we pick a pos with tighter criteria
-                        self.term_DontPerchAgain = CurTime() + 5
+                        print( data.notSeeCount, data.maxNoSeeing, enemyMovedReallyFar, data.neverSeenEnemy, not self.IsSeeEnemy )
+                        self.term_DontPerchAgain = CurTime() + 10
                         self:TaskComplete( "movement_camp" )
-                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPosOffsetted, perchRadius = perchRadius, distanceWeight = 0.1 }, "i lost sight of them" )
+                        self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPosOffsetted, earlyQuitIfSeen = true, distanceWeight = 0.1 }, "i lost sight of them" )
 
                     end
 
@@ -6858,7 +6852,7 @@ function ENT:DoDefaultTasks()
 
                 elseif ( not self.IsSeeEnemy and data.notSeeCount > ( data.maxNoSeeing / 8 ) ) or data.lookinRightAtMeCount > 150 then
                     self:TaskComplete( "movement_camp" )
-                    self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, perchRadius = 500, distanceWeight = 1 }, "i lost sight of them" )
+                    self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, earlyQuitIfSeen = true, distanceWeight = 1 }, "i saw them before, and lost sight of them" )
 
                 -- exit if we took damage, or if we haven't seen an enemy 
                 elseif ( not self.IsSeeEnemy and lostHp > 1 ) or data.campingCounter < -internalStaringTolerance then
@@ -6866,7 +6860,7 @@ function ENT:DoDefaultTasks()
                     self.campingFailures = self.campingFailures + 1
 
                     self:TaskComplete( "movement_camp" )
-                    self:StartTask2( "movement_stalkenemy", nil, "im bored" )
+                    self:StartTask2( "movement_stalkenemy", { perchWhenHidden = true }, "im bored" )
                     self.PreventShooting = nil
 
                 end
@@ -6921,9 +6915,8 @@ function ENT:DoDefaultTasks()
                 elseif self.IsSeeEnemy and self.DistToEnemy < 1500 then
                     self:EnemyAcquired( "movement_placeweapon" )
 
-                elseif self:canIntercept( data ) then
-                    self:TaskComplete( "movement_placeweapon" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
+                elseif self:interceptIfWeCan( "movement_placeweapon", data ) then
+                    return
 
                 elseif self:validSoundHint() then
                     self:TaskComplete( "movement_placeweapon" )
@@ -7050,6 +7043,8 @@ function ENT:DoDefaultTasks()
                 data.perchRadius = math.Clamp( data.perchRadius, 0, 8000 )
                 data.distanceWeight = data.distanceWeight or 1
                 data.potentialPerchables = navmesh.Find( self:GetPos(), data.perchRadius, self.loco:GetMaxJumpHeight(), self.loco:GetMaxJumpHeight() )
+                data.nextPerchSort = CurTime() + 2
+                data.lastPerchSortedPos = nil
                 data.nextPath = CurTime() + 1
 
                 data.scoredPerchables = {}
@@ -7092,10 +7087,9 @@ function ENT:DoDefaultTasks()
 
                 if canWep and self:getTheWeapon( "movement_perch", potentialWep, "movement_perch" ) then
                     return
-                elseif self:canIntercept( data ) and not data.requiredTarget then
-                    self:TaskComplete( "movement_perch" )
-                    self:StartTask2( "movement_intercept", nil, "i can intercept someone" )
-                elseif self.IsSeeEnemy and IsValid( self:GetEnemy() ) and ( self:getLostHealth() > 1 or SqrDistLessThan( self:GetEnemy():GetPos():DistToSqr( myPos ), 700 ) ) then
+                elseif data.requiredTarget and self:interceptIfWeCan( "movement_perch", data ) then
+                    return
+                elseif self.IsSeeEnemy and IsValid( self:GetEnemy() ) and not ( requiredTarget and self.EnemyLastPos:Distance( requiredTarget ) < data.perchRadius / 2 ) then
                     self:EnemyAcquired( "movement_perch" )
                 elseif self:validSoundHint() and not data.requiredTarget then
                     self:TaskComplete( "movement_perch" )
@@ -7180,33 +7174,51 @@ function ENT:DoDefaultTasks()
                         if not bestPos then continue end
 
                         data.bestPosSoFar = bestPos
+                        local earlyQuit = data.earlyQuitIfSeen and self.IsSeeEnemy
                         yieldIfWeCan()
 
-                        if self:GetRangeTo( bestPos ) > 50 then
+                        if data.lastPerchSortedPos ~= bestPos and data.nextPerchSort < CurTime() then
+                            data.lastPerchSortedPos = bestPos
+                            data.nextPerchSort = CurTime() + 5
+                            local centers = {}
+                            local distToSqrInternal = distToSqr
+                            for _, area in ipairs( data.potentialPerchables ) do
+                                centers[area] = area:GetCenter()
+
+                            end
+                            table.sort( data.potentialPerchables, function( a, b ) -- sort ents by distance to me 
+                                local ADist = distToSqrInternal( centers[a], bestPos )
+                                local BDist = distToSqrInternal( centers[b], bestPos )
+                                return ADist < BDist
+
+                            end )
+                        end
+
+                        if self:GetRangeTo( bestPos ) > 75 then
                             local nextPath = data.nextPath or 0
 
                             if nextPath < CurTime() and self:primaryPathInvalidOrOutdated( bestPos ) then
                                 data.nextPath = CurTime() + 1
                                 self:SetupPathShell( bestPos )
 
+                            elseif self:PathIsValid() then
+                                self:ControlPath2()
+
                             end
-
-                            self:ControlPath2()
-
-                        elseif self:IsOnGround() and table.Count( data.scoredPerchables ) > #data.potentialPerchables * 0.1 then
+                        elseif self:IsOnGround() and ( earlyQuit or table.Count( data.scoredPerchables ) > #data.potentialPerchables * 0.15 ) then
                             local myShoot = self:GetShootPos()
                             local nookScore = terminator_Extras.GetNookScore( myShoot, 6000, data.nookOverrideDirections )
 
                             if requiredTarget then
                                 local _, canSeeTr = terminator_Extras.PosCanSeeComplex( myShoot, requiredTarget, self )
                                 local hitNearby = SqrDistLessThan( canSeeTr.HitPos:DistToSqr( requiredTarget ), 150 )
-                                if hitNearby and nookScore >= 2.5 then
+                                if hitNearby and ( earlyQuit or nookScore >= 3.25 ) then
                                     data.potentialPerchables = {}
                                     return
 
                                 end
                             end
-                            if nookScore >= 3.25 then
+                            if nookScore >= 2.5 then
                                 data.potentialPerchables = {}
                                 return
 
@@ -7246,29 +7258,33 @@ function ENT:DoDefaultTasks()
                     --debugoverlay.Text( data.bestPos, "a" .. data.bestPosScore, 10, false )
 
                 else
+                    if myPos:Distance( data.bestPos ) < 200 then
+                        self.overrideCrouch = CurTime() + 0.5
+
+                    end
                     if self:primaryPathInvalidOrOutdated( data.bestPos ) then
                         self:SetupPathShell( data.bestPos )
+                        self.forcedShouldWalk = CurTime() + 1
+
                     end
                     local result = self:ControlPath2( not self.IsSeeEnemy )
-                    if result == true or SqrDistLessThan( myPos:DistToSqr( data.bestPos ), 75 ) then
-                        local tolerance = self:campingTolerance()
-                        --debugoverlay.Text( data.bestPos, tolerance .. " " .. nookScore, 240 )
+                    if result == true or SqrDistLessThan( myPos:DistToSqr( data.bestPos ), 50 ) then
                         self:TaskComplete( "movement_perch" )
-                        self:StartTask2( "movement_camp", { maxNoSeeing = tolerance }, "i got to my camping spot" )
+                        self:StartTask2( "movement_camp", nil, "i got to my camping spot" )
 
                     end
                 end
             end,
             ShouldRun = function( self, data )
+                local closeDist = self.RunSpeed * 0.75
+                local closeToTheEnd = SqrDistLessThan( self:GetPos():DistToSqr( self:GetPath():GetEnd() ), closeDist )
+                if closeToTheEnd then return false end
+
                 return self:canDoRun()
 
             end,
             ShouldWalk = function( self, data )
                 local closeDist = self.RunSpeed * 0.75
-                if self.IsSeeEnemy then
-                    closeDist = self.MoveSpeed * 0.75
-
-                end
                 local closeToTheEnd = SqrDistLessThan( self:GetPos():DistToSqr( self:GetPath():GetEnd() ), closeDist )
                 if closeToTheEnd then return true end
 
@@ -7404,7 +7420,7 @@ function ENT:DoDefaultTasks()
                     self:GetTheBestWeapon()
 
                     local target = lastInterceptPos or self.EnemyLastPos
-                    self:StartTask2( "movement_perch", { requiredTarget = target, perchRadius = self:GetRangeTo( target ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
+                    self:StartTask2( "movement_perch", { requiredTarget = target, earlyQuitIfSeen = true, perchRadius = self:GetRangeTo( target ) * 1.5, distanceWeight = 0.01 }, "i cant reach ya, time to snipe!" )
 
                 elseif self.IsSeeEnemy and pathIsMostlyDone then
                     self:EnemyAcquired( "movement_intercept" )
@@ -7441,7 +7457,7 @@ function ENT:DoDefaultTasks()
                 if not self.IsSeeEnemy then return end
                 if data.EnemyPosInform and data.EnemyPosInform > CurTime() then return end
 
-                data.EnemyPosInform = CurTime() +  math.Rand( 3, 5 )
+                data.EnemyPosInform = CurTime() +  math.Rand( 2, 5 )
                 data.Inform( enemy, self:EntShootPos( enemy ), self:GetPos() )
 
             end,
@@ -7455,7 +7471,9 @@ function ENT:DoDefaultTasks()
                 -- it made another terminator mad! it makes me mad!
                 self:MakeFeud( enemy )
 
-                if IsValid( self:GetEnemy() ) and self.IsSeeEnemy then return end
+                local realEnemy = self:GetEnemy()
+
+                if IsValid( realEnemy ) and self.IsSeeEnemy then return end
 
                 self.EnemyLastPos = pos
 
