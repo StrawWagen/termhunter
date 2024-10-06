@@ -5,6 +5,8 @@ local IsValid = IsValid
 local LocalToWorld = LocalToWorld
 local entMeta = FindMetaTable( "Entity" )
 
+local _IsFlagSet = entMeta.IsFlagSet
+
 -- i love overoptimisation
 local playersCache = {} -- not nil cause of autorefresh
 local function doPlayersCache()
@@ -250,8 +252,6 @@ end
 
 ENT.IsInMyFov = IsInMyFov
 
-local _IsFlagSet = entMeta.IsFlagSet
-
 function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     if notEnemyCache[ent] then return false end
     if _IsFlagSet( ent, FL_NOTARGET ) then
@@ -431,7 +431,12 @@ end
 function ENT:SetupEntityRelationship( ent )
     local disp,priority,theirdisp = self:GetDesiredEnemyRelationship( ent )
     self:Term_SetEntityRelationship( ent, disp, priority )
-    if not ( ent:IsNPC() or ent:IsNextBot() ) and not ( ent.AddEntityRelationship or ent.Term_SetEntityRelationship ) then return end
+    if notEnemyCache[ent] then return end
+    if not ( ent:IsNPC() or ent:IsNextBot() ) and not ( ent.AddEntityRelationship or ent.Term_SetEntityRelationship ) then 
+        notEnemyCache[ent] = true
+        return
+
+    end
     timer.Simple( 0, function()
         if not IsValid( ent ) then return end
         if not IsValid( self ) then return end
@@ -512,8 +517,13 @@ function ENT:GetDesiredEnemyRelationship( ent )
 end
 
 function ENT:SetupRelationships()
+    local SetupEntityRelationship = self.SetupEntityRelationship
     for _, ent in ents.Iterator() do
-        self:SetupEntityRelationship( ent )
+        local isObject = _IsFlagSet( ent, FL_OBJECT ) -- if ent is not object but should be an enemy, let MakeFeud handle them
+        if isObject then
+            SetupEntityRelationship( self, ent )
+
+        end
     end
 
     local hookId = "term_terminator_relations_" .. self:GetCreationID()

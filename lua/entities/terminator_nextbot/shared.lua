@@ -2506,7 +2506,7 @@ end
 -- config vars
 ENT.TERM_FISTS = "weapon_terminatorfists_term"
 ENT.CoroutineThresh = 0.003 -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides
-ENT.MaxPathingIterations = nil -- set this to like 5000 if you dont care about a specific bot having perfect ( read, expensive ) paths
+ENT.MaxPathingIterations = 20000 -- set this to like 5000 if you dont care about a specific bot having perfect ( read, expensive ) paths
 
 -- custom values for the nextbot base to use
 -- i set these as multiples of defaults ( 70 )
@@ -2706,7 +2706,7 @@ function ENT:Initialize()
 
     timer.Simple( 0.1, function()
         if not IsValid( self ) then return end
-        if #navmesh.GetAllNavAreas() <= 0 then
+        if navmesh.GetNavAreaCount() <= 0 then
             local myCreator = self:GetCreator()
             if IsValid( myCreator ) then
                 myCreator:PrintMessage( HUD_PRINTCENTER, "NO NAVMESH FOUND!" )
@@ -3273,7 +3273,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         ["movement_handler"] = {
-            OnStart = function( self, data )
+            BehaveUpdateMotion = function( self, data, interval )
                 if not self:nextNewPathIsGood() then
                     self:TaskComplete( "movement_handler" )
                     self:StartTask2( "movement_wait", { time = math.abs( self.nextNewPath - CurTime() ) }, "wait..." )
@@ -6841,7 +6841,7 @@ function ENT:DoDefaultTasks()
                         self:StartTask2( "movement_search", { searchCenter = self.EnemyLastPos, searchWant = 20, searchRadius = 1000 }, "i lost sight of them, and i was already perching hard" )
 
                     else -- start a new perching where we pick a pos with tighter criteria
-                        print( data.notSeeCount, data.maxNoSeeing, enemyMovedReallyFar, data.neverSeenEnemy, not self.IsSeeEnemy )
+                        --print( data.notSeeCount, data.maxNoSeeing, enemyMovedReallyFar, data.neverSeenEnemy, not self.IsSeeEnemy )
                         self.term_DontPerchAgain = CurTime() + 10
                         self:TaskComplete( "movement_camp" )
                         self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPosOffsetted, earlyQuitIfSeen = true, distanceWeight = 0.1 }, "i lost sight of them" )

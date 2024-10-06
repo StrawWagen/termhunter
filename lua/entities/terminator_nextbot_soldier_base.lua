@@ -17,15 +17,6 @@ DEFINE_BASECLASS(ENT.Base)
 
 if CLIENT then return end
 
-local PlayerDisposition = CreateConVar(
-	"terminator_nextbot_soldier_playerdisposition",
-	"0",
-	bit.bor(FCVAR_NEVER_AS_STRING,FCVAR_ARCHIVE),
-	"Defines player disposition for friendly/hostile bots: 0 - Neutral; 1 - Like; 2 - Hate; 3 - Like for friendly, hate for hostile; 4 - Hate for friendly, like for hostile.",
-	0,
-	4
-)
-
 --[[------------------------------------
 	CONFIG
 --]]------------------------------------
@@ -492,8 +483,6 @@ ENEMY_CLASSES = {
 
 function ENT:Initialize()
 	BaseClass.Initialize(self)
-	
-	self.PlayerDisposition = PlayerDisposition:GetInt()
 	
 	self.m_InformRadius = self.InformRadius
 	self.m_InformGroup = self.InformGroup
