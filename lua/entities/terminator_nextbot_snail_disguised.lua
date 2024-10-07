@@ -107,6 +107,14 @@ function ENT:GetFootstepSoundTime()
 
 end
 
+function ENT:AdditionalClientInitialize()
+    timer.Simple( 0, checkIfThereIsADoppleganger )
+    self:CallOnRemove( "checkiftheresdoppleganger", function()
+        timer.Simple( 0, checkIfThereIsADoppleganger )
+
+    end )
+end
+
 function ENT:AdditionalInitialize()
     local stuffWeCanMimic = {}
     local someoneDead
@@ -132,12 +140,6 @@ function ENT:AdditionalInitialize()
 
     local randomPlayerToMimic = table.Random( stuffWeCanMimic )
     self:MimicPlayer( randomPlayerToMimic )
-
-    timer.Simple( 0, checkIfThereIsADoppleganger )
-    self:CallOnRemove( "checkiftheresdoppleganger", function()
-        timer.Simple( 0, checkIfThereIsADoppleganger )
-
-    end )
 
 end
 
@@ -235,6 +237,7 @@ end
 
 hook.Add( "HUDPaint", "terminator_PaintDisguisedNameAndHealth", function()
     if not isADoppleGanger then return end
+    print( "a" )
 
     if hook.Run( "HUDDrawTargetID" ) ~= nil then return end
 
