@@ -237,7 +237,6 @@ end
 
 hook.Add( "HUDPaint", "terminator_PaintDisguisedNameAndHealth", function()
     if not isADoppleGanger then return end
-    print( "a" )
 
     if hook.Run( "HUDDrawTargetID" ) ~= nil then return end
 
