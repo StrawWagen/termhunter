@@ -341,6 +341,9 @@ function ENT:OnTakeDamage( Damage )
 
 end
 
+function ENT:IsImmuneToDmg( dmg )
+end
+
 local MEMORY_VOLATILE = 8
 local MEMORY_DAMAGING = 64
 
@@ -348,6 +351,8 @@ function ENT:PostTookDamage( dmg )
 
     local immuneMask = self.term_DMG_ImmunityMask
     if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
+
+    if self:IsImmuneToDmg( dmg ) then return true end
 
     self:RunTask( "OnDamaged", dmg )
     self:MakeFeud( dmg:GetAttacker() )

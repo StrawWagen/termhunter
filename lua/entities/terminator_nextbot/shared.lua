@@ -934,83 +934,85 @@ function ENT:GetCachedDisrespector()
 
 end
 
--- interacting with shootblocker START
+do
+    -- interacting with shootblocker START
 
-local hullminFists = Vector( -20, -20, -30 )
-local hullmaxFists = Vector( 20, 20, 30 )
+    local hullminFists = Vector( -20, -20, -30 )
+    local hullmaxFists = Vector( 20, 20, 30 )
 
-local hullminOtherwise = Vector( -5, -5, -5 )
-local hullmaxOtherwise = Vector( 5, 5, 5 )
+    local hullminOtherwise = Vector( -5, -5, -5 )
+    local hullmaxOtherwise = Vector( 5, 5, 5 )
 
-local function hullmin( ref )
-    if ref.IsFists and ref:IsFists() then
-        return hullminFists
+    local function hullmin( ref )
+        if ref.IsFists and ref:IsFists() then
+            return hullminFists
 
-    end
-    return hullminOtherwise
-
-end
-
-
-local function hullmax( ref )
-    if ref.IsFists and ref:IsFists() then
-        return hullmaxFists
+        end
+        return hullminOtherwise
 
     end
-    return hullmaxOtherwise
 
-end
 
-function ENT:ShootBlockerWorld( start, pos, filter )
+    local function hullmax( ref )
+        if ref.IsFists and ref:IsFists() then
+            return hullmaxFists
 
-    local nextWorldBlockerCheck = self.nextWorldBlockerCheck or 0
-    local readyForCheck = not self.oldWorldBlocker or nextWorldBlockerCheck < CurTime()
+        end
+        return hullmaxOtherwise
 
-    if not readyForCheck then return self.oldWorldBlocker end
-
-    local traceStruc = {
-        start = start,
-        endpos = pos,
-        filter = filter,
-        mask = bit.bor( MASK_SOLID_BRUSHONLY ),
-        mins = hullmin( self ),
-        maxs = hullmax( self ),
-    }
-    local tr = util.TraceHull( traceStruc )
-
-    if tr.Hit then
-        self.nextWorldBlockerCheck = CurTime() + 0.1
-    else
-        self.nextWorldBlockerCheck = CurTime() + 0.5
     end
 
-    self.oldWorldBlocker = tr
+    function ENT:ShootBlockerWorld( start, pos, filter )
 
-    return tr
-end
+        local nextWorldBlockerCheck = self.nextWorldBlockerCheck or 0
+        local readyForCheck = not self.oldWorldBlocker or nextWorldBlockerCheck < CurTime()
 
-function ENT:ShootBlocker( start, pos, filter )
-    local traceStruc = {
-        start = start,
-        endpos = pos,
-        filter = filter,
-        mask = self:GetSolidMask(),
-    }
-    local tr = util.TraceLine( traceStruc )
-    if tr.Hit and not tr.HitWorld then return tr.Entity, tr end
+        if not readyForCheck then return self.oldWorldBlocker end
 
-    traceStruc = {
-        start = start,
-        endpos = pos,
-        filter = filter,
-        mask = self:GetSolidMask(),
-        mins = hullmin( self ),
-        maxs = hullmax( self ),
-    }
-    tr = util.TraceHull( traceStruc )
+        local traceStruc = {
+            start = start,
+            endpos = pos,
+            filter = filter,
+            mask = bit.bor( MASK_SOLID_BRUSHONLY ),
+            mins = hullmin( self ),
+            maxs = hullmax( self ),
+        }
+        local tr = util.TraceHull( traceStruc )
 
-    return tr.Entity, tr
+        if tr.Hit then
+            self.nextWorldBlockerCheck = CurTime() + 0.1
+        else
+            self.nextWorldBlockerCheck = CurTime() + 0.5
+        end
 
+        self.oldWorldBlocker = tr
+
+        return tr
+    end
+
+    function ENT:ShootBlocker( start, pos, filter )
+        local traceStruc = {
+            start = start,
+            endpos = pos,
+            filter = filter,
+            mask = self:GetSolidMask(),
+        }
+        local tr = util.TraceLine( traceStruc )
+        if tr.Hit and not tr.HitWorld then return tr.Entity, tr end
+
+        traceStruc = {
+            start = start,
+            endpos = pos,
+            filter = filter,
+            mask = self:GetSolidMask(),
+            mins = hullmin( self ),
+            maxs = hullmax( self ),
+        }
+        tr = util.TraceHull( traceStruc )
+
+        return tr.Entity, tr
+
+    end
 end
 
 function ENT:markAsTermUsed( ent )
@@ -1055,44 +1057,70 @@ local function handleDoubleDoors( ent, user )
     end
 end
 
-local useClassBlacklist = {}
+do
+    local useClassBlacklist = {}
+    local blacklistCount = {}
+    local stopBlaming = 0
+    local lastTermUseClass
 
-function ENT:Use2( toUse )
-    if not self.CanUseStuff then return end
+    hook.Add( "OnLuaError", "term_blameuseerrors", function()
+        if stopBlaming < CurTime() then return end
 
-    if toUse.GetDriver then return end
+        local old = blacklistCount[lastTermUseClass] or 0
+        if old > 10 then -- nah not our fault
+            useClassBlacklist[lastTermUseClass] = nil
 
-    local class = toUse:GetClass()
-    if useClassBlacklist[class] then return end
+        end
 
-    self:markAsTermUsed( toUse )
-    if class == "prop_door_rotating" then
-        handleDoubleDoors( toUse, self )
+        useClassBlacklist[lastTermUseClass] = true
+        blacklistCount[lastTermUseClass] = old + 1
 
-    end
+        if old >= 1 then return end
+        print( "TERM potentially caught error when using " .. lastTermUseClass .. "\nadding to session use blacklist..." )
 
-    hook.Run( "TerminatorUse", self, toUse )
-    local successful = ProtectedCall( function() toUse:Use( self, self, USE_ON ) end )
+    end )
 
-    if not successful then
-        print( "TERM caught error when using " .. class .. "\nadding to use blacklist..." )
-        useClassBlacklist[class] = true
-        return
+    function ENT:Use2( toUse )
+        if not self.CanUseStuff then return end
 
-    end
+        -- vehicles dont expect us to use em
+        if toUse.GetDriver then return end
 
-    local nextUseSound = self.nextUseSound or 0
-    if nextUseSound < CurTime() and not self:IsSilentStepping() then
-        self.nextUseSound = CurTime() + math.Rand( 0.05, 0.1 )
-        self:EmitSound( "common/wpn_select.wav", 65, math.random( 95, 105 ) )
+        local class = toUse:GetClass()
+        if useClassBlacklist[class] then return end
 
-        if not toUse.GetPhysicsObject then return end
-        local obj = toUse:GetPhysicsObject()
-        if not obj or not obj.IsValid or not obj:IsValid() then return end
-        if self:GetRangeTo( toUse:GetPos() ) > 100 then return end
+        self:markAsTermUsed( toUse )
+        if class == "prop_door_rotating" then
+            handleDoubleDoors( toUse, self )
 
-        obj:ApplyForceCenter( VectorRand() * 1000 )
+        end
 
+        stopBlaming = CurTime() + 0.025
+        lastTermUseClass = class
+
+        hook.Run( "TerminatorUse", self, toUse )
+        local successful = ProtectedCall( function() toUse:Use( self, self, USE_ON ) end )
+
+        if not successful then
+            print( "TERM caught error when using " .. class .. "\nadding to session use blacklist..." )
+            useClassBlacklist[class] = true
+            return
+
+        end
+
+        local nextUseSound = self.nextUseSound or 0
+        if nextUseSound < CurTime() and not self:IsSilentStepping() then
+            self.nextUseSound = CurTime() + math.Rand( 0.05, 0.1 )
+            self:EmitSound( "common/wpn_select.wav", 65, math.random( 95, 105 ) )
+
+            if not toUse.GetPhysicsObject then return end
+            local obj = toUse:GetPhysicsObject()
+            if not obj or not obj.IsValid or not obj:IsValid() then return end
+            if self:GetRangeTo( toUse:GetPos() ) > 100 then return end
+
+            obj:ApplyForceCenter( VectorRand() * 1000 )
+
+        end
     end
 end
 
