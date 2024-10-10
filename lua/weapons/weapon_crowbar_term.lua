@@ -316,7 +316,7 @@ function SWEP:GetNPCBurstSettings()
 end
 
 function SWEP:GetNPCRestTimes()
-    return 0.5,1
+    return 0,0
 end
 
 function SWEP:GetCapabilities()

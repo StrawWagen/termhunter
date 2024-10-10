@@ -160,7 +160,7 @@ function SWEP:GetNPCBulletSpread(prof)
 end
 
 function SWEP:GetNPCBurstSettings()
-	return 2,5,0.075
+	return 5,10,0.075
 end
 
 function SWEP:GetNPCRestTimes()

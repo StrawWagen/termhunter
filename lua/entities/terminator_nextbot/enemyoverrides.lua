@@ -70,6 +70,17 @@ local function pals( ent1, ent2 )
 
 end
 
+function ENT:enemyBearingToMeAbs()
+    local enemy = self:GetEnemy()
+    if not IsValid( enemy ) then return 0 end
+    local myPos = self:GetPos()
+    local enemyPos = enemy:GetPos()
+    local enemyAngle = enemy:EyeAngles()
+
+    return math.abs( terminator_Extras.BearingToPos( myPos, enemyAngle, enemyPos, enemyAngle ) )
+
+end
+
 function ENT:EntShootPos( ent, random )
     local hitboxes = {}
     if not ent then return end
@@ -853,6 +864,9 @@ function ENT:HandleFakeCrouching( data, enemy )
 end
 
 function ENT:GetNearbyAllies()
+    local cache = self.term_NearbyAlliesCache
+    if cache then return cache end
+
     local allies = {}
     for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
         if ent == self or not pals( self, ent ) or self:GetPos():DistToSqr( ent:GetPos() ) > self.InformRadius^2 then continue end
@@ -860,6 +874,12 @@ function ENT:GetNearbyAllies()
         table.insert( allies, ent )
 
     end
+    self.term_NearbyAlliesCache = allies
+    timer.Simple( 2, function()
+        if not IsValid( self ) then return end
+        self.term_NearbyAlliesCache = nil
+
+    end )
     return allies
 
 end

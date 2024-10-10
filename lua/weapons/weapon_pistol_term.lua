@@ -124,11 +124,11 @@ function SWEP:GetNPCBulletSpread(prof)
 end
 
 function SWEP:GetNPCBurstSettings()
-	return 1,3,0.5
+	return 5,7,math.Rand( 0.12, 0.14 )
 end
 
 function SWEP:GetNPCRestTimes()
-	return 0.33,0.66
+	return 0.66,1
 end
 
 function SWEP:GetCapabilities()

@@ -13,10 +13,6 @@ end
 if SERVER then
     ENT.WeaponSpread = 0.05
 
-    function ENT:KeyDown()
-        return nil
-    end
-
     function ENT:VJ_GetDifficultyValue( int )
         return int
     end
@@ -114,8 +110,7 @@ function ENT:KeyPressed( KEY )
     localizedVel:Rotate( -self:GetAngles() )
 
     if KEY == IN_ATTACK or KEY == IN_ATTACK2 or KEY == IN_BULLRUSH then
-        if not self.terminator_LastAttack then return end
-        return math.abs( self.terminator_LastAttack - CurTime() ) < 0.5
+        return self.terminator_FiringIsAllowed
 
     elseif KEY == IN_JUMP then
         return not self:IsOnGround()
@@ -176,6 +171,9 @@ function ENT:GetFOV()
 end
 
 function ENT:SetFOV()
+end
+
+function ENT:SetAmmo()
 end
 
 if SERVER then

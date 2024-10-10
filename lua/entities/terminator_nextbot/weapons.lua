@@ -387,6 +387,9 @@ function ENT:AssumeWeaponNextShootTime()
         return wep:GetNextPrimaryFire()
 
     end
+
+    return wep.term_LastFire + 1
+
 end
 
 --[[------------------------------------
@@ -454,8 +457,6 @@ function ENT:WeaponPrimaryAttack()
             local successfulShoot = ProtectedCall( function() wep:NPCShoot_Primary( self:GetShootPos(), self:GetAimVector() ) end )
             self:HateBuggyWeapon( wep, successfulShoot )
 
-            self:DoRangeGesture()
-
             if self:ShouldWeaponAttackUseBurst( wep ) then
                 local bmin, bmax, frate = wep:GetNPCBurstSettings()
                 local rmin, rmax = wep:GetNPCRestTimes()
@@ -477,7 +478,7 @@ function ENT:WeaponPrimaryAttack()
 
                 end
             else
-                local bmin, bmax, frate = wep:GetNPCBurstSettings()
+                local _, _, frate = wep:GetNPCBurstSettings()
                 data.NextShootTime = math.max( CurTime() + frate, data.NextShootTime )
 
             end
@@ -498,8 +499,9 @@ function ENT:WeaponPrimaryAttack()
         end
     end )
     if not self:HateBuggyWeapon( wep, successful ) then
+        self:DoRangeGesture()
+        wep.term_LastFire = CurTime()
         wep.terminator_FiredBefore = true
-        self.terminator_LastAttack = CurTime()
         self:RunTask( "OnAttack" )
 
     end

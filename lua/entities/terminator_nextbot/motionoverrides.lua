@@ -2653,7 +2653,7 @@ function ENT:OnLandOnGround( ent )
         end
 
         local heightToStartTakingDamage = self.HeightToStartTakingDamage
-        if fallHeight > heightToStartTakingDamage then
+        if self.TakesFallDamage and fallHeight > heightToStartTakingDamage then
             local damage = math.abs( fallHeight - heightToStartTakingDamage )
             damage = damage * self.FallDamagePerHeight
             self:TakeDamage( damage )

@@ -3,6 +3,8 @@ local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 
 local CurTime = CurTime
 
+ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG
+
 --cool dmage system stuff
 ENT.BGrpHealth = {}
 ENT.OldBGrpSteps = {}
@@ -144,7 +146,7 @@ local function OnDamaged( damaged, Hitgroup, Damage )
 
     damaged.lastDamagedTime = CurTime()
 
-    if damaged:PostTookDamage( Damage ) then return end
+    if damaged:PostTookDamage( Damage ) then return true end
 
     if damaged.DoMetallicDamage then
         local ToBGs = nil
@@ -208,7 +210,7 @@ hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", OnDamaged )
 function ENT:OnTakeDamage( Damage )
     self.lastDamagedTime = CurTime()
 
-    if self:PostTookDamage( Damage ) then return end
+    if self:PostTookDamage( Damage ) then return true end
 
     if self.DoMetallicDamage then
         local attacker = Damage:GetAttacker()
@@ -344,6 +346,9 @@ local MEMORY_DAMAGING = 64
 
 function ENT:PostTookDamage( dmg )
 
+    local immuneMask = self.term_DMG_ImmunityMask
+    if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
+
     self:RunTask( "OnDamaged", dmg )
     self:MakeFeud( dmg:GetAttacker() )
 
@@ -369,7 +374,9 @@ function ENT:PostTookDamage( dmg )
     if dmg:GetDamage() <= 75 then return end
 
     local attacker = dmg:GetAttacker()
-    if attacker and attacker == self:GetEnemy() then
+    local nextGroupAnger = self.term_NextDamagedGroupAnger or 0
+    if attacker and attacker == self:GetEnemy() and nextGroupAnger < CurTime() then
+        self.term_NextDamagedGroupAnger = CurTime() + 5
         -- make group of bots react to 1 getting damaged
         local ourChummy = self.isTerminatorHunterChummy
         for _, curr in ipairs( self.awarenessSubstantialStuff ) do
@@ -378,6 +385,7 @@ function ENT:PostTookDamage( dmg )
             timer.Simple( math.Rand( 0.5, 1.5 ), function()
                 if not IsValid( curr ) then return end
                 if not curr.Anger then return end
+                curr.term_NextDamagedGroupAnger = CurTime() + 1
                 curr:Anger( math.random( 5, 10 ) )
 
             end )
@@ -482,7 +490,15 @@ function ENT:HandleWeaponOnDeath( wep, dmg )
     end
 end
 
+function ENT:AdditionalOnKilled()
+end
+
 function ENT:OnKilled( dmg )
+    if self.term_Dead then return end
+    self.term_Dead = true
+
+    self:AdditionalOnKilled()
+
     local wep = self:GetActiveWeapon()
     local weps = { wep }
 

@@ -421,7 +421,6 @@ function SWEP:DealDamage()
                 dmgMul = dmgMul + 1
 
             end
-            local oldHealth = hitEnt:Health()
 
             local damageToDeal = math.random( 40, 50 ) * dmgMul
             local dmginfo = DamageInfo()
@@ -447,12 +446,20 @@ function SWEP:DealDamage()
             hitEnt:TakeDamageInfo( dmginfo )
             SuppressHostEvents( owner )
 
-            local MEMORY_BREAKABLE = 4
+            if owner:IsOnFire() then
+                hitEnt:Ignite( damageToDeal / 40 )
 
-            local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()
+            end
+
+        end
+        local MEMORY_BREAKABLE = 4
+        local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()
+
+        if not isSignificant then
+            hitEnt:ForcePlayerDrop()
+            local oldHealth = hitEnt:Health()
 
             timer.Simple( 0.1, function()
-                if isSignificant then return end
                 if not IsValid( self ) then return end
                 -- small things dont take the damage's force when in water????
                 if IsValid( hitEnt ) and hitEnt:GetVelocity():LengthSqr() < 25 ^ 2 and IsValid( hitEnt:GetPhysicsObject() ) then
@@ -465,8 +472,6 @@ function SWEP:DealDamage()
 
                 end
             end )
-
-
         end
         self:HandleDoor( tr, strength )
     end
