@@ -7,8 +7,9 @@ local entMeta = FindMetaTable( "Entity" )
 
 local IsFlagSet = entMeta.IsFlagSet
 
--- i love overoptimisation
-local playersCache = {} -- not nil cause of autorefresh
+
+local playersCache = nil -- i love overoptimisation
+terminator_Extras.DOINGPLYCACHE = terminator_Extras.DOINGPLYCACHE or nil
 local function doPlayersCache()
     playersCache = {}
     for _, ply in player.Iterator() do
@@ -16,17 +17,25 @@ local function doPlayersCache()
 
     end
 end
-hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
+if terminator_Extras.DOINGPLYCACHE then -- the joys of autorefresh
     doPlayersCache()
-    timer.Create( "term_cache_players", 0.2, 0, function()
+
+end
+
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
+    terminator_Extras.DOINGPLYCACHE = true
+    doPlayersCache()
+    timer.Create( "term_cache_players", 0.5, 0, function()
         doPlayersCache()
     end )
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
     timer.Remove( "term_cache_players" )
     playersCache = {}
+    terminator_Extras.DOINGPLYCACHE = nil
 
 end )
+
 
 -- i love overoptimisation x 2
 local notEnemyCache = {} -- this cache is used to skip alot of _index calls, perf, on checking if props, static things are enemies
@@ -265,7 +274,9 @@ ENT.IsInMyFov = IsInMyFov
 
 function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     if notEnemyCache[ent] then return false end
+
     if IsFlagSet( ent, FL_NOTARGET ) then
+        if playersCache[ent] then return false end -- dont cache result for plys
         notEnemyCache[ent] = true
         return false
 
