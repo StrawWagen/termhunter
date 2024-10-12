@@ -536,8 +536,7 @@ end
 function ENT:SetupRelationships()
     local SetupEntityRelationship = self.SetupEntityRelationship
     for _, ent in ents.Iterator() do
-        local isObject = IsFlagSet( ent, FL_OBJECT ) -- if ent is not object but should be an enemy, let MakeFeud handle them
-        if isObject or playersCache[ent] then
+        if not notEnemyCache[ent] then
             SetupEntityRelationship( self, ent )
 
         end
