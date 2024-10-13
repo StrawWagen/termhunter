@@ -954,23 +954,23 @@ function ENT:Term_LookAround()
     end
 
     local seeEnem = myTbl.IsSeeEnemy
-    local lookAtType
+    --local lookAtType
 
     if not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
         lookAtPos = myTbl.lastInterceptPos
-        lookAtType = "intercept"
+        --lookAtType = "intercept"
 
     elseif not seeEnem and myTbl.TookDamagePos then
         lookAtPos = myTbl.TookDamagePos
-        lookAtType = "tookdamage"
+        --lookAtType = "tookdamage"
 
     elseif not seeEnem and sndHint and sndHint.time + sndCuriosity > cur then
         lookAtPos = sndHint.source
-        lookAtType = "soundhint"
+        --lookAtType = "soundhint"
 
     elseif not seeEnem and genericHint and genericHint.time + sndCuriosity > cur then
         lookAtPos = genericHint.source
-        lookAtType = "generichint"
+        --lookAtType = "generichint"
 
     elseif lookAtGoal and pathIsValid and not seeEnem and ( enemyStillFresh or shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
         if not shouldLookTime then
@@ -978,24 +978,24 @@ function ENT:Term_LookAround()
 
         end
         lookAtPos = myTbl.EnemyLastPos
-        lookAtType = "enemylastpos"
+        --lookAtType = "enemylastpos"
 
     elseif lookAtGoal and pathIsValid and not seeEnem and laddering then
         lookAtPos = myPos + self:GetVelocity() * 100
-        lookAtType = "laddering"
+        --lookAtType = "laddering"
 
     elseif lookAtGoal and ( movingSlow or pathIsValid ) then
         lookAtPos = aheadSegment.pos + vec_up25
-        lookAtType = "lookatpath1"
+        --lookAtType = "lookatpath1"
 
         if not self:IsOnGround() or movingSlow then
             if IsValid( disrespecting ) then
                 lookAtPos = myTbl.getBestPos( self, disrespecting )
-                lookAtType = "lookatpath_disrespector"
+                --lookAtType = "lookatpath_disrespector"
 
             else
                 lookAtPos = aheadSegment.pos + vec_up25
-                lookAtType = "lookatpath2"
+                --lookAtType = "lookatpath2"
 
             end
         elseif lookAtPos:DistToSqr( myPos ) < 400^2 then
@@ -1003,7 +1003,7 @@ function ENT:Term_LookAround()
             local _, segmentAheadOfUs = myTbl.GetNextPathArea( self, myArea, 3, true )
             if segmentAheadOfUs then
                 lookAtPos = segmentAheadOfUs.pos + vec_up25
-                lookAtType = "lookatpath3"
+                --lookAtType = "lookatpath3"
 
             end
         end
