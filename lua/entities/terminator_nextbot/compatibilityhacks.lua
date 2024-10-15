@@ -175,6 +175,19 @@ end
 
 function ENT:SetAmmo()
 end
+function ENT:GetAmmoCount()
+    return -1
+
+end
+
+function ENT:Armor()
+    return 0
+
+end
+function ENT:GetMaxArmor()
+    return 0
+
+end
 
 if SERVER then
 
@@ -242,6 +255,18 @@ if SERVER then
 
     function ENT:GetNavType()
         return -1 --NAV_NONE
+
+    end
+
+    function ENT:SetArmor()
+    end
+
+    function ENT:SetMaxArmor()
+    end
+
+else -- CLIENT
+    function ENT:ShouldDrawLocalPlayer() -- for when you dont want to double-draw stuff
+        return true
 
     end
 
