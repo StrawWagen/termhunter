@@ -73,7 +73,7 @@ hook.Add( "terminator_nextbot_oneterm_exists", "setup_fograngecheck", function()
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "teardown_fograngecheck", function()
     timer.Remove( "term_cache_fogrange" )
-    setFogRange()
+    fogRange = nil
 
 end )
 
