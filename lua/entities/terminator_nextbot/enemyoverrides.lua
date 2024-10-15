@@ -58,13 +58,23 @@ local function setFogRange()
     if not IsValid( fogController ) then return end
 
     local fogRangeInt = fogController:GetKeyValues().farz
-    if fogRangeInt == -1 then return end
+    if not fogRangeInt then return end
+    if fogRangeInt <= 0 then return end
     fogRange = fogRangeInt -- bit of leeway
 
 end
 
-hook.Add( "InitPostEntity", "terminator_nextbot_setfogrange", setFogRange )
-setFogRange() -- autorefresh
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_fograngecheck", function()
+    timer.Create( "term_cache_fogrange", 5, 0, function()
+        setFogRange()
+
+    end )
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "teardown_fograngecheck", function()
+    timer.Remove( "term_cache_fogrange" )
+    setFogRange()
+
+end )
 
 local function isBeyondFog( _, dist )
     if not fogRange then return end
@@ -399,8 +409,7 @@ function ENT:FindEnemies()
 
     end
 
-    for i = 1, #found do
-        local ent = found[i]
+    for _, ent in ipairs( found ) do
         if ent ~= self and not notEnemyCache[ ent ] and ShouldBeEnemy( self, ent, myFov, myTbl, ent:GetTable() ) and CanSeePosition( self, ent ) then
             UpdateEnemyMemory( self, ent, EntShootPos( self, ent ), true )
 
