@@ -65,6 +65,7 @@ local function setFogRange()
 end
 
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_fograngecheck", function()
+    setFogRange()
     timer.Create( "term_cache_fogrange", 5, 0, function()
         setFogRange()
 
