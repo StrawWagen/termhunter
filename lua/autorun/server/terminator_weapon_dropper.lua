@@ -8,7 +8,7 @@ local maxWeaponsToDrop = CreateConVar( "terminator_playerdropweapons_droppedcoun
 local function setDropWeapons( ply, attacker, _ )
     if not attacker or attacker.isTerminatorHunterBased ~= true then return end
     if attacker.DontDropPrimary then return end -- they cant pick it up!
-    if GAMEMODE.IsReallyHuntersGlee == true then return end
+    if GAMEMODE.IsReallyHuntersGlee == true then return end -- glee does its own thing
     if not doDropWeapons:GetBool() then return end
 
     local plysActiveWeapon = ply:GetActiveWeapon()
@@ -88,5 +88,18 @@ local function setDropWeapons( ply, attacker, _ )
     end
 end
 
-
 hook.Add( "DoPlayerDeath", "straw_termdropper_dropweaponoverride", setDropWeapons )
+
+hook.Add( "terminator_nextbot_noterms_exist", "termdropper_cleanupweapons", function()
+    for _, ply in player.Iterator() do
+        if not ply.terminator_droppedweapons then continue end
+        for _, droppedWep in ipairs( ply.terminator_droppedweapons ) do
+            if IsValid( droppedWep ) and not IsValid( droppedWep:GetParent() ) and not IsValid( droppedWep:GetOwner() ) then
+                SafeRemoveEntity( droppedWep )
+
+            end
+        end
+        ply.terminator_droppedweapons = nil
+
+    end
+end )

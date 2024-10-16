@@ -2439,14 +2439,16 @@ function ENT:EnemyIsLethalInMelee( enemy )
 end
 
 hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, inflictor )
-    if npc.isTerminatorHunterChummy ~= "terminator" then return end
+    if not npc.isTerminatorHunterChummy then return end
+    if npc:GetMaxHealth() < 500 then return end
     if not attacker then return end
     if not inflictor then return end
 
     if npc:IgnoringPlayers() and attacker:IsPlayer() then return end
 
     -- if someone has killed terminators, make them react
-    attacker.isTerminatorHunterKiller = true
+    local old = attacker.isTerminatorHunterKiller or 0
+    attacker.isTerminatorHunterKiller = old + 1
 
     if inflictor:IsWeapon() then
         local weapsWeightToTerm = npc:GetWeightOfWeapon( inflictor )
@@ -2460,9 +2462,9 @@ hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, infl
 
     end
 
-    local timerId = "terminator_undokillerstatus_" attacker:GetCreationID()
+    local timerId = "terminator_undokillerstatus_" .. attacker:GetCreationID()
 
-    local timeToForget = 60 * 15
+    local timeToForget = 60 * 15 -- 15 mins!!!
     timer.Remove( timerId )
     timer.Create( timerId, timeToForget, 1, function()
         if not IsValid( attacker ) then return end
@@ -2483,9 +2485,11 @@ end )
 hook.Add( "PostCleanupMap", "terminator_clear_playerstatuses", function()
     for _, ply in ipairs( player.GetAll() ) do
         ply.terminator_CantConvinceImFriendly = nil
-        ply.isTerminatorHunterKiller = nil
         ply.terminator_IsLethalInMelee = nil
         ply.terminator_endFirstWatch = nil
+
+        ply.isTerminatorHunterKiller = nil
+        timer.Remove( "terminator_undokillerstatus_" .. ply:GetCreationID() )
 
     end
 end )
@@ -2898,18 +2902,19 @@ function ENT:DoDefaultTasks()
                 self:SetEnemy( NULL )
             end,
             BehaveUpdatePriority = function( self, data, interval )
-                local prevenemy = self:GetEnemy()
-                local newenemy = prevenemy
+                local prevEnemy = self:GetEnemy()
+                local newEnemy = prevEnemy
 
-                if forceupdateenemies or not data.UpdateEnemies or CurTime() > data.UpdateEnemies or data.HasEnemy and not IsValid( prevenemy ) then
+                if forceupdateenemies or not data.UpdateEnemies or CurTime() > data.UpdateEnemies or data.HasEnemy and not IsValid( prevEnemy ) then
                     data.UpdateEnemies = CurTime() + 0.5
 
                     self:FindEnemies()
+                    local priorityEnemy = self:FindPriorityEnemy()
 
-                    -- here if the above stuff didnt find an enemy we force it to rotate through all players one by one
-                    -- if we have los to one, they are enemy
-                    if not self:IgnoringPlayers() and not self.IsFodder then
+                    if not IsValid( priorityEnemy ) and not self:IgnoringPlayers() and not self.IsFodder then -- cheap infinite view distance
+                        -- only run this code if no enemies, go thru player table one-by-one and check los to see if they can be enemy
                         local allPlayers = player.GetAll()
+                        -- check only one ply per run
                         local pickedPlayer = allPlayers[data.playerCheckIndex]
 
                         if IsValid( pickedPlayer ) then
@@ -2930,35 +2935,40 @@ function ENT:DoDefaultTasks()
                         end
                     end
 
-                    local enemy = self:FindPriorityEnemy()
                     -- conditional friction for switching enemies.
                     -- fixes bot jumping between two enemies that get obscured as it paths, and doing a little dance
                     if
-                        IsValid( enemy ) and
-                        IsValid( prevenemy ) and
-                        prevenemy:Health() > 0 and -- old enemy needs to be alive...
-                        prevenemy ~= enemy and
-                        data.blockSwitchingEnemies > 0 and
-                        self:GetPos():Distance( enemy:GetPos() ) > self.DuelEnemyDist -- enemy needs to be far away, otherwise just switch now
+                        IsValid( priorityEnemy ) and
+                        IsValid( prevEnemy ) and
+                        prevEnemy:Health() > 0 and -- old enemy needs to be alive...
+                        prevEnemy ~= priorityEnemy and
+                        (
+                            data.blockSwitchingEnemies > 0 or
+                            ( self.NothingOrBreakableBetweenEnemy and not self:ClearOrBreakable( self:GetShootPos(), self:EntShootPos( priorityEnemy ) ) ) -- dont switch from visible to obscured
+                        ) and
+                        self:GetPos():Distance( priorityEnemy:GetPos() ) > self.CloseEnemyDistance -- enemy needs to be far away, otherwise just switch now
 
                     then
                         local removed = 1
                         if not self.IsSeeEnemy then
-                            removed = 2
+                            removed = 6
+
+                        elseif not self.NothingOrBreakableBetweenEnemy then
+                            removed = 4
 
                         end
                         data.blockSwitchingEnemies = data.blockSwitchingEnemies - removed
-                        enemy = prevenemy
+                        priorityEnemy = prevEnemy
 
-                    elseif IsValid( enemy ) then
-                        newenemy = enemy
-                        local enemyPos = enemy:GetPos()
+                    elseif IsValid( priorityEnemy ) then
+                        newEnemy = priorityEnemy
+                        local enemyPos = newEnemy:GetPos()
 
                         self.DistToEnemy = self:GetPos():Distance( enemyPos )
-                        self.IsSeeEnemy = self:CanSeePosition( enemy )
+                        self.IsSeeEnemy = self:CanSeePosition( newEnemy )
 
                         if self.IsSeeEnemy and not self.WasSeeEnemy then
-                            hook.Run( "terminator_spotenemy", self, enemy )
+                            hook.Run( "terminator_spotenemy", self, newEnemy )
                             local added = math.Rand( 0.4, 0.7 )
                             if self.DistToEnemy > 2500 then
                                 added = math.Rand( 0.9, 1.5 )
@@ -2967,16 +2977,16 @@ function ENT:DoDefaultTasks()
                             self.terminator_DontImmiediatelyFire = math.max( CurTime() + added, self.terminator_DontImmiediatelyFire )
 
                         elseif not self.IsSeeEnemy and self.WasSeeEnemy then
-                            hook.Run( "terminator_loseenemy", self, enemy )
+                            hook.Run( "terminator_loseenemy", self, newEnemy )
 
                         end
 
-                        hook.Run( "terminator_enemythink", self, enemy )
+                        hook.Run( "terminator_enemythink", self, newEnemy )
 
                         self.WasSeeEnemy = self.IsSeeEnemy
 
                         -- override enemy's relations to me
-                        self:MakeFeud( enemy )
+                        self:MakeFeud( newEnemy )
                         -- we cheatily store the enemy's stuff for a second to make bot feel smarter
                         -- people can intuit where someone ran off to after 1 second, so bot can too
                         local posCheatsLeft = self.EnemyPosCheatsLeft or 0
@@ -2989,15 +2999,15 @@ function ENT:DoDefaultTasks()
 
                         end
                         if self.IsSeeEnemy or posCheatsLeft > 0 then
-                            self.NothingOrBreakableBetweenEnemy = self:ClearOrBreakable( self:GetShootPos(), self:EntShootPos( enemy ) )
+                            self.NothingOrBreakableBetweenEnemy = self:ClearOrBreakable( self:GetShootPos(), self:EntShootPos( newEnemy ) )
                             self.EnemyLastPosOffsetted = self.EnemyLastPos + terminator_Extras.dirToPos( self.EnemyLastPos, enemyPos ) * 150
-                            self.LastEnemyForward = enemy:GetForward()
+                            self.LastEnemyForward = newEnemy:GetForward()
                             self.EnemyLastPos = enemyPos
-                            self:RegisterForcedEnemyCheckPos( enemy )
+                            self:RegisterForcedEnemyCheckPos( newEnemy )
                             --debugoverlay.Line( enemyPos, enemyPos + ( self.EnemyLastDir * 100 ), 5, Color( 255, 255, 255 ), true )
 
                         end
-                        if enemy and enemy.Alive and enemy:Health() > 0 then
+                        if newEnemy and newEnemy.Alive and newEnemy:Health() > 0 then
                             self.EnemyPosCheatsLeft = posCheatsLeft + -1
 
                         else
@@ -3016,40 +3026,44 @@ function ENT:DoDefaultTasks()
                     end
                 end
 
-                if IsValid( newenemy ) then
+                if IsValid( newEnemy ) then
                     if not data.HasEnemy then
                         local sinceLastFound = CurTime() - self.LastEnemySpotTime
-                        self:RunTask( "EnemyFound", newenemy, sinceLastFound )
+                        self:RunTask( "EnemyFound", newEnemy, sinceLastFound )
 
-                    elseif prevenemy ~= newenemy then
+                    elseif prevEnemy ~= newEnemy then
                         local blockSwitch = math.random( 3, 5 )
-                        if self:IsReallyAngry() then
+                        if not self.NothingOrBreakableBetweenEnemy then
+                            blockSwitch = blockSwitch + -1
+
+                        elseif self:IsReallyAngry() then
                             blockSwitch = blockSwitch + math.random( 10, 15 )
+
                         elseif self:IsAngry() then
                             blockSwitch = blockSwitch + 2
 
                         end
                         data.blockSwitchingEnemies = blockSwitch
-                        self:RunTask( "EnemyChanged", newenemy, prevenemy )
+                        self:RunTask( "EnemyChanged", newEnemy, prevEnemy )
 
                     end
 
                     data.HasEnemy = true
 
-                    if self:CanSeePosition( newenemy ) then
-                        self.LastEnemyShootPos = self:EntShootPos( newenemy )
-                        self:UpdateEnemyMemory( newenemy, newenemy:GetPos() )
+                    if self:CanSeePosition( newEnemy ) then
+                        self.LastEnemyShootPos = self:EntShootPos( newEnemy )
+                        self:UpdateEnemyMemory( newEnemy, newEnemy:GetPos() )
                     end
 
                     self.LastEnemySpotTime = CurTime()
 
                 else
                     if data.HasEnemy then
-                        self:RunTask( "EnemyLost", prevenemy )
+                        self:RunTask( "EnemyLost", prevEnemy )
 
-                        local memory, _ = self:getMemoryOfObject( prevenemy )
+                        local memory, _ = self:getMemoryOfObject( prevEnemy )
 
-                        if prevenemy:IsPlayer() or memory == MEMORY_WEAPONIZEDNPC then
+                        if prevEnemy:IsPlayer() or memory == MEMORY_WEAPONIZEDNPC then
                             -- reset searching progress!
                             self.SearchCheckedNavs = self.SearchBadNavAreas
                             self.SearchCheckedNavsCount = 0
@@ -3079,7 +3093,7 @@ function ENT:DoDefaultTasks()
                     self.VisibilityStartingHealth = nil
                 end
 
-                self:SetEnemy( newenemy )
+                self:SetEnemy( newEnemy )
 
             end,
             StartControlByPlayer = function( self, data, ply )
@@ -7408,7 +7422,6 @@ function ENT:DoDefaultTasks()
                         self.interceptPeekTowardsEnemy  = nil
                         self.lastInterceptTime          = nil
                         self.lastInterceptPos           = nil
-                        self.lastInterceptIsPly         = nil
 
                         data.Unreachable = true
                         goto terminatorInterceptNewPathFail
@@ -7450,7 +7463,6 @@ function ENT:DoDefaultTasks()
                         self.interceptPeekTowardsEnemy  = nil
                         self.lastInterceptTime          = nil
                         self.lastInterceptPos           = nil
-                        self.lastInterceptIsPly         = nil
                         data.Unreachable = true
                         goto terminatorInterceptNewPathFail
 
@@ -7489,7 +7501,6 @@ function ENT:DoDefaultTasks()
                 end
             end,
             OnComplete = function( self, data )
-                self.lastInterceptIsPly = nil
             end,
             ShouldRun = function( self, data )
                 return self:canDoRun()
@@ -7508,7 +7519,7 @@ function ENT:DoDefaultTasks()
                     end
                 end
             end,
-            BehaveUpdateMotion = function( self, data, interval )
+            BehaveUpdatePriority = function( self, data, interval )
                 local enemy = self:GetEnemy()
                 if not IsValid( enemy ) then return end
                 if not self.IsSeeEnemy then return end
@@ -7521,23 +7532,24 @@ function ENT:DoDefaultTasks()
             InformReceive = function( self, data, enemy, pos, senderpos )
                 if not senderpos or not IsValid( enemy ) then return end
 
-                local enemIsPly = enemy:IsPlayer()
-                -- dont go after npcs when plys are around!
-                if self.lastInterceptIsPly and not enemIsPly then return end
+                local realEnemy = self:GetEnemy()
+
+                if IsValid( realEnemy ) then
+                    -- dont care about low priority enemies if we already fighting something decent
+                    local _, priorityOfCurr = self:GetRelationship( realEnemy )
+                    local _, priorityOfNew = self:GetRelationship( enemy )
+                    if priorityOfCurr > priorityOfNew then print( realEnemy, priorityOfCurr, enemy, priorityOfNew ) return end
+
+                end
 
                 -- it made another terminator mad! it makes me mad!
                 self:MakeFeud( enemy )
-
-                local realEnemy = self:GetEnemy()
-
-                if IsValid( realEnemy ) and self.IsSeeEnemy then return end
 
                 self.EnemyLastPos = pos
 
                 self.interceptPeekTowardsEnemy  = self:CanSeePosition( enemy ) and math.random( 1, 100 ) < 75
                 self.lastInterceptTime          = CurTime()
                 self.lastInterceptPos           = pos
-                self.lastInterceptIsPly         = enemIsPly
 
                 self:RegisterForcedEnemyCheckPos( enemy )
 

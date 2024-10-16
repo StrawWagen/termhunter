@@ -418,46 +418,85 @@ function ENT:FindEnemies()
     end
 end
 
-function ENT:FindPriorityEnemy()
-    local notsee = {}
-    local enemy, bestRange, priority
-    local ignorePriority = false
+do
+    local Either = Either
 
-    for curr, _ in pairs( self.m_EnemiesMemory ) do
-        if not IsValid( curr ) or not self:ShouldBeEnemy( curr ) then continue end
+    function ENT:FindPriorityEnemy()
+        local notsee = {}
+        local enemy, bestRange, priority
+        local ignorePriority = false
 
-        if not self:CanSeePosition( curr ) then
-            notsee[#notsee + 1] = curr
-            continue
-        end
+        for curr, _ in pairs( self.m_EnemiesMemory ) do
+            if not IsValid( curr ) or not self:ShouldBeEnemy( curr ) then continue end
 
-        local rang = self:GetRangeSquaredTo( curr )
-        local _, pr = self:GetRelationship( curr )
+            if not self:CanSeePosition( curr ) then
+                notsee[#notsee + 1] = curr
+                continue
+            end
 
-        if not ignorePriority and rang <= self.CloseEnemyDistance^2 then
-            -- too close, ignore priority
-            ignorePriority = true
-        end
+            local rang = self:GetRangeSquaredTo( curr )
+            local _, pr = self:GetRelationship( curr )
 
-        if not enemy or Either( ignorePriority, rang < bestRange, Either( pr == priority, rang < bestRange, pr > priority ) ) then
-            enemy, bestRange, priority = curr, rang, pr
+            if not ignorePriority and rang <= self.CloseEnemyDistance^2 then
+                -- too close, we now ignore priority for all enemies, focus on proximity
+                ignorePriority = true
 
-        end
-    end
+            end
+            if not enemy or Either( ignorePriority, rang < bestRange, Either( pr == priority, rang < bestRange, pr > priority ) ) then
+                enemy, bestRange, priority = curr, rang, pr
 
-    if not enemy then
-        -- we dont see any enemy, but we know last position
-
-        for _, curr in ipairs( notsee ) do
-            local rang = self:GetRangeSquaredTo( self:GetLastEnemyPosition( curr ) )
-
-            if not enemy or rang < bestRange then
-                enemy, bestRange = curr, rang
             end
         end
+
+        if not enemy then
+            -- we dont see any enemy, but we know last position
+
+            for _, curr in ipairs( notsee ) do
+                local rang = self:GetRangeSquaredTo( self:GetLastEnemyPosition( curr ) )
+
+                if not enemy or rang < bestRange then
+                    enemy, bestRange = curr, rang
+                end
+            end
+        end
+
+        return enemy or NULL
     end
 
-    return enemy or NULL
+    local INT_MIN = -2147483648
+    local DEF_RELATIONSHIP_PRIORITY = INT_MIN
+
+    --[[------------------------------------
+        Name: NEXTBOT:GetRelationship
+        Desc: Returns how bot feels about this entity.
+        Arg1: Entity | ent | Entity to get disposition from.
+        Ret1: number | Priority disposition. See D_* Enums.
+        Ret2: number | Priority of disposition.
+    --]]------------------------------------
+    function ENT:GetRelationship( ent )
+        local d, priority
+
+        local entr = self.m_EntityRelationships[ent]
+        if entr then
+            d, priority = entr[1], entr[2]
+        end
+
+        local classr = self.m_ClassRelationships[ent:GetClass()]
+        if classr and ( not priority or classr[2] > priority ) then
+            d, priority = classr[1], classr[2]
+        end
+
+        -- killers are higher priority
+        local killerStatus = ent.isTerminatorHunterKiller
+        if killerStatus then
+            local mul = 1 + ( killerStatus * 0.5 )
+            priority = priority * mul
+
+        end
+
+        return d or D_NU,priority or DEF_RELATIONSHIP_PRIORITY
+
+    end
 end
 
 function ENT:SetupEntityRelationship( ent )
@@ -571,7 +610,7 @@ function ENT:MakeFeud( enemy )
     if not enemy.Health then return end
     if enemy:Health() <= 0 then return end
     if enemy:GetClass() == "rpg_missile" then return end -- crazy fuckin bug
-    if enemy:GetClass() == "env_flare" then return end
+    if enemy:GetClass() == "env_flare" then return end -- just as crazy
     local maniacHunter = ( self:GetCreationID() % 15 ) == 1 or self.alwaysManiac
     local arePals = pals( self, enemy )
     if arePals and not maniacHunter then return end
