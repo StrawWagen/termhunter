@@ -2792,3 +2792,47 @@ function ENT:NotOnNavmesh()
     return not navmesh.GetNearestNavArea( self:GetPos(), false, 25, false, false, -2 ) and self:IsOnGround()
 
 end
+
+
+-- custom anim translation support
+IdleActivity = ACT_HL2MP_IDLE
+ENT.IdleActivity = IdleActivity
+ENT.IdleActivityTranslations = {
+    [ACT_MP_STAND_IDLE]                 = IdleActivity,
+    [ACT_MP_WALK]                       = IdleActivity + 1,
+    [ACT_MP_RUN]                        = IdleActivity + 2,
+    [ACT_MP_CROUCH_IDLE]                = IdleActivity + 3,
+    [ACT_MP_CROUCHWALK]                 = IdleActivity + 4,
+    [ACT_MP_ATTACK_STAND_PRIMARYFIRE]   = IdleActivity + 5,
+    [ACT_MP_ATTACK_CROUCH_PRIMARYFIRE]  = IdleActivity + 5,
+    [ACT_MP_RELOAD_STAND]               = IdleActivity + 6,
+    [ACT_MP_RELOAD_CROUCH]              = IdleActivity + 7,
+    [ACT_MP_JUMP]                       = ACT_HL2MP_JUMP_SLAM,
+    [ACT_MP_SWIM]                       = IdleActivity + 9,
+    [ACT_LAND]                          = ACT_LAND,
+}
+
+function ENT:TranslateActivity( act )
+    local task = self:RunTask( "TranslateActivity", act )
+    if task then return task end
+
+    if self:HasWeapon() then
+        self:DontRegisterAsNpc()
+        local newact
+        ProtectedCall( function() newact = self:GetActiveLuaWeapon():TranslateActivity( act ) end ) -- ?????
+        self:ReRegisterAsNpc()
+
+        if newact then
+            return newact
+
+        end
+    end
+    local translated = self.IdleActivityTranslations[act]
+    if isfunction( translated ) then
+        translated = translated( self )
+
+    end
+
+    return translated or self.IdleActivity
+
+end

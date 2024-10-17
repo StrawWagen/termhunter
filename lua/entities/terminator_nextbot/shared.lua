@@ -7538,7 +7538,7 @@ function ENT:DoDefaultTasks()
                     -- dont care about low priority enemies if we already fighting something decent
                     local _, priorityOfCurr = self:GetRelationship( realEnemy )
                     local _, priorityOfNew = self:GetRelationship( enemy )
-                    if priorityOfCurr > priorityOfNew then print( realEnemy, priorityOfCurr, enemy, priorityOfNew ) return end
+                    if priorityOfCurr > priorityOfNew then return end
 
                 end
 

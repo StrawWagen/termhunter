@@ -546,8 +546,18 @@ end
 --]]------------------------------------
 function ENT:DoRangeGesture()
     local act = self:TranslateActivity( ACT_MP_ATTACK_STAND_PRIMARYFIRE )
-    if not act or act <= 0 then return end
-    local seq = self:SelectWeightedSequence( act )
+    if not act or ( isnumber( act ) and act <= 0 ) then return end
+    local seq
+    if isstring( act ) then
+        seq = self:LookupSequence( act )
+        act = seq
+
+    else
+        seq = self:SelectWeightedSequence( act )
+
+    end
+
+    if not seq then return end
 
     self:DoGesture( act )
 
@@ -656,6 +666,8 @@ local DistToSqr = FindMetaTable( "Vector" ).DistToSqr
 function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     if not wep then return end
     wepsTbl = wepsTbl or wep:GetTable()
+
+    if not wepsTbl then return end -- ????
 
     if wepsTbl.terminatorCrappyWeapon then return false end
     if IsValid( entMeta.GetOwner( wep ) ) and not doingHolstered then return false end
