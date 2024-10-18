@@ -2940,6 +2940,7 @@ function ENT:DoDefaultTasks()
                     if
                         IsValid( priorityEnemy ) and
                         IsValid( prevEnemy ) and
+                        self.IsSeeEnemy and
                         prevEnemy:Health() > 0 and -- old enemy needs to be alive...
                         prevEnemy ~= priorityEnemy and
                         (
@@ -2950,16 +2951,19 @@ function ENT:DoDefaultTasks()
 
                     then
                         local removed = 1
-                        if not self.IsSeeEnemy then
-                            removed = 6
-
-                        elseif not self.NothingOrBreakableBetweenEnemy then
-                            removed = 4
+                        if not self.NothingOrBreakableBetweenEnemy then
+                            removed = removed + 4
 
                         end
-                        data.blockSwitchingEnemies = data.blockSwitchingEnemies - removed
+                        if self:GetPos():Distance( priorityEnemy:GetPos() ) < self.DuelEnemyDist then
+                            removed = removed * 4
+
+                        end
+                        print( data.blockSwitchingEnemies )
+                        data.blockSwitchingEnemies = math.max( data.blockSwitchingEnemies - removed, 0 )
                         priorityEnemy = prevEnemy
 
+                    -- no friction blocking us, new enemy!
                     elseif IsValid( priorityEnemy ) then
                         newEnemy = priorityEnemy
                         local enemyPos = newEnemy:GetPos()
@@ -3032,15 +3036,12 @@ function ENT:DoDefaultTasks()
                         self:RunTask( "EnemyFound", newEnemy, sinceLastFound )
 
                     elseif prevEnemy ~= newEnemy then
-                        local blockSwitch = math.random( 3, 5 )
-                        if not self.NothingOrBreakableBetweenEnemy then
-                            blockSwitch = blockSwitch + -1
-
-                        elseif self:IsReallyAngry() then
-                            blockSwitch = blockSwitch + math.random( 10, 15 )
+                        local blockSwitch = math.random( 2, 4 )
+                        if self:IsReallyAngry() then
+                            blockSwitch = blockSwitch + math.random( 5, 8 )
 
                         elseif self:IsAngry() then
-                            blockSwitch = blockSwitch + 2
+                            blockSwitch = blockSwitch + 3
 
                         end
                         data.blockSwitchingEnemies = blockSwitch
