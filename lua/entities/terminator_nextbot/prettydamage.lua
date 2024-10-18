@@ -175,8 +175,8 @@ local function OnDamaged( damaged, Hitgroup, Damage )
         elseif DamageDealt > 60 then
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
             table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-            DamageDealt = DamageDealt * 0.75
-            Damage:SetDamage( math.Clamp( DamageDealt, 0, 350 ) )
+            DamageDealt = DamageDealt * 1.25
+            Damage:SetDamage( math.Clamp( DamageDealt, 0, 400 ) )
             BgDamage = 40
             damaged:CatDamage()
         end
@@ -521,6 +521,8 @@ function ENT:OnKilled( dmg )
 
     end
 
+    local rag = nil
+
     if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
         if dmg:IsDamageType( DMG_DISSOLVE ) then
             self:DissolveEntity()
@@ -531,7 +533,7 @@ function ENT:OnKilled( dmg )
             hook.Run( "OnTerminatorKilledRagdoll", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
         end
-        self:BecomeRagdoll( dmg )
+        ragdoll = self:BecomeRagdoll( dmg )
 
     end
 
@@ -545,7 +547,7 @@ function ENT:OnKilled( dmg )
     end
 
     -- do these last just in case something errors
-    self:RunTask( "OnKilled", dmg )
+    self:RunTask( "OnKilled", dmg, ragdoll )
     hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
 end
