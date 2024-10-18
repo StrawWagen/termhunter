@@ -521,7 +521,7 @@ function ENT:OnKilled( dmg )
 
     end
 
-    local rag = nil
+    local ragdoll
 
     if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
         if dmg:IsDamageType( DMG_DISSOLVE ) then
