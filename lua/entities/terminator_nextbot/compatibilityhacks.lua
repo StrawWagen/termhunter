@@ -258,6 +258,10 @@ if SERVER then
 
     end
 
+    function ENT:GetIdealMoveSpeed()
+        return self.MoveSpeed
+    end
+
     function ENT:SetArmor()
     end
 
