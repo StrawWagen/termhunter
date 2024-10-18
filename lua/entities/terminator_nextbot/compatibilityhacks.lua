@@ -219,7 +219,20 @@ if SERVER then
     end
 
     function ENT:GetWeapons()
-        return { self:GetWeapon() }
+        local weps = {}
+        local wep = self:GetWeapon()
+        if IsValid( wep ) then
+            table.insert( weps, wep )
+
+        end
+        local holsteredWeps = self:GetHolsteredWeapons()
+        for _, holsteredWep in ipairs( holsteredWeps ) do
+            if IsValid( holsteredWep ) then
+                table.insert( weps, holsteredWep )
+
+            end
+        end
+        return weps
 
     end
 

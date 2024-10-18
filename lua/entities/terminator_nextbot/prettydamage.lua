@@ -535,9 +535,6 @@ function ENT:OnKilled( dmg )
 
     end
 
-    self:RunTask( "OnKilled", dmg )
-    hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
-
     for _, child in ipairs( self:GetChildren() ) do
         if not IsValid( child ) then continue end
         local parent = child:GetParent()
@@ -546,4 +543,9 @@ function ENT:OnKilled( dmg )
         child:SetNoDraw( true )
 
     end
+
+    -- do these last just in case something errors
+    self:RunTask( "OnKilled", dmg )
+    hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
+
 end
