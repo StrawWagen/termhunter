@@ -2959,7 +2959,6 @@ function ENT:DoDefaultTasks()
                             removed = removed * 4
 
                         end
-                        print( data.blockSwitchingEnemies )
                         data.blockSwitchingEnemies = math.max( data.blockSwitchingEnemies - removed, 0 )
                         priorityEnemy = prevEnemy
 
