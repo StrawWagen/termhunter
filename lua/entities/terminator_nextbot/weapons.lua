@@ -923,25 +923,33 @@ function ENT:GetAimVector()
     local dir = self:GetEyeAngles():Forward()
 
     if self:HasWeapon() then
-        local deg = 0.1
-        if self.loco:GetVelocity():LengthSqr() < 10^2 then
-            deg = 0
+        local prof = self:GetCurrentWeaponProficiency() + 0.95
+        local deg = 0 + ( 0.5 / prof )
+        local velLeng = self.loco:GetVelocity():Length()
+        if self:IsCrouching() then
+            deg = deg / 2
 
         end
+        if velLeng > 10 then
+            deg = ( velLeng / 5 ) / prof
+
+        end
+
         local active = self:GetActiveLuaWeapon()
 
         if active.NPC_CustomSpread then
-            deg = self.WeaponSpread * ( active.NPC_CustomSpread / self:GetCurrentWeaponProficiency() )
+            deg = self.WeaponSpread * ( active.NPC_CustomSpread / prof )
 
         elseif isfunction( active.GetNPCBulletSpread ) then
             deg = active:GetNPCBulletSpread( self:GetCurrentWeaponProficiency() ) / 4
-            deg = math.sin( math.rad( deg ) ) / 1.5
 
         -- let the wep handle the spread
         elseif weapSpread( active ) ~= 0 then
             deg = 0
 
         end
+
+        deg = deg / 180
 
         dir:Add( Vector( math.Rand( -deg, deg ), math.Rand( -deg, deg ), math.Rand( -deg, deg ) ) )
 

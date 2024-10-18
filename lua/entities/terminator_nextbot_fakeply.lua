@@ -31,6 +31,7 @@ ENT.PathGoalToleranceFinal = 50
 ENT.DoMetallicDamage = false
 ENT.SpawnHealth = 100
 ENT.AimSpeed = 300
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_POOR
 ENT.WalkSpeed = 100
 ENT.MoveSpeed = 200
 ENT.RunSpeed = 400

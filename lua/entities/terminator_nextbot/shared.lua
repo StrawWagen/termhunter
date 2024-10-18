@@ -2578,6 +2578,7 @@ ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
 ENT.CanUseLadders = true
 ENT.SpawnHealth = healthFunc
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_PERFECT
 ENT.AimSpeed = 480
 ENT.WalkSpeed = 130
 ENT.MoveSpeed = 300
@@ -2750,7 +2751,7 @@ function ENT:Initialize()
     self.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
     self.Term_FOV = fovCached
 
-    self:SetCurrentWeaponProficiency( WEAPON_PROFICIENCY_PERFECT )
+    self:SetCurrentWeaponProficiency( self.TERM_WEAPON_PROFICIENCY )
     self.WeaponSpread = 0
 
     -- end lil config
