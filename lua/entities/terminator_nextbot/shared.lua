@@ -2611,6 +2611,7 @@ ENT.ReallyHeavy = true
 ENT.HasFists = true
 ENT.DoMetallicDamage = true
 ENT.MetallicMoveSounds = true
+ENT.FootstepClomping = true
 
 -- enable/disable spokenlines logic
 ENT.CanSpeak = false

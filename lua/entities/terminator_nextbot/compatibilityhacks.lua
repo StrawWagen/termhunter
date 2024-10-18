@@ -262,8 +262,15 @@ if SERVER then
     end
 
     function ENT:SwitchToDefaultWeapon()
+        if not self.TERM_FISTS then return end
         self:Give( self.TERM_FISTS )
 
+    end
+
+    function ENT:SetArmor()
+    end
+
+    function ENT:SetMaxArmor()
     end
 
     function ENT:GetNavType()
@@ -275,10 +282,13 @@ if SERVER then
         return self.MoveSpeed
     end
 
-    function ENT:SetArmor()
+    function ENT:SetLastPosition()
     end
 
-    function ENT:SetMaxArmor()
+    function ENT:SetSchedule()
+    end
+
+    function ENT:ClearSchedule()
     end
 
 else -- CLIENT

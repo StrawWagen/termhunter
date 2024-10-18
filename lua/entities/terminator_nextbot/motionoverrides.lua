@@ -470,14 +470,17 @@ function ENT:MakeFootstepSound( volume, surface, mul )
 
         if not self:OnFootstep( pos, foot, theSnd, volume, filter ) then
             local intVolume = volume or 1
-            local clompingLvl = 86
-            if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
-                clompingLvl = 76
+            if self.FootstepClomping then
+                local clompingLvl = 86
+                if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
+                    clompingLvl = 76
+
+                end
+                clompingLvl = clompingLvl * mul
+
+                self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, math.random( 20, 30 ) / mul, intVolume / 1.5, CHAN_STATIC )
 
             end
-            clompingLvl = clompingLvl * mul
-
-            self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, math.random( 20, 30 ) / mul, intVolume / 1.5, CHAN_STATIC )
             self:EmitSound( theSnd, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
 
         end

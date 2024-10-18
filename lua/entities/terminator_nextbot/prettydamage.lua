@@ -546,7 +546,7 @@ function ENT:OnKilled( dmg )
 
     end
 
-    -- do these last just in case something errors
+    -- do these last just in case something below here errors
     self:RunTask( "OnKilled", dmg, ragdoll )
     hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
