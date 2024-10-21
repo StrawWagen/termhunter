@@ -488,7 +488,7 @@ do
 
         -- killers are higher priority
         local killerStatus = ent.isTerminatorHunterKiller
-        if killerStatus then
+        if priority and killerStatus then
             local mul = 1 + ( killerStatus * 0.5 )
             priority = priority * mul
 
@@ -1009,7 +1009,7 @@ function ENT:Term_LookAround()
         lookAtPos = myTbl.lastInterceptPos
         --lookAtType = "intercept"
 
-    elseif not seeEnem and myTbl.TookDamagePos then
+    elseif myTbl.TookDamagePos and ( not seeEnem or ( myTbl.TookDamagePos:Distance( myPos ) < ( myTbl.DistToEnemy * 0.75 ) and not myTbl.IsReallyAngry( self ) ) ) then
         lookAtPos = myTbl.TookDamagePos
         --lookAtType = "tookdamage"
 

@@ -354,26 +354,31 @@ function ENT:PostTookDamage( dmg )
 
     if self:IsImmuneToDmg( dmg ) then return true end
 
+    local attacker = dmg:GetAttacker()
     self:RunTask( "OnDamaged", dmg )
-    self:MakeFeud( dmg:GetAttacker() )
+    if attacker:GetParent() ~= self then
+        self:MakeFeud( dmg:GetAttacker() )
 
-    local dmgPos = self:getBestPos( dmg:GetAttacker() )
-    self.TookDamagePos = dmgPos
-    local time = math.Rand( 1, 1.5 )
-    if self:IsAngry() then
-        time = time * 0.5
+        local dmgSourcePos = self:getBestPos( dmg:GetAttacker() )
+        self.TookDamagePos = dmgSourcePos
+
+        local time = math.Rand( 1, 1.5 )
+        if self:IsAngry() then
+            time = time * 0.5
+
+        end
+        if self.AimSpeed < 200 then
+            time = time + ( 200 - self.AimSpeed ) / 100
+
+        end
+        timer.Simple( time, function()
+            if not IsValid( self ) then return end
+            if self.TookDamagePos ~= dmgSourcePos then return end
+            self.TookDamagePos = nil
+
+        end )
 
     end
-    if self.AimSpeed < 200 then
-        time = time + ( 200 - self.AimSpeed ) / 100
-
-    end
-    timer.Simple( time, function()
-        if not IsValid( self ) then return end
-        if self.TookDamagePos ~= dmgPos then return end
-        self.TookDamagePos = nil
-
-    end )
 
 
     if dmg:GetDamage() <= 75 then return end

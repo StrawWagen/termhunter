@@ -35,6 +35,8 @@ ENT.JumpHeight = 70 * 2.5
 ENT.FistDamageMul = 1
 ENT.ThrowingForceMul = 1
 
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_GOOD
+
 ENT.duelEnemyTimeoutMul = 5
 
 local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )

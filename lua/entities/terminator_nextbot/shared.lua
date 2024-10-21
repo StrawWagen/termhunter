@@ -5564,6 +5564,13 @@ function ENT:DoDefaultTasks()
 
                     end
 
+                    local currWep = self:GetActiveWeapon()
+                    local coolWep
+                    if IsValid( currWep ) then
+                        coolWep = currWep.terminator_ReallyLikesThisOne or currWep.terminator_NoLeading
+
+                    end
+
                     local shouldPerchBecauseTheyTooDeadly = self:GetWeaponRange() > self.DistToEnemy and tooDangerousToApproach
 
                     if data.quickFlank then
@@ -5580,6 +5587,10 @@ function ENT:DoDefaultTasks()
                     elseif not self:IsMeleeWeapon() and ratio < 1 and data.stalksSinceLastSeen > 2 then
                         self:TaskComplete( "movement_stalkenemy" )
                         self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, earlyQuitIfSeen = true, perchRadius = self:GetRangeTo( self.EnemyLastPos ) * 1.5, distanceWeight = 0.01 }, "time to snipe!" )
+
+                    elseif self.IsSeeEnemy and self:getLostHealth() <= 1 and self.NothingOrBreakableBetweenEnemy and self.DistToEnemy > 1000 and ( self:EnemyIsLethalInMelee() or enemy.isTerminatorHunterKiller or coolWep ) and self:GetWeaponRange() > 1250 then
+                        self:TaskFail( "movement_stalkenemy" )
+                        self:StartTask2( "movement_camp", nil, "im gonna camp this guy!" )
 
                     elseif ( data.stalksSinceLastSeen or 0 ) < ( ratio * 5 ) then
                         local newDat = {}
@@ -5977,6 +5988,13 @@ function ENT:DoDefaultTasks()
 
                 end
 
+                local currWep = self:GetActiveWeapon()
+                local coolWep
+                if IsValid( currWep ) then
+                    coolWep = currWep.terminator_ReallyLikesThisOne or currWep.terminator_NoLeading
+
+                end
+
                 local result = self:ControlPath2( not self.IsSeeEnemy )
                 local canWep, potentialWep = self:canGetWeapon()
                 if canWep and not GoodEnemy and self:getTheWeapon( "movement_followenemy", potentialWep, "movement_followenemy" ) then
@@ -5985,6 +6003,9 @@ function ENT:DoDefaultTasks()
                     self:TaskFail( "movement_followenemy" )
                     self:GetTheBestWeapon()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5, quickFlank = true }, "i dont want to die" )
+                elseif self.IsSeeEnemy and self:getLostHealth() <= 1 and self.NothingOrBreakableBetweenEnemy and self.DistToEnemy > 1000 and ( self:EnemyIsLethalInMelee() or enemy.isTerminatorHunterKiller or coolWep ) and self:GetWeaponRange() > 1250 then
+                    self:TaskFail( "movement_followenemy" )
+                    self:StartTask2( "movement_camp", nil, "im gonna camp this guy!" )
                 elseif self:CanBashLockedDoor( self:GetPos(), 1000 ) then
                     self:BashLockedDoor( "movement_followenemy" )
                 elseif data.Unreachable and GoodEnemy then
@@ -6924,7 +6945,7 @@ function ENT:DoDefaultTasks()
 
                 elseif ( not self.IsSeeEnemy and data.notSeeCount > ( data.maxNoSeeing / 8 ) ) or data.lookinRightAtMeCount > 150 then
                     self:TaskComplete( "movement_camp" )
-                    self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPos, earlyQuitIfSeen = true, distanceWeight = 1 }, "i saw them before, and lost sight of them" )
+                    self:StartTask2( "movement_perch", { requiredTarget = self.EnemyLastPosOffsetted, earlyQuitIfSeen = true, distanceWeight = 1 }, "i saw them before, and lost sight of them" )
 
                 -- exit if we took damage, or if we haven't seen an enemy 
                 elseif ( not self.IsSeeEnemy and lostHp > 1 ) or data.campingCounter < -internalStaringTolerance then
@@ -7041,17 +7062,24 @@ function ENT:DoDefaultTasks()
                             local scoreOfPos = scoringFunc( wep, self, checkPos )
 
                             data.scoredPlaceables[ scoreOfPos ] = checkPos
-                            data.scoredAreas[ scoreOfPos ] = toPlaceArea 
+                            data.scoredAreas[ scoreOfPos ] = toPlaceArea
 
                         end
                     end
                 elseif not foundTheBestOne then
-                    data.bestPosScore = table.maxn( data.scoredPlaceables )
-                    data.bestPos = data.scoredPlaceables[ data.bestPosScore ]
-                    data.bestArea = data.scoredAreas[ data.bestPosScore ]
+                    if not data.scoredPlaceables then
+                        self:TaskComplete( "movement_placeweapon" )
+                        self:StartTask2( "movement_handler", nil, "nowhere to place stuff" )
 
-                    data.scoredPlaceables = nil
-                    --debugoverlay.Text( data.bestPos, "a" .. data.bestPosScore, 10, false )
+                    else
+                        data.bestPosScore = table.maxn( data.scoredPlaceables )
+                        data.bestPos = data.scoredPlaceables[ data.bestPosScore ]
+                        data.bestArea = data.scoredAreas[ data.bestPosScore ]
+
+                        data.scoredPlaceables = nil
+                        --debugoverlay.Text( data.bestPos, "a" .. data.bestPosScore, 10, false )
+
+                    end
 
                 -- get to the pos
                 else

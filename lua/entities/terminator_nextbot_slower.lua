@@ -22,3 +22,6 @@ ENT.AccelerationSpeed = 2000
 ENT.JumpHeight = 70 * 2.5
 ENT.FistDamageMul = 1.5
 ENT.ThrowingForceMul = 5
+
+
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_VERY_GOOD

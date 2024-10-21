@@ -2810,7 +2810,7 @@ ENT.IdleActivityTranslations = {
     [ACT_MP_ATTACK_CROUCH_PRIMARYFIRE]  = IdleActivity + 5,
     [ACT_MP_RELOAD_STAND]               = IdleActivity + 6,
     [ACT_MP_RELOAD_CROUCH]              = IdleActivity + 7,
-    [ACT_MP_JUMP]                       = ACT_HL2MP_JUMP_SLAM,
+    [ACT_MP_JUMP]                       = ACT_HL2MP_JUMP_SLAM, -- no normal jump anim
     [ACT_MP_SWIM]                       = IdleActivity + 9,
     [ACT_LAND]                          = ACT_LAND,
 }

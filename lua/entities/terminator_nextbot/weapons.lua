@@ -914,51 +914,6 @@ function ENT:GetWeaponRange()
 end
 
 --[[------------------------------------
-    Name: NEXTBOT:GetAimVector
-    Desc: Returns direction that used for weapon, including spread.
-    Arg1: 
-    Ret1: Vector | Aim direction.
---]]------------------------------------
-function ENT:GetAimVector()
-    local dir = self:GetEyeAngles():Forward()
-
-    if self:HasWeapon() then
-        local prof = self:GetCurrentWeaponProficiency() + 0.95
-        local deg = 0 + ( 0.5 / prof )
-        local velLeng = self.loco:GetVelocity():Length()
-        if self:IsCrouching() then
-            deg = deg / 2
-
-        end
-        if velLeng > 10 then
-            deg = ( velLeng / 5 ) / prof
-
-        end
-
-        local active = self:GetActiveLuaWeapon()
-
-        if active.NPC_CustomSpread then
-            deg = self.WeaponSpread * ( active.NPC_CustomSpread / prof )
-
-        elseif isfunction( active.GetNPCBulletSpread ) then
-            deg = active:GetNPCBulletSpread( self:GetCurrentWeaponProficiency() ) / 4
-
-        -- let the wep handle the spread
-        elseif weapSpread( active ) ~= 0 then
-            deg = 0
-
-        end
-
-        deg = deg / 180
-
-        dir:Add( Vector( math.Rand( -deg, deg ), math.Rand( -deg, deg ), math.Rand( -deg, deg ) ) )
-
-    end
-
-    return dir
-end
-
---[[------------------------------------
     Name: NEXTBOT:SetupEyeAngles
     Desc: (INTERNAL) Aiming bot to desired direction.
     Arg1: 
@@ -1221,7 +1176,7 @@ local function getTrackedDamage( me, wepOrClass )
             tracked = tracked + me.trackedDamagingClasses[ wepOrClass:GetClass() ]
 
         end
-        return tracked
+        return tracked or 0
 
     elseif wepOrClass then
         if not me.trackedDamagingClasses then
@@ -1318,6 +1273,77 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
     end )
 end )
 
+--[[------------------------------------
+    Name: NEXTBOT:GetAimVector
+    Desc: Returns direction that used for weapon, including spread.
+    Arg1: 
+    Ret1: Vector | Aim direction.
+--]]------------------------------------
+function ENT:GetAimVector()
+    local dir = self:GetEyeAngles():Forward()
+
+    if self:HasWeapon() then
+        local prof = self:GetCurrentWeaponProficiency() + 0.95
+        local deg = 0 + ( 0.35 / prof )
+
+        local velLeng = self.loco:GetVelocity():Length()
+        if velLeng > 10 then
+            deg = ( velLeng / 10 ) / prof
+
+        end
+
+        local active = self:GetActiveLuaWeapon()
+
+        if active.NPC_CustomSpread then
+            deg = self.WeaponSpread * ( active.NPC_CustomSpread / prof )
+
+        elseif isfunction( active.GetNPCBulletSpread ) then
+            deg = active:GetNPCBulletSpread( self:GetCurrentWeaponProficiency() ) / 4
+
+        -- let the wep handle the spread
+        elseif weapSpread( active ) ~= 0 then
+            deg = 0
+
+        end
+
+        if self:IsCrouching() then
+            deg = deg / 10
+
+        end
+
+        local nextOverrideWalk = self.term_nextMissingAlotWalk or 0
+
+        local degToOverrideWalk = 11.25
+        if active.terminator_NoLeading then
+            degToOverrideWalk = degToOverrideWalk / 2
+
+        end
+
+        if self.IsSeeEnemy and deg > degToOverrideWalk and self.terminator_FiringIsAllowed and not self:inSeriousDanger() and nextOverrideWalk < CurTime() then
+            self.term_nextMissingAlotWalk = CurTime() + 5
+            if self:IsAngry() then
+                local activeNotLua = self:GetActiveWeapon()
+                local trackedDmg = getTrackedDamage( self, activeNotLua )
+                if not self:IsCrouching() and trackedDmg > 100 and activeNotLua.terminator_ReallyLikesThisOne then
+                    self.term_nextMissingAlotWalk = 0
+                    self.overrideCrouch = CurTime() + 1
+
+                end
+            else-- walk if we miss with a boring weapon 
+                self.forcedShouldWalk = CurTime() + 1 -- walk if we miss alot
+
+            end
+
+        end
+
+        deg = deg / 180
+
+        dir:Add( Vector( math.Rand( -deg, deg ), math.Rand( -deg, deg ), math.Rand( -deg, deg ) ) )
+
+    end
+
+    return dir
+end
 
 local dropWeps = CreateConVar( "termhunter_dropuselessweapons", 1, FCVAR_NONE, "Detect and drop useless weapons? Does not stop bot from dropping erroring weapons" )
 
@@ -1331,7 +1357,7 @@ function ENT:JudgeWeapon()
 
     local myWeapon = self:GetActiveWeapon()
     if not IsValid( myWeapon ) then return end
-    if IsValid( self:GetActiveLuaWeapon() ) and self:GetActiveLuaWeapon().terminator_IgnoreWeaponUtility then return end
+    if myWeapon.terminator_IgnoreWeaponUtility then return end
     local weapsWeightToMe = self:GetWeightOfWeapon( myWeapon )
 
     local trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0

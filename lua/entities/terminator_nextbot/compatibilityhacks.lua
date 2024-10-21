@@ -291,6 +291,9 @@ if SERVER then
     function ENT:ClearSchedule()
     end
 
+    function ENT:StopMoving()
+    end
+
 else -- CLIENT
     function ENT:ShouldDrawLocalPlayer() -- for when you dont want to double-draw stuff
         return true
