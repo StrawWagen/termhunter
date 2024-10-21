@@ -151,11 +151,13 @@ function ENT:EntShootPos( ent, random )
 
         if data then
             local bonem = entMeta.GetBoneMatrix( ent, data[1] )
-            local theCenter = data[2] + ( data[3] - data[2] ) / 2
+            if bonem then
+                local theCenter = data[2] + ( data[3] - data[2] ) / 2
 
-            local pos = LocalToWorld( theCenter, angle_zero, bonem:GetTranslation(), bonem:GetAngles() )
-            return pos
+                local pos = LocalToWorld( theCenter, angle_zero, bonem:GetTranslation(), bonem:GetAngles() )
+                return pos
 
+            end
         end
     end
 
