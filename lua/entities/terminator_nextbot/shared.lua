@@ -1243,7 +1243,7 @@ function ENT:tryToOpen( blocker, blockerTrace )
         if interactable and directlyInMyWay and blockerAtGoodRange then
             self:WeaponPrimaryAttack()
 
-        elseif interactable and self.loco:GetVelocity():LengthSqr() < 25^2 then
+        elseif interactable and self:GetCurrentSpeed() < 25 then
             self:WeaponPrimaryAttack()
 
         end
@@ -4857,7 +4857,7 @@ function ENT:DoDefaultTasks()
                     and not enemy.terminator_CantConvinceImFriendly -- already tried to do it to em
                     and enemy:IsOnGround() -- ignore crouch jumping
                     and enemy.Crouching and enemy:Crouching()
-                    and enemy.GetVelocity and enemy:GetVelocity():Length2DSqr() < 75
+                    and enemy.GetVelocity and enemy:GetVelocity():Length2D() < 75
 
                 -- trick them into thinking we're friendly via the universal language of crouching
                 if canFool then

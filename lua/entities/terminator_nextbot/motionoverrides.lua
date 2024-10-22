@@ -215,7 +215,7 @@ function ENT:StuckCheck()
             sizeIncrease = sizeIncrease + 1
 
         end
-        if loco:GetVelocity():Length2DSqr() < 5^2 then
+        if self:GetCurrentSpeed() < 5 then
             sizeIncrease = sizeIncrease + 2
 
         end
@@ -374,7 +374,7 @@ end
 
 function ENT:GetFootstepSoundTime()
     local time = 400
-    local speed = self.loco:GetVelocity():Length()
+    local speed = self:GetCurrentSpeed()
 
     time = time - ( speed * 0.6 )
 
@@ -472,7 +472,7 @@ function ENT:MakeFootstepSound( volume, surface, mul )
             local intVolume = volume or 1
             if self.FootstepClomping then
                 local clompingLvl = 86
-                if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
+                if self:GetCurrentSpeed() < self.RunSpeed then
                     clompingLvl = 76
 
                 end
@@ -1746,7 +1746,7 @@ function ENT:MoveAlongPath( lookAtGoal )
             end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight
-            local smallObstacleBlocking = smallObstacle and ( myTbl.loco:GetVelocity():LengthSqr() < terminator_Extras.term_SpeedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
+            local smallObstacleBlocking = smallObstacle and ( self:GetCurrentSpeedSqr() < terminator_Extras.term_SpeedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
             local needsToFeelAround
             if jumpstate == 2 then
                 local nextAreasClosestPoint = aheadArea:GetClosestPointOnArea( myPos )

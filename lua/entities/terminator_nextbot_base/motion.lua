@@ -72,7 +72,37 @@ end
 	Ret1: number | Motion speed.
 --]]------------------------------------
 function ENT:GetCurrentSpeed()
-	return self.loco:GetVelocity():Length2D()
+	local cached = self.term_CachedCurrentSpeed
+	if cached then return cached end
+	cached = self.loco:GetVelocity():Length2D()
+	self.term_CachedCurrentSpeed = cached
+
+	timer.Simple( 0, function()
+		self.term_CachedCurrentSpeed = nil
+
+	end )
+
+	return cached
+end
+
+--[[------------------------------------
+	Name: NEXTBOT:GetCurrentSpeedSqr
+	Desc: Returns bot current motion speed, squared.
+	Arg1: 
+	Ret1: number | Motion speed.
+--]]------------------------------------
+function ENT:GetCurrentSpeedSqr()
+	local cached = self.term_CachedCurrentSpeedSqr
+	if cached then return cached end
+	cached = self.loco:GetVelocity():Length2DSqr()
+	self.term_CachedCurrentSpeedSqr = cached
+
+	timer.Simple( 0, function()
+		self.term_CachedCurrentSpeedSqr = nil
+
+	end )
+
+	return cached
 end
 
 --[[------------------------------------

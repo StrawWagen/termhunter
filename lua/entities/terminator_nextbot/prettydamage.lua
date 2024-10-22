@@ -458,7 +458,7 @@ function ENT:HandleFlinching( dmg, hitGroup )
 
     local playRate = 2 - ( weight * 1.15 )
 
-    if weight > 0.75 and self.loco:GetVelocity():Length() > ( self.RunSpeed * 0.75 ) then
+    if weight > 0.75 and self:GetCurrentSpeed() > ( self.RunSpeed * 0.75 ) then
         local old = self.overrideCrouch or 0
         local added = math.max( old + weight * 0.25, CurTime() + weight * 0.5 )
         if self:IsReallyAngry() then

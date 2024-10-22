@@ -1286,7 +1286,7 @@ function ENT:GetAimVector()
         local prof = self:GetCurrentWeaponProficiency() + 0.95
         local deg = 0 + ( 0.35 / prof )
 
-        local velLeng = self.loco:GetVelocity():Length()
+        local velLeng = self:GetCurrentSpeed()
         if velLeng > 10 then
             deg = ( velLeng / 10 ) / prof
 

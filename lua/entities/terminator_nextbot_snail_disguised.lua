@@ -82,7 +82,7 @@ function ENT:MakeFootstepSound( volume, surface, mul )
 
             local clompingLvl = 80
 
-            if self:GetVelocity():LengthSqr() < self.RunSpeed^2 then
+            if self:GetCurrentSpeed() < self.RunSpeed then
                 clompingLvl = 70
 
             end
@@ -99,7 +99,7 @@ function ENT:GetFootstepSoundTime()
     local time = 400
     local speed = self:GetCurrentSpeed()
 
-    time = time - speed * 0.8
+    time = time - ( speed * 0.8 )
 
     if self:IsCrouching() then
         time = time + 100
