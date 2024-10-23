@@ -2577,6 +2577,11 @@ ENT.TERM_FISTS = "weapon_terminatorfists_term"
 ENT.CoroutineThresh = 0.003 -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides
 ENT.MaxPathingIterations = 20000 -- set this to like 5000 if you dont care about a specific bot having perfect ( read, expensive ) paths
 
+ENT.SpawnHealth = healthFunc
+ENT.DoMetallicDamage = true -- terminator model damage logic
+ENT.HealthRegen = nil -- health regen per interval
+ENT.HealthRegenInterval = nil -- time between health regens
+
 -- custom values for the nextbot base to use
 -- i set these as multiples of defaults ( 70 )
 ENT.JumpHeight = 70 * 3.5
@@ -2589,7 +2594,7 @@ ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
 ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
 ENT.CanUseLadders = true
-ENT.SpawnHealth = healthFunc
+
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_PERFECT
 ENT.AimSpeed = 480
 ENT.WalkSpeed = 130
@@ -2622,7 +2627,6 @@ ENT.Models = { "terminator" }
 ENT.ReallyStrong = true
 ENT.ReallyHeavy = true
 ENT.HasFists = true
-ENT.DoMetallicDamage = true
 ENT.MetallicMoveSounds = true
 ENT.FootstepClomping = true
 ENT.Term_BaseTimeBetweenSteps = 400
@@ -2647,7 +2651,14 @@ end
 
 function ENT:TermThink() -- true hack
     self:AdditionalThink()
-    self:SpokenLinesThink()
+    if self.CanSpeak then
+        self:SpokenLinesThink()
+
+    end
+    if self.HealthRegen then
+        self:HealthRegenThink()
+
+    end
     if not self.loco:IsOnGround() then
         self:HandleInAir()
 
@@ -2696,7 +2707,7 @@ function ENT:AdditionalInitialize()
 end
 
 -- stub
-function ENT:DoCustomTasks( _ ) -- old tasks
+function ENT:DoCustomTasks( _baseTasks ) -- old tasks
 end
 
 
@@ -2776,6 +2787,7 @@ function ENT:Initialize()
     -- for stuff based on this
     self:AdditionalInitialize()
     self:InitializeSpeaking()
+    self:InitializeHealthRegen()
 
     self:DoHardcodedRelations()
 
