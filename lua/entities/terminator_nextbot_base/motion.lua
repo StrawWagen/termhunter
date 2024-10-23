@@ -378,15 +378,25 @@ function ENT:SetupGesturePosture()
 		local spd = self.m_DoGesture[2]
 		local wait = self.m_DoGesture[3]
 		self.m_DoGesture = nil
-		
+
 		self:StopGesture()
-		
-		local layer = self:AddGesture(act)
+
+		local layer
+
+		if isstring( act ) then
+			act = self:LookupSequence( act )
+			layer = self:AddGestureSequence( act )
+
+		else
+			layer = self:AddGesture( act )
+
+		end
 		self:SetLayerPlaybackRate(layer,spd)
 		self:SetLayerBlendIn(layer,0.2)
 		self:SetLayerBlendOut(layer,0.2)
-		
+
 		self.m_CurGesture = {act,CurTime()+self:GetLayerDuration(layer),wait}
+		self.term_CachedCurrentSpeed = nil
 	end
 	
 	if self.m_DoPosture then

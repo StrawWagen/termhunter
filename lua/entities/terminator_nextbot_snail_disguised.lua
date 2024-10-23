@@ -95,19 +95,7 @@ function ENT:MakeFootstepSound( volume, surface, mul )
     end
 end
 
-function ENT:GetFootstepSoundTime()
-    local time = 400
-    local speed = self:GetCurrentSpeed()
-
-    time = time - ( speed * 0.8 )
-
-    if self:IsCrouching() then
-        time = time + 100
-    end
-
-    return time
-
-end
+ENT.Term_StepSoundTimeMul = 0.8
 
 function ENT:AdditionalClientInitialize()
     timer.Simple( 0, checkIfThereIsADoppleganger )

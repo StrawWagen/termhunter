@@ -373,10 +373,10 @@ function ENT:IsSilentStepping()
 end
 
 function ENT:GetFootstepSoundTime()
-    local time = 400
+    local time = self.Term_BaseTimeBetweenSteps
     local speed = self:GetCurrentSpeed()
 
-    time = time - ( speed * 0.6 )
+    time = time - ( speed * self.Term_StepSoundTimeMul )
 
     if self:IsCrouching() then
         time = time + 100

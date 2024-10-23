@@ -2259,16 +2259,28 @@ local offset25z = Vector( 0, 0, 25 )
 
 -- very useful for searching, going places the bot hasn't been to yet
 function ENT:walkArea()
-    if not self.walkedAreas then return end -- set as nil to disable this, for fodder enemies, etc
-
     local walkedArea = self:GetCurrentNavArea()
     if not walkedArea then return end
 
     if not self:areaIsReachable( walkedArea ) and self.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
-        self.unreachableAreas = {}
+        if self.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
+            local ourClass = self:GetClass()
+            terminator_Extras.unreachableAreasForClasses[ ourClass ] = {}
+
+            for _, ent in ipairs( ents.FindByClass( ourClass ) ) do
+                if ent == self then continue end -- self gets a special case
+
+                ent.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
+                self.nextUnreachableWipe = CurTime() + 1 -- never ever ever spam this
+
+            end
+        end
+        self.unreachableAreas = {} -- fodder enemies get this too, they break off from the global unreachable table
         self.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
 
     end
+
+    if not self.walkedAreas then return end -- set as nil to disable this, for fodder enemies, etc
 
     local nextFloodMark = self.nextFloodMarkWalkable or 0
 
@@ -2613,6 +2625,8 @@ ENT.HasFists = true
 ENT.DoMetallicDamage = true
 ENT.MetallicMoveSounds = true
 ENT.FootstepClomping = true
+ENT.Term_BaseTimeBetweenSteps = 400
+ENT.Term_StepSoundTimeMul = 0.6
 
 -- enable/disable spokenlines logic
 ENT.CanSpeak = false
@@ -2704,7 +2718,7 @@ function ENT:Initialize()
     self.walkedAreas = {} -- useful table of areas we have been / have seen, for searching/wandering
     self.walkedAreaTimes = {} -- times we walked/saw them
     self.hazardousAreas = {} -- areas we took damage in, used in pathoverrides
-    self.unreachableAreas = {}
+    self.unreachableAreas = {} -- set this here early, special case for fodder enemies below
     self.nextUnreachableWipe = 0
     self.failedPlacingAreas = {} -- areas we couldnt place stuff at
     self.awarenessBash = {}
@@ -2785,6 +2799,13 @@ function ENT:Initialize()
         -- see enemyoverrides
         self:SetupRelationships()
 
+        if self.IsFodder then
+            local ourClass = self:GetClass()
+            terminator_Extras.unreachableAreasForClasses = terminator_Extras.unreachableAreasForClasses or {}
+            terminator_Extras.unreachableAreasForClasses[ ourClass ] = terminator_Extras.unreachableAreasForClasses[ ourClass ] or {}
+            self.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
+
+        end
     end )
 
 end
