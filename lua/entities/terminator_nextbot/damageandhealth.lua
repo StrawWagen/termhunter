@@ -341,7 +341,7 @@ function ENT:OnTakeDamage( Damage )
 
 end
 
-function ENT:IsImmuneToDmg( dmg )
+function ENT:IsImmuneToDmg( _dmg )
 end
 
 local MEMORY_VOLATILE = 8
@@ -383,7 +383,6 @@ function ENT:PostTookDamage( dmg )
 
     if dmg:GetDamage() <= 75 then return end
 
-    local attacker = dmg:GetAttacker()
     local nextGroupAnger = self.term_NextDamagedGroupAnger or 0
     if attacker and attacker == self:GetEnemy() and nextGroupAnger < CurTime() then
         self.term_NextDamagedGroupAnger = CurTime() + 5

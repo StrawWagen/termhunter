@@ -41,7 +41,7 @@ elseif SERVER then
     -- enemyoverrides, crouching to look at enemies, hating killers, etc 
     include( "enemyoverrides.lua" )
     -- damage shows on bot's model, also modifies damage amount taken for like cballs.
-    include( "prettydamage.lua" )
+    include( "damageandhealth.lua" )
     -- glee thing
     include( "overcharging.lua" )
     -- sounds, used by supercop
