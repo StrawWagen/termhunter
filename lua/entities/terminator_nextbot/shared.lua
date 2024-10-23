@@ -2498,7 +2498,7 @@ hook.Add( "PlayerDeath", "terminator_unmark_killers", function( plyDied, _, atta
 
     local oldKillerWeight = plyDied.isTerminatorHunterKiller
     if oldKillerWeight then
-        plyDied.isTerminatorHunterKiller = math.Clamp( oldKillerWeight + -1, 0, math.huge )
+        plyDied.isTerminatorHunterKiller = math.Clamp( oldKillerWeight + -0.25, 0, math.huge )
 
         if plyDied.isTerminatorHunterKiller <= 0 then
             plyDied.isTerminatorHunterKiller = nil
