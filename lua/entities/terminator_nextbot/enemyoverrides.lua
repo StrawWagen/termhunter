@@ -613,9 +613,14 @@ function ENT:MakeFeud( enemy )
     if enemy:Health() <= 0 then return end
     if enemy:GetClass() == "rpg_missile" then return end -- crazy fuckin bug
     if enemy:GetClass() == "env_flare" then return end -- just as crazy
-    local maniacHunter = ( self:GetCreationID() % 15 ) == 1 or self.alwaysManiac
-    local arePals = pals( self, enemy )
-    if arePals and not maniacHunter then return end
+
+    local maniacHunter = self.alwaysManiac
+    if not maniacHunter and not self.neverManiac then
+        maniacHunter = ( self:GetCreationID() % 20 ) == 1-- infighting always gets a good laugh
+
+    end
+
+    if not maniacHunter and pals( self, enemy ) then return end
 
     if enemy:IsPlayer() then
         self:Term_SetEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else

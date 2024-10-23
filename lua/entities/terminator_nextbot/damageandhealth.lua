@@ -341,7 +341,7 @@ function ENT:OnTakeDamage( Damage )
 
 end
 
-function ENT:IsImmuneToDmg( dmg )
+function ENT:IsImmuneToDmg( _dmg )
 end
 
 local MEMORY_VOLATILE = 8
@@ -383,7 +383,6 @@ function ENT:PostTookDamage( dmg )
 
     if dmg:GetDamage() <= 75 then return end
 
-    local attacker = dmg:GetAttacker()
     local nextGroupAnger = self.term_NextDamagedGroupAnger or 0
     if attacker and attacker == self:GetEnemy() and nextGroupAnger < CurTime() then
         self.term_NextDamagedGroupAnger = CurTime() + 5
@@ -555,4 +554,22 @@ function ENT:OnKilled( dmg )
     self:RunTask( "OnKilled", dmg, ragdoll )
     hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
+end
+
+
+function ENT:InitializeHealthRegen()
+    if not isnumber( self.HealthRegen ) then return end
+    self.HealthRegenInterval = isnumber( self.HealthRegenInterval ) and self.HealthRegenInterval or 1
+
+    self.NextRegenHeal = 0
+    self.HealthRegenThink = function( me )
+        if me.NextRegenHeal > CurTime() then return end
+        me.NextRegenHeal = CurTime() + me.HealthRegenInterval
+        local oldHealth = me:Health()
+        if oldHealth <= 0 then return end
+
+        local newHealth = math.Clamp( oldHealth + me.HealthRegen, 0, me:GetMaxHealth() )
+        me:SetHealth( newHealth )
+
+    end
 end

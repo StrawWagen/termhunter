@@ -41,7 +41,7 @@ elseif SERVER then
     -- enemyoverrides, crouching to look at enemies, hating killers, etc 
     include( "enemyoverrides.lua" )
     -- damage shows on bot's model, also modifies damage amount taken for like cballs.
-    include( "prettydamage.lua" )
+    include( "damageandhealth.lua" )
     -- glee thing
     include( "overcharging.lua" )
     -- sounds, used by supercop
@@ -2259,16 +2259,28 @@ local offset25z = Vector( 0, 0, 25 )
 
 -- very useful for searching, going places the bot hasn't been to yet
 function ENT:walkArea()
-    if not self.walkedAreas then return end -- set as nil to disable this, for fodder enemies, etc
-
     local walkedArea = self:GetCurrentNavArea()
     if not walkedArea then return end
 
     if not self:areaIsReachable( walkedArea ) and self.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
-        self.unreachableAreas = {}
+        if self.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
+            local ourClass = self:GetClass()
+            terminator_Extras.unreachableAreasForClasses[ ourClass ] = {}
+
+            for _, ent in ipairs( ents.FindByClass( ourClass ) ) do
+                if ent == self then continue end -- self gets a special case
+
+                ent.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
+                self.nextUnreachableWipe = CurTime() + 1 -- never ever ever spam this
+
+            end
+        end
+        self.unreachableAreas = {} -- fodder enemies get this too, they break off from the global unreachable table
         self.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
 
     end
+
+    if not self.walkedAreas then return end -- set as nil to disable this, for fodder enemies, etc
 
     local nextFloodMark = self.nextFloodMarkWalkable or 0
 
@@ -2440,15 +2452,19 @@ end
 
 hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, inflictor )
     if not npc.isTerminatorHunterChummy then return end
-    if npc:GetMaxHealth() < 500 then return end
     if not attacker then return end
     if not inflictor then return end
 
     if npc:IgnoringPlayers() and attacker:IsPlayer() then return end
 
+    local maxHp = npc:GetMaxHealth()
+    local value = math.Clamp( maxHp / 500, 0, 1 )
+
     -- if someone has killed terminators, make them react
     local old = attacker.isTerminatorHunterKiller or 0
-    attacker.isTerminatorHunterKiller = old + 1
+    attacker.isTerminatorHunterKiller = old + value
+
+    if maxHp < 500 then return end
 
     if inflictor:IsWeapon() then
         local weapsWeightToTerm = npc:GetWeightOfWeapon( inflictor )
@@ -2478,7 +2494,17 @@ hook.Add( "PlayerDeath", "terminator_unmark_killers", function( plyDied, _, atta
     if not attacker.isTerminatorHunterBased then return end
 
     local isLethalInMelee = plyDied.terminator_IsLethalInMelee or 0
-    plyDied.terminator_IsLethalInMelee = math.Clamp( isLethalInMelee + -2, 0, math.huge )
+    plyDied.terminator_IsLethalInMelee = math.Clamp( isLethalInMelee + -1, 0, math.huge )
+
+    local oldKillerWeight = plyDied.isTerminatorHunterKiller
+    if oldKillerWeight then
+        plyDied.isTerminatorHunterKiller = math.Clamp( oldKillerWeight + -0.25, 0, math.huge )
+
+        if plyDied.isTerminatorHunterKiller <= 0 then
+            plyDied.isTerminatorHunterKiller = nil
+
+        end
+    end
 
 end )
 
@@ -2565,6 +2591,11 @@ ENT.TERM_FISTS = "weapon_terminatorfists_term"
 ENT.CoroutineThresh = 0.003 -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides
 ENT.MaxPathingIterations = 20000 -- set this to like 5000 if you dont care about a specific bot having perfect ( read, expensive ) paths
 
+ENT.SpawnHealth = healthFunc
+ENT.DoMetallicDamage = true -- terminator model damage logic
+ENT.HealthRegen = nil -- health regen per interval
+ENT.HealthRegenInterval = nil -- time between health regens
+
 -- custom values for the nextbot base to use
 -- i set these as multiples of defaults ( 70 )
 ENT.JumpHeight = 70 * 3.5
@@ -2577,7 +2608,7 @@ ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
 ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
 ENT.CanUseLadders = true
-ENT.SpawnHealth = healthFunc
+
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_PERFECT
 ENT.AimSpeed = 480
 ENT.WalkSpeed = 130
@@ -2610,9 +2641,10 @@ ENT.Models = { "terminator" }
 ENT.ReallyStrong = true
 ENT.ReallyHeavy = true
 ENT.HasFists = true
-ENT.DoMetallicDamage = true
 ENT.MetallicMoveSounds = true
 ENT.FootstepClomping = true
+ENT.Term_BaseTimeBetweenSteps = 400
+ENT.Term_StepSoundTimeMul = 0.6
 
 -- enable/disable spokenlines logic
 ENT.CanSpeak = false
@@ -2631,9 +2663,16 @@ end
 function ENT:AdditionalThink()
 end
 
-function ENT:TermThink() -- true hack
+function ENT:TermThink() -- inside coroutine :)
     self:AdditionalThink()
-    self:SpokenLinesThink()
+    if self.CanSpeak then
+        self:SpokenLinesThink()
+
+    end
+    if self.HealthRegen then
+        self:HealthRegenThink()
+
+    end
     if not self.loco:IsOnGround() then
         self:HandleInAir()
 
@@ -2682,7 +2721,7 @@ function ENT:AdditionalInitialize()
 end
 
 -- stub
-function ENT:DoCustomTasks( _ ) -- old tasks
+function ENT:DoCustomTasks( _baseTasks ) -- old tasks
 end
 
 
@@ -2704,7 +2743,7 @@ function ENT:Initialize()
     self.walkedAreas = {} -- useful table of areas we have been / have seen, for searching/wandering
     self.walkedAreaTimes = {} -- times we walked/saw them
     self.hazardousAreas = {} -- areas we took damage in, used in pathoverrides
-    self.unreachableAreas = {}
+    self.unreachableAreas = {} -- set this here early, special case for fodder enemies below
     self.nextUnreachableWipe = 0
     self.failedPlacingAreas = {} -- areas we couldnt place stuff at
     self.awarenessBash = {}
@@ -2762,6 +2801,7 @@ function ENT:Initialize()
     -- for stuff based on this
     self:AdditionalInitialize()
     self:InitializeSpeaking()
+    self:InitializeHealthRegen()
 
     self:DoHardcodedRelations()
 
@@ -2785,6 +2825,13 @@ function ENT:Initialize()
         -- see enemyoverrides
         self:SetupRelationships()
 
+        if self.IsFodder then
+            local ourClass = self:GetClass()
+            terminator_Extras.unreachableAreasForClasses = terminator_Extras.unreachableAreasForClasses or {}
+            terminator_Extras.unreachableAreasForClasses[ ourClass ] = terminator_Extras.unreachableAreasForClasses[ ourClass ] or {}
+            self.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
+
+        end
     end )
 
 end

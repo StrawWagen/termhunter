@@ -10,6 +10,24 @@ list.Set( "NPC", "terminator_nextbot_fakeply", {
     Category = "Terminator Nextbot",
     Weapons = {
         "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "gmod_camera",
+        "weapon_pistol", -- HES GOT A GUN
     },
 } )
 

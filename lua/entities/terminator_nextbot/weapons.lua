@@ -1307,7 +1307,7 @@ function ENT:GetAimVector()
         end
 
         if self:IsCrouching() then
-            deg = deg / 10
+            deg = deg / 100
 
         end
 
