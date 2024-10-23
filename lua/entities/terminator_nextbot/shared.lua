@@ -2452,15 +2452,19 @@ end
 
 hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, inflictor )
     if not npc.isTerminatorHunterChummy then return end
-    if npc:GetMaxHealth() < 500 then return end
     if not attacker then return end
     if not inflictor then return end
 
     if npc:IgnoringPlayers() and attacker:IsPlayer() then return end
 
+    local maxHp = npc:GetMaxHealth()
+    local value = math.Clamp( maxHp / 500, 0, 1 )
+
     -- if someone has killed terminators, make them react
     local old = attacker.isTerminatorHunterKiller or 0
-    attacker.isTerminatorHunterKiller = old + 1
+    attacker.isTerminatorHunterKiller = old + value
+
+    if maxHp < 500 then return end
 
     if inflictor:IsWeapon() then
         local weapsWeightToTerm = npc:GetWeightOfWeapon( inflictor )
@@ -2490,7 +2494,17 @@ hook.Add( "PlayerDeath", "terminator_unmark_killers", function( plyDied, _, atta
     if not attacker.isTerminatorHunterBased then return end
 
     local isLethalInMelee = plyDied.terminator_IsLethalInMelee or 0
-    plyDied.terminator_IsLethalInMelee = math.Clamp( isLethalInMelee + -2, 0, math.huge )
+    plyDied.terminator_IsLethalInMelee = math.Clamp( isLethalInMelee + -1, 0, math.huge )
+
+    local oldKillerWeight = plyDied.isTerminatorHunterKiller
+    if oldKillerWeight then
+        plyDied.isTerminatorHunterKiller = math.Clamp( oldKillerWeight + -1, 0, math.huge )
+
+        if plyDied.isTerminatorHunterKiller <= 0 then
+            plyDied.isTerminatorHunterKiller = nil
+
+        end
+    end
 
 end )
 
@@ -2649,7 +2663,7 @@ end
 function ENT:AdditionalThink()
 end
 
-function ENT:TermThink() -- true hack
+function ENT:TermThink() -- inside coroutine :)
     self:AdditionalThink()
     if self.CanSpeak then
         self:SpokenLinesThink()
