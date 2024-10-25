@@ -4184,7 +4184,7 @@ function ENT:DoDefaultTasks()
                 elseif self.IsSeeEnemy then
                     Done = true
                     self:EnemyAcquired( "movement_followsound" )
-                elseif data.Valuable and not self:interceptIfWeCan( "movement_followsound", data ) then
+                elseif data.Valuable and self:interceptIfWeCan( "movement_followsound", data ) then
                     Done = true
                 elseif data.Unreachable then
                     Done = true
