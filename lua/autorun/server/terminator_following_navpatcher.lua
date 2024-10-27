@@ -56,6 +56,8 @@ local function distanceEdge( currArea, otherArea )
 end
 
 local function goodDist( distTo )
+    if distTo <= 5 then return true end
+
     local distQuota = 75
     local minCheck = -1
     local maxCheck = 1
@@ -110,6 +112,8 @@ local function AreasAreConnectable( area1, area2 )
     return true
 
 end
+
+terminator_Extras.AreasAreConnectable = AreasAreConnectable
 
 
 -- do checks to see if connection from old area to curr area is a good idea

@@ -153,6 +153,7 @@ end
 
 -- helper
 function ENT:primaryPathInvalidOrOutdated( destination )
+    if not self:nextNewPathIsGood() then return end
     local path = self:GetPath()
     local valid = self:primaryPathIsValid( path )
     return not valid or ( valid and self:CanDoNewPath( destination ) )
@@ -334,12 +335,14 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
 
         end
 
-        local _, _ = self:SetupPathShell( destination )
+        local result1, result2 = self:SetupPathShell( destination )
 
         self:endFlankPath()
 
+        return result1, result2
+
     else
-        local _, _ = self:SetupPathShell( destination )
+        return self:SetupPathShell( destination )
 
     end
 end
@@ -738,7 +741,13 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     self:RunTask( "OnPathFail" )
 
-    return true, "extremefailure"
+    local failString = "extremefailure "
+    if pathDestinationIsAnOrphan then
+        failString = failString .. " WAS ORPHAN!"
+
+    end
+
+    return true, failString
 
 end
 

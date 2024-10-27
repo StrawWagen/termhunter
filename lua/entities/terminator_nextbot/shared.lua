@@ -427,11 +427,17 @@ end
 -- util funcs end
 
 -- detect small areas that don't have incoming connections! stops huuuuge lagspikes on big maps
-function ENT:AreaIsOrphan( potentialOrphan, dontIgnoreMyNav )
+function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
 
     local myNav = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
 
-    if potentialOrphan == myNav and not dontIgnoreMyNav then return nil, nil end
+    if potentialOrphan == myNav and not ignoreMyNav then return nil, nil end
+
+    local loopedBackAreas = { myNav = true }
+    for _, area in ipairs( myNav:GetIncomingConnections() ) do
+        loopedBackAreas[area] = true
+
+    end
 
     local checkedSurfaceArea = 0
     local unConnectedAreasSequential = {}
@@ -442,7 +448,9 @@ function ENT:AreaIsOrphan( potentialOrphan, dontIgnoreMyNav )
     scoreData.encounteredABlockedArea = nil
     scoreData.encounteredALadder = nil
     scoreData.botsJumpHeight = self.loco:GetMaxJumpHeight()
-    scoreData.botsNav = myNav
+    scoreData.loopedBackAreas = loopedBackAreas
+
+    --debugoverlay.Cross( myNav:GetCenter(), 10, 10, Color( 255, 255, 0 ), true )
 
     local scoreFunction = function( scoreData, area1, area2 )
         if area2:IsBlocked() then scoreData.encounteredABlockedArea = true return 0 end
@@ -464,8 +472,9 @@ function ENT:AreaIsOrphan( potentialOrphan, dontIgnoreMyNav )
         -- good connection
         else
             -- just return early if we're in the same group
-            if area2 == scoreData.botsNav and not dontIgnoreMyNav then
+            if not ignoreMyNav and scoreData.loopedBackAreas[ area2 ] then
                 scoreData.sameGroupAsUs = true
+                --print( "SAMEGROUP" )
                 return math.huge
 
             end
@@ -492,16 +501,19 @@ function ENT:AreaIsOrphan( potentialOrphan, dontIgnoreMyNav )
 
     local _, _, escaped = self:findValidNavResult( scoreData, potentialOrphan, checkRadius, scoreFunction, 80 )
 
-    local destConfined = not escaped and not scoreData.sameGroupAsUs
+    -- who cares if it's an orphan, we can get there
+    if scoreData.sameGroupAsUs then return nil, scoreData.encounteredABlockedArea end
+
+    local destinationIsConfined = not escaped
 
     local lessNoWaysBackThanWaysBack = ( #unConnectedAreasSequential <= #connectedAreasSequential )
     local isSubstantiallySized = checkedSurfaceArea > ( checkRadius^2 ) * 0.15
     local isPotentiallyPartOfWhole = lessNoWaysBackThanWaysBack and isSubstantiallySized
 
-    --print( escaped, scoreData.sameGroupAsUs, isPotentiallyPartOfWhole )
+    --print( scoreData.sameGroupAsUs, lessNoWaysBackThanWaysBack, isSubstantiallySized, scoreData.encounteredALadder )
 
     -- could not confirm that it's an orphan
-    if not destConfined or isPotentiallyPartOfWhole or scoreData.encounteredALadder then return nil, scoreData.encounteredABlockedArea end
+    if ( not destinationIsConfined ) or isPotentiallyPartOfWhole or scoreData.encounteredALadder then return nil, scoreData.encounteredABlockedArea end
 
     -- is an orphan
     return true, scoreData.encounteredABlockedArea
@@ -761,10 +773,10 @@ function ENT:understandSurroundings()
     self.awarenessDamaging = {}
     self.awarenessVolatiles = {}
     self.awarenessLockedDoors = {}
-    yieldIfWeCan()
+    coroutine_yield()
 
     local pos = self:GetPos()
-    local surroundings = ents.FindInSphere( pos, 1500 )
+    local surroundings = ents.FindInSphere( pos, self.AwarenessCheckRange )
 
     local enemy = self:GetEnemy()
     if IsValid( enemy ) and self.IsSeeEnemy and self.DistToEnemy > 1250 then
@@ -787,7 +799,7 @@ function ENT:understandSurroundings()
 
     end )
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     local substantialStuff = {}
     local caresAbout = self.caresAbout
@@ -809,7 +821,7 @@ function ENT:understandSurroundings()
 
     end
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     self:AdditionalUnderstand( substantialStuff )
 
@@ -2462,6 +2474,8 @@ hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, infl
 
     -- if someone has killed terminators, make them react
     local old = attacker.isTerminatorHunterKiller or 0
+    if old <= 0 and value < 0.5 then return end
+
     attacker.isTerminatorHunterKiller = old + value
 
     if maxHp < 500 then return end
@@ -2618,6 +2632,8 @@ ENT.AccelerationSpeed = 3000
 ENT.DeathDropHeight = 2000 --not afraid of heights
 ENT.LastEnemySpotTime = 0
 ENT.InformRadius = 20000
+ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if the enemy is unreachable or lethal in melee
+ENT.AwarenessCheckRange = 1500 -- used by weapon searching too if wep search radius is <= this
 
 ENT.CanUseStuff = true
 ENT.IsFodder = nil -- enables optimisations that make sense on bullet fodder enemies
@@ -2750,7 +2766,7 @@ function ENT:Initialize()
     self.awarenessMemory = {}
     self.awarenessUnknown = {}
     self.awarenessLockedDoors = {} -- locked doors are evil, catalog them so we can destroy them
-    self.awarenessSubstantialStuff = {}
+    self.awarenessSubstantialStuff = {} -- things with physobjs, just a cache for other stuff to use
 
     -- for the system that checks if bot has stuff that would make it angry, makes bot run, destroy props, locked doors
     -- we delay it a bit after the bot spawns
@@ -6364,6 +6380,10 @@ function ENT:DoDefaultTasks()
 
                             --debugoverlay.Cross( gotoPos, 10, 1, Color( 255,255,0 ) )
                             self:GotoPosSimple( gotoPos, 10 )
+                            if self.DistToEnemy < 100 then
+                                self:crouchToGetCloserTo( self:EntShootPos( enemy ) )
+
+                            end
 
                         -- far from enemy, build real paths
                         elseif not bored or tooAngryToQuit then

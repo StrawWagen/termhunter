@@ -1010,8 +1010,8 @@ function ENT:canGetWeapon()
     local armed = not myTbl.IsFists( self )
     local nextSearch = myTbl.nextWeapSearch or 0
     if nextSearch < CurTime() then
-        myTbl.NextWeapSearch( self, math.Rand( 2, 4 ) )
-        myTbl.cachedNewWeaponDat = myTbl.FindWeapon( self, myTbl )
+        myTbl.NextWeapSearch( self, math.Rand( 2, 4 ) ) -- this is a cached result
+        myTbl.cachedNewWeaponDat = myTbl.FindWeapon( self, myTbl ) -- find weapons
 
     end
 
@@ -1078,7 +1078,7 @@ end
 
 -- can find item crates too
 function ENT:FindWeapon( myTbl )
-    local searchrange = 2000
+    local searchrange = self.WeaponSearchRange
     local wep
     local range
     local weight = -1
@@ -1118,8 +1118,16 @@ function ENT:FindWeapon( myTbl )
     end
 
     local isBox
+    local found
+    if myTbl.AwarenessCheckRange >= searchrange and #myTbl.awarenessSubstantialStuff >= 1 then
+        found = myTbl.awarenessSubstantialStuff -- save on a findinsphere if we can
 
-    for _, potentialWeap in ipairs( ents.FindInSphere( self:GetPos(), searchrange ) ) do
+    else
+        found = ents.FindInSphere( self:GetPos(), searchrange )
+
+    end
+
+    for _, potentialWeap in ipairs( found ) do
 
         local wepsTbl = potentialWeap:GetTable()
         if not CanPickupWeapon( self, potentialWeap, false, myTbl, wepsTbl ) then continue end

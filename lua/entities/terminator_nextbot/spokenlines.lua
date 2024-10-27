@@ -177,6 +177,10 @@ function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
         lvlShift = lvlShift( self )
 
     end
+    if istable( pathIn ) then
+        pathIn = pathIn[ math.random( 1, #pathIn ) ]
+
+    end
     self:EmitSound( pathIn, 76 + lvlShift, 100 + pitShift + specificPitchShift, 1, CHAN_VOICE, sndFlags )
     nextSpeakWhenSoundIsOver( self, pathIn )
 

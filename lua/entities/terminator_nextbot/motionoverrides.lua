@@ -347,12 +347,12 @@ function ENT:OnStuck()
     }
 
     local w = b2.x-b1.x
-    local skipCheck = coroutine_running()
+    local yieldable = coroutine_running()
 
     for z = 0, w * 1.2, w * 0.2 do
-        yieldIfWeCan( nil, skipCheck )
+        if yieldable then coroutine_yield() end
         for x = 0, w * 1.2, w * 0.2 do
-            yieldIfWeCan( nil, skipCheck )
+            if yieldable then coroutine_yield() end
             for y = 0, w * 1.2, w * 0.2 do
                 if TryStuck( self, pos + Vector( x, y, z ),     t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, y, z ),    t, tr ) then return end
@@ -878,7 +878,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
         while attempts < maxAttempts do
             if nextYield < attempts then
                 nextYield = attempts + 5
-                yieldIfWeCan()
+                coroutine_yield()
 
             end
 
@@ -1192,7 +1192,7 @@ function ENT:GetJumpBlockState( dir, goal )
         local goalWithOverriddenZ = Vector( goal.x, goal.y, 0 )
 
         while height <= maxjump do
-            yieldIfWeCan()
+            coroutine_yield()
 
             offset.z = height
             height = math.Round( math.min( height + step, maxjump ) )
@@ -1469,7 +1469,7 @@ function ENT:MoveAlongPath( lookAtGoal )
 
     end
 
-    yieldIfWeCan()
+    coroutine_yield()
     local doPathUpdate = nil
     local obstacleAvoid = myTbl.m_PathObstacleAvoidPos
     if obstacleAvoid then
@@ -1702,7 +1702,7 @@ function ENT:MoveAlongPath( lookAtGoal )
     local myHeightToNext = aheadSegment.pos.z - myPos.z
     local jumpableHeight = myHeightToNext < myTbl.JumpHeight
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     if areaSimple and good then
 
@@ -1861,7 +1861,7 @@ function ENT:MoveAlongPath( lookAtGoal )
         end
     end
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     local inAirNoDestination = nil
     -- off ground
@@ -1956,7 +1956,7 @@ function ENT:MoveAlongPath( lookAtGoal )
 
     end
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     if doPathUpdate then
         local distAhead = myPos:DistToSqr( currSegment.pos )
@@ -2026,7 +2026,7 @@ function ENT:MoveAlongPath( lookAtGoal )
         return true -- reached end
 
     elseif path:IsValid() then
-        yieldIfWeCan()
+        coroutine_yield()
         return nil -- not at end, stuck detection is done elsewhere
 
     end

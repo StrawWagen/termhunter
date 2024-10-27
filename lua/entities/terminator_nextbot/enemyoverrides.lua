@@ -25,7 +25,7 @@ end
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
     terminator_Extras.DOINGPLYCACHE = true
     doPlayersCache()
-    timer.Create( "term_cache_players", 0.5, 0, function()
+    timer.Create( "term_cache_players", 1, 0, function()
         doPlayersCache()
     end )
 end )
@@ -289,8 +289,6 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     if notEnemyCache[ent] then return false end
 
     if IsFlagSet( ent, FL_NOTARGET ) then
-        if playersCache[ent] then return false end -- dont cache result for plys
-        notEnemyCache[ent] = true
         return false
 
     end
@@ -615,7 +613,7 @@ function ENT:MakeFeud( enemy )
     if enemy:GetClass() == "env_flare" then return end -- just as crazy
 
     local maniacHunter = self.alwaysManiac
-    if not maniacHunter and not self.neverManiac then
+    if not self.neverManiac and not maniacHunter then
         maniacHunter = ( self:GetCreationID() % 20 ) == 1-- infighting always gets a good laugh
 
     end

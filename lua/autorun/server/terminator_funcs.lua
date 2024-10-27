@@ -2,17 +2,18 @@
 resource.AddWorkshop( "2944078031" ) -- download pm please
 
 local negativeFiveHundredZ = Vector( 0,0,-500 )
+local solidMask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP )
 
 terminator_Extras.getNearestNavFloor = function( pos )
     if not pos then return NULL end
     local Dat = {
         start = pos,
         endpos = pos + negativeFiveHundredZ,
-        mask = MASK_SOLID
+        mask = solidMask
     }
     local Trace = util.TraceLine( Dat )
     if not Trace.HitWorld then return NULL end
-    local navArea = navmesh.GetNearestNavArea( Trace.HitPos, false, 2000, false, true, -2 )
+    local navArea = navmesh.GetNearestNavArea( Trace.HitPos, false, 2000, false, false, -2 )
     if not navArea then return NULL end
     if not navArea:IsValid() then return NULL end
     return navArea
@@ -23,11 +24,11 @@ terminator_Extras.getNearestNav = function( pos )
     local Dat = {
         start = pos,
         endpos = pos + negativeFiveHundredZ,
-        mask = MASK_SOLID
+        mask = solidMask
     }
     local Trace = util.TraceLine( Dat )
     if not Trace.Hit then return NULL end
-    local navArea = navmesh.GetNearestNavArea( pos, false, 2000, false, true, -2 )
+    local navArea = navmesh.GetNearestNavArea( pos, false, 2000, false, false, -2 )
     if not navArea then return NULL end
     if not navArea:IsValid() then return NULL end
     return navArea

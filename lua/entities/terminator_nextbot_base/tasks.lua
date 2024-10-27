@@ -159,9 +159,9 @@ function ENT:TaskFail(task)
 	self.m_ActiveTasks[task] = nil
 	
 	local m_ActiveTasksNum = self.m_ActiveTasksNum
-	for i=1,#m_ActiveTasksNum do
-		if m_ActiveTasksNum[i][1]==task then
-			table.remove(m_ActiveTasksNum,i)
+	for index, currTask in ipairs( m_ActiveTasksNum ) do
+		if currTask[1] == task then
+			table.remove( m_ActiveTasksNum, index )
 			break
 		end
 	end
