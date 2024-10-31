@@ -402,6 +402,7 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
         self.term_NextDamagedGroupAnger = CurTime() + 5
 
         for _, ally in ipairs( self:GetNearbyAllies() ) do
+            if not IsValid( ally ) then return end -- GetNearbyAllies is cached
             if ally:GetEnemy() ~= attacker then continue end
 
             timer.Simple( math.Rand( 0.5, 1.5 ), function()
