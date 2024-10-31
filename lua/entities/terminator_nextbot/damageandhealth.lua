@@ -76,15 +76,17 @@ ENT.Creaks = {
     "physics/metal/metal_box_strain4.wav",
 }
 
-local function BodyGroupDamageThink( self, Group, Damage, Pos, Silent )
+local function BodyGroupDamageThink( self, Group, Damage, Pos, Silent ) -- on 1 bodygroup!
     if not isnumber( Group ) then return end
-    if self:GetModel() ~= ARNOLD_MODEL then return end
+    if self:GetModel() ~= ARNOLD_MODEL then return end -- only this model has the correct bodygroups
+
     local CurrHSteps = self.GroupSteps[Group]
     if not istable( CurrHSteps ) then return end
 
-    if not isnumber( self.BGrpHealth[Group] ) then
-        self.BGrpHealth[Group] = self.BGrpMaxHealth[Group]
+    if not isnumber( self.BGrpHealth[Group] ) then -- first damage!
+        self.BGrpHealth[Group] = self.BGrpMaxHealth[Group] -- set to max hp
         self.OldBGrpSteps[Group] = 10
+
     end
 
     self.BGrpHealth[Group] = math.Clamp( self.BGrpHealth[Group] + -Damage, 1, math.huge )
@@ -95,7 +97,7 @@ local function BodyGroupDamageThink( self, Group, Damage, Pos, Silent )
 
     if OldStep <= CurrStep then return end
     self.OldBGrpSteps[Group] = CurrStep
-    if Group ~= 0 then
+    if Group ~= 0 then -- state decreased, DAMAGE EFFECTS!
         if not Silent then
             self:EmitSound( table.Random( self.Whaps ), 75, math.random( 85, 90 ) )
             self:EmitSound( table.Random( self.Chunks ), 75, math.random( 115, 120 ) )
@@ -108,114 +110,108 @@ local function BodyGroupDamageThink( self, Group, Damage, Pos, Silent )
         Data:SetRadius( 1 )
         Data:SetMagnitude( 1 )
         util.Effect( "BloodImpact", Data )
+
     end
     if not isnumber( CurrHSteps[CurrStep] ) then return end
     self:SetBodygroup( Group, self.GroupSteps[Group][CurrStep] )
 
 end
-local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent )
-    if istable( ToBGs ) then
-        local var = 0
-        local Count = table.Count( ToBGs )
-        while var < Count do
-            var = var + 1
-            local BGroup = ToBGs[var]
-            BodyGroupDamageThink( self, BGroup, BgDamage, Damage:GetDamagePosition(), Silent )
-        end
+
+local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent ) -- on multiple bodygroups!
+    local var = 0
+    local Count = table.Count( ToBGs )
+    while var < Count do
+        var = var + 1
+        local BGroup = ToBGs[var]
+        BodyGroupDamageThink( self, BGroup, BgDamage, Damage:GetDamagePosition(), Silent )
+
     end
 end
+
 local function MedCalRics( self )
     self:EmitSound( table.Random( self.Rics ), 75, math.random( 92, 100 ), 1, CHAN_AUTO )
+
 end
+
 local function MedDamage( self, Damage )
     self:EmitSound( table.Random( self.Hits ), 85, math.random( 105, 110 ), 1, CHAN_AUTO )
+
     if Damage:IsBulletDamage() then
         self:EmitSound( table.Random( self.Rics ), 85, math.random( 75, 80 ), 1, CHAN_AUTO )
+
     end
 end
-function ENT:CatDamage()
+
+function ENT:CatDamage() -- cataSTROPIC DAMAGE
     self:EmitSound( table.Random( self.Creaks ), 85, 150, 1, CHAN_AUTO )
     self:EmitSound( table.Random( self.Hits ), 85, 80, 1, CHAN_AUTO )
+
 end
 
--- dmg with bodygroup data
 
+-- dmg with bodygroup data ( bullets )
 local function OnDamaged( damaged, Hitgroup, Damage )
 
+    if not Damage:IsBulletDamage() then return end
     if not damaged.isTerminatorHunterBased then return end
-
-    damaged.lastDamagedTime = CurTime()
-
     if damaged:PostTookDamage( Damage ) then return true end
 
     if damaged.DoMetallicDamage then
-        local ToBGs = nil
-        local BgDmg = false
-        local BgDamage = 0
+        local ToBGs
+        local BgDamage
         local DamageDealt = Damage:GetDamage()
 
-        if not Damage:IsExplosionDamage() then
-            if DamageDealt >= damaged.HighCal then
-                BgDmg = true
-                BgDamage = Damage:GetDamage()
-                Damage:SetDamage( DamageDealt / 2.5 )
-                MedDamage( damaged, Damage )
-            elseif DamageDealt > damaged.MedCal then
-                BgDmg = true
-                BgDamage = Damage:GetDamage() / 3
-                Damage:SetDamage( 1 )
-                if Damage:IsBulletDamage() then
-                    MedCalRics( damaged )
-                end
-            else
-                BgDmg = true
-                BgDamage = Damage:GetDamage() / 13
-                Damage:SetDamage( 0 )
-            end
-        elseif DamageDealt > 60 then
-            ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-            table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-            DamageDealt = DamageDealt * 1.25
-            Damage:SetDamage( math.Clamp( DamageDealt, 0, 400 ) )
-            BgDamage = 40
-            damaged:CatDamage()
+        if DamageDealt >= damaged.HighCal then -- strong weapon!
+            BgDamage = Damage:GetDamage() * 1.5
+            Damage:SetDamage( DamageDealt * 0.4 )
+            MedDamage( damaged, Damage )
+            MedCalRics( damaged )
+
+        elseif DamageDealt > damaged.MedCal then -- weapon is crap
+            BgDamage = Damage:GetDamage() / 2
+            Damage:SetDamage( 1 )
+
+            MedCalRics( damaged )
+
+        else -- weapon is too weak to even do damage, or pierce the skin
+            BgDamage = Damage:GetDamage() / 15
+            Damage:SetDamage( 0 )
+
         end
 
-        if BgDmg then
+        if BgDamage then
+            -- do mdl check here, non-term model npcs still have an exoskeleton!
+            -- if you really dont want stuff to make ricochet stuff, set DoMetallicDamage to nil
             if damaged:GetModel() ~= ARNOLD_MODEL then return end
-            ToBGs = damaged.HitTranslate[Hitgroup] -- get bodygroups to do stuff to
 
-            if not istable( ToBGs ) then return end
+            ToBGs = damaged.HitTranslate[Hitgroup] -- translate from hitgroup to bodygroups on that hitgroup
+            if not ToBGs then return end
 
-            local Data = EffectData()
-            Data:SetOrigin( Damage:GetDamagePosition() )
-            Data:SetScale( 1 )
-            Data:SetRadius( 1 )
-            Data:SetMagnitude( 1 )
-            util.Effect( "Sparks", Data )
+            BodyGroupDamage( damaged, ToBGs, BgDamage, Damage )
+
         end
-
-        BodyGroupDamage( damaged, ToBGs, BgDamage, Damage )
-
     end
 
     damaged:HandleFlinching( Damage, Hitgroup )
 
 end
 
-hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", OnDamaged )
+hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", function( ... ) OnDamaged( ... ) end )
+
 
 -- dmg w/o bodygroup data
-
 function ENT:OnTakeDamage( Damage )
     self.lastDamagedTime = CurTime()
+
+    if Damage:IsDamageType( DMG_BULLET ) then return end -- handled ABOVE!
 
     if self:PostTookDamage( Damage ) then return true end
 
     if self.DoMetallicDamage then
         local attacker = Damage:GetAttacker()
-        local BgDamage = 0
+        local BgDamage
         local ToBGs
+        local SilentBgDmg
 
         if IsValid( attacker ) then
             local class = attacker:GetClass()
@@ -227,33 +223,44 @@ function ENT:OnTakeDamage( Damage )
             end
         end
 
-        if Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) then -- that has no effect on my skeleton!
-            Damage:ScaleDamage( 0 )
-            BgDamage = 40
+        if Damage:IsDamageType( DMG_BLAST ) then
+            local DamageDamage = Damage:GetDamage()
+            if DamageDamage > 60 then -- ignore minor explosions
+                DamageDamage = DamageDamage * 0.9 -- minor resist
+                Damage:SetDamage( math.Clamp( DamageDamage, 0, terminator_Extras.healthDefault / 2.9 ) ) -- default to at least ~3 shots to kill term
 
+                BgDamage = 40 + DamageDamage * 0.5
+                ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+                table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
+
+                self:CatDamage()
+
+            end
+        elseif Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) then -- that has no effect on my skeleton!
+            Damage:ScaleDamage( 0 )
+
+            BgDamage = 40 -- but ow ouch my skin!
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
         elseif Damage:IsDamageType( DMG_SHOCK ) then
-            if self.ShockDamageImmune then
+            if self.ShockDamageImmune then -- glee!
                 Damage:ScaleDamage( 0.01 )
 
             else
                 Damage:ScaleDamage( 0.5 )
 
             end
-            BgDamage = 140
 
+            BgDamage = 140
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
-            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
         elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then --combine ball!
-            Damage:SetDamage( terminator_Extras.healthDefault * 0.55 )
-            BgDamage = 140
+            Damage:SetDamage( terminator_Extras.healthDefault * 0.55 ) -- two shot kill
 
+            BgDamage = 140 -- very effective!
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+
             table.remove( ToBGs, math.random( 0, table.Count( ToBGs ) ) )
-            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
             local potentialBall = Damage:GetInflictor()
 
@@ -265,35 +272,35 @@ function ENT:OnTakeDamage( Damage )
             self:CatDamage()
             self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
 
-        elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or Damage:IsDamageType( DMG_DIRECT ) then -- fire damage!
+        elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or ( Damage:IsDamageType( DMG_DIRECT ) and ( IsValid( attacker ) and string.find( attacker:GetClass(), "fire" ) ) ) then -- fire damage!
             Damage:ScaleDamage( 0 )
-            BgDamage = 1
 
+            BgDamage = 1
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+
             table.remove( ToBGs, math.random( 0, 6 ) )
-            BodyGroupDamage( self, ToBGs, BgDamage, Damage )
 
         elseif Damage:IsDamageType( DMG_CLUB ) then -- likely another terminator punching us!
             local DamageDamage = Damage:GetDamage()
-            BgDamage = DamageDamage / 2
-
             Damage:ScaleDamage( 0.5 )
 
+            BgDamage = DamageDamage / 2
+            SilentBgDmg = DamageDamage < 40
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
+
             table.remove( ToBGs, math.random( 0, 6 ) )
             table.remove( ToBGs, math.random( 0, 6 ) )
-            BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
 
         elseif Damage:IsDamageType( DMG_SLASH ) then
             local DamageDamage = Damage:GetDamage()
-            BgDamage = DamageDamage / 1.5 -- takes chunks out of us 
 
+            BgDamage = DamageDamage / 1.5 -- takes chunks out of us 
+            SilentBgDmg = DamageDamage < 40
             Damage:ScaleDamage( 0.15 ) -- but our skeleton is tough!
 
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
             table.remove( ToBGs, math.random( 0, 6 ) )
             table.remove( ToBGs, math.random( 0, 6 ) )
-            BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
 
         elseif Damage:IsDamageType( DMG_CRUSH ) then
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
@@ -311,13 +318,17 @@ function ENT:OnTakeDamage( Damage )
             end
 
             local DamageDamage = Damage:GetDamage()
-            BgDamage = DamageDamage -- takes chunks out of us 
-            BodyGroupDamage( self, ToBGs, BgDamage, Damage, DamageDamage < 40 )
+            BgDamage = DamageDamage
+            SilentBgDmg = DamageDamage < 40
 
         end
-    elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then --combine ball!
+        if ToBGs and BgDamage then
+            BodyGroupDamage( self, ToBGs, BgDamage, Damage, SilentBgDmg )
+
+        end
+    elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then -- NOT metallic damage, but handling a combine ball!
         local potentialBall = Damage:GetInflictor()
-        if string.find( potentialBall:GetClass(), "ball" ) then
+        if string.find( potentialBall:GetClass(), "ball" ) then -- this is definitely a ball!
             local ballHealth = potentialBall.term_Ballhealth or 1000
             local healthTaken = self:Health()
             ballHealth = ballHealth - healthTaken
@@ -341,13 +352,14 @@ function ENT:OnTakeDamage( Damage )
 
 end
 
-function ENT:IsImmuneToDmg( _dmg )
+
+function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
 end
 
 local MEMORY_VOLATILE = 8
 local MEMORY_DAMAGING = 64
 
-function ENT:PostTookDamage( dmg )
+function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     local immuneMask = self.term_DMG_ImmunityMask
     if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
@@ -355,7 +367,8 @@ function ENT:PostTookDamage( dmg )
     if self:IsImmuneToDmg( dmg ) then return true end
 
     local attacker = dmg:GetAttacker()
-    self:RunTask( "OnDamaged", dmg )
+    ProtectedCall( function() self:RunTask( "OnDamaged", dmg ) end )
+
     if attacker:GetParent() ~= self then
         self:MakeFeud( dmg:GetAttacker() )
 
@@ -383,35 +396,26 @@ function ENT:PostTookDamage( dmg )
 
     if dmg:GetDamage() <= 75 then return end
 
+    -- make groups of bots react to 1 getting damaged
     local nextGroupAnger = self.term_NextDamagedGroupAnger or 0
     if attacker and attacker == self:GetEnemy() and nextGroupAnger < CurTime() then
         self.term_NextDamagedGroupAnger = CurTime() + 5
-        -- make group of bots react to 1 getting damaged
-        local ourChummy = self.isTerminatorHunterChummy
-        for _, curr in ipairs( self.awarenessSubstantialStuff ) do
-            if curr.isTerminatorHunterChummy ~= ourChummy then continue end
-            if curr:GetEnemy() ~= attacker then continue end
+
+        for _, ally in ipairs( self:GetNearbyAllies() ) do
+            if ally:GetEnemy() ~= attacker then continue end
+
             timer.Simple( math.Rand( 0.5, 1.5 ), function()
-                if not IsValid( curr ) then return end
-                if not curr.Anger then return end
-                curr.term_NextDamagedGroupAnger = CurTime() + 1
-                curr:Anger( math.random( 5, 10 ) )
+                if not IsValid( ally ) then return end
+                if not ally.Anger then return end
+                ally.term_NextDamagedGroupAnger = CurTime() + 1
+                ally:Anger( math.random( 5, 10 ) )
 
             end )
         end
     end
 
-    if self.IsStupid then return end
-
-    -- dont walk in this area ever again!
-    local areas = navmesh.Find( self:GetPos(), dmg:GetDamage(), self.JumpHeight, self.JumpHeight )
-    for _, area in ipairs( areas ) do
-        table.insert( self.hazardousAreas, area )
-
-    end
-
     local inflictor = dmg:GetInflictor()
-    local trueDamager = IsValid( inflictor ) and not IsValid( inflictor:GetOwner() ) and not inflictor:IsPlayer() and not inflictor:IsNPC()
+    local trueDamager = IsValid( inflictor ) and not IsValid( inflictor:GetOwner() ) and not inflictor:IsPlayer() and not inflictor:IsNPC() and IsValid( inflictor:GetPhysicsObject() )
     if trueDamager then
         if dmg:IsExplosionDamage() then
             self:memorizeEntAs( inflictor, MEMORY_VOLATILE )
@@ -421,8 +425,18 @@ function ENT:PostTookDamage( dmg )
 
         end
     end
+
+    if self.IsStupid or self.IsFodder then return end -- durr
+
+    -- dont walk in this area ever again!
+    local areas = navmesh.Find( self:GetPos(), dmg:GetDamage(), self.JumpHeight, self.JumpHeight )
+    for _, area in ipairs( areas ) do
+        table.insert( self.hazardousAreas, area )
+
+    end
 end
 
+-- flinching
 local flinchesForGroups = {
     [HITGROUP_GENERIC] = ACT_FLINCH_PHYSICS,
     [HITGROUP_HEAD] = ACT_FLINCH_HEAD,
@@ -434,7 +448,7 @@ local flinchesForGroups = {
     [HITGROUP_RIGHTLEG] = ACT_FLINCH_RIGHTLEG,
 }
 
--- it's very subtle, but yes this works
+-- it's very subtle, but yes this works ( on most models... )
 function ENT:HandleFlinching( dmg, hitGroup )
     local gesture = nil
 
@@ -449,7 +463,7 @@ function ENT:HandleFlinching( dmg, hitGroup )
     end
 
     local damageDealt = dmg:GetDamage()
-    local maxDamageWeight = math.min( self:GetMaxHealth() * .25, 50 )
+    local maxDamageWeight = math.min( self:GetMaxHealth() * .25, 50 ) -- weight of anim
     local weight = damageDealt / maxDamageWeight
 
     if weight < 0.05 then return end
@@ -474,7 +488,7 @@ function ENT:HandleFlinching( dmg, hitGroup )
 
 end
 
-function ENT:HandleWeaponOnDeath( wep, dmg )
+function ENT:HandleWeaponOnDeath( wep, dmg ) -- drop our weapons!
     if dmg:IsDamageType( DMG_DISSOLVE ) then
         self:DissolveEntity( wep )
         timer.Simple( 0, function()
@@ -499,14 +513,14 @@ function ENT:HandleWeaponOnDeath( wep, dmg )
     end
 end
 
-function ENT:AdditionalOnKilled()
+function ENT:AdditionalOnKilled( _dmg ) -- stub! for your convenience
 end
 
 function ENT:OnKilled( dmg )
     if self.term_Dead then return end
     self.term_Dead = true
 
-    self:AdditionalOnKilled()
+    self:AdditionalOnKilled( dmg )
 
     local wep = self:GetActiveWeapon()
     local weps = { wep }
@@ -543,9 +557,12 @@ function ENT:OnKilled( dmg )
 
     for _, child in ipairs( self:GetChildren() ) do
         if not IsValid( child ) then continue end
+
         local parent = child:GetParent()
         if not IsValid( parent ) or parent ~= self then continue end
         if child:IsWeapon() then continue end
+
+        -- annoying bug
         child:SetNoDraw( true )
 
     end
@@ -558,13 +575,14 @@ end
 
 
 function ENT:InitializeHealthRegen()
-    if not isnumber( self.HealthRegen ) then return end
+    if not isnumber( self.HealthRegen ) then return end -- what is this? a non-number in my number machine???
     self.HealthRegenInterval = isnumber( self.HealthRegenInterval ) and self.HealthRegenInterval or 1
 
     self.NextRegenHeal = 0
     self.HealthRegenThink = function( me )
         if me.NextRegenHeal > CurTime() then return end
         me.NextRegenHeal = CurTime() + me.HealthRegenInterval
+
         local oldHealth = me:Health()
         if oldHealth <= 0 then return end
 
