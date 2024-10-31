@@ -1746,7 +1746,9 @@ function ENT:MoveAlongPath( lookAtGoal )
             end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight
-            local smallObstacleBlocking = smallObstacle and ( self:GetCurrentSpeedSqr() < terminator_Extras.term_SpeedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not self:CanStepAside( dir, aheadSegment.pos )
+            local canStepAside = self:CanStepAside( dir, aheadSegment.pos )
+            local smallObstacleBlocking = smallObstacle and ( not canStepAside or self:GetCurrentSpeedSqr() < terminator_Extras.term_SpeedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not canStepAside
+
             local needsToFeelAround
             if jumpstate == 2 then
                 local nextAreasClosestPoint = aheadArea:GetClosestPointOnArea( myPos )
