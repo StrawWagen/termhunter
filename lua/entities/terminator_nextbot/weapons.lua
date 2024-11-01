@@ -454,6 +454,7 @@ function ENT:WeaponPrimaryAttack()
 
         if isSetupProperly then --SB base weapon probably
 
+            --print( "npcshoot_primary" )
             local successfulShoot = ProtectedCall( function() wep:NPCShoot_Primary( self:GetShootPos(), self:GetAimVector() ) end )
             self:HateBuggyWeapon( wep, successfulShoot )
 
@@ -485,15 +486,18 @@ function ENT:WeaponPrimaryAttack()
 
         elseif wep.NPCShoot_Primary then --some other kind of weapon
             --debugoverlay.Line( self:GetShootPos(), self:GetShootPos() + self:GetAimVector() * 100, 20  )
-            if wep.NPC_TimeUntilFire then
+            if wep.NPC_TimeUntilFire then -- VJ BASE!
+                --print( "vjbase" )
                 self:fakeVjBaseWeaponFiring( wep )
 
             else
+                --print( "npcshoot_primary_alt" )
                 wep:PrimaryAttack()
 
             end
 
         elseif IsValid( wep ) then
+            --print( "primaryAttack" )
             wep:PrimaryAttack()
 
         end
@@ -752,7 +756,8 @@ function ENT:IsMeleeWeapon( wep )
         if bit.band( caps, CAP_INNATE_MELEE_ATTACK1 ) ~= 0 then return true end
 
     end
-    if wep.IsMeleeWeapon == true then return true end
+    if wep.IsMeleeWeapon then return true end
+    if wep.IsMelee then return true end
 
     local range = self:GetWeaponRange()
     if range and range < 150 then return true end

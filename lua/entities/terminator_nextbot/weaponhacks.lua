@@ -200,6 +200,36 @@ terminator_WeaponHacks = {
         end
         self.FireTracer = function( self )
         end
+    end,
+    tfa_melee_base = function( self )
+        self.term_OldPrimaryAttack = self.term_OldPrimaryAttack or self.PrimaryAttack
+        self.PrimaryAttack = function( self )
+            local ow = self:GetOwner()
+
+            if IsValid(ow) and ow.isTerminatorHunterBased then
+                local _, attk = self:ChoosePrimaryAttack()
+                if not attk then return end
+                local owv = self:GetOwner()
+
+                timer.Simple(0.5, function()
+                    if IsValid(self) and IsValid(owv) then -- removed schedule check here
+                        self:Strike(attk, 5)
+                    end
+                end)
+
+                self:SetNextPrimaryFire(CurTime() + attk["end"] or 1)
+
+                timer.Simple(self:GetNextPrimaryFire() - CurTime(), function()
+                    if IsValid(owv) then
+                        owv:ClearSchedule()
+                    end
+                end)
+
+                return
+            end
+            self:term_OldPrimaryAttack()
+
+        end
     end
 }
 
