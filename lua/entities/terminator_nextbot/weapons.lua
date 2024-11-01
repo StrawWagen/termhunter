@@ -404,7 +404,7 @@ function ENT:CanWeaponPrimaryAttack()
         dontImmiediatelyFire = dontImmiediatelyFire - 0.1
 
     end
-    if dontImmiediatelyFire > CurTime() and not ( self:IsReallyAngry() and self:Health() <= self:GetMaxHealth() * 0.25 )  then
+    if dontImmiediatelyFire > CurTime() and not ( self:IsReallyAngry() and self:Health() <= self:GetMaxHealth() * 0.25 ) then
         return false
 
     end

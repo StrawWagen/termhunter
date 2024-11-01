@@ -552,12 +552,12 @@ function ENT:isConfinedSlope( area )
 end
 
 function ENT:ReallyAnger( time )
-    local reallyAngryTime = self.terminator_ReallyAngryTime or CurTime()
+    local reallyAngryTime = self.terminator_ReallyAngryTime or CurTime() + -0.1
     if reallyAngryTime < CurTime() then
         self:RunTask( "OnReallyAnger" )
 
     end
-    self.terminator_ReallyAngryTime = math.max( reallyAngryTime + time, CurTime() )
+    self.terminator_ReallyAngryTime = math.max( reallyAngryTime + time, CurTime() + time * 0.5 )
 
 end
 
@@ -601,12 +601,12 @@ end
 
 
 function ENT:Anger( time )
-    local angryTime = self.terminator_AngryTime or CurTime()
+    local angryTime = self.terminator_AngryTime or CurTime() + -0.1
     if angryTime < CurTime() then
         self:RunTask( "OnAnger" )
 
     end
-    self.terminator_AngryTime = math.max( angryTime + time, CurTime() )
+    self.terminator_AngryTime = math.max( angryTime + time, CurTime() + time * 0.5 )
 
 end
 
@@ -698,7 +698,7 @@ function ENT:canDoRun()
 end
 
 function ENT:shouldDoWalk()
-    if self.IsSeeEnemy and self:Health() == self:GetMaxHealth() then return true end
+    if self.IsSeeEnemy and self:Health() == self:GetMaxHealth() and not self:IsReallyAngry() then return true end
     if self.forcedShouldWalk and self.forcedShouldWalk > CurTime() then return true end
 
     local area = self:GetCurrentNavArea()

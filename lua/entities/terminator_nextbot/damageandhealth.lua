@@ -155,6 +155,7 @@ local function OnDamaged( damaged, Hitgroup, Damage )
     if not Damage:IsBulletDamage() then return end
     if not damaged.isTerminatorHunterBased then return end
     if damaged:PostTookDamage( Damage ) then return true end
+    if damaged:PostTookBulletDamage( Damage, Hitgroup ) then return true end
 
     if damaged.DoMetallicDamage then
         local ToBGs
@@ -354,6 +355,10 @@ end
 
 
 function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
+end
+
+
+function ENT:PostTookBulletDamage( _dmg, _hitGroup ) -- ver of postTookDamage, with hitgroup data
 end
 
 local MEMORY_VOLATILE = 8
