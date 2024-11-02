@@ -7389,7 +7389,7 @@ function ENT:DoDefaultTasks()
                 elseif data.requiredTarget and self:interceptIfWeCan( "movement_perch", data ) then
                     return
 
-                elseif self.IsSeeEnemy and IsValid( self:GetEnemy() ) and not ( requiredTarget and self.EnemyLastPos:Distance( requiredTarget ) < data.perchRadius / 2 ) then
+                elseif self.IsSeeEnemy and IsValid( self:GetEnemy() ) and not ( requiredTarget and self.EnemyLastPos:Distance( requiredTarget ) < data.perchRadius / 2 and self.DistToEnemy > self.DuelEnemyDist ) then
                     self:EnemyAcquired( "movement_perch" )
 
                 elseif self:validSoundHint() and not data.requiredTarget then
