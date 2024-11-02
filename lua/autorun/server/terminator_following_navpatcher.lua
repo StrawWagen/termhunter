@@ -104,10 +104,11 @@ local function AreasHaveAnyOverlap( area1, area2 ) -- i love chatgpt functions
 
 end
 
-local function AreasAreConnectable( area1, area2 )
+local function AreasAreConnectable( area1, area2, checkOffs )
     if area1:IsConnected( area2 ) then return end -- already connected....
     if not AreasHaveAnyOverlap( area1, area2 ) then return end
-    if not area1:IsPartiallyVisible( area2:GetClosestPointOnArea( area1:GetCenter() ) + upOffset ) then return end
+    checkOffs = checkOffs or upOffset
+    if not area1:IsPartiallyVisible( area2:GetClosestPointOnArea( area1:GetCenter() ) + checkOffs ) then return end
     if not goodDist( connectionDistance( area1, area2 ) ) then return end
     return true
 
@@ -203,6 +204,20 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
 
 end
 
+local function onNoArea( ply )
+    if terminator_Extras.IsLivePatching then return end
+    if not ply:IsOnGround() then return end
+    local nextPlace = ply.term_NextRealPatchPlace or 0
+    if nextPlace > CurTime() then return end
+
+    ply.term_NextRealPatchPlace = CurTime() + 1
+
+    local plyPos = ply:GetPos()
+    local size = Vector( 150, 150, 50 )
+    terminator_Extras.AddRegionToPatch( plyPos + -size, plyPos + size, 15 )
+
+end
+
 -- patches gaps in navmesh, using players as a guide
 -- patches will never be ideal, but they will be better than nothing
 
@@ -222,11 +237,11 @@ local function navPatchingThink( ply )
     local currArea, distToArea
     if ply.GetNavAreaData then
         currArea, distToArea = ply:GetNavAreaData()
-        if not IsValid( currArea ) then return end
+        if not IsValid( currArea ) then onNoArea( ply ) return end
 
     else
         currArea = navmesh.GetNearestNavArea( ply:GetPos(), false, 25, false, true, -2 )
-        if not IsValid( currArea ) then return end
+        if not IsValid( currArea ) then onNoArea( ply ) return end
         local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
         distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
 
