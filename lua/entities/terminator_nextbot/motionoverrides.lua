@@ -1443,6 +1443,12 @@ function ENT:MoveAlongPath( lookAtGoal )
     local currType = currSegment.type
 
     local aheadArea = aheadSegment.area
+    if not IsValid( aheadArea ) then
+        self:Anger( 10 )
+        self:InvalidatePath( "Navmesh was modified!" )
+        return
+
+    end
 
     local laddering = aheadType == 4 or currType == 4 or aheadType == 5 or currType == 5
 

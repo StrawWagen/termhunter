@@ -2851,16 +2851,24 @@ function ENT:Initialize()
                 myCreator = self:CPPIGetOwner()
 
             end
+            local canPatch = GetConVar( "terminator_areapatching_enable" ):GetBool()
             if IsValid( myCreator ) then
-                myCreator:PrintMessage( HUD_PRINTCENTER, "NO NAVMESH FOUND!" )
-                myCreator:PrintMessage( HUD_PRINTTALK, "NO NAVMESH FOUND!" )
-                myCreator:PrintMessage( HUD_PRINTCONSOLE, "NO NAVMESH FOUND!" )
+                if canPatch then
+                    myCreator:PrintMessage( HUD_PRINTCENTER, "NO NAVMESH FOUND! ATTEMPTING PATCH... EXPECT BAD RESULTS, ERRORS!" )
+                    myCreator:PrintMessage( HUD_PRINTTALK, "NO NAVMESH FOUND! ATTEMPTING PATCH... EXPECT BAD RESULTS, ERRORS!" )
+                    myCreator:PrintMessage( HUD_PRINTCONSOLE, "NO NAVMESH FOUND! ATTEMPTING PATCH... EXPECT BAD RESULTS, ERRORS!" )
 
-            else
-                print( "Term nextbot, tried to spawn with no navmesh." )
+                else
+                    myCreator:PrintMessage( HUD_PRINTCENTER, "NO NAVMESH FOUND!" )
+                    myCreator:PrintMessage( HUD_PRINTTALK, "NO NAVMESH FOUND!" )
+                    myCreator:PrintMessage( HUD_PRINTCONSOLE, "NO NAVMESH FOUND!" )
+                    return
 
+                end
             end
-            SafeRemoveEntity( self )
+            if terminator_Extras.IsLivePatching then return end
+
+            terminator_Extras.dynamicallyPatchPos( self:GetPos() )
             return
 
         end
@@ -3272,8 +3280,12 @@ function ENT:DoDefaultTasks()
                     local doAddCount = 1
                     -- go faster
                     if noNav then
-                        doAddCount = doAddCount * 4
+                        if terminator_Extras.IsLivePatching then
+                            doAddCount = doAddCount * 4
+                        else
+                            terminator_Extras.dynamicallyPatchPos( myPos )
 
+                        end
                     end
                     if self.isUnstucking then
                         doAddCount = doAddCount * 2
@@ -5239,6 +5251,7 @@ function ENT:DoDefaultTasks()
 
                 data.want = data.want or 8
                 data.distMul = data.distMul or 1
+                data.stalksSinceLastSeen = 0
 
                 local myPos = self:GetPos()
                 local enemy = self:GetEnemy()
@@ -7232,6 +7245,7 @@ function ENT:DoDefaultTasks()
                     for _ = 1, 20 do
                         if #data.potentialPlaceables == 0 then break end
                         local toPlaceArea = table.remove( data.potentialPlaceables, 1 )
+                        if not IsValid( toPlaceArea ) then continue end
 
                         local areasId = toPlaceArea:GetID()
                         if data.hazardousAreas[areasId] then continue end
@@ -7400,6 +7414,7 @@ function ENT:DoDefaultTasks()
                     for _ = 1, 2 do
                         if #data.potentialPerchables == 0 then break end
                         local perchableArea = table.remove( data.potentialPerchables, 1 )
+                        if not IsValid( perchableArea ) then continue end
                         local checkPositions = getUsefulPositions( perchableArea )
 
                         if preferredPos and #checkPositions > 1 then
@@ -7485,8 +7500,13 @@ function ENT:DoDefaultTasks()
                             local centers = {}
                             local distToSqrInternal = distToSqr
                             for _, area in ipairs( data.potentialPerchables ) do
-                                centers[area] = area:GetCenter()
+                                if IsValid( area ) then
+                                    centers[area] = area:GetCenter()
 
+                                else
+                                    return 
+
+                                end
                             end
                             table.sort( data.potentialPerchables, function( a, b ) -- sort ents by distance to me 
                                 local ADist = distToSqrInternal( centers[a], bestPos )

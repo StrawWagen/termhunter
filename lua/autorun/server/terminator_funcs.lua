@@ -65,6 +65,8 @@ local nookDirections = {
     Vector( 0, 0, -1 ),
 }
 
+-- returns SMALL numbers in open areas
+-- returns BIG numbers in NOOKS, enclosed spaces
 terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     local directions = overrideDirections or nookDirections
     distance = distance or 800

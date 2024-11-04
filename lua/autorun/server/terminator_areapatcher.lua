@@ -1,7 +1,4 @@
 
--- the merging for this SUCKS!
--- would be worth finishing if i had a decent area merging algorithm
-
 local math = math
 
 local gridSize
@@ -10,7 +7,6 @@ local halfGrid
 local gridSmaller
 local vecGridsize
 local vecGridsizeZ
-local vecHalfGridsize
 local vecHalfGridsizeZ
 
 local trMins
@@ -24,6 +20,11 @@ local oppCornerOffset
 local headroomCrouch
 local headroomStand
 
+local upCrouch
+
+local finalAreaCheckMins
+local finalAreaCheckMaxs
+
 local function updateGridSize( newSize )
     gridSize = newSize
 
@@ -31,7 +32,6 @@ local function updateGridSize( newSize )
     gridSmaller = gridSize * 0.25
     vecGridsize = Vector( gridSize, gridSize, gridSize )
     vecGridsizeZ = Vector( 0, 0, gridSize )
-    vecHalfGridsize = Vector( halfGrid, halfGrid, halfGrid )
     vecHalfGridsizeZ = Vector( 0, 0, halfGrid / 2 )
 
     trMins = Vector( -gridSmaller, -gridSmaller, -1 )
@@ -42,8 +42,13 @@ local function updateGridSize( newSize )
     areaCenteringOffset = Vector( -halfGrid, -halfGrid, 2 )
     oppCornerOffset = Vector( halfGrid, halfGrid, 2 )
 
-    headroomStand = math.floor( 40 / gridSize )
+    headroomStandRaw = 40
+    headroomStand = math.floor( headroomStandRaw / gridSize )
     headroomCrouch = math.floor( 20 / gridSize )
+    upCrouch = Vector( 0, 0, 20 )
+
+    finalAreaCheckMins = Vector( -halfGrid, -halfGrid, -45 )
+    finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 5 )
 
 end
 
@@ -79,11 +84,12 @@ local function findOrthogonalUnmergedNeighborsInDir( data, dir, vecsToPlace )
 
 end
 
-local maxMergeDiff = 5
+local maxMergeDiff = 10
 
 local function getCornersIfMerged( toMergeSet )
     local invalid
     local doneOne
+    local oldCrouch
 
     local minX, maxX = math.huge, -math.huge
     local minY, maxY = math.huge, -math.huge
@@ -106,7 +112,15 @@ local function getCornersIfMerged( toMergeSet )
             invalid = true
 
         end
+
+        if oldCrouch ~= nil and oldCrouch ~= tbl.crouch then
+            invalid = true
+
+        end
+
         if invalid then break end
+
+        oldCrouch = tbl.crouch
 
         doneOne = true
 
@@ -199,11 +213,9 @@ local up = Vector( 0, 0, 1 )
 local red = Color( 255, 0, 0 )
 
 local function SnapToGrid( vec )
-    print( vec.x )
     vec.x = math.Round( vec.x / gridSize ) * gridSize
     vec.y = math.Round( vec.y / gridSize ) * gridSize
     vec.z = math.Round( vec.z / gridSize ) * gridSize
-    print( vec.x )
 
 end
 local function GetSnappedToGrid( vec )
@@ -303,9 +315,10 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     end
 
-    local snapped = GetSnappedToGrid( result.HitPos )
+    local hitPos = result.HitPos
+    local snapped = GetSnappedToGrid( hitPos )
 
-    local line = { start = voxel, endpos = result.HitPos }
+    local line = { start = voxel, endpos = hitPos }
     local dist = line.start:Distance( line.endpos )
     local voxelsToToss = math.floor( dist / gridSize )
     if voxelsToToss >= 1 then
@@ -316,13 +329,25 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
         end
     end
-
     if not result.Hit then return end
     closedVoxels[vecAsKey( voxel )] = true
 
+    if result.HitTexture == "TOOLS/TOOLSNODRAW" then return end
+
+    local trStrucFindFloor = {
+        start = hitPos + vecHalfGridsizeZ,
+        endpos = hitPos + -vecHalfGridsizeZ,
+        mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
+        filter = filterFunc,
+
+    }
+
+    local floorResult = util.TraceLine( trStrucFindFloor )
+    if not floorResult.Hit then return end
+
     local trStrucCollide = {
-        start = result.HitPos + vecHalfGridsizeZ,
-        endpos = result.HitPos + vecHalfGridsizeZ * 2,
+        start = hitPos + upCrouch,
+        endpos = hitPos + upCrouch + Vector( 0, 0, 1 ),
         mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
         filter = filterFunc,
         mins = collideTrMins,
@@ -335,16 +360,28 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     -- slope check
     if result.HitNormal:Dot( up ) < 0.5 then return end
-    local existingArea = navmesh.GetNearestNavArea( result.HitPos, false, halfGrid, false, true, -2 )
 
+    local existingArea = navmesh.GetNearestNavArea( hitPos, false, halfGrid, false, true, -2 )
     if IsValid( existingArea ) then return end
-    local pos = result.HitPos
+
+    -- slope check
+    local existingAreasUnder = navmesh.FindInBox( hitPos + finalAreaCheckMins, hitPos + finalAreaCheckMaxs )
+
+    if existingAreasUnder and #existingAreasUnder >= 1 then
+        for _, area in ipairs( existingAreasUnder ) do
+            if area:Contains( hitPos ) then return end
+
+        end
+    end
+
+    local pos = hitPos
     local key = vecAsKey( snapped )
     vecsToPlace[key] = {
         key = key,
         truePos = pos,
         corner1 = pos + areaCenteringOffset,
         corner2 = pos + oppCornerOffset,
+        headroom = voxelsHeadroom,
         crouch = voxelsHeadroom <= HEADROOM_CROUCH
 
     }
@@ -368,41 +405,7 @@ local function patchCoroutine()
         SnapToGrid( pos1 )
         SnapToGrid( pos2 )
 
-        print( "Patching region from", pos1, "to", pos2 )
-
-        --[[
-        -- Step 1: Find all navareas within the specified box
-        local potentialBlockingAreas = navmesh.FindInBox( pos1, pos2 )
-        coroutine.yield()
-
-        local navAreasBlocking = {}
-
-        -- Step 2: Expand the box to fit all found navareas
-        if #potentialBlockingAreas > 0 then
-            for _, area in ipairs( potentialBlockingAreas ) do
-                if not IsValid( area ) then coroutine.yield( "done" ) return end -- outdated
-
-                local mins, maxs = navGetBounds( area )
-                pos1 = VectorMin( pos1, mins )
-                pos2 = VectorMax( pos2, maxs )
-                table.insert( navAreasBlocking, area )
-
-            end
-            print( "Expanded region to:", pos1, pos2 )
-        end
-        debugoverlay.Cross( pos1, 10, 10, color_white, true )
-        debugoverlay.Cross( pos2, 10, 10, color_white, true )
-        coroutine.yield()
-
-        local areasToRemove = {}
-
-        for _, area in ipairs( navAreasBlocking ) do
-            if math.max( area:GetSizeX(), area:GetSizeY() ) > 500 and not ( area:Contains( pos1 ) and area:Contains( pos2 ) ) then continue end -- too big, better be worth it!
-
-            areasToRemove[area] = true
-
-        end
-        ]]--
+        --print( "Patching region from", pos1, "to", pos2 )
 
         local openVoxelsSeq = {}
         local closedVoxels = {}
@@ -431,7 +434,7 @@ local function patchCoroutine()
             end
         end
 
-        print( "Total voxels to process:", #openVoxelsSeq )
+        --print( "Total voxels to process:", #openVoxelsSeq )
 
         -- Step 5: Process each voxel
         while #openVoxelsSeq >= 1 do
@@ -445,15 +448,16 @@ local function patchCoroutine()
         end
 
         local count = table.Count( vecsToPlace )
-        print( "Placing!" )
+        --print( "Placing!" )
 
         if count >= 1 then
-            print( "Pre-merging areas..." )
+            --print( "Pre-merging areas..." )
             local merged = true
             while merged do
                 coroutine.yield()
                 merged = nil
                 for _, data in pairs( vecsToPlace ) do
+                    coroutine.yield()
                     if mergeWithNeighbors( data, vecsToPlace ) then
                         merged = true
                         break
@@ -461,7 +465,7 @@ local function patchCoroutine()
                     end
                 end
             end
-            print( "Placing " .. count .. " navareas..." )
+            --print( "Placing " .. count .. " navareas..." )
 
             local justNewAreas = {}
             for _, data in pairs( vecsToPlace ) do
@@ -474,7 +478,7 @@ local function patchCoroutine()
 
                 end
             end
-            print( "Connecting placed areas..." )
+            --print( "Connecting placed areas..." )
             coroutine.yield( "wait" )
             for _, data in pairs( vecsToPlace ) do
                 coroutine.yield()
@@ -492,7 +496,7 @@ local function patchCoroutine()
                     end
                 end
             end
-            print( "Merging placed areas..." )
+            --print( "Merging placed areas..." )
             coroutine.yield( "wait" )
             merged = true
             while merged do
@@ -501,7 +505,7 @@ local function patchCoroutine()
                 for _, area in ipairs( justNewAreas ) do
                     if not IsValid( area ) then continue end
                     for _, neighbor in ipairs( area:GetAdjacentAreas() ) do
-                        merged, _, mergedArea = navmeshAttemptMerge( area, neighbor )
+                        merged, _, mergedArea = terminator_Extras.navmeshAttemptMerge( area, neighbor )
                         if merged then
                             table.insert( justNewAreas, mergedArea )
                             coroutine.yield( "wait" )
@@ -517,30 +521,66 @@ local function patchCoroutine()
             end
         end
         terminator_Extras.IsLivePatching = nil
+        coroutine.yield( "waitlong" )
 
     end
 
 
     -- All regions have been processed; clean up the hook
     isPatching = false
-    print( "All regions have been patched." )
+    --print( "All regions have been patched." )
     coroutine.yield( "done" )
 
 end
 
+
+local defaultPatchRate = 0.005
+
+local doAreaPatchingVar = CreateConVar( "terminator_areapatching_enable", 1, FCVAR_ARCHIVE, "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned." )
+local areaPatchingRateVar = CreateConVar( "terminator_areapatching_rate", -1, FCVAR_ARCHIVE, "Max fraction of a second the area patcher can run at, -1 for default \"" .. defaultPatchRate .. "\"", -1, 1 )
+
+local doAreaPatching = doAreaPatchingVar:GetBool()
+cvars.AddChangeCallback( "terminator_areapatching_enable", function( _, _, new )
+    doAreaPatching = tobool( new )
+
+end, "updatepatching" )
+
+local areaPatchingRate = 0
+local function doPatchingRate( rate )
+    rate = rate or areaPatchingRateVar:GetFloat()
+    if rate <= 0 then
+        areaPatchingRate = defaultPatchRate
+
+    else
+        areaPatchingRate = rate
+
+    end
+end
+
+doPatchingRate()
+
+cvars.AddChangeCallback( "terminator_areapatching_enable", function( _, _, new )
+    doPatchingRate( new )
+
+end, "updatepatching" )
+
 local thread
+local nextThink = 0
+terminator_Extras.IsLivePatching = nil
 
 -- The main function to add a region to the patch queue
 function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
+    if not doAreaPatching then return end
     -- Add the new region to the queue
     table.insert( regionsQueue, { pos1 = pos1, pos2 = pos2, gridSize = currGridSize } )
-    print( "Added region to queue:", pos1, pos2 )
+    --print( "Added region to queue:", pos1, pos2 )
 
     -- If not already patching, start the coroutine and add the Think hook
     if isPatching then return end
     isPatching = true
     hook.Add( "Think", "PatchThinkHook", function()
         if not isPatching then hook.Remove( "Think", "PatchThinkHook" ) return end
+        if nextThink > CurTime() then return end
 
         if not thread or coroutine.status( thread ) == "dead" then
             thread = coroutine.create( patchCoroutine )
@@ -548,7 +588,7 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
         end
         if thread then
             local oldTime = SysTime()
-            while math.abs( oldTime - SysTime() ) < 0.0004 do
+            while math.abs( oldTime - SysTime() ) < areaPatchingRate do
                 inCoroutine = true
                 local noErrors, result = coroutine.resume( thread )
                 inCoroutine = nil
@@ -559,6 +599,10 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
 
                     break
                 elseif result == "wait" then -- it wants us to wait a tick
+                    break
+
+                elseif result == "waitlong" then -- it wants us to wait a bit
+                    nextThink = CurTime() + 0.5
                     break
 
                 elseif result == "done" then -- all finished, clean up hook
@@ -573,5 +617,24 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
     end )
 end
 
--- Example usage:
---terminator_Extras.AddRegionToPatch( Entity(1):GetShootPos(), Entity(1):GetShootPos() + Entity(1):GetAimVector() * 600, 25 )
+local smallSize = Vector( 100, 100, 50 )
+local bigSize = Vector( 175, 175, 100 )
+local hugeSize = Vector( 500, 500, 150 )
+
+function terminator_Extras.dynamicallyPatchPos( pos )
+    if not doAreaPatching then return end
+    local areasInSmallSize = navmesh.FindInBox( pos + -smallSize * 1.25, pos + smallSize * 1.25 )
+    if areasInSmallSize and #areasInSmallSize >= 1 then
+        terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, 11.25 )
+
+    else
+        local areasInBigSize = navmesh.FindInBox( pos + -bigSize, pos + bigSize )
+        if areasInBigSize and #areasInBigSize >= 1 then
+            terminator_Extras.AddRegionToPatch( pos + -bigSize, pos + bigSize, 25 )
+
+        else
+            terminator_Extras.AddRegionToPatch( pos + -hugeSize, pos + hugeSize, 50 )
+
+        end
+    end
+end

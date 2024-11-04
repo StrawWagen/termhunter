@@ -103,7 +103,7 @@ end
 
 function ENT:EntShootPos( ent, random )
     local hitboxes = {}
-    if not ent then return end
+    if not IsValid( ent ) then return end
 
     local sets = entMeta.GetHitboxSetCount( ent )
 

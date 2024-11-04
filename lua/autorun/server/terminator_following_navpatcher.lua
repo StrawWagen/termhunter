@@ -204,23 +204,36 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
 
 end
 
+local smallSize = Vector( 100, 100, 75 )
+
 local function onNoArea( ply )
     if terminator_Extras.IsLivePatching then return end
     if not ply:IsOnGround() then return end
+
+    local groundEnt = ply:GetGroundEntity()
+    if not groundEnt then return end
+    if not groundEnt:IsWorld() then return end
+
     local nextPlace = ply.term_NextRealPatchPlace or 0
     if nextPlace > CurTime() then return end
 
     ply.term_NextRealPatchPlace = CurTime() + 1
 
     local plyPos = ply:GetPos()
-    local size = Vector( 150, 150, 50 )
-    terminator_Extras.AddRegionToPatch( plyPos + -size, plyPos + size, 15 )
+    local minGrid = 50
+    if ply:Crouching() and ply:GetVelocity():Length() < 225 then
+        terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 11.25 )
+        return
+
+    end
+    terminator_Extras.dynamicallyPatchPos( plyPos, minGrid )
 
 end
 
 -- patches gaps in navmesh, using players as a guide
 -- patches will never be ideal, but they will be better than nothing
 
+local flattener = Vector( 1, 1, 0.5 )
 local tooFarDistSqr = 40^2
 
 local function navPatchingThink( ply )
@@ -240,8 +253,20 @@ local function navPatchingThink( ply )
         if not IsValid( currArea ) then onNoArea( ply ) return end
 
     else
-        currArea = navmesh.GetNearestNavArea( ply:GetPos(), false, 25, false, true, -2 )
+        local plyPos = ply:GetPos()
+        currArea = navmesh.GetNearestNavArea( plyPos, false, 15, false, true, -2 )
         if not IsValid( currArea ) then onNoArea( ply ) return end
+        if not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100 then
+            local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
+            if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
+                local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
+
+                if not IsValid( aheadArea ) then
+                    terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
+
+                end
+            end
+        end
         local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
         distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
 
@@ -273,6 +298,7 @@ local function navPatchingThink( ply )
     end
 
     if currArea == oldArea then return end
+    if terminator_Extras.IsLivePatching then return end
 
     patchData = table.Copy( patchData )
 
