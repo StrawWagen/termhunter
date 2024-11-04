@@ -30,7 +30,6 @@ local function lineBetween( area1, area2 )
 end
 
 local upTen = Vector( 0, 0, 10 )
-local upOffset = Vector( 0, 0, 25 )
 
 local function connectionDistance( currArea, otherArea )
     local currCenter = currArea:GetCenter()
@@ -104,10 +103,21 @@ local function AreasHaveAnyOverlap( area1, area2 ) -- i love chatgpt functions
 
 end
 
+local upStanding = Vector( 0, 0, 25 )
+local upCrouch = Vector( 0, 0, 10 )
+
 local function AreasAreConnectable( area1, area2, checkOffs )
     if area1:IsConnected( area2 ) then return end -- already connected....
     if not AreasHaveAnyOverlap( area1, area2 ) then return end
-    checkOffs = checkOffs or upOffset
+    if not checkOffs then
+        if area1:HasAttributes( NAV_MESH_CROUCH ) or area2:HasAttributes( NAV_MESH_CROUCH ) then
+            checkOffs = upCrouch
+
+        else
+            checkOffs = upStanding
+
+        end
+    end
     if not area1:IsPartiallyVisible( area2:GetClosestPointOnArea( area1:GetCenter() ) + checkOffs ) then return end
     if not goodDist( connectionDistance( area1, area2 ) ) then return end
     return true
@@ -207,7 +217,6 @@ end
 local smallSize = Vector( 100, 100, 75 )
 
 local function onNoArea( ply )
-    if terminator_Extras.IsLivePatching then return end
     if not ply:IsOnGround() then return end
 
     local groundEnt = ply:GetGroundEntity()
@@ -217,16 +226,52 @@ local function onNoArea( ply )
     local nextPlace = ply.term_NextRealPatchPlace or 0
     if nextPlace > CurTime() then return end
 
-    ply.term_NextRealPatchPlace = CurTime() + 1
-
     local plyPos = ply:GetPos()
-    local minGrid = 50
-    if ply:Crouching() and ply:GetVelocity():Length() < 225 then
-        terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 11.25 )
-        return
+    ply.term_NextRealPatchPlace = CurTime() + 0.5
+    ply.term_NextCrumbPatchPlace = CurTime() + 0.5
+
+    local lastPatchPos = ply.term_LastPatchPos
+    if lastPatchPos and lastPatchPos:Distance( plyPos ) < 50 then return end
+
+    if terminator_Extras.IsLivePatching then
+        if lastPatchPos and lastPatchPos:Distance( plyPos ) < 100 then return end
+        ply.term_LastPatchPos = plyPos
+
+        ply.term_PatchCrumbs = ply.term_PatchCrumbs or {}
+        table.insert( ply.term_PatchCrumbs, plyPos )
+
+    else
+        ply.term_LastPatchPos = plyPos
+
+        if ply:Crouching() and ply:GetVelocity():Length() < 225 then
+            terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 11.25 )
+            return
+
+        end
+        terminator_Extras.dynamicallyPatchPos( plyPos )
 
     end
-    terminator_Extras.dynamicallyPatchPos( plyPos, minGrid )
+end
+
+local hugeSize = Vector( 500, 500, 150 )
+
+local function onSameArea( ply )
+    if terminator_Extras.IsLivePatching then ply.term_NextCrumbPatchPlace = CurTime() + 0.1 return end
+
+    local nextPlace = ply.term_NextCrumbPatchPlace or 0
+    if nextPlace > CurTime() then return end
+
+    local crumbs = ply.term_PatchCrumbs
+    if not crumbs then return end
+
+    ply.term_NextCrumbPatchPlace = CurTime() + 0.5
+    local currCrumb = table.remove( crumbs, 1 )
+    if not currCrumb then ply.term_PatchCrumbs = nil return end
+
+    local crumbsArea = navmesh.GetNearestNavArea( currCrumb, false, 50, false, true, -2 )
+    if IsValid( crumbsArea ) then return end
+
+    terminator_Extras.AddRegionToPatch( currCrumb + -hugeSize, currCrumb + hugeSize, 50 )
 
 end
 
@@ -254,8 +299,14 @@ local function navPatchingThink( ply )
 
     else
         local plyPos = ply:GetPos()
-        currArea = navmesh.GetNearestNavArea( plyPos, false, 15, false, true, -2 )
+        currArea = navmesh.GetNearestNavArea( plyPos, false, 25, false, true, -2 )
         if not IsValid( currArea ) then onNoArea( ply ) return end
+
+        local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
+        distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
+
+        if distToArea > 15 and ply:Crouching() then onNoArea( ply ) return end
+
         if not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100 then
             local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
             if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
@@ -267,8 +318,6 @@ local function navPatchingThink( ply )
                 end
             end
         end
-        local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
-        distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
 
     end
 
@@ -297,7 +346,7 @@ local function navPatchingThink( ply )
 
     end
 
-    if currArea == oldArea then return end
+    if currArea == oldArea then onSameArea( ply ) return end
     if terminator_Extras.IsLivePatching then return end
 
     patchData = table.Copy( patchData )
@@ -404,6 +453,10 @@ hook.Add( "terminator_nextbot_noterms_exist", "teardown_following_navpatcher", f
     for _, ply in player.Iterator() do
         ply.oldPatchingArea = nil
         ply.term_PatchingData = nil
+        ply.term_PatchCrumbs = nil
+        ply.term_LastPatchPos = nil
+        ply.term_NextRealPatchPlace = nil
+        ply.term_NextCrumbPatchPlace = nil
 
     end
 end )

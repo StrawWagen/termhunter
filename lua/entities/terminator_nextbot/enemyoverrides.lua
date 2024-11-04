@@ -655,12 +655,13 @@ function ENT:HasToCrouchToSeeEnemy()
     local decreaseRate = -1
 
     if self.tryCrouchingToSeeEnemy and IsValid( enemy ) then
+        local enemysPos = enemy:GetPos()
         local nextSeeCheck = self.nextCrouchWouldSeeEnemyCheck or 0
 
         if nextSeeCheck < CurTime() then
             self.nextCrouchWouldSeeEnemyCheck = CurTime() + 0.2
 
-            local enemyCheckPos = enemy:GetPos() + crouchingOffset * enemy:GetModelScale()
+            local enemyCheckPos = enemysPos + crouchingOffset * enemy:GetModelScale()
             local standingShootPos = myPos + standingOffset * self:GetModelScale()
 
             local standingSeeTraceConfig = {

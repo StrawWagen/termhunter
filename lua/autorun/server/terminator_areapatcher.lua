@@ -1,6 +1,54 @@
 
 local math = math
 
+
+local defaultPatchRate = 0.005
+
+local debuggingVar = CreateConVar( "terminator_areapatching_debugging", 0, FCVAR_NONE, "Enable areapatcher debug prints/visualizers." )
+local doAreaPatchingVar = CreateConVar( "terminator_areapatching_enable", 1, FCVAR_ARCHIVE, "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned." )
+local areaPatchingRateVar = CreateConVar( "terminator_areapatching_rate", -1, FCVAR_ARCHIVE, "Max fraction of a second the area patcher can run at, -1 for default \"" .. defaultPatchRate .. "\"", -1, 1 )
+
+local debugging = debuggingVar:GetBool()
+cvars.AddChangeCallback( "terminator_areapatching_debugging", function( _, _, new )
+    debugging = tobool( new )
+
+end, "updatepatching" )
+
+local doAreaPatching = doAreaPatchingVar:GetBool()
+cvars.AddChangeCallback( "terminator_areapatching_enable", function( _, _, new )
+    doAreaPatching = tobool( new )
+
+end, "updatepatching" )
+
+local areaPatchingRate = 0
+local function doPatchingRate( rate )
+    rate = rate or areaPatchingRateVar:GetFloat()
+    if isstring( rate ) then
+        rate = tonumber( rate )
+
+    end
+    if rate <= 0 then
+        areaPatchingRate = defaultPatchRate
+
+    else
+        areaPatchingRate = rate
+
+    end
+end
+
+doPatchingRate()
+
+cvars.AddChangeCallback( "terminator_areapatching_rate", function( _, _, new )
+    doPatchingRate( new )
+
+end, "updatepatching" )
+
+local function debugPrint( ... )
+    if not debugging then return end
+    print( ... )
+
+end
+
 local gridSize
 
 local halfGrid
@@ -19,6 +67,8 @@ local oppCornerOffset
 
 local headroomCrouch
 local headroomStand
+local headroomStandRaw
+local headroomCrouchRaw
 
 local upCrouch
 
@@ -42,13 +92,14 @@ local function updateGridSize( newSize )
     areaCenteringOffset = Vector( -halfGrid, -halfGrid, 2 )
     oppCornerOffset = Vector( halfGrid, halfGrid, 2 )
 
-    headroomStandRaw = 40
+    headroomStandRaw = 45
+    headroomCrouchRaw = 30
     headroomStand = math.floor( headroomStandRaw / gridSize )
-    headroomCrouch = math.floor( 20 / gridSize )
+    headroomCrouch = math.floor( headroomCrouchRaw / gridSize )
     upCrouch = Vector( 0, 0, 20 )
 
     finalAreaCheckMins = Vector( -halfGrid, -halfGrid, -45 )
-    finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 5 )
+    finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 45 )
 
 end
 
@@ -240,7 +291,7 @@ local function getHeadroom( voxel, solidVoxels )
         end
     end
     if clearCount >= headroomStand then return HEADROOM_STAND end
-    if clearCount >= headroomCrouch then return HEADROOM_CROUCH end
+    if clearCount > headroomCrouch then return HEADROOM_CROUCH end
     return HEADROOM_NONE
 
 end
@@ -307,7 +358,10 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     local voxelsHeadroom = getHeadroom( voxel, solidVoxels )
     headroomTbl[voxelsKey] = voxelsHeadroom
-    debugoverlay.Text( voxel, tostring( voxelsHeadroom ), 10, false )
+    if debugging then
+        debugoverlay.Text( voxel, tostring( voxelsHeadroom ), 10, false )
+
+    end
 
     if voxelsHeadroom <= HEADROOM_NONE then
         closedVoxels[voxelsKey] = true
@@ -322,7 +376,10 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     local dist = line.start:Distance( line.endpos )
     local voxelsToToss = math.floor( dist / gridSize )
     if voxelsToToss >= 1 then
-        debugoverlay.Line( voxel, line.endpos, 10, red, true )
+        if debugging then
+            debugoverlay.Line( voxel, line.endpos, 10, red, true )
+
+        end
         for ind = 1, voxelsToToss do
             local toToss = Vector( voxel.x, voxel.y, voxel.z + -( ind * gridSize ) )
             closedVoxels[vecAsKey( toToss )] = true
@@ -386,7 +443,10 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     }
 
-    debugoverlay.Cross( pos, 5, 10, color_white, true )
+    if debugging then
+        debugoverlay.Cross( pos, 5, 10, color_white, true )
+
+    end
 
 end
 
@@ -405,7 +465,7 @@ local function patchCoroutine()
         SnapToGrid( pos1 )
         SnapToGrid( pos2 )
 
-        --print( "Patching region from", pos1, "to", pos2 )
+        debugPrint( "Patching region from", pos1, "to", pos2 )
 
         local openVoxelsSeq = {}
         local closedVoxels = {}
@@ -434,7 +494,7 @@ local function patchCoroutine()
             end
         end
 
-        --print( "Total voxels to process:", #openVoxelsSeq )
+        debugPrint( "Total voxels to process:", #openVoxelsSeq )
 
         -- Step 5: Process each voxel
         while #openVoxelsSeq >= 1 do
@@ -448,10 +508,11 @@ local function patchCoroutine()
         end
 
         local count = table.Count( vecsToPlace )
-        --print( "Placing!" )
+        debugPrint( "Placing!" )
 
         if count >= 1 then
-            --print( "Pre-merging areas..." )
+            debugPrint( "Pre-merging areas..." )
+
             local merged = true
             while merged do
                 coroutine.yield()
@@ -465,7 +526,8 @@ local function patchCoroutine()
                     end
                 end
             end
-            --print( "Placing " .. count .. " navareas..." )
+
+            debugPrint( "Placing " .. count .. " navareas..." )
 
             local justNewAreas = {}
             for _, data in pairs( vecsToPlace ) do
@@ -478,8 +540,10 @@ local function patchCoroutine()
 
                 end
             end
-            --print( "Connecting placed areas..." )
+
+            debugPrint( "Connecting placed areas..." )
             coroutine.yield( "wait" )
+
             for _, data in pairs( vecsToPlace ) do
                 coroutine.yield()
                 local newArea = data.newArea
@@ -496,8 +560,10 @@ local function patchCoroutine()
                     end
                 end
             end
-            --print( "Merging placed areas..." )
+
+            debugPrint( "Merging placed areas..." )
             coroutine.yield( "wait" )
+
             merged = true
             while merged do
                 coroutine.yield()
@@ -519,50 +585,45 @@ local function patchCoroutine()
                     end
                 end
             end
+            local validatedAreas = {}
+            for _, area in ipairs( justNewAreas ) do
+                if IsValid( area ) then
+                    table.insert( validatedAreas, area )
+
+                end
+            end
+
+            debugPrint( "checking for attributes..." )
+
+            local trStruc = {
+                filter = filterFunc,
+            }
+            local upCrouchCheck = Vector( 0, 0, 10 )
+            local endOffset = Vector( 0, 0, headroomStandRaw )
+            for _, area in ipairs( validatedAreas ) do
+                local areasCenter = area:GetCenter()
+                trStruc.start = areasCenter + upCrouchCheck
+                trStruc.endpos = areasCenter + endOffset
+
+                local result = util.TraceLine( trStruc )
+                if result.Hit then
+                    area:AddAttributes( NAV_MESH_CROUCH )
+
+                end
+            end
         end
         terminator_Extras.IsLivePatching = nil
         coroutine.yield( "waitlong" )
 
     end
 
-
     -- All regions have been processed; clean up the hook
     isPatching = false
-    --print( "All regions have been patched." )
+    debugPrint( "All regions have been patched." )
     coroutine.yield( "done" )
 
 end
 
-
-local defaultPatchRate = 0.005
-
-local doAreaPatchingVar = CreateConVar( "terminator_areapatching_enable", 1, FCVAR_ARCHIVE, "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned." )
-local areaPatchingRateVar = CreateConVar( "terminator_areapatching_rate", -1, FCVAR_ARCHIVE, "Max fraction of a second the area patcher can run at, -1 for default \"" .. defaultPatchRate .. "\"", -1, 1 )
-
-local doAreaPatching = doAreaPatchingVar:GetBool()
-cvars.AddChangeCallback( "terminator_areapatching_enable", function( _, _, new )
-    doAreaPatching = tobool( new )
-
-end, "updatepatching" )
-
-local areaPatchingRate = 0
-local function doPatchingRate( rate )
-    rate = rate or areaPatchingRateVar:GetFloat()
-    if rate <= 0 then
-        areaPatchingRate = defaultPatchRate
-
-    else
-        areaPatchingRate = rate
-
-    end
-end
-
-doPatchingRate()
-
-cvars.AddChangeCallback( "terminator_areapatching_enable", function( _, _, new )
-    doPatchingRate( new )
-
-end, "updatepatching" )
 
 local thread
 local nextThink = 0
@@ -573,7 +634,7 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
     if not doAreaPatching then return end
     -- Add the new region to the queue
     table.insert( regionsQueue, { pos1 = pos1, pos2 = pos2, gridSize = currGridSize } )
-    --print( "Added region to queue:", pos1, pos2 )
+    debugPrint( "Added region to queue:", pos1, pos2 )
 
     -- If not already patching, start the coroutine and add the Think hook
     if isPatching then return end

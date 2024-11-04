@@ -1326,7 +1326,7 @@ function ENT:GetAimVector()
 
         local nextOverrideWalk = self.term_nextMissingAlotWalk or 0
 
-        local degToOverrideWalk = 11.25
+        local degToOverrideWalk = 10
         if active.terminator_NoLeading then
             degToOverrideWalk = degToOverrideWalk / 2
 
