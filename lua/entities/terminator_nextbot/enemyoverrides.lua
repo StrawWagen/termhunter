@@ -489,7 +489,7 @@ do
         -- killers are higher priority
         local killerStatus = ent.isTerminatorHunterKiller
         if priority and killerStatus then
-            local mul = 1 + ( killerStatus * 0.5 )
+            local mul = 1 + ( killerStatus * 0.1 )
             priority = priority * mul
 
         end

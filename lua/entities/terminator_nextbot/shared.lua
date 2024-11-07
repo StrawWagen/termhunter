@@ -431,6 +431,8 @@ function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
 
     local myNav = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
 
+    if not IsValid( myNav ) then return nil, nil end
+
     if potentialOrphan == myNav and not ignoreMyNav then return nil, nil end
 
     local loopedBackAreas = { myNav = true }
