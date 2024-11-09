@@ -53,7 +53,6 @@ local gridSize
 
 local halfGrid
 local gridSmaller
-local vecGridsize
 local vecGridsizeZ
 local vecHalfGridsizeZ
 
@@ -80,20 +79,20 @@ local function updateGridSize( newSize )
 
     halfGrid = gridSize * 0.5
     gridSmaller = gridSize * 0.25
-    vecGridsize = Vector( gridSize, gridSize, gridSize )
     vecGridsizeZ = Vector( 0, 0, gridSize )
     vecHalfGridsizeZ = Vector( 0, 0, halfGrid / 2 )
 
     trMins = Vector( -gridSmaller, -gridSmaller, -1 )
     trMaxs = Vector( gridSmaller, gridSmaller, 1 )
-    collideTrMins = Vector( -gridSize, -gridSize, -1 ) * 0.75
-    collideTrMaxs = Vector( gridSize, gridSize, 1 ) * 0.75
+    local collideXY = math.max( 15, gridSize * 0.75 )
+    collideTrMins = Vector( -collideXY, -collideXY, -1 )
+    collideTrMaxs = Vector( collideXY, collideXY, 1 )
 
     areaCenteringOffset = Vector( -halfGrid, -halfGrid, 2 )
     oppCornerOffset = Vector( halfGrid, halfGrid, 2 )
 
     headroomStandRaw = 45
-    headroomCrouchRaw = 30
+    headroomCrouchRaw = 20
     headroomStand = math.floor( headroomStandRaw / gridSize )
     headroomCrouch = math.floor( headroomCrouchRaw / gridSize )
     upCrouch = Vector( 0, 0, 20 )
@@ -164,7 +163,7 @@ local function getCornersIfMerged( toMergeSet )
 
         end
 
-        if oldCrouch ~= nil and oldCrouch ~= tbl.crouch then
+        if ( oldCrouch ~= nil ) and ( oldCrouch ~= tbl.crouch ) then
             invalid = true
 
         end
@@ -391,6 +390,10 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     if result.HitTexture == "TOOLS/TOOLSNODRAW" then return end
 
+    -- slope check
+    if result.HitNormal:Dot( up ) < 0.5 then return end
+
+
     local trStrucFindFloor = {
         start = hitPos + vecHalfGridsizeZ,
         endpos = hitPos + -vecHalfGridsizeZ,
@@ -401,6 +404,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     local floorResult = util.TraceLine( trStrucFindFloor )
     if not floorResult.Hit then return end
+
 
     local trStrucCollide = {
         start = hitPos + upCrouch,
@@ -415,15 +419,11 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     local collideResult = util.TraceHull( trStrucCollide )
     if collideResult.StartSolid then return end
 
-    -- slope check
-    if result.HitNormal:Dot( up ) < 0.5 then return end
 
     local existingArea = navmesh.GetNearestNavArea( hitPos, false, halfGrid, false, true, -2 )
     if IsValid( existingArea ) then return end
 
-    -- slope check
     local existingAreasUnder = navmesh.FindInBox( hitPos + finalAreaCheckMins, hitPos + finalAreaCheckMaxs )
-
     if existingAreasUnder and #existingAreasUnder >= 1 then
         for _, area in ipairs( existingAreasUnder ) do
             if area:Contains( hitPos ) then return end
@@ -530,10 +530,12 @@ local function patchCoroutine()
             debugPrint( "Placing " .. count .. " navareas..." )
 
             local justNewAreas = {}
+            local justNewAreasSeq = {}
             for _, data in pairs( vecsToPlace ) do
                 coroutine.yield()
                 local newArea = navmesh.CreateNavArea( data.corner1, data.corner2 )
-                table.insert( justNewAreas, newArea )
+                table.insert( justNewAreasSeq, newArea )
+                justNewAreas[newArea] = true
                 data.newArea = newArea
                 if data.crouch then
                     newArea:AddAttributes( NAV_MESH_CROUCH )
@@ -544,17 +546,28 @@ local function patchCoroutine()
             debugPrint( "Connecting placed areas..." )
             coroutine.yield( "wait" )
 
+            local additionalSize = math.max( gridSize, 25 )
+            local additional = Vector( additionalSize, additionalSize, additionalSize )
+
             for _, data in pairs( vecsToPlace ) do
                 coroutine.yield()
+                local upOff = upCrouch / 2
                 local newArea = data.newArea
                 local mins, maxs = navGetBounds( newArea )
-                for _, otherArea in ipairs( navmesh.FindInBox( mins + -vecGridsize, maxs + vecGridsize ) ) do
+                for _, otherArea in ipairs( navmesh.FindInBox( mins + -additional, maxs + additional ) ) do
+                    local trivialDist -- defaults to 5 in following navpathcer 
+                    if not justNewAreas[otherArea] then
+                        trivialDist = math.max( 25, gridSize ) -- not a new area, allow long connections!
+
+                    end
                     coroutine.yield()
-                    if terminator_Extras.AreasAreConnectable( newArea, otherArea, vecHalfGridsizeZ ) then
+                    local connectable1 = terminator_Extras.AreasAreConnectable( newArea, otherArea, upOff, trivialDist )
+                    local connectable2 = terminator_Extras.AreasAreConnectable( otherArea, newArea, upOff, trivialDist )
+                    if connectable1 then
                         newArea:ConnectTo( otherArea )
 
                     end
-                    if terminator_Extras.AreasAreConnectable( otherArea, newArea, vecHalfGridsizeZ ) then
+                    if connectable2 then
                         otherArea:ConnectTo( newArea )
 
                     end
@@ -568,12 +581,12 @@ local function patchCoroutine()
             while merged do
                 coroutine.yield()
                 merged = nil
-                for _, area in ipairs( justNewAreas ) do
+                for _, area in ipairs( justNewAreasSeq ) do
                     if not IsValid( area ) then continue end
                     for _, neighbor in ipairs( area:GetAdjacentAreas() ) do
                         merged, _, mergedArea = terminator_Extras.navmeshAttemptMerge( area, neighbor )
                         if merged then
-                            table.insert( justNewAreas, mergedArea )
+                            table.insert( justNewAreasSeq, mergedArea )
                             coroutine.yield( "wait" )
                             break
 
@@ -586,7 +599,7 @@ local function patchCoroutine()
                 end
             end
             local validatedAreas = {}
-            for _, area in ipairs( justNewAreas ) do
+            for _, area in ipairs( justNewAreasSeq ) do
                 if IsValid( area ) then
                     table.insert( validatedAreas, area )
 

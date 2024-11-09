@@ -768,7 +768,7 @@ function ENT:ShouldCrouch()
             if currArea and currArea:IsValid() and currArea:HasAttributes( NAV_MESH_CROUCH ) then
                 self.overrideCrouch = CurTime() + 0.35
                 return true
-            elseif nextArea and nextArea:IsValid() and nextArea:HasAttributes( NAV_MESH_CROUCH ) and goalPathPoint.pos:DistToSqr( myPos ) < Squared60 then
+            elseif nextArea and nextArea:IsValid() and ( nextArea:HasAttributes( NAV_MESH_CROUCH ) or math.min( nextArea:GetSizeX(), nextArea:GetSizeY() ) <= 20 ) and goalPathPoint.pos:DistToSqr( myPos ) < Squared60 then
                 self.overrideCrouch = CurTime() + 0.35
                 return true
             end

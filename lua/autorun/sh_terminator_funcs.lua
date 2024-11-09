@@ -51,3 +51,41 @@ terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     return not hitSomething, trace
 
 end
+
+local nookDirections = {
+    Vector( 1, 0, 0 ),
+    Vector( -1, 0, 0 ),
+    Vector( 0, 1, 0 ),
+    Vector( 0, -1, 0 ),
+    Vector( 0, 0, 1 ),
+    Vector( 0, 0, -1 ),
+}
+
+-- returns SMALL numbers in open areas
+-- returns BIG numbers in NOOKS, enclosed spaces
+terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
+    local directions = overrideDirections or nookDirections
+    distance = distance or 800
+
+    local facesBlocked = 0
+    local hits = {}
+    for _, direction in ipairs( directions ) do
+        local traceData = {
+            start = pos,
+            endpos = pos + direction * distance,
+            mask = MASK_SOLID_BRUSHONLY,
+
+        }
+
+        local trace = util.TraceLine( traceData )
+        if not trace.Hit then continue end
+
+        hits[trace.Fraction] = trace
+
+        facesBlocked = facesBlocked + math.abs( trace.Fraction - 1 )
+
+    end
+
+    return facesBlocked, hits
+
+end

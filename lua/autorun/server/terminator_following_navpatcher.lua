@@ -54,8 +54,11 @@ local function distanceEdge( currArea, otherArea )
 
 end
 
-local function goodDist( distTo )
-    if distTo <= 5 then return true end
+terminator_Extras.distanceEdge = distanceEdge
+
+local function goodDist( distTo, trivialDist )
+    trivialDist = trivialDist or 5
+    if distTo <= trivialDist then return true end
 
     local distQuota = 75
     local minCheck = -1
@@ -106,11 +109,12 @@ end
 local upStanding = Vector( 0, 0, 25 )
 local upCrouch = Vector( 0, 0, 10 )
 
-local function AreasAreConnectable( area1, area2, checkOffs )
+local function AreasAreConnectable( area1, area2, checkOffs, trivialDist )
     if area1:IsConnected( area2 ) then return end -- already connected....
     if not AreasHaveAnyOverlap( area1, area2 ) then return end
+    local doingCrouch = area1:HasAttributes( NAV_MESH_CROUCH ) or area2:HasAttributes( NAV_MESH_CROUCH )
     if not checkOffs then
-        if area1:HasAttributes( NAV_MESH_CROUCH ) or area2:HasAttributes( NAV_MESH_CROUCH ) then
+        if doingCrouch then
             checkOffs = upCrouch
 
         else
@@ -118,8 +122,8 @@ local function AreasAreConnectable( area1, area2, checkOffs )
 
         end
     end
-    if not area1:IsPartiallyVisible( area2:GetClosestPointOnArea( area1:GetCenter() ) + checkOffs ) then return end
-    if not goodDist( connectionDistance( area1, area2 ) ) then return end
+    if not doingCrouch and not area1:IsPartiallyVisible( area2:GetClosestPointOnArea( area1:GetCenter() ) + checkOffs ) then return end
+    if not goodDist( connectionDistance( area1, area2 ), trivialDist ) then return end
     return true
 
 end
@@ -262,7 +266,7 @@ local function onSameArea( ply )
     if nextPlace > CurTime() then return end
 
     local crumbs = ply.term_PatchCrumbs
-    if not crumbs then return end
+    if not crumbs then ply.term_NextCrumbPatchPlace = CurTime() + 0.1 return end
 
     ply.term_NextCrumbPatchPlace = CurTime() + 0.5
     local currCrumb = table.remove( crumbs, 1 )
@@ -318,7 +322,6 @@ local function navPatchingThink( ply )
                 end
             end
         end
-
     end
 
     -- cant be sure of areas further away from the player than this!
@@ -357,8 +360,6 @@ local function navPatchingThink( ply )
     if oldArea:IsConnected( currArea ) and currArea:IsConnected( oldArea ) then return end
     if not AreasHaveAnyOverlap( oldArea, currArea ) then debugPrint( "0" ) return end
 
-    plysCenter = ply:WorldSpaceCenter()
-
     local currClosestPos = currArea:GetClosestPointOnArea( plysCenter )
     local oldClosestPos = oldArea:GetClosestPointOnArea( plysCenter )
     local highestHeight = math.max( patchData.highestGotOffGround, oldClosestPos.z + 25, currClosestPos.z + 25 )
@@ -368,6 +369,7 @@ local function navPatchingThink( ply )
     local oldClosestPosInAir = Vector( oldClosestPos.x, oldClosestPos.y, highestHeight )
 
     if debugging then
+        -- currClosestPos + upTen so that this doesnt fail when the area is ~10 units underground
         debugoverlay.Line( currClosestPos + upTen, currClosestPosInAir, 5, color_white, true )
         debugoverlay.Line( currClosestPosInAir, plysCenter2, 5, color_white, true )
         debugoverlay.Line( plysCenter2, oldClosestPosInAir, 5, color_white, true )
@@ -380,6 +382,21 @@ local function navPatchingThink( ply )
     if not terminator_Extras.PosCanSee( currClosestPosInAir, plysCenter2, MASK_SOLID_BRUSHONLY ) then debugPrint( "2" ) return end
     if not terminator_Extras.PosCanSee( plysCenter2, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "3" ) return end
     if not terminator_Extras.PosCanSee( oldClosestPos + upTen, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "4" ) return end
+
+    -- detect shabby doorways that non-terminator nextbots cannot navigate
+    if math.max( oldArea:GetSizeX(), oldArea:GetSizeY() ) > 75 and math.max( currArea:GetSizeX(), currArea:GetSizeY() ) > 75 then
+        local betweenPos = ( currClosestPosInAir + oldClosestPosInAir ) / 2
+        local oldCenterOffsetted = oldArea:GetCenter()
+        oldCenterOffsetted.z = highestHeight
+        if debugging then debugoverlay.Line( oldCenterOffsetted, currClosestPosInAir, 5, color_white, true ) end
+        if not terminator_Extras.PosCanSee( oldCenterOffsetted, currClosestPosInAir, MASK_SOLID_BRUSHONLY ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4a" ) return end
+
+        local currCenterOffsetted = currArea:GetCenter()
+        currCenterOffsetted.z = highestHeight
+        if debugging then debugoverlay.Line( currCenterOffsetted, oldClosestPosInAir, 5, color_white, true ) end
+        if not terminator_Extras.PosCanSee( currCenterOffsetted, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4b" ) return end
+
+    end
 
     -- if ply was on the ground the entire time, we can skip all the anti-krangle stuff
     local skipBigChecks = not patchData.wasOffGround

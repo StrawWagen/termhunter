@@ -425,6 +425,7 @@ do
         local notsee = {}
         local enemy, bestRange, priority
         local ignorePriority = false
+        local closeEnemDistSqr = self.CloseEnemyDistance^2
 
         for curr, _ in pairs( self.m_EnemiesMemory ) do
             if not IsValid( curr ) or not self:ShouldBeEnemy( curr ) then continue end
@@ -437,7 +438,7 @@ do
             local rang = self:GetRangeSquaredTo( curr )
             local _, pr = self:GetRelationship( curr )
 
-            if not ignorePriority and rang <= self.CloseEnemyDistance^2 then
+            if not ignorePriority and rang <= closeEnemDistSqr then
                 -- too close, we now ignore priority for all enemies, focus on proximity
                 ignorePriority = true
 
@@ -461,6 +462,7 @@ do
         end
 
         return enemy or NULL
+
     end
 
     local INT_MIN = -2147483648
@@ -564,7 +566,7 @@ function ENT:GetDesiredEnemyRelationship( ent )
         local key = self:getAwarenessKey( ent )
         local memory = memories[key]
         if memory == MEMORY_WEAPONIZEDNPC then
-            priority = priority + 300
+            priority = priority + 200
 
         else
             -- what usually happens, npc is flagged as boring
@@ -613,8 +615,15 @@ function ENT:MakeFeud( enemy )
     if enemy:GetClass() == "env_flare" then return end -- just as crazy
 
     local maniacHunter = self.alwaysManiac
+    if isfunction( maniacHunter ) then
+        maniacHunter = maniacHunter( self )
+        if maniacHunter then
+            self.alwaysManiac = maniacHunter -- condition was met, save result!
+
+        end
+    end
     if not self.neverManiac and not maniacHunter then
-        maniacHunter = ( self:GetCreationID() % 20 ) == 1-- infighting always gets a good laugh
+        maniacHunter = ( self:GetCreationID() % 20 ) == 1 -- infighting always gets a good laugh
 
     end
 
