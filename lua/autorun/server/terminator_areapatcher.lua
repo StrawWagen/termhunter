@@ -97,8 +97,8 @@ local function updateGridSize( newSize )
     headroomCrouch = math.floor( headroomCrouchRaw / gridSize )
     upCrouch = Vector( 0, 0, 20 )
 
-    finalAreaCheckMins = Vector( -halfGrid, -halfGrid, -45 )
-    finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 45 )
+    finalAreaCheckMins = Vector( -halfGrid, -halfGrid, -55 )
+    finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 55 )
 
 end
 

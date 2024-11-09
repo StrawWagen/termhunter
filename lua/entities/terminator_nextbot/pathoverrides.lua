@@ -315,7 +315,7 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
 
     local myPos = self:GetPos()
 
-    if destination:DistToSqr( myPos ) < tooFarToFlank then
+    if destination:DistToSqr( myPos ) < tooFarToFlank and IsValid( areaToFlankAround ) then
 
         flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
         if not flankingDest then return false end

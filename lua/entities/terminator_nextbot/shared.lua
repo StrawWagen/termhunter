@@ -3266,7 +3266,7 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdateMotion = function( self, data )
                 if data.freedomGotoPosSimple and data.extremeUnstucking > CurTime() then -- try and unstuck without teleporting!
-                    local dist = self:GetRangeTo( data.freedomGotoPosSimple )
+                    local dist = self:GetPos():Distance2D( data.freedomGotoPosSimple )
                     if dist < 150 then
                         data.freedomGotoPosSimple = nil
                         self:KillAllTasksWith( "movement" )
@@ -3295,13 +3295,13 @@ function ENT:DoDefaultTasks()
 
                     data.nextCache = CurTime() + 1
 
-                    local noNav = self.loco:IsOnGround() and not ( currentNav and currentNav.IsValid and currentNav:IsValid() )
+                    local noNav = self.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
                     local doAddCount = 1
                     -- go faster
                     if noNav then
-                        if terminator_Extras.IsLivePatching then
-                            doAddCount = doAddCount * 4
-                        else
+                        size = size / 8
+                        doAddCount = doAddCount * 4
+                        if not terminator_Extras.IsLivePatching then
                             terminator_Extras.dynamicallyPatchPos( myPos )
 
                         end
@@ -5389,6 +5389,8 @@ function ENT:DoDefaultTasks()
                             return 0
 
                         end
+
+                        if not IsValid( scoreData.enemyArea ) then return math.huge end
 
                         if enemyOnNav and not area2:IsCompletelyVisible( scoreData.enemyArea ) then
                             score = score^ 1.45
