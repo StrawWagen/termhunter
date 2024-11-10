@@ -555,7 +555,7 @@ local function patchCoroutine()
                 local newArea = data.newArea
                 local mins, maxs = navGetBounds( newArea )
                 for _, otherArea in ipairs( navmesh.FindInBox( mins + -additional, maxs + additional ) ) do
-                    local trivialDist -- defaults to 5 in following navpathcer 
+                    local trivialDist -- defaults to 5 in following navpatcher 
                     if not justNewAreas[otherArea] then
                         trivialDist = math.max( 25, gridSize ) -- not a new area, allow long connections!
 
