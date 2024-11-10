@@ -383,7 +383,7 @@ local function navPatchingThink( ply )
     if not terminator_Extras.PosCanSee( plysCenter2, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "3" ) return end
     if not terminator_Extras.PosCanSee( oldClosestPos + upTen, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "4" ) return end
 
-    -- detect shabby doorways that non-terminator nextbots cannot navigate
+    -- detect really shabby doorways that non-terminator nextbots cannot navigate if we patch normally
     if math.max( oldArea:GetSizeX(), oldArea:GetSizeY() ) > 75 and math.max( currArea:GetSizeX(), currArea:GetSizeY() ) > 75 then
         local betweenPos = ( currClosestPosInAir + oldClosestPosInAir ) / 2
         local oldCenterOffsetted = oldArea:GetCenter()
