@@ -315,7 +315,7 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
 
     local myPos = self:GetPos()
 
-    if destination:DistToSqr( myPos ) < tooFarToFlank then
+    if destination:DistToSqr( myPos ) < tooFarToFlank and IsValid( areaToFlankAround ) then
 
         flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
         if not flankingDest then return false end
@@ -666,6 +666,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     end
 
+    if not IsValid( endArea.area ) then return end -- outdated....
+
     if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
     if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 25 then return end -- if endpos is off the navmesh then dont create false unreachable flags
 
@@ -715,7 +717,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         return score
 
     end
-    self:findValidNavResult( scoreData, endArea.area:GetCenter(), 3000, scoreFunction )
+    self:findValidNavResult( scoreData, endArea.area:GetCenter(), 2000, scoreFunction )
 
     yieldIfWeCan()
 

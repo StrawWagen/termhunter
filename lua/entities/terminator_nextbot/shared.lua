@@ -431,6 +431,8 @@ function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
 
     local myNav = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
 
+    if not IsValid( myNav ) then return nil, nil end
+
     if potentialOrphan == myNav and not ignoreMyNav then return nil, nil end
 
     local loopedBackAreas = { myNav = true }
@@ -767,12 +769,13 @@ local vecMeta = FindMetaTable( "Vector" )
 local distToSqr = vecMeta.DistToSqr
 
 function ENT:understandSurroundings()
-    self.awarenessSubstantialStuff = {}
-    self.awarenessUnknown = {}
-    self.awarenessBash = {}
-    self.awarenessDamaging = {}
-    self.awarenessVolatiles = {}
-    self.awarenessLockedDoors = {}
+    local myTbl = self:GetTable()
+    myTbl.awarenessSubstantialStuff = {}
+    myTbl.awarenessUnknown = {}
+    myTbl.awarenessBash = {}
+    myTbl.awarenessDamaging = {}
+    myTbl.awarenessVolatiles = {}
+    myTbl.awarenessLockedDoors = {}
     coroutine_yield()
 
     local pos = self:GetPos()
@@ -785,14 +788,19 @@ function ENT:understandSurroundings()
 
     end
 
+    coroutine_yield()
+
     local centers = {}
 
     for _, ent in ipairs( surroundings ) do
+        if not IsValid( ent ) then continue end
         centers[ent] = ent:WorldSpaceCenter()
 
     end
 
-    table.sort( surroundings, function( a, b ) -- sort ents by distance to me 
+    table.sort( surroundings, function( a, b ) -- sort ents by distance to me
+        if not IsValid( a ) then return false end
+        if not IsValid( b ) then return true end
         local ADist = distToSqr( centers[a], pos )
         local BDist = distToSqr( centers[b], pos )
         return ADist < BDist
@@ -801,21 +809,31 @@ function ENT:understandSurroundings()
 
     coroutine_yield()
 
+    local added = 0
     local substantialStuff = {}
     local caresAbout = self.caresAbout
     for _, currEnt in ipairs( surroundings ) do
-        if #substantialStuff > 400 then -- cap this!
+        if ( added % 40 ) == 0 then coroutine_yield() end
+        if added > 400 then -- cap this!
             break
 
         end
         if caresAbout( self, currEnt ) then
+            added = added + 1
             table_insert( substantialStuff, currEnt )
 
         end
     end
 
+    coroutine_yield()
+
+    added = 0
     local understandObject = self.understandObject
+
     for _, currEnt in ipairs( substantialStuff ) do
+        if not IsValid( currEnt ) then continue end
+        if ( added % 40 ) == 0 then coroutine_yield() end
+        added = added + 1
         understandObject( self, currEnt )
         table_insert( self.awarenessSubstantialStuff, currEnt )
 
@@ -2541,7 +2559,6 @@ hook.Add( "PlayerDeath", "terminator_unmark_killers", function( plyDied, _, atta
 
         end
     end
-
 end )
 
 hook.Add( "PostCleanupMap", "terminator_clear_playerstatuses", function()
@@ -2851,16 +2868,26 @@ function ENT:Initialize()
                 myCreator = self:CPPIGetOwner()
 
             end
+            local canPatch = GetConVar( "terminator_areapatching_enable" ):GetBool()
             if IsValid( myCreator ) then
-                myCreator:PrintMessage( HUD_PRINTCENTER, "NO NAVMESH FOUND!" )
-                myCreator:PrintMessage( HUD_PRINTTALK, "NO NAVMESH FOUND!" )
-                myCreator:PrintMessage( HUD_PRINTCONSOLE, "NO NAVMESH FOUND!" )
+                if canPatch then
+                    local msg = "NO NAVMESH FOUND! ATTEMPTING PATCH... EXPECT BAD RESULTS, ERRORS!\n!!!!!YOU should REALLY!! nav_generate a proper navmesh!!!!!"
+                    myCreator:PrintMessage( HUD_PRINTCENTER, msg )
+                    myCreator:PrintMessage( HUD_PRINTTALK, msg )
+                    myCreator:PrintMessage( HUD_PRINTCONSOLE, msg )
 
-            else
-                print( "Term nextbot, tried to spawn with no navmesh." )
+                else
+                    local msg = "NO NAVMESH FOUND!"
+                    myCreator:PrintMessage( HUD_PRINTCENTER, msg )
+                    myCreator:PrintMessage( HUD_PRINTTALK, msg )
+                    myCreator:PrintMessage( HUD_PRINTCONSOLE, msg )
+                    return
 
+                end
             end
-            SafeRemoveEntity( self )
+            if terminator_Extras.IsLivePatching then return end
+
+            terminator_Extras.dynamicallyPatchPos( self:GetPos() )
             return
 
         end
@@ -3217,9 +3244,9 @@ function ENT:DoDefaultTasks()
             BehaveUpdatePriority = function( self, data, interval )
                 local nextAware = data.nextAwareness or 0
                 if nextAware < CurTime() then
-                    local add = 1.5
+                    local add = 2
                     if self.IsFodder then
-                        add = 5
+                        add = math.Rand( 8, 12 )
 
                     end
                     data.nextAwareness = CurTime() + add
@@ -3239,7 +3266,7 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdateMotion = function( self, data )
                 if data.freedomGotoPosSimple and data.extremeUnstucking > CurTime() then -- try and unstuck without teleporting!
-                    local dist = self:GetRangeTo( data.freedomGotoPosSimple )
+                    local dist = self:GetPos():Distance2D( data.freedomGotoPosSimple )
                     if dist < 150 then
                         data.freedomGotoPosSimple = nil
                         self:KillAllTasksWith( "movement" )
@@ -3268,12 +3295,16 @@ function ENT:DoDefaultTasks()
 
                     data.nextCache = CurTime() + 1
 
-                    local noNav = self.loco:IsOnGround() and not ( currentNav and currentNav.IsValid and currentNav:IsValid() )
+                    local noNav = self.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
                     local doAddCount = 1
                     -- go faster
                     if noNav then
+                        size = size / 8
                         doAddCount = doAddCount * 4
+                        if not terminator_Extras.IsLivePatching then
+                            terminator_Extras.dynamicallyPatchPos( myPos )
 
+                        end
                     end
                     if self.isUnstucking then
                         doAddCount = doAddCount * 2
@@ -3899,8 +3930,9 @@ function ENT:DoDefaultTasks()
                     end
                 end
 
-                data.finishAfterwards = function( _, afterwardsReason )
-                    data.taskKilled = true
+                data.finishAfterwards = function( data2, afterwardsReason )
+                    if data2.taskKilled then return end
+                    data2.taskKilled = true
                     local killerrrr = self:GetEnemy() and self:GetEnemy().isTerminatorHunterKiller
                     if killerrrr then
                         self.PreventShooting = nil
@@ -3919,19 +3951,19 @@ function ENT:DoDefaultTasks()
 
                     yieldIfWeCan()
 
-                    if IsValid( data.Wep ) and not IsValid( data.Wep:GetParent() ) then
-                        data.Wep.blockWeaponNoticing = CurTime() + 2.5
+                    if IsValid( data2.Wep ) and not IsValid( data2.Wep:GetParent() ) then
+                        data2.Wep.blockWeaponNoticing = CurTime() + 2.5 -- this wep was invalid!
 
                     end
-                    if data.nextTask == "movement_getweapon" then -- no loops pls
-                        data.nextTask = "movement_wait"
+                    if data2.nextTask == "movement_getweapon" then -- no loops pls
+                        data2.nextTask = "movement_wait"
 
                     end
 
                     -- search for a new weapon NOW!
                     self:ResetWeaponSearchTimers()
                     self:TaskFail( "movement_getweapon" )
-                    self:StartTask2( data.nextTask, data.nextTaskData, "finishAfterwards " .. afterwardsReason )
+                    self:StartTask2( data2.nextTask, data2.nextTaskData, "finishAfterwards " .. afterwardsReason )
 
                 end
 
@@ -5239,6 +5271,7 @@ function ENT:DoDefaultTasks()
 
                 data.want = data.want or 8
                 data.distMul = data.distMul or 1
+                data.stalksSinceLastSeen = 0
 
                 local myPos = self:GetPos()
                 local enemy = self:GetEnemy()
@@ -5356,6 +5389,8 @@ function ENT:DoDefaultTasks()
                             return 0
 
                         end
+
+                        if not IsValid( scoreData.enemyArea ) then return math.huge end
 
                         if enemyOnNav and not area2:IsCompletelyVisible( scoreData.enemyArea ) then
                             score = score^ 1.45
@@ -7232,6 +7267,7 @@ function ENT:DoDefaultTasks()
                     for _ = 1, 20 do
                         if #data.potentialPlaceables == 0 then break end
                         local toPlaceArea = table.remove( data.potentialPlaceables, 1 )
+                        if not IsValid( toPlaceArea ) then continue end
 
                         local areasId = toPlaceArea:GetID()
                         if data.hazardousAreas[areasId] then continue end
@@ -7389,7 +7425,7 @@ function ENT:DoDefaultTasks()
                 elseif data.requiredTarget and self:interceptIfWeCan( "movement_perch", data ) then
                     return
 
-                elseif self.IsSeeEnemy and IsValid( self:GetEnemy() ) and not ( requiredTarget and self.EnemyLastPos:Distance( requiredTarget ) < data.perchRadius / 2 ) then
+                elseif self.IsSeeEnemy and IsValid( self:GetEnemy() ) and not ( requiredTarget and self.EnemyLastPos:Distance( requiredTarget ) < data.perchRadius / 2 and self.DistToEnemy > self.DuelEnemyDist ) then
                     self:EnemyAcquired( "movement_perch" )
 
                 elseif self:validSoundHint() and not data.requiredTarget then
@@ -7400,6 +7436,7 @@ function ENT:DoDefaultTasks()
                     for _ = 1, 2 do
                         if #data.potentialPerchables == 0 then break end
                         local perchableArea = table.remove( data.potentialPerchables, 1 )
+                        if not IsValid( perchableArea ) then continue end
                         local checkPositions = getUsefulPositions( perchableArea )
 
                         if preferredPos and #checkPositions > 1 then
@@ -7485,8 +7522,13 @@ function ENT:DoDefaultTasks()
                             local centers = {}
                             local distToSqrInternal = distToSqr
                             for _, area in ipairs( data.potentialPerchables ) do
-                                centers[area] = area:GetCenter()
+                                if IsValid( area ) then
+                                    centers[area] = area:GetCenter()
 
+                                else
+                                    return 
+
+                                end
                             end
                             table.sort( data.potentialPerchables, function( a, b ) -- sort ents by distance to me 
                                 local ADist = distToSqrInternal( centers[a], bestPos )
@@ -7656,7 +7698,7 @@ function ENT:DoDefaultTasks()
                         self.lastInterceptPos           = nil
 
                         data.Unreachable = true
-                        goto terminatorInterceptNewPathFail
+                        return
 
                     end
 
@@ -7691,17 +7733,27 @@ function ENT:DoDefaultTasks()
                         yieldIfWeCan()
 
                     end
-                    if not self:primaryPathIsValid() then data.Unreachable = true
+                    if not self:primaryPathIsValid() then
+                        data.Unreachable = true
                         self.interceptPeekTowardsEnemy  = nil
                         self.lastInterceptTime          = nil
                         self.lastInterceptPos           = nil
-                        data.Unreachable = true
-                        goto terminatorInterceptNewPathFail
+                        return
+
+                    else
+                        data.lastInterceptDistance2 = currDist2
 
                     end
-                    data.lastInterceptDistance2 = currDist2
+
                 end
                 ::terminatorInterceptNewPathFail::
+
+                if not lastInterceptPos and not self:primaryPathIsValid() then
+                    self:TaskFail( "movement_intercept" )
+                    self:StartTask2( "movement_handler", nil, "nothing to intercept!" )
+                    return
+
+                end
 
                 local myPos = self:GetPos()
                 local path = self:GetPath()

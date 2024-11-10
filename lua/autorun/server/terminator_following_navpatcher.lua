@@ -30,7 +30,6 @@ local function lineBetween( area1, area2 )
 end
 
 local upTen = Vector( 0, 0, 10 )
-local upOffset = Vector( 0, 0, 25 )
 
 local function connectionDistance( currArea, otherArea )
     local currCenter = currArea:GetCenter()
@@ -55,8 +54,11 @@ local function distanceEdge( currArea, otherArea )
 
 end
 
-local function goodDist( distTo )
-    if distTo <= 5 then return true end
+terminator_Extras.distanceEdge = distanceEdge
+
+local function goodDist( distTo, trivialDist )
+    trivialDist = trivialDist or 5
+    if distTo <= trivialDist then return true end
 
     local distQuota = 75
     local minCheck = -1
@@ -104,11 +106,24 @@ local function AreasHaveAnyOverlap( area1, area2 ) -- i love chatgpt functions
 
 end
 
-local function AreasAreConnectable( area1, area2 )
+local upStanding = Vector( 0, 0, 25 )
+local upCrouch = Vector( 0, 0, 10 )
+
+local function AreasAreConnectable( area1, area2, checkOffs, trivialDist )
     if area1:IsConnected( area2 ) then return end -- already connected....
     if not AreasHaveAnyOverlap( area1, area2 ) then return end
-    if not area1:IsPartiallyVisible( area2:GetClosestPointOnArea( area1:GetCenter() ) + upOffset ) then return end
-    if not goodDist( connectionDistance( area1, area2 ) ) then return end
+    local doingCrouch = area1:HasAttributes( NAV_MESH_CROUCH ) or area2:HasAttributes( NAV_MESH_CROUCH )
+    if not checkOffs then
+        if doingCrouch then
+            checkOffs = upCrouch
+
+        else
+            checkOffs = upStanding
+
+        end
+    end
+    if not doingCrouch and not area1:IsPartiallyVisible( area2:GetClosestPointOnArea( area1:GetCenter() ) + checkOffs ) then return end
+    if not goodDist( connectionDistance( area1, area2 ), trivialDist ) then return end
     return true
 
 end
@@ -203,9 +218,71 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
 
 end
 
+local smallSize = Vector( 100, 100, 75 )
+
+local function onNoArea( ply )
+    if not ply:IsOnGround() then return end
+
+    local groundEnt = ply:GetGroundEntity()
+    if not groundEnt then return end
+    if not groundEnt:IsWorld() then return end
+
+    local nextPlace = ply.term_NextRealPatchPlace or 0
+    if nextPlace > CurTime() then return end
+
+    local plyPos = ply:GetPos()
+    ply.term_NextRealPatchPlace = CurTime() + 0.5
+    ply.term_NextCrumbPatchPlace = CurTime() + 0.5
+
+    local lastPatchPos = ply.term_LastPatchPos
+    if lastPatchPos and lastPatchPos:Distance( plyPos ) < 50 then return end
+
+    if terminator_Extras.IsLivePatching then
+        if lastPatchPos and lastPatchPos:Distance( plyPos ) < 100 then return end
+        ply.term_LastPatchPos = plyPos
+
+        ply.term_PatchCrumbs = ply.term_PatchCrumbs or {}
+        table.insert( ply.term_PatchCrumbs, plyPos )
+
+    else
+        ply.term_LastPatchPos = plyPos
+
+        if ply:Crouching() and ply:GetVelocity():Length() < 225 then
+            terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 11.25 )
+            return
+
+        end
+        terminator_Extras.dynamicallyPatchPos( plyPos )
+
+    end
+end
+
+local hugeSize = Vector( 500, 500, 150 )
+
+local function onSameArea( ply )
+    if terminator_Extras.IsLivePatching then ply.term_NextCrumbPatchPlace = CurTime() + 0.1 return end
+
+    local nextPlace = ply.term_NextCrumbPatchPlace or 0
+    if nextPlace > CurTime() then return end
+
+    local crumbs = ply.term_PatchCrumbs
+    if not crumbs then ply.term_NextCrumbPatchPlace = CurTime() + 0.1 return end
+
+    ply.term_NextCrumbPatchPlace = CurTime() + 0.5
+    local currCrumb = table.remove( crumbs, 1 )
+    if not currCrumb then ply.term_PatchCrumbs = nil return end
+
+    local crumbsArea = navmesh.GetNearestNavArea( currCrumb, false, 50, false, true, -2 )
+    if IsValid( crumbsArea ) then return end
+
+    terminator_Extras.AddRegionToPatch( currCrumb + -hugeSize, currCrumb + hugeSize, 50 )
+
+end
+
 -- patches gaps in navmesh, using players as a guide
 -- patches will never be ideal, but they will be better than nothing
 
+local flattener = Vector( 1, 1, 0.5 )
 local tooFarDistSqr = 40^2
 
 local function navPatchingThink( ply )
@@ -222,14 +299,29 @@ local function navPatchingThink( ply )
     local currArea, distToArea
     if ply.GetNavAreaData then
         currArea, distToArea = ply:GetNavAreaData()
-        if not IsValid( currArea ) then return end
+        if not IsValid( currArea ) then onNoArea( ply ) return end
 
     else
-        currArea = navmesh.GetNearestNavArea( ply:GetPos(), false, 25, false, true, -2 )
-        if not IsValid( currArea ) then return end
+        local plyPos = ply:GetPos()
+        currArea = navmesh.GetNearestNavArea( plyPos, false, 25, false, true, -2 )
+        if not IsValid( currArea ) then onNoArea( ply ) return end
+
         local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
         distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
 
+        if distToArea > 15 and ply:Crouching() then onNoArea( ply ) return end
+
+        if not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100 then
+            local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
+            if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
+                local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
+
+                if not IsValid( aheadArea ) then
+                    terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
+
+                end
+            end
+        end
     end
 
     -- cant be sure of areas further away from the player than this!
@@ -257,7 +349,8 @@ local function navPatchingThink( ply )
 
     end
 
-    if currArea == oldArea then return end
+    if currArea == oldArea then onSameArea( ply ) return end
+    if terminator_Extras.IsLivePatching then return end
 
     patchData = table.Copy( patchData )
 
@@ -266,8 +359,6 @@ local function navPatchingThink( ply )
 
     if oldArea:IsConnected( currArea ) and currArea:IsConnected( oldArea ) then return end
     if not AreasHaveAnyOverlap( oldArea, currArea ) then debugPrint( "0" ) return end
-
-    plysCenter = ply:WorldSpaceCenter()
 
     local currClosestPos = currArea:GetClosestPointOnArea( plysCenter )
     local oldClosestPos = oldArea:GetClosestPointOnArea( plysCenter )
@@ -278,6 +369,7 @@ local function navPatchingThink( ply )
     local oldClosestPosInAir = Vector( oldClosestPos.x, oldClosestPos.y, highestHeight )
 
     if debugging then
+        -- currClosestPos + upTen so that this doesnt fail when the area is ~10 units underground
         debugoverlay.Line( currClosestPos + upTen, currClosestPosInAir, 5, color_white, true )
         debugoverlay.Line( currClosestPosInAir, plysCenter2, 5, color_white, true )
         debugoverlay.Line( plysCenter2, oldClosestPosInAir, 5, color_white, true )
@@ -290,6 +382,21 @@ local function navPatchingThink( ply )
     if not terminator_Extras.PosCanSee( currClosestPosInAir, plysCenter2, MASK_SOLID_BRUSHONLY ) then debugPrint( "2" ) return end
     if not terminator_Extras.PosCanSee( plysCenter2, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "3" ) return end
     if not terminator_Extras.PosCanSee( oldClosestPos + upTen, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "4" ) return end
+
+    -- detect really shabby doorways that non-terminator nextbots cannot navigate if we patch normally
+    if math.max( oldArea:GetSizeX(), oldArea:GetSizeY() ) > 75 and math.max( currArea:GetSizeX(), currArea:GetSizeY() ) > 75 then
+        local betweenPos = ( currClosestPosInAir + oldClosestPosInAir ) / 2
+        local oldCenterOffsetted = oldArea:GetCenter()
+        oldCenterOffsetted.z = highestHeight
+        if debugging then debugoverlay.Line( oldCenterOffsetted, currClosestPosInAir, 5, color_white, true ) end
+        if not terminator_Extras.PosCanSee( oldCenterOffsetted, currClosestPosInAir, MASK_SOLID_BRUSHONLY ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4a" ) return end
+
+        local currCenterOffsetted = currArea:GetCenter()
+        currCenterOffsetted.z = highestHeight
+        if debugging then debugoverlay.Line( currCenterOffsetted, oldClosestPosInAir, 5, color_white, true ) end
+        if not terminator_Extras.PosCanSee( currCenterOffsetted, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4b" ) return end
+
+    end
 
     -- if ply was on the ground the entire time, we can skip all the anti-krangle stuff
     local skipBigChecks = not patchData.wasOffGround
@@ -363,6 +470,10 @@ hook.Add( "terminator_nextbot_noterms_exist", "teardown_following_navpatcher", f
     for _, ply in player.Iterator() do
         ply.oldPatchingArea = nil
         ply.term_PatchingData = nil
+        ply.term_PatchCrumbs = nil
+        ply.term_LastPatchPos = nil
+        ply.term_NextRealPatchPlace = nil
+        ply.term_NextCrumbPatchPlace = nil
 
     end
 end )

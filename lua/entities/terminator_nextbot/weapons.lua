@@ -1326,7 +1326,7 @@ function ENT:GetAimVector()
 
         local nextOverrideWalk = self.term_nextMissingAlotWalk or 0
 
-        local degToOverrideWalk = 11.25
+        local degToOverrideWalk = 10
         if active.terminator_NoLeading then
             degToOverrideWalk = degToOverrideWalk / 2
 
@@ -1369,8 +1369,9 @@ function ENT:JudgeWeapon()
     if not self.NothingOrBreakableBetweenEnemy then return end
 
     local myWeapon = self:GetActiveWeapon()
+    local activeLua = self:GetActiveLuaWeapon()
     if not IsValid( myWeapon ) then return end
-    if myWeapon.terminator_IgnoreWeaponUtility then return end
+    if myWeapon.terminator_IgnoreWeaponUtility or activeLua and activeLua.terminator_IgnoreWeaponUtility then return end
     local weapsWeightToMe = self:GetWeightOfWeapon( myWeapon )
 
     local trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0
@@ -1388,9 +1389,9 @@ function ENT:JudgeWeapon()
     -- tolerance for weapons
     local bonusAttackAttempts = 30
     local tolerance = 4
-    if weapSpread( self:GetActiveLuaWeapon() ) or hasEvenDoneDamage then
+    if weapSpread( activeLua ) or hasEvenDoneDamage then
         -- weapon that has spread!?!!? (real bullets!)
-        -- or we've done damage with sometime in the past
+        -- or we've done damage with it sometime in the past
         bonusAttackAttempts = 60
         tolerance = 8
 

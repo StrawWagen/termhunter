@@ -27,6 +27,8 @@ SWEP.Secondary = {
     DefaultClip = -1,
 }
 
+SWEP.terminator_IgnoreWeaponUtility = true
+
 terminator_Extras.SetupAnalogWeight( SWEP )
 
 function SWEP:Initialize()
@@ -47,7 +49,7 @@ function SWEP:CanPrimaryAttack()
     local owner = self:GetOwner()
     if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
-    if not owner.NothingOrBreakableBetweenEnemy then return end
+    if not owner.EnemiesVehicle and not owner.NothingOrBreakableBetweenEnemy then return end
 
     return CurTime() >= self:GetNextPrimaryFire() and self:Clip1() > 0
 

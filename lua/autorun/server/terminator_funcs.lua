@@ -56,42 +56,6 @@ terminator_Extras.dirToPos = function( startPos, endPos )
 
 end
 
-local nookDirections = {
-    Vector( 1, 0, 0 ),
-    Vector( -1, 0, 0 ),
-    Vector( 0, 1, 0 ),
-    Vector( 0, -1, 0 ),
-    Vector( 0, 0, 1 ),
-    Vector( 0, 0, -1 ),
-}
-
-terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
-    local directions = overrideDirections or nookDirections
-    distance = distance or 800
-
-    local facesBlocked = 0
-    local hits = {}
-    for _, direction in ipairs( directions ) do
-        local traceData = {
-            start = pos,
-            endpos = pos + direction * distance,
-            mask = MASK_SOLID_BRUSHONLY,
-
-        }
-
-        local trace = util.TraceLine( traceData )
-        if not trace.Hit then continue end
-
-        hits[trace.Fraction] = trace
-
-        facesBlocked = facesBlocked + math.abs( trace.Fraction - 1 )
-
-    end
-
-    return facesBlocked, hits
-
-end
-
 terminator_Extras.BearingToPos = function( pos1, ang1, pos2, ang2 )
     local localPos = WorldToLocal( pos1, ang1, pos2, ang2 )
     local bearing = 180 / math.pi * math.atan2( localPos.y, localPos.x )
