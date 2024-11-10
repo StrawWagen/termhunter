@@ -27,6 +27,8 @@ SWEP.Secondary = {
     DefaultClip = -1,
 }
 
+SWEP.terminator_IgnoreWeaponUtility = true
+
 terminator_Extras.SetupAnalogWeight( SWEP )
 
 function SWEP:Initialize()

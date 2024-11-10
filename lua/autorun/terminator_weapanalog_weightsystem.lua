@@ -11,11 +11,11 @@ local function AnalogWeightsCheck()
         ["weapon_357"] = terminator_Extras.GoodWeight,
         ["m9k_minigun"] = terminator_Extras.GoodWeight + 4,
         ["m9k_davy_crockett"] = 99999,
-        [ "termhunt_medkit" ] = 0,
-        [ "termhunt_lockpick" ] = 0,
-        [ "termhunt_weapon_hammer" ] = 0,
-        [ "termhunt_weapon_beartrap" ] = 0,
-        [ "weapon_medkit" ] = 0,
+        ["termhunt_medkit"] = 0,
+        ["termhunt_lockpick"] = 0,
+        ["termhunt_weapon_hammer"] = 0,
+        ["termhunt_weapon_beartrap"] = 0,
+        ["weapon_medkit"] = 0,
     }
 
 end
