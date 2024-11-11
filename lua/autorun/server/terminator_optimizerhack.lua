@@ -3,6 +3,46 @@ terminator_Extras = terminator_Extras or {}
 local cornerIndexes = { 0,1,2,3 }
 local fiveSqared = 5^2
 
+local bigNegativeZ = Vector( 0, 0, -3000 )
+local startOffset = Vector( 0, 0, 100 )
+
+local function getFloorTr( pos )
+    local traceDat = {
+        mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
+        start = pos + startOffset,
+        endpos = pos + bigNegativeZ
+    }
+
+    local trace = util.TraceLine( traceDat )
+    return trace
+
+end
+
+local function posIsDisplacement( pos )
+    local tr = getFloorTr( pos )
+    if not tr then return end
+    if tr.HitTexture ~= "**displacement**" then return end
+    return true
+
+end
+
+function areaIsEntirelyOverDisplacements( area )
+    local positions = {
+        area:GetCorner( 0 ),
+        area:GetCorner( 1 ),
+        area:GetCorner( 2 ),
+        area:GetCorner( 3 ),
+
+    }
+    for _, position in ipairs( positions ) do
+        -- if just 1 of these is not on a displacement, then return nil
+        if not posIsDisplacement( position ) then return end
+    end
+    -- every corner passed the check
+    return true
+
+end
+
 local function navSurfaceArea( navArea )
     local area = navArea:GetSizeX() * navArea:GetSizeY()
     return area
@@ -135,10 +175,10 @@ function terminator_Extras.navAreasCanMerge( start, next )
         -- areas are far apart in height, the artifact will be big
         if zDifference > 10 then
             -- if they're both on displacements then we can let it slide
-            local startIsOnDisplacement = NAVOPTIMIZER_tbl.areaIsEntirelyOverDisplacements( start )
+            local startIsOnDisplacement = areaIsEntirelyOverDisplacements( start )
             if not startIsOnDisplacement then return false, 0, NULL end
 
-            local nextIsOnDisplacement = NAVOPTIMIZER_tbl.areaIsEntirelyOverDisplacements( next )
+            local nextIsOnDisplacement = areaIsEntirelyOverDisplacements( next )
             if not nextIsOnDisplacement then return false, 0, NULL end
 
         end
