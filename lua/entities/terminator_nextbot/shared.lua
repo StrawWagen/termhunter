@@ -3023,37 +3023,50 @@ function ENT:DoDefaultTasks()
             BehaveUpdatePriority = function( self, data, interval )
                 local prevEnemy = self:GetEnemy()
                 local newEnemy = prevEnemy
+                local myShoot = self:GetShootPos()
 
                 self.IsSeeEnemy = false -- assume false
                 self.NothingOrBreakableBetweenEnemy = false
+                self.EnemiesVehicle = false
 
                 if forceupdateenemies or not data.UpdateEnemies or CurTime() > data.UpdateEnemies or data.HasEnemy and not IsValid( prevEnemy ) then
                     data.UpdateEnemies = CurTime() + 0.5
 
                     self:FindEnemies()
                     local priorityEnemy = self:FindPriorityEnemy()
+                    local pickedPlayer
 
                     if not IsValid( priorityEnemy ) and not self:IgnoringPlayers() and not self.IsFodder then -- cheap infinite view distance
                         -- only run this code if no enemies, go thru player table one-by-one and check los to see if they can be enemy
                         local allPlayers = player.GetAll()
                         -- check only one ply per run
-                        local pickedPlayer = allPlayers[data.playerCheckIndex]
+                        pickedPlayer = allPlayers[data.playerCheckIndex]
 
-                        if IsValid( pickedPlayer ) then
-                            local isLinkedPlayer = pickedPlayer == self.linkedPlayer
-                            local alive = pickedPlayer:Health() > 0
-                            if alive and self:ShouldBeEnemy( pickedPlayer ) and self:IsInMyFov( pickedPlayer ) and terminator_Extras.PosCanSee( self:GetShootPos(), self:EntShootPos( pickedPlayer ) ) then
-                                self:UpdateEnemyMemory( pickedPlayer, pickedPlayer:GetPos() )
-
-                            elseif isLinkedPlayer and alive then -- HACK
-                                self:SaveSoundHint( pickedPlayer:GetPos(), true )
-                            end
-                        end
                         local new = data.playerCheckIndex + 1
                         if new > #allPlayers then
                             data.playerCheckIndex = 1
                         else
                             data.playerCheckIndex = new
+                        end
+                    end
+                    if IsValid( pickedPlayer ) then
+                        local isLinkedPlayer = pickedPlayer == self.linkedPlayer
+                        local alive = pickedPlayer:Health() > 0
+
+                        if alive and self:ShouldBeEnemy( pickedPlayer ) and self:IsInMyFov( pickedPlayer ) then
+                            local theirShoot = self:EntShootPos( pickedPlayer )
+                            local canSee = terminator_Extras.PosCanSee( myShoot, theirShoot )
+                            local clearOrBreakable = canSee and self:ClearOrBreakable( myShoot, self:EntShootPos( priorityEnemy ) )
+                            if clearOrBreakable then
+                                self:UpdateEnemyMemory( pickedPlayer, pickedPlayer:GetPos() )
+
+                            elseif canSee then
+                                self:RegisterForcedEnemyCheckPos( newEnemy )
+
+                            elseif isLinkedPlayer and alive then -- HACK
+                                self:SaveSoundHint( pickedPlayer:GetPos(), true )
+
+                            end
                         end
                     end
 
@@ -3067,7 +3080,7 @@ function ENT:DoDefaultTasks()
                         prevEnemy ~= priorityEnemy and
                         (
                             data.blockSwitchingEnemies > 0 or
-                            ( self.NothingOrBreakableBetweenEnemy and not self:ClearOrBreakable( self:GetShootPos(), self:EntShootPos( priorityEnemy ) ) ) -- dont switch from visible to obscured
+                            ( self.NothingOrBreakableBetweenEnemy and not self:ClearOrBreakable( myShoot, self:EntShootPos( priorityEnemy ) ) ) -- dont switch from visible to obscured
                         ) and
                         self:GetPos():Distance( priorityEnemy:GetPos() ) > self.CloseEnemyDistance -- enemy needs to be far away, otherwise just switch now
 
@@ -3148,7 +3161,7 @@ function ENT:DoDefaultTasks()
 
                     end
                     if self.IsSeeEnemy or posCheatsLeft > 0 then
-                        self.NothingOrBreakableBetweenEnemy = self:ClearOrBreakable( self:GetShootPos(), self:EntShootPos( newEnemy ) )
+                        self.NothingOrBreakableBetweenEnemy = self:ClearOrBreakable( myShoot, self:EntShootPos( newEnemy ) )
                         self.EnemyLastPosOffsetted = self.EnemyLastPos + terminator_Extras.dirToPos( self.EnemyLastPos, enemyPos ) * 150
                         self.LastEnemyForward = newEnemy:GetForward()
                         self.EnemyLastPos = enemyPos

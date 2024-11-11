@@ -70,6 +70,10 @@ function ENT:ClearOrBreakable( start, endpos, doSmallHull, hullMul )
         hitNothingOrHitBreakable = nil
 
     end
+    if self.EnemiesVehicle and traceRes.HitPos:Distance( endpos ) < 500 then
+        hitNothingOrHitBreakable = true
+
+    end
     if IsValid( hitEnt ) then
         local enemy = self:GetEnemy()
         if self:hitBreakable( traceStruct, traceRes ) then
