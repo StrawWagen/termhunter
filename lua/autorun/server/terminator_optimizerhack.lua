@@ -173,7 +173,7 @@ function terminator_Extras.navAreasCanMerge( start, next )
     if not coplanar then
         local zDifference = math.abs( center1.z - center2.z )
         -- areas are far apart in height, the artifact will be big
-        if zDifference > 10 then
+        if zDifference > 20 then
             -- if they're both on displacements then we can let it slide
             local startIsOnDisplacement = areaIsEntirelyOverDisplacements( start )
             if not startIsOnDisplacement then return false, 0, NULL end
