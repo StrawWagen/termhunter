@@ -1850,6 +1850,8 @@ function ENT:ControlPath2( AimMode )
         self.startUnstuckPos = self:GetPos()
         self.lastUnstuckStart = CurTime()
         local myNav = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
+        if not IsValid( myNav ) then return end --- AAAAH
+
         local scoreData = {}
 
         scoreData.canDoUnderWater = self:isUnderWater()
@@ -2023,7 +2025,8 @@ function ENT:ControlPath2( AimMode )
         local DistToStart = self:GetPos():Distance( self.startUnstuckPos )
         local FarEnough = DistToStart > 200
         local myNavArea = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
-        if not myNavArea then return end
+
+        if not IsValid( myNavArea ) then return end
         local NotStart = self.initAreaId ~= myNavArea:GetID()
 
         local Escaped = nil
@@ -2312,7 +2315,7 @@ local offset25z = Vector( 0, 0, 25 )
 -- very useful for searching, going places the bot hasn't been to yet
 function ENT:walkArea()
     local walkedArea = self:GetCurrentNavArea()
-    if not walkedArea then return end
+    if not IsValid( walkedArea ) then return end
 
     if not self:areaIsReachable( walkedArea ) and self.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
         if self.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
@@ -6425,7 +6428,7 @@ function ENT:DoDefaultTasks()
                     local wepIsUseful = wep and self:IsRangedWeapon( wep ) and wepIsOk
 
                     -- ranged weap
-                    if newPathIsGood and wepIsUseful and not reallyLowHealth then
+                    if newPathIsGood and wepIsUseful and not reallyLowHealth and IsValid( myNavArea ) then
                         data.minNewPathTime = CurTime() + 0.3
                         pathAttemptTime = 3
                         local adjAreas = myNavArea:GetAdjacentAreas()
@@ -6609,7 +6612,7 @@ function ENT:DoDefaultTasks()
                 local wanderPos = nil
                 local myNavArea = self:GetCurrentNavArea()
 
-                if not myNavArea then
+                if not IsValid( myNavArea ) then
                     data.InvalidateAfterwards = true
                     return
                 end
@@ -6741,7 +6744,7 @@ function ENT:DoDefaultTasks()
                 local wanderPos = nil
                 local myNavArea = self:GetCurrentNavArea()
 
-                if not myNavArea then
+                if not IsValid( myNavArea ) then
                     self:TaskFail( "movement_biginertia" )
                     self:StartTask2( "movement_wait", nil, "i dont know where i am" )
                     return
@@ -6839,7 +6842,7 @@ function ENT:DoDefaultTasks()
                     if not self:primaryPathIsValid() then
                         self:TaskFail( "movement_biginertia" )
                         self:StartTask2( "movement_wait", nil, "i couldnt make a path" )
-                        if self:AreaIsOrphan( self:GetCurrentNavArea(), true ) then -- uh oh
+                        if self:AreaIsOrphan( myNavArea, true ) then -- uh oh
                             self.overrideVeryStuck = true
 
                         end

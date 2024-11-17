@@ -493,8 +493,7 @@ end
 
 function ENT:isUnderWater()
     local currentNavArea = self:GetCurrentNavArea()
-    if not currentNavArea then return false end
-    if not currentNavArea:IsValid() then return false end
+    if not IsValid( currentNavArea ) then return false end
     return currentNavArea:IsUnderwater()
 
 end
@@ -683,14 +682,13 @@ function ENT:canDoRun()
     local nearObstacleBlockRunning = self.nearObstacleBlockRunning or 0
     if nearObstacleBlockRunning > CurTime() and not self.IsSeeEnemy then return end
     local area = self:GetCurrentNavArea()
-    if not area then return end
+    if not IsValid( area ) then return end
     if area:HasAttributes( NAV_MESH_CLIFF ) then return end
     if area:HasAttributes( NAV_MESH_CROUCH ) then return end
     local nextArea = self:GetNextPathArea()
     if self:getMaxPathCurvature( area, self.MoveSpeed ) > 0.45 then return end
     if self:confinedSlope( area, nextArea ) == true then return end
-    if not nextArea then return true end
-    if not nextArea:IsValid() then return true end
+    if not IsValid( nextArea ) then return true end
     local myPos = self:GetPos()
     if myPos:DistToSqr( nextArea:GetClosestPointOnArea( myPos ) ) > ( self.MoveSpeed * 1.25 ) ^ 2 then return true end
     if nextArea:HasAttributes( NAV_MESH_CLIFF ) then return end
@@ -706,8 +704,7 @@ function ENT:shouldDoWalk()
     if self.forcedShouldWalk and self.forcedShouldWalk > CurTime() then return true end
 
     local area = self:GetCurrentNavArea()
-    if not area then return end
-    if not area:IsValid() then return end
+    if not IsValid( area ) then return end
     local minSize = math.min( area:GetSizeX(), area:GetSizeY() )
     if minSize < 45 then return true end
     local nextArea = self:GetNextPathArea()
@@ -769,10 +766,10 @@ function ENT:ShouldCrouch()
         if self:PathIsValid() then
             local currArea = self:GetCurrentNavArea()
             local nextArea, goalPathPoint = self:GetNextPathArea()
-            if currArea and currArea:IsValid() and currArea:HasAttributes( NAV_MESH_CROUCH ) then
+            if IsValid( currArea ) and currArea:HasAttributes( NAV_MESH_CROUCH ) then
                 self.overrideCrouch = CurTime() + 0.35
                 return true
-            elseif nextArea and nextArea:IsValid() and ( nextArea:HasAttributes( NAV_MESH_CROUCH ) or math.min( nextArea:GetSizeX(), nextArea:GetSizeY() ) <= 20 ) and goalPathPoint.pos:DistToSqr( myPos ) < Squared60 then
+            elseif IsValid( nextArea ) and ( nextArea:HasAttributes( NAV_MESH_CROUCH ) or math.min( nextArea:GetSizeX(), nextArea:GetSizeY() ) <= 20 ) and goalPathPoint.pos:DistToSqr( myPos ) < Squared60 then
                 self.overrideCrouch = CurTime() + 0.35
                 return true
             end
@@ -1717,7 +1714,7 @@ function ENT:MoveAlongPath( lookAtGoal )
     if areaSimple and good then
 
         -- dont jump if we're trying to jump up stairs!
-        local tryingToJumpUpStairs = areaSimple and areaSimple:HasAttributes( NAV_MESH_STAIRS )
+        local tryingToJumpUpStairs = areaSimple:HasAttributes( NAV_MESH_STAIRS )
         if tryingToJumpUpStairs and aheadArea ~= areaSimple then
             tryingToJumpUpStairs = aheadArea:IsFlat() or areaSimple:IsFlat() or aheadArea:HasAttributes( NAV_MESH_STAIRS )
 

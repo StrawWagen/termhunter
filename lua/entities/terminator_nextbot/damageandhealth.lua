@@ -374,7 +374,9 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
     local attacker = dmg:GetAttacker()
     ProtectedCall( function() self:RunTask( "OnDamaged", dmg ) end )
 
-    if attacker:GetParent() ~= self then
+    local parent = attacker:GetParent()
+
+    if IsValid( parent ) and parent ~= self then
         self:MakeFeud( dmg:GetAttacker() )
 
         local dmgSourcePos = self:getBestPos( dmg:GetAttacker() )

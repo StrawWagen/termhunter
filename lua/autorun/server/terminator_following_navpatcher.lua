@@ -220,7 +220,7 @@ end
 
 local smallSize = Vector( 100, 100, 75 )
 
-local function onNoArea( ply )
+local function onNoArea( ply, beingChased, someoneWasChased )
     if not ply:IsOnGround() then return end
 
     local groundEnt = ply:GetGroundEntity()
@@ -237,7 +237,9 @@ local function onNoArea( ply )
     local lastPatchPos = ply.term_LastPatchPos
     if lastPatchPos and lastPatchPos:Distance( plyPos ) < 50 then return end
 
-    if terminator_Extras.IsLivePatching then
+    local isLowPriority = someoneWasChased and not beingChased
+
+    if isLowPriority or terminator_Extras.IsLivePatching then
         if lastPatchPos and lastPatchPos:Distance( plyPos ) < 100 then return end
         ply.term_LastPatchPos = plyPos
 
@@ -259,8 +261,13 @@ end
 
 local hugeSize = Vector( 500, 500, 150 )
 
-local function onSameArea( ply )
-    if terminator_Extras.IsLivePatching then ply.term_NextCrumbPatchPlace = CurTime() + 0.1 return end
+local function onSameArea( ply, beingChased, someoneWasChased )
+
+    local queueIsWorking = terminator_Extras.IsLivePatching
+    if queueIsWorking then ply.term_NextCrumbPatchPlace = CurTime() + 0.1 return end
+
+    local lowPriority = someoneWasChased and not beingChased
+    if lowPriority then ply.term_NextCrumbPatchPlace = CurTime() + 0.5 return end
 
     local nextPlace = ply.term_NextCrumbPatchPlace or 0
     if nextPlace > CurTime() then return end
@@ -285,7 +292,7 @@ end
 local flattener = Vector( 1, 1, 0.5 )
 local tooFarDistSqr = 40^2
 
-local function navPatchingThink( ply )
+local function navPatchingThink( ply, beingChased, someoneWasChased )
 
     local badMovement = ply:GetMoveType() == MOVETYPE_NOCLIP or ply:Health() <= 0 or ply:GetObserverMode() ~= OBS_MODE_NONE or ply:InVehicle()
 
@@ -297,21 +304,22 @@ local function navPatchingThink( ply )
     end
 
     local currArea, distToArea
-    if ply.GetNavAreaData then
+    if ply.GetNavAreaData then -- glee
         currArea, distToArea = ply:GetNavAreaData()
-        if not IsValid( currArea ) then onNoArea( ply ) return end
+        if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
 
     else
         local plyPos = ply:GetPos()
         currArea = navmesh.GetNearestNavArea( plyPos, false, 25, false, true, -2 )
-        if not IsValid( currArea ) then onNoArea( ply ) return end
+        if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
 
         local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
         distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
 
-        if distToArea > 15 and ply:Crouching() then onNoArea( ply ) return end
+        if distToArea > 15 and ply:Crouching() then onNoArea( ply, beingChased, someoneWasChased ) return end
 
-        if not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100 then
+        local patchABitAhead = beingChased and not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100
+        if patchABitAhead then
             local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
             if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
                 local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
@@ -349,7 +357,7 @@ local function navPatchingThink( ply )
 
     end
 
-    if currArea == oldArea then onSameArea( ply ) return end
+    if currArea == oldArea then onSameArea( ply, beingChased, someoneWasChased ) return end
     if terminator_Extras.IsLivePatching then return end
 
     patchData = table.Copy( patchData )
@@ -412,7 +420,8 @@ local function navPatchSelectivelyThink()
     if not doFollowingPatching then return end
     local cur = CurTime()
     local playersToPatch = {}
-    local addedPlayerCreationIds = {}
+    local chasedPlayers = {}
+    local someoneWasChased = true
     local max = maxPlysToPatch:GetInt()
     -- we should always patch people being chased if we can!
     for _, ply in player.Iterator() do
@@ -420,7 +429,8 @@ local function navPatchSelectivelyThink()
         local chasedUntil = plysCurrentlyBeingChased[ ply ]
         if lowCount and chasedUntil and chasedUntil > cur then
             table.insert( playersToPatch, ply )
-            addedPlayerCreationIds[ ply:GetCreationID() ] = true
+            chasedPlayers[ ply ] = true
+            someoneWasChased = nil
 
         elseif not lowCount then
             break
@@ -432,7 +442,7 @@ local function navPatchSelectivelyThink()
     if #playersToPatch < 4 then
         for _, ply in player.Iterator() do
             local lowCount = #playersToPatch < max
-            if lowCount and not addedPlayerCreationIds[ ply:GetCreationID() ] and not ply:IsFlagSet( FL_NOTARGET ) then
+            if lowCount and not chasedPlayers[ ply ] and not ply:IsFlagSet( FL_NOTARGET ) then
                 table.insert( playersToPatch, ply )
 
             elseif not lowCount then
@@ -443,7 +453,7 @@ local function navPatchSelectivelyThink()
     end
 
     for _, ply in ipairs( playersToPatch ) do
-        navPatchingThink( ply )
+        navPatchingThink( ply, chasedPlayers[ply], someoneWasChased )
 
     end
 end

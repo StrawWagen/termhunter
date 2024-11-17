@@ -492,7 +492,9 @@ function ENT:ShouldCrouch()
 	else
 		if self.m_Jumping then return true end
 		
-		if IsValid(self:GetCurrentNavArea()) and self:GetCurrentNavArea():HasAttributes(NAV_MESH_CROUCH) then
+		local myNavArea = self:GetCurrentNavArea()
+
+		if IsValid( myNavArea ) and myNavArea:HasAttributes(NAV_MESH_CROUCH) then
 			return true
 		end
 
