@@ -893,27 +893,28 @@ function ENT:GetCachedBashableWithinReasonableRange()
 end
 
 -- override this to remove path recalculating, we already do that
-function ENT:ControlPath( lookatgoal )
-    if not self:PathIsValid() then return false end
+function ENT:ControlPath( lookatgoal, myTbl )
+    myTbl = myTbl or self:GetTable()
+    if not myTbl.PathIsValid( self ) then return false end
 
-    local pos = self:GetPathPos()
-    local options = self.m_PathOptions
+    local pos = myTbl.GetPathPos( self )
+    local options = myTbl.m_PathOptions
 
     local range = self:GetRangeTo( pos )
 
-    if range < options.tolerance or range < self.PathGoalToleranceFinal then
-        self:InvalidatePath( "i reached the end of my path!" )
+    if range < options.tolerance or range < myTbl.PathGoalToleranceFinal then
+        myTbl.InvalidatePath( self, "i reached the end of my path!" )
         return true
 
     end
 
     -- beartrap
-    if IsValid( self.terminatorStucker ) then
+    if IsValid( myTbl.terminatorStucker ) then
         return false
 
     end
 
-    if self:MoveAlongPath( lookatgoal ) then
+    if myTbl.MoveAlongPath( self, lookatgoal, myTbl ) then
         return true
 
     end
@@ -1155,6 +1156,7 @@ do
 end
 
 function ENT:tryToOpen( blocker, blockerTrace )
+    if not IsValid( blocker ) then return end
     local class = blocker:GetClass()
 
     local OpenTime = self.OpenDoorTime or 0
@@ -1817,39 +1819,24 @@ function ENT:IsUnderDisplacement()
     return true, nil
 end
 
-
-function ENT:GetTrueCurrentNavArea()
-    -- don't redo this when we just updated it
-    local area = NULL
-    local nextTrueAreaCache = self.nextTrueAreaCache or 0
-    if nextTrueAreaCache < CurTime() then
-        area = terminator_Extras.getNearestNavFloor( self:GetPos() )
-        self.nextTrueAreaCache = CurTime() + 0.08
-
-    end
-    if area == NULL then area = nil end
-    self.cachedTrueArea = area
-
-    return area
-end
-
 --do this so we can override the nextbot's current path
 function ENT:ControlPath2( AimMode )
+    local myTbl = self:GetTable()
     local result = nil
-    if self.blockControlPath and self.blockControlPath > CurTime() then return end
-    local validPath = self:PathIsValid()
-    local badPathAndStuck = self.isUnstucking and not validPath
-    local bashableWithinReasonableRange = self:GetCachedBashableWithinReasonableRange()
+    if myTbl.blockControlPath and myTbl.blockControlPath > CurTime() then return end
+    local validPath = myTbl.PathIsValid( self )
+    local badPathAndStuck = myTbl.isUnstucking and not validPath
+    local bashableWithinReasonableRange = myTbl.GetCachedBashableWithinReasonableRange( self )
 
     local blockUnstuckRetrace = self.blockUnstuckRetrace or 0
     local doUnstuckPath = blockUnstuckRetrace < CurTime()
-    self.blockUnstuckRetrace = nil
+    myTbl.blockUnstuckRetrace = nil
 
     if HunterIsStuck( self ) or badPathAndStuck then -- new unstuck
-        self.startUnstuckDestination = self.PathEndPos -- save where we were going
-        self.startUnstuckPos = self:GetPos()
-        self.lastUnstuckStart = CurTime()
-        local myNav = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
+        myTbl.startUnstuckDestination = myTbl.PathEndPos -- save where we were going
+        myTbl.startUnstuckPos = self:GetPos()
+        myTbl.lastUnstuckStart = CurTime()
+        local myNav = myTbl.GetTrueCurrentNavArea( self ) or self:GetCurrentNavArea()
         if not IsValid( myNav ) then return end --- AAAAH
 
         local scoreData = {}
@@ -1857,11 +1844,11 @@ function ENT:ControlPath2( AimMode )
         scoreData.canDoUnderWater = self:isUnderWater()
         scoreData.self = self
         scoreData.dirToEnd = self:GetForward()
-        scoreData.bearingPos = self.startUnstuckPos
+        scoreData.bearingPos = myTbl.startUnstuckPos
 
         if validPath then
             local path = self:GetPath()
-            local _, aheadSegment = self:GetNextPathArea( myNav ) -- top of the jump
+            local _, aheadSegment = myTbl.GetNextPathArea( self, myNav ) -- top of the jump
             local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
             local dirPathGoes
             local areasInDir
@@ -1878,16 +1865,16 @@ function ENT:ControlPath2( AimMode )
 
             for _, area in ipairs( areasInDir ) do
                 --debugoverlay.Line( myNav:GetCenter(), area:GetCenter(), 5, Color( 255, 255, 0 ), true )
-                self:flagConnectionAsShit( myNav, area )
+                myTbl.flagConnectionAsShit( self, myNav, area )
 
             end
-            self:flagConnectionAsShit( currSegment.area, aheadSegment.area )
+            myTbl.flagConnectionAsShit( self, currSegment.area, aheadSegment.area )
 
             --debugoverlay.Line( currSegment.area:GetCenter(), aheadSegment.area:GetCenter(), 5, Color( 255, 255, 0 ), true )
 
             ::skipTheShitConnectionFlag::
 
-            self:InvalidatePath( "connection was flagged, killing my path for a new one!" )
+            myTbl.InvalidatePath( self, "connection was flagged, killing my path for a new one!" )
 
         end
 
@@ -1947,87 +1934,87 @@ function ENT:ControlPath2( AimMode )
 
         end
 
-        self.tryToHitUnstuck = true
-        self.unstuckingTimeout = CurTime() + 10
-        self:ReallyAnger( 10 )
+        myTbl.tryToHitUnstuck = true
+        myTbl.unstuckingTimeout = CurTime() + 10
+        myTbl:ReallyAnger( 10 )
 
     end
 
     yieldIfWeCan()
 
-    if self.tryToHitUnstuck then
+    if myTbl.tryToHitUnstuck then
         local done = nil
-        local toBeat = self.entToBeatUp
-        local disrespector = self:GetCachedDisrespector()
+        local toBeat = myTbl.entToBeatUp
+        local disrespector = myTbl.GetCachedDisrespector( self )
 
-        local newEnt = self.overrideStuckBeatupEnt or self.LastShootBlocker or bashableWithinReasonableRange[1] or disrespector
+        local newEnt = myTbl.overrideStuckBeatupEnt or myTbl.LastShootBlocker or bashableWithinReasonableRange[1] or disrespector
 
-        if self.hitTimeout then
+        if myTbl.hitTimeout then
             if IsValid( toBeat ) then
-                local valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose, visible = self:beatUpEnt( toBeat, true )
+                local valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose, visible = myTbl.beatUpEnt( self, toBeat, true )
                 local isNailed = istable( toBeat.huntersglee_breakablenails )
-                local isInDanger = self:getLostHealth() >= 20
+                local isInDanger = myTbl.getLostHealth( self ) >= 20
                 local dangerAndNotNailed = isInDanger and not isNailed
                 -- door was bashed or we are bored, or scared
-                if self.hitTimeout < CurTime() or not toBeat:IsSolid() or dangerAndNotNailed then
+                if myTbl.hitTimeout < CurTime() or not toBeat:IsSolid() or dangerAndNotNailed then
                     done = true
-                    self.lastBeatUpEnt = toBeat
+                    myTbl.lastBeatUpEnt = toBeat
 
                 end
                 if not closeAndCanHit or not visible then
-                    self.entToBeatUp = nil
-                    self.lastBeatUpEnt = toBeat
+                    myTbl.entToBeatUp = nil
+                    myTbl.lastBeatUpEnt = toBeat
 
                 end
                 -- BEAT UP THE NAILED THING!
                 if isNailed and visible and nearAndCanHit and closeAndCanHit and valid and attacked then
-                    self:GetTheBestWeapon()
-                    self.hitTimeout = CurTime() + 3
+                    myTbl.GetTheBestWeapon( self )
+                    myTbl.hitTimeout = CurTime() + 3
 
                 -- shoot the nailed thing
-                elseif isNailed and not isClose and visible and self:IsRangedWeapon() then
-                    self:shootAt( self:getBestPos( toBeat ) )
+                elseif isNailed and not isClose and visible and myTbl.IsRangedWeapon( self ) then
+                    myTbl.shootAt( self, myTbl.getBestPos( self, toBeat ) )
 
                 end
             -- was valid
             elseif not IsValid( toBeat ) then
                 -- something new to break
                 local somethingNewToBeatup = bashableWithinReasonableRange[1]
-                local newWithinBashRange = IsValid( somethingNewToBeatup ) and self.lastBeatUpEnt ~= somethingNewToBeatup
-                local newDisrespector = IsValid( disrespector ) and self.lastBeatUpEnt ~= disrespector
+                local newWithinBashRange = IsValid( somethingNewToBeatup ) and myTbl.lastBeatUpEnt ~= somethingNewToBeatup
+                local newDisrespector = IsValid( disrespector ) and myTbl.lastBeatUpEnt ~= disrespector
                 if newWithinBashRange or newDisrespector then
                     toBeat = bashableWithinReasonableRange[1] or disrespector
-                    self.entToBeatUp = toBeat
-                    self.hitTimeout = CurTime() + 3
+                    myTbl.entToBeatUp = toBeat
+                    myTbl.hitTimeout = CurTime() + 3
 
                 else
                     done = true
 
                 end
             end
-        elseif ( IsValid( self.LastShootBlocker ) and self.LastShootBlocker ~= self.lastBeatUpEnt ) or ( IsValid( newEnt ) and newEnt ~= self.lastBeatUpEnt ) then
-            self.hitTimeout = CurTime() + 3
+        elseif ( IsValid( myTbl.LastShootBlocker ) and myTbl.LastShootBlocker ~= myTbl.lastBeatUpEnt ) or ( IsValid( newEnt ) and newEnt ~= myTbl.lastBeatUpEnt ) then
+            myTbl.hitTimeout = CurTime() + 3
 
-            self.overrideStuckBeatupEnt = nil
+            myTbl.overrideStuckBeatupEnt = nil
 
         else
             done = true
 
         end
-        if done or ( self.hitTimeout + 1 ) < CurTime() then
-            self.entToBeatUp = nil
-            self.hitTimeout = nil
-            self.tryToHitUnstuck = nil
+        if done or ( myTbl.hitTimeout + 1 ) < CurTime() then
+            myTbl.entToBeatUp = nil
+            myTbl.hitTimeout = nil
+            myTbl.tryToHitUnstuck = nil
 
         end
-    elseif self.isUnstucking then
-        result = self:ControlPath( AimMode )
-        local DistToStart = self:GetPos():Distance( self.startUnstuckPos )
+    elseif myTbl.isUnstucking then
+        result = myTbl.ControlPath( self, AimMode )
+        local DistToStart = self:GetPos():Distance( myTbl.startUnstuckPos )
         local FarEnough = DistToStart > 200
-        local myNavArea = self:GetTrueCurrentNavArea() or self:GetCurrentNavArea()
+        local myNavArea = myTbl.GetTrueCurrentNavArea( self ) or self:GetCurrentNavArea()
 
         if not IsValid( myNavArea ) then return end
-        local NotStart = self.initAreaId ~= myNavArea:GetID()
+        local NotStart = myTbl.initAreaId ~= myNavArea:GetID()
 
         local Escaped = nil
 
@@ -2038,9 +2025,9 @@ function ENT:ControlPath2( AimMode )
             Escaped = true
 
         end
-        if Escaped or self.unstuckingTimeout < CurTime() then
-            self.isUnstucking = nil
-            self:SetupPathShell( self.startUnstuckDestination )
+        if Escaped or myTbl.unstuckingTimeout < CurTime() then
+            myTbl.isUnstucking = nil
+            myTbl.SetupPathShell( self, myTbl.startUnstuckDestination )
         end
     else
         local wep = self:GetWeapon()
@@ -2048,7 +2035,7 @@ function ENT:ControlPath2( AimMode )
             AimMode = nil
 
         end
-        result = self:ControlPath( AimMode )
+        result = myTbl.ControlPath( self, AimMode )
 
     end
     return result

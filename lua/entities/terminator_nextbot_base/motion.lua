@@ -77,7 +77,8 @@ function ENT:GetCurrentSpeed()
 	cached = self.loco:GetVelocity():Length2D()
 	self.term_CachedCurrentSpeed = cached
 
-	timer.Simple( 0, function()
+	timer.Simple( 0.01, function()
+		if not IsValid( self ) then return end
 		self.term_CachedCurrentSpeed = nil
 
 	end )

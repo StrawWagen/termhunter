@@ -327,7 +327,7 @@ function ENT:OnTakeDamage( Damage )
             BodyGroupDamage( self, ToBGs, BgDamage, Damage, SilentBgDmg )
 
         end
-    elseif Damage:IsDamageType( DMG_DISSOLVE ) and Damage:GetDamage() >= 455 then -- NOT metallic damage, but handling a combine ball!
+    elseif Damage:IsDamageType( DMG_DISSOLVE ) then -- NOT metallic damage, but handling a combine ball!
         local potentialBall = Damage:GetInflictor()
         if string.find( potentialBall:GetClass(), "ball" ) then -- this is definitely a ball!
             local ballHealth = potentialBall.term_Ballhealth or 1000
@@ -341,12 +341,12 @@ function ENT:OnTakeDamage( Damage )
                 potentialBall.term_Ballhealth = ballHealth
 
             end
+
+            self:ReallyAnger( 60 )
+
+            self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
+
         end
-
-        self:ReallyAnger( 60 )
-
-        self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
-
     end
 
     self:HandleFlinching( Damage, 0 )

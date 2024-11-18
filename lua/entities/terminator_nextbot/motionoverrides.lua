@@ -1412,8 +1412,8 @@ terminator_Extras.term_InterruptedSpeedToAimAtProps = 100^2
     Ret1: bool | Path was completed right now
     overriden to fuck with the broken jumping, hopefully making it more reliable.
 --]]------------------------------------
-function ENT:MoveAlongPath( lookAtGoal )
-    local myTbl = self:GetTable()
+function ENT:MoveAlongPath( lookAtGoal, myTbl )
+    myTbl = myTbl or self:GetTable()
     local path = self:GetPath()
     --local drawingPath
 
