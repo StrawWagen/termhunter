@@ -42,6 +42,8 @@ ENT.CollisionBounds = {Vector(-16,-16,0),Vector(16,16,72)}
 -- Bot's collision bounds when crouching, min max
 ENT.CrouchCollisionBounds = {Vector(-16,-16,0),Vector(16,16,36)}
 
+ENT.MyPhysicsMass = 85
+
 -- Can bot crouch
 ENT.CanCrouch = true
 

@@ -279,7 +279,8 @@ if SERVER then
     end
 
     function ENT:GetIdealMoveSpeed()
-        return self.MoveSpeed
+        return self.loco:GetDesiredSpeed()
+
     end
 
     function ENT:SetLastPosition()

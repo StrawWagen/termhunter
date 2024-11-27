@@ -48,7 +48,7 @@ function ENT:SetupSpeed()
 	local speed = 0
 	
 	if self:IsCrouching() then
-		speed = self:ShouldWalk() and self.WalkSpeed or self.CrouchSpeed
+		speed = self:ShouldWalk() and math.min( self.WalkSpeed, self.CrouchSpeed ) or self.CrouchSpeed
 	else
 		if self:ShouldRun() then
 			speed = self.RunSpeed
@@ -536,10 +536,11 @@ end
 function ENT:SetupCollisionBounds()
 	local data = self:IsCrouching() and self.CrouchCollisionBounds or self.CollisionBounds
 	
-	self:SetCollisionBounds(data[1],data[2])
+	local scale = self:GetModelScale()
+	self:SetCollisionBounds(data[1]*scale,data[2]*scale)
 	
 	if self:PhysicsInitShadow(false,false) then
-		self:GetPhysicsObject():SetMass(85)	-- 85 is default player's physics object mass
+		self:GetPhysicsObject():SetMass(self.MyPhysicsMass)
 	end
 end
 

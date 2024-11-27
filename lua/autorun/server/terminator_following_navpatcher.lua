@@ -289,6 +289,7 @@ end
 -- patches gaps in navmesh, using players as a guide
 -- patches will never be ideal, but they will be better than nothing
 
+local doorCheckHull = Vector( 10, 10, 1 )
 local flattener = Vector( 1, 1, 0.5 )
 local tooFarDistSqr = 40^2
 
@@ -397,12 +398,12 @@ local function navPatchingThink( ply, beingChased, someoneWasChased )
         local oldCenterOffsetted = oldArea:GetCenter()
         oldCenterOffsetted.z = highestHeight
         if debugging then debugoverlay.Line( oldCenterOffsetted, currClosestPosInAir, 5, color_white, true ) end
-        if not terminator_Extras.PosCanSee( oldCenterOffsetted, currClosestPosInAir, MASK_SOLID_BRUSHONLY ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4a" ) return end
+        if not terminator_Extras.PosCanSeeHull( oldCenterOffsetted, currClosestPosInAir, MASK_SOLID_BRUSHONLY, doorCheckHull ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4a" ) return end
 
         local currCenterOffsetted = currArea:GetCenter()
         currCenterOffsetted.z = highestHeight
         if debugging then debugoverlay.Line( currCenterOffsetted, oldClosestPosInAir, 5, color_white, true ) end
-        if not terminator_Extras.PosCanSee( currCenterOffsetted, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4b" ) return end
+        if not terminator_Extras.PosCanSeeHull( currCenterOffsetted, oldClosestPosInAir, MASK_SOLID_BRUSHONLY, doorCheckHull ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4b" ) return end
 
     end
 

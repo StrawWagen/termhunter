@@ -1693,40 +1693,42 @@ function ENT:OnHardBlocked()
     self.nextPosUpdate = CurTime()
     self.blockUnstuckRetrace = CurTime() + 1
 
+    terminator_Extras.dynamicallyPatchPos( self:GetPos() )
+
 end
 
 -- unstuck that flags a connection as bad, then the bot will bash anything nearby, then it will back up.
 -- there are 2 more unstucks.
--- one that first makes the bot walk somewhere random, then teleports the bot when it is REALLY stuck ( reallystuck_handler task )
+-- one that first makes the bot walk somewhere random, then if that fails and the bot is REALLY stuck, teleports/removes it ( reallystuck_handler task )
 -- the base one ( in motionoverrides ) that teleports it to a clear spot next to it, if it's intersecting anything
-local function HunterIsStuck( self )
-    local nextUnstuck = self.nextUnstuckCheck or 0
+local function HunterIsStuck( self, myTbl )
+    local nextUnstuck = myTbl.nextUnstuckCheck or 0
     if nextUnstuck > CurTime() then return end
 
-    if IsValid( self.terminatorStucker ) then return true end
+    if IsValid( myTbl.terminatorStucker ) then return true end
 
-    if self.overrideMiniStuck then self.overrideMiniStuck = nil return true end
+    if myTbl.overrideMiniStuck then myTbl.overrideMiniStuck = nil return true end
 
-    if not self.nextUnstuckCheck then
-        self.nextUnstuckCheck = CurTime() + 0.1
-        self:ResetUnstuckInfo()
+    if not myTbl.nextUnstuckCheck then
+        myTbl.nextUnstuckCheck = CurTime() + 0.1
+        myTbl.ResetUnstuckInfo( self )
 
     end
-    self.nextUnstuckCheck = CurTime() + 0.2
+    myTbl.nextUnstuckCheck = CurTime() + 0.2
 
-    local HasAcceleration = self.loco:GetAcceleration()
+    local HasAcceleration = myTbl.loco:GetAcceleration()
     if HasAcceleration <= 0 then return end
 
     local myPos = self:GetPos()
-    local StartPos = self.LastMovementStartPos or vec_zero
-    local GoalPos = self.PathEndPos or vec_zero
+    local StartPos = myTbl.LastMovementStartPos or vec_zero
+    local GoalPos = myTbl.PathEndPos or vec_zero
     local NotMoving
     -- laddering? check 3d dist, not 2d dist!
-    if self.terminator_HandlingLadder and self.StuckPos5 and self.StuckPos3 then
-        NotMoving = myPos:DistToSqr( self.StuckPos5 ) < 20^2 and myPos:DistToSqr( self.StuckPos3 ) < 20^2
+    if myTbl.terminator_HandlingLadder and myTbl.StuckPos5 and myTbl.StuckPos3 then
+        NotMoving = myPos:DistToSqr( myTbl.StuckPos5 ) < 20^2 and myPos:DistToSqr( myTbl.StuckPos3 ) < 20^2
 
     else
-        NotMoving = DistToSqr2D( myPos, self.StuckPos5 ) < 20^2 and DistToSqr2D( myPos, self.StuckPos3 ) < 20^2
+        NotMoving = DistToSqr2D( myPos, myTbl.StuckPos5 ) < 20^2 and DistToSqr2D( myPos, myTbl.StuckPos3 ) < 20^2
 
     end
 
@@ -1736,9 +1738,9 @@ local function HunterIsStuck( self )
 
     end--]]
 
-    local blocker = self.LastShootBlocker
+    local blocker = myTbl.LastShootBlocker
     if not IsValid( blocker ) then
-        blocker = self:GetCachedDisrespector()
+        blocker = myTbl.GetCachedDisrespector( self )
 
     end
     if IsValid( blocker ) and ( blocker:IsNPC() or blocker:IsPlayer() ) then
@@ -1747,38 +1749,38 @@ local function HunterIsStuck( self )
     end
 
     local FarFromStart = DistToSqr2D( myPos, StartPos ) > 15^2
-    local FarFromStartAndNew = FarFromStart or ( self.LastMovementStart and ( self.LastMovementStart + 1 < CurTime() ) )
+    local FarFromStartAndNew = FarFromStart or ( myTbl.LastMovementStart and ( myTbl.LastMovementStart + 1 < CurTime() ) )
     local FarFromEnd = DistToSqr2D( myPos, GoalPos ) > 15^2
-    local IsPath = self:PathIsValid()
+    local IsPath = myTbl.PathIsValid( self )
 
-    local NotMovingAndSameBlocker = self.StuckEnt1 and ( self.StuckEnt1 == self.StuckEnt2 ) and ( self.StuckEnt1 == self.StuckEnt3 ) and DistToSqr2D( myPos, self.StuckPos2 ) < 20^2 and DistToSqr2D( myPos, self.StuckPos3 ) < 20^2
+    local NotMovingAndSameBlocker = myTbl.StuckEnt1 and ( myTbl.StuckEnt1 == myTbl.StuckEnt2 ) and ( myTbl.StuckEnt1 == myTbl.StuckEnt3 ) and DistToSqr2D( myPos, myTbl.StuckPos2 ) < 20^2 and DistToSqr2D( myPos, myTbl.StuckPos3 ) < 20^2
 
-    local nextPosUpdate = self.nextPosUpdate or 0
+    local nextPosUpdate = myTbl.nextPosUpdate or 0
 
     if nextPosUpdate < CurTime() and IsPath then
-        if self:canDoRun() and not self:IsJumping() then
-            self.nextPosUpdate = CurTime() + 0.25
+        if myTbl.canDoRun( self ) and not myTbl.IsJumping( self ) then
+            myTbl.nextPosUpdate = CurTime() + 0.25
 
         else
-            self.nextPosUpdate = CurTime() + 0.55
+            myTbl.nextPosUpdate = CurTime() + 0.55
 
         end
-        self.StuckPos5 = self.StuckPos4
-        self.StuckPos4 = self.StuckPos3
-        self.StuckPos3 = self.StuckPos2
-        self.StuckPos2 = self.StuckPos1
-        self.StuckPos1 = myPos
+        myTbl.StuckPos5 = myTbl.StuckPos4
+        myTbl.StuckPos4 = myTbl.StuckPos3
+        myTbl.StuckPos3 = myTbl.StuckPos2
+        myTbl.StuckPos2 = myTbl.StuckPos1
+        myTbl.StuckPos1 = myPos
 
-        self.StuckEnt3 = self.StuckEnt2
-        self.StuckEnt2 = self.StuckEnt1
-        self.StuckEnt1 = blocker
+        myTbl.StuckEnt3 = myTbl.StuckEnt2
+        myTbl.StuckEnt2 = myTbl.StuckEnt1
+        myTbl.StuckEnt1 = blocker
 
     end
 
     --print( ( NotMoving or NotMovingAndSameBlocker ), FarFromStartAndNew, FarFromEnd, IsPath )
     local stuck = ( NotMoving or NotMovingAndSameBlocker ) and FarFromStartAndNew and FarFromEnd and IsPath
     if stuck then -- reset so chains of stuck events happen less
-        self:ResetUnstuckInfo()
+        myTbl.ResetUnstuckInfo( self )
 
     end
 
@@ -1823,19 +1825,28 @@ end
 function ENT:ControlPath2( AimMode )
     local myTbl = self:GetTable()
     local result = nil
+
     if myTbl.blockControlPath and myTbl.blockControlPath > CurTime() then return end
+
     local validPath = myTbl.PathIsValid( self )
     local badPathAndStuck = myTbl.isUnstucking and not validPath
     local bashableWithinReasonableRange = myTbl.GetCachedBashableWithinReasonableRange( self )
 
-    local blockUnstuckRetrace = self.blockUnstuckRetrace or 0
+    local blockUnstuckRetrace = myTbl.blockUnstuckRetrace or 0 -- allow this to be blocked
     local doUnstuckPath = blockUnstuckRetrace < CurTime()
     myTbl.blockUnstuckRetrace = nil
 
-    if HunterIsStuck( self ) or badPathAndStuck then -- new unstuck
+    if badPathAndStuck or HunterIsStuck( self, myTbl ) then -- new unstuck
+        local myPos = self:GetPos()
         myTbl.startUnstuckDestination = myTbl.PathEndPos -- save where we were going
-        myTbl.startUnstuckPos = self:GetPos()
+        myTbl.startUnstuckPos = myPos
         myTbl.lastUnstuckStart = CurTime()
+
+        if validPath and not terminator_Extras.IsLivePatching then
+            terminator_Extras.dynamicallyPatchPos( myPos )
+
+        end
+
         local myNav = myTbl.GetTrueCurrentNavArea( self ) or self:GetCurrentNavArea()
         if not IsValid( myNav ) then return end --- AAAAH
 
@@ -1846,7 +1857,7 @@ function ENT:ControlPath2( AimMode )
         scoreData.dirToEnd = self:GetForward()
         scoreData.bearingPos = myTbl.startUnstuckPos
 
-        if validPath then
+        if validPath then -- we were pathing, time to flag this connection
             local path = self:GetPath()
             local _, aheadSegment = myTbl.GetNextPathArea( self, myNav ) -- top of the jump
             local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
@@ -1878,7 +1889,7 @@ function ENT:ControlPath2( AimMode )
 
         end
 
-        if doUnstuckPath then
+        if doUnstuckPath then -- get OUTTA here
             for _ = 1, 4 do
                 local randOffset = math.random( -40, 40 )
 
@@ -2008,6 +2019,7 @@ function ENT:ControlPath2( AimMode )
 
         end
     elseif myTbl.isUnstucking then
+        if not validPath then return end
         result = myTbl.ControlPath( self, AimMode )
         local DistToStart = self:GetPos():Distance( myTbl.startUnstuckPos )
         local FarEnough = DistToStart > 200
@@ -2030,6 +2042,7 @@ function ENT:ControlPath2( AimMode )
             myTbl.SetupPathShell( self, myTbl.startUnstuckDestination )
         end
     else
+        if not validPath then return end
         local wep = self:GetWeapon()
         if wep and wep.worksWithoutSightline and IsValid( self:GetEnemy() ) and AimMode == true then
             AimMode = nil
@@ -2039,6 +2052,7 @@ function ENT:ControlPath2( AimMode )
 
     end
     return result
+
 end
 
 -- do this so we can get data about current tasks easily
@@ -2751,14 +2765,6 @@ function ENT:TermThink() -- inside coroutine :)
 
     end
     --]]
-
-    if not self.ReallyStrong then return end
-    local Mass = 5000
-    local Obj = self:GetPhysicsObject()
-    if not IsValid( Obj ) then return end
-    if Obj:GetMass() ~= Mass then
-        self:GetPhysicsObject():SetMass( Mass )
-    end
 end
 
 -- stub
@@ -2849,6 +2855,11 @@ function ENT:Initialize()
     self:InitializeHealthRegen()
 
     self:DoHardcodedRelations()
+
+    if self.IsReallyHeavy and self.MyPhysicsMass == 85 then
+        self.MyPhysicsMass = 5000
+
+    end
 
     timer.Simple( 0.1, function()
         if not IsValid( self ) then return end

@@ -19,6 +19,24 @@ terminator_Extras.PosCanSee = function( startPos, endPos, mask )
 
 end
 
+terminator_Extras.PosCanSeeHull = function( startPos, endPos, mask, hull )
+    if not startPos then return end
+    if not endPos then return end
+
+    mask = mask or terminator_Extras.LineOfSightMask
+
+    local trData = {
+        start = startPos,
+        endpos = endPos,
+        mask = mask,
+        mins = -hull,
+        maxs = hull,
+    }
+    local trace = util.TraceHull( trData )
+    return not trace.Hit, trace
+
+end
+
 terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     if not startPos then return end
     if not endPos then return end
@@ -80,9 +98,19 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
         local trace = util.TraceLine( traceData )
         if not trace.Hit then continue end
 
-        hits[trace.Fraction] = trace
+        local fraction
+        if trace.HitSky then -- its not a nook if its NEXT TO THE SKYBOX!!!
+            fraction = 1
 
-        facesBlocked = facesBlocked + math.abs( trace.Fraction - 1 )
+        else
+            fraction = trace.Fraction
+
+        end
+
+        hits[fraction] = trace -- lol if this is 
+
+        local isNookScore = fraction - 1 -- so facesblocked is higher when this is in small spaces
+        facesBlocked = facesBlocked + math.abs( isNookScore )
 
     end
 

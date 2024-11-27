@@ -1704,14 +1704,14 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local dropTypeToDealwith = droptype and closeToGoal
 
     local good = self:PathIsValid() and iAmOnGround
-    local areaSimple = self:GetCurrentNavArea()
+    local areaSimple = self:GetCurrentNavArea() or myArea
 
     local myHeightToNext = aheadSegment.pos.z - myPos.z
     local jumpableHeight = myHeightToNext < myTbl.JumpHeight
 
     coroutine_yield()
 
-    if areaSimple and good then
+    if IsValid( areaSimple ) and good then
 
         -- dont jump if we're trying to jump up stairs!
         local tryingToJumpUpStairs = areaSimple:HasAttributes( NAV_MESH_STAIRS )
@@ -2097,7 +2097,7 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
 
     local top = ladder:GetTop()
     local bottom = ladder:GetBottom()
-    local laddersNormalOffset = ladder:GetNormal() * 16 * self:GetModelScale()
+    local laddersNormalOffset = ladder:GetNormal() * 18 * self:GetModelScale()
     local closestToLadderPos = SnapToLadderAxis( bottom + laddersNormalOffset, top + laddersNormalOffset, myPos )
 
     local laddersUp = ( top - bottom ):GetNormalized()
