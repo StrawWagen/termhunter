@@ -3,6 +3,7 @@ resource.AddWorkshop( "2944078031" ) -- download pm please
 
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 local solidMask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP )
+local vec_zero = Vector( 0, 0, 0 )
 
 terminator_Extras.getNearestNavFloor = function( pos )
     if not pos then return NULL end
