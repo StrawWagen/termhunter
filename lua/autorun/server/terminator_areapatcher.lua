@@ -2,7 +2,8 @@
 local math = math
 
 
-local defaultPatchRate = 0.005
+local dedicatedRate = 0.001
+local otherwiseRate = 0.005
 
 local debuggingVar = CreateConVar( "terminator_areapatching_debugging", 0, FCVAR_NONE, "Enable areapatcher debug prints/visualizers." )
 local doAreaPatchingVar = CreateConVar( "terminator_areapatching_enable", 1, FCVAR_ARCHIVE, "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned." )
@@ -28,8 +29,13 @@ local function doPatchingRate( rate )
 
     end
     if rate <= 0 then
-        areaPatchingRate = defaultPatchRate
+        if game.IsDedicated() then
+            areaPatchingRate = dedicatedRate
 
+        else
+            areaPatchingRate = otherwiseRate
+
+        end
     else
         areaPatchingRate = rate
 
