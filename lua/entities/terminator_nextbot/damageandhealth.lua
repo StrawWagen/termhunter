@@ -376,10 +376,10 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     local parent = attacker:GetParent()
 
-    if IsValid( parent ) and parent ~= self then
+    if attacker ~= self and not ( IsValid( parent ) and parent == self ) then -- dont feud/look at fire or self damage
         self:MakeFeud( dmg:GetAttacker() )
 
-        local dmgSourcePos = self:getBestPos( dmg:GetAttacker() )
+        local dmgSourcePos = self:getBestPos( attacker )
         self.TookDamagePos = dmgSourcePos
 
         local time = math.Rand( 1, 1.5 )

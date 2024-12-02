@@ -2581,7 +2581,7 @@ end )
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 ENT.ARNOLD_MODEL = ARNOLD_MODEL
 
-local mdlVar = CreateConVar( "termhunter_modeloverride", ARNOLD_MODEL, FCVAR_NONE, "Override the terminator nextbot's spawned-in model. Model needs to be rigged for player movement" )
+local mdlVar = CreateConVar( "termhunter_modeloverride", ARNOLD_MODEL, FCVAR_ARCHIVE, "Override the terminator nextbot's spawned-in model. Model needs to be rigged for player movement" )
 
 local function termModel()
     local model = ARNOLD_MODEL

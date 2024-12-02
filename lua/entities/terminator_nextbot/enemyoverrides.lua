@@ -7,6 +7,9 @@ local entMeta = FindMetaTable( "Entity" )
 
 local IsFlagSet = entMeta.IsFlagSet
 
+local blockRandomInfighting = CreateConVar( "terminator_block_random_infighting", 0, FCVAR_ARCHIVE, "Block random infighting?" )
+local blockAllInfighting = CreateConVar( "terminator_block_infighting", 0, FCVAR_ARCHIVE, "Disable ALL infighting?" )
+
 
 local playersCache = nil -- i love overoptimisation
 terminator_Extras.DOINGPLYCACHE = terminator_Extras.DOINGPLYCACHE or nil
@@ -614,20 +617,24 @@ function ENT:MakeFeud( enemy )
     if enemy:GetClass() == "rpg_missile" then return end -- crazy fuckin bug
     if enemy:GetClass() == "env_flare" then return end -- just as crazy
 
-    local maniacHunter = self.alwaysManiac
-    if isfunction( maniacHunter ) then
-        maniacHunter = maniacHunter( self )
-        if maniacHunter then
-            self.alwaysManiac = maniacHunter -- condition was met, save result!
+    if pals( self, enemy ) then
+        if blockAllInfighting:GetBool() then return end
+
+        local maniacHunter = self.alwaysManiac -- allow pals to hate eachother if one is a "maniac"
+        if isfunction( maniacHunter ) then
+            maniacHunter = maniacHunter( self )
+            if maniacHunter then
+                self.alwaysManiac = maniacHunter -- condition was met, save result!
+
+            end
+        end
+        if not self.neverManiac and not maniacHunter and not blockRandomInfighting:GetBool() then
+            maniacHunter = ( self:GetCreationID() % 20 ) == 1 -- infighting always gets a good laugh
 
         end
-    end
-    if not self.neverManiac and not maniacHunter then
-        maniacHunter = ( self:GetCreationID() % 20 ) == 1 -- infighting always gets a good laugh
+        if not maniacHunter then return end -- this npc isnt a manaic, dont break the pal relation!
 
     end
-
-    if not maniacHunter and pals( self, enemy ) then return end
 
     if enemy:IsPlayer() then
         self:Term_SetEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else
