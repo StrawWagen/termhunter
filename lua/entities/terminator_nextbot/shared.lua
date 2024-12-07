@@ -5099,7 +5099,7 @@ function ENT:DoDefaultTasks()
                             self.term_WatchTask_NearestDistToEnemy = self.DistToEnemy
 
                         else
-                            add = 0.2
+                            add = math.Rand( 0.4, 0.5 )
                             self.term_WatchTask_NearestDistToEnemy = oldNearest + ( add * 200 )
 
                         end
@@ -5108,7 +5108,7 @@ function ENT:DoDefaultTasks()
 
                     if data.wasWalkingInStep and needsToSave then
                         data.lastEnemyDistPos = enemyPos
-                        add = 0.2
+                        add = math.Rand( 0.2, 0.5 )
 
                     end
 
