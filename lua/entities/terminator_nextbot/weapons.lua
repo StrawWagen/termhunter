@@ -1072,8 +1072,19 @@ function ENT:canGetWeapon()
 end
 
 function ENT:GetTheBestWeapon()
-    local nextGetBest = self.term_NextNeedsAWeaponNow or 0
+    local nextGetBest = self.term_NextNeedsAWeaponNow
+    if not nextGetBest then
+        local add = math.random( 5, 20 ) -- first get, wait! dont just find it instantly!
+        if #self:GetNearbyAllies() >= 2 then
+            add = math.random( 10, 60 ) -- dont need to get it right now, can wait a bit
+
+        end
+        nextGetBest = CurTime() + add
+        self.term_NextNeedsAWeaponNow = nextGetBest
+
+    end
     if nextGetBest > CurTime() then return end
+
     -- dont need a wep!
     if IsValid( self:GetWeapon() ) and self:GetWeaponRange( self:GetWeapon() ) > self.DistToEnemy then return end
     self.terminator_NeedsAWeaponNow = true
@@ -1200,6 +1211,8 @@ local function getTrackedDamage( me, wepOrClass )
 
     end
 end
+ENT.Term_GetTrackedDamage = getTrackedDamage
+
 local function setTrackedDamage( me, wepOrClass, new )
     if IsValid( wepOrClass ) then
         wepOrClass.terminator_TrackedDamageDealt = new
@@ -1362,16 +1375,15 @@ local dropWeps = CreateConVar( "termhunter_dropuselessweapons", 1, FCVAR_NONE, "
 
 -- is a weapon not being useful?
 
-function ENT:JudgeWeapon()
+function ENT:JudgeWeapon( enemy )
     if self:IsFists() then return end
     if not dropWeps:GetBool() then return end
-    if not IsValid( self:GetEnemy() ) then return end
     if not self.NothingOrBreakableBetweenEnemy then return end
 
     local myWeapon = self:GetActiveWeapon()
     local activeLua = self:GetActiveLuaWeapon()
     if not IsValid( myWeapon ) then return end
-    if myWeapon.terminator_IgnoreWeaponUtility or activeLua and activeLua.terminator_IgnoreWeaponUtility then return end
+    if myWeapon.terminator_IgnoreWeaponUtility or ( activeLua and activeLua.terminator_IgnoreWeaponUtility ) then return end
     local weapsWeightToMe = self:GetWeightOfWeapon( myWeapon )
 
     local trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0
@@ -1416,7 +1428,14 @@ function ENT:JudgeWeapon()
         terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.5 )
         local weightToMe = self:GetWeightOfWeapon( myWeapon )
 
-        if weightToMe <= 2 and not hasEvenDoneDamage then
+        local noHealthChangeCount = enemy.term_NoHealthChangeCount or 0
+        local unkillableEnem = noHealthChangeCount >= 100
+        if unkillableEnem then
+            if weightToMe < -10 then
+                giveUpOnWeap = true
+
+            end
+        elseif weightToMe <= 2 and not hasEvenDoneDamage then
             giveUpOnWeap = true
 
         elseif weightToMe <= -2 then

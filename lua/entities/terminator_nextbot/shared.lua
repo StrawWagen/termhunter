@@ -1411,10 +1411,14 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
     local endPosOffsetted = endPos
     local enemy = self:GetEnemy()
     local wep = self:GetWeapon()
-    if IsValid( enemy ) and not wep.terminator_NoLeading then
-        endPosOffsetted = endPosOffsetted + ( enemy:GetVelocity() * 0.08 )
-        endPosOffsetted = endPosOffsetted - ( self:GetVelocity() * 0.08 )
+    local validEnemy
+    if IsValid( enemy ) then
+        validEnemy = true
+        if not wep.terminator_NoLeading then
+            endPosOffsetted = endPosOffsetted + ( enemy:GetVelocity() * 0.08 )
+            endPosOffsetted = endPosOffsetted - ( self:GetVelocity() * 0.08 )
 
+        end
     end
     local attacked = nil
     local out = nil
@@ -1443,8 +1447,8 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
         filter[#filter + 1] = enemy
         local blockAttack = nil
         -- witness me hack for glee
-        if enemy.AttackConfirmed then
-            if IsValid( enemy ) and not blockShoot and enemy:Health() > 0 and self.DistToEnemy < self:GetWeaponRange() * 1.5 then
+        if validEnemy and enemy.AttackConfirmed then
+            if not blockShoot and enemy:Health() > 0 and self.DistToEnemy < self:GetWeaponRange() * 1.5 then
                 enemy.AttackConfirmed( enemy, self )
 
             end
@@ -1460,11 +1464,12 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
         if not attacked and not blockAttack then
             self.terminator_FiringIsAllowed = true
 
-            local nextWeaponJudge = self.nextWeaponJudge or 0
-            -- fix over-judging in singleplayer
-            if nextWeaponJudge < CurTime() then
-                self.nextWeaponJudge = CurTime() + 0.08
-                self:JudgeWeapon()
+            local nextJudge = self.term_NextJudge or 0
+            -- fixes over-judging in singleplayer
+            if validEnemy and nextJudge < CurTime() then
+                self.term_NextJudge = CurTime() + 0.08
+                self:JudgeWeapon( enemy )
+                self:JudgeEnemy( enemy )
 
             end
             attacked = true
@@ -2679,6 +2684,7 @@ ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if t
 ENT.AwarenessCheckRange = 1500 -- used by weapon searching too if wep search radius is <= this
 
 ENT.CanUseStuff = true
+ENT.JudgesEnemies = true -- dynamically ignore enemies if they aren't taking damage?
 ENT.IsFodder = nil -- enables optimisations that make sense on bullet fodder enemies
 ENT.IsStupid = nil -- enables optimisations/simplifcations that make sense for dumb enemies
 

@@ -362,6 +362,13 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     -- if player then, if they are transparent, randomly don't see them, unless we already saw them.
     if isPly and shouldNotSeeEnemy( self, ent ) then return false end
 
+    local noHealthChangeCount = entsTbl.term_NoHealthChangeCount
+    if myTbl.JudgesEnemies and noHealthChangeCount then
+        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 200 + ( self:GetCreationID() % 200 ) )
+        if weirdUnkillable then return false end
+
+    end
+
     return true
 
 end
@@ -505,7 +512,7 @@ do
 end
 
 function ENT:SetupEntityRelationship( ent )
-    local disp,priority,theirdisp = self:GetDesiredEnemyRelationship( ent )
+    local disp,priority,theirdisp = self:GetDesiredEnemyRelationship( ent, true )
     self:Term_SetEntityRelationship( ent, disp, priority )
     if notEnemyCache[ent] then return end
     timer.Simple( 0, function()
@@ -532,7 +539,7 @@ function ENT:SetupEntityRelationship( ent )
     end )
 end
 
-function ENT:GetDesiredEnemyRelationship( ent )
+function ENT:GetDesiredEnemyRelationship( ent, isFirst )
     local disp = D_HT
     local theirdisp = D_HT
     local priority = 1
@@ -559,6 +566,10 @@ function ENT:GetDesiredEnemyRelationship( ent )
 
     elseif ent:IsPlayer() then
         priority = 1000
+        if isFirst then
+            self:OnFirstRelationWithPlayer( ent, disp, priority, theirdisp )
+
+        end
 
     elseif ent:IsNPC() or ent:IsNextBot() then
         local memories = {}
@@ -964,6 +975,62 @@ function ENT:GetNearbyAllies()
     return allies
 
 end
+
+-- ignore enemies that aren't taking damage!
+-- this is reset in damageandhealth when bots are damaged
+-- and when players respawn
+function ENT:JudgeEnemy( enemy )
+    if not self.JudgesEnemies then return end
+    local judgeableWeapon = self:IsFists()
+    if not judgeableWeapon then
+        local myWeapon = self:GetActiveWeapon()
+        if IsValid( myWeapon ) then
+            judgeableWeapon = self:Term_GetTrackedDamage( myWeapon ) > 10
+
+        end
+    end
+
+    if not judgeableWeapon then return end
+
+    local currHealth = enemy:Health()
+    local noChangeCount = enemy.term_NoHealthChangeCount or 0
+    if currHealth <= 0 then
+        enemy.term_NoHealthChangeCount = math.min( 0, noChangeCount + -100 )
+        return
+
+    end
+
+    local oldHealth = enemy.term_OldHealth or 0
+
+    if oldHealth == currHealth then
+        noChangeCount = noChangeCount + 1
+        enemy.term_NoHealthChangeCount = noChangeCount
+
+    else
+        enemy.term_NoHealthChangeCount = math.min( 0, noChangeCount + -100 )
+
+    end
+
+    enemy.term_OldHealth = currHealth
+
+end
+
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_nohealthchange_reset", function()
+    hook.Add( "PlayerSpawn", "terminator_reset_nohealthchangecount", function( ply )
+        local noChangeCount = ply.term_NoHealthChangeCount or 0
+        ply.term_NoHealthChangeCount = math.min( 0, noChangeCount + -100 )
+        ply.term_OldHealth = nil
+
+    end )
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "setup_nohealthchange_reset", function()
+    hook.Remove( "PlayerSpawn", "terminator_reset_nohealthchangecount" )
+    for _, ply in player.Iterator() do
+        ply.term_NoHealthChangeCount = nil
+        ply.term_OldHealth = nil
+
+    end
+end )
 
 local vec_up25 = Vector( 0, 0, 25 )
 

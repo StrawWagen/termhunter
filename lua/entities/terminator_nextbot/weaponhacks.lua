@@ -101,8 +101,8 @@ terminator_WeaponHacks = {
 
                 self.Weapon:SetNextPrimaryFire(CurTime()+1/(self.Primary.RPM/60))	
                 timer.Simple( 0.6, function() if SERVER then if not IsValid(self) then return end 
-                    if IsValid(self.Owner) then 
-                        if (self:AllIsWell()) then 
+                    if IsValid(self.Owner) then
+                        if not self.AllIsWell or self:AllIsWell() then 
                             self:Throw() 
                         end 
                     end

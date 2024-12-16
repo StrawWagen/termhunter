@@ -1,10 +1,5 @@
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
-local function yieldIfWeCan( reason, skipCheck )
-    if not skipCheck and not coroutine_running() then return end
-    coroutine_yield( reason )
-
-end
 
 local gapJumpHull = Vector( 5, 5, 5 )
 local down = Vector( 0, 0, -1 )
@@ -1422,6 +1417,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         --drawingPath = true
 
     end
+    local isFodder = self.IsFodder
     local myPos = self:GetPos()
     local myArea = self:GetTrueCurrentNavArea()
     local iAmOnGround = myTbl.loco:IsOnGround()
@@ -1433,6 +1429,15 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     end
 
     if not currSegment then return false end
+
+    local segData = myTbl.term_CurrPathSegData
+    if not segData or ( segData and segData.segment ~= currSegment.pos ) then
+        segData = {
+            segment = currSegment.pos
+        }
+        myTbl.term_CurrPathSegData = segData
+
+    end
 
     local cur = CurTime()
     if lookAtGoal then
@@ -1567,9 +1572,10 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local filterTbl = TrFilterNoSelf( self )
 
     -- check if normal path is actually gap
-    local reallyJustAGap = nil
+    local reallyJustAGap = segData.reallyJustAGap
     local middle = ( aheadSegment.pos + currSegment.pos ) / 2
-    if currType == 0 then
+    if currType == 0 and reallyJustAGap == nil then
+
         local floorTraceDat = {
             start = middle + vector_up * 50,
             endpos = middle + down * 125,
@@ -1581,7 +1587,11 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         local result = util.TraceHull( floorTraceDat )
         local lowestSegmentsZ = math.min( currSegment.pos.z, aheadSegment.pos.z )
 
-        if not result.Hit then
+        -- if hit but started solid?
+        if result.StartSolid then
+            reallyJustAGap = false
+
+        elseif not result.Hit then
             reallyJustAGap = true
 
         elseif result.HitPos.z < lowestSegmentsZ + -myTbl.loco:GetStepHeight() * 2 then
@@ -1590,12 +1600,11 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             --debugoverlay.Cross( middle, 10, 10, color_white, true )
             --debugoverlay.Cross( result.HitPos, 10, 10, color_white, true )
 
-        end
-        -- if hit but started solid?
-        if result.StartSolid then
-            reallyJustAGap = nil
+        else
+            reallyJustAGap = false
 
         end
+        segData.reallyJustAGap = reallyJustAGap
 
     end
 
@@ -1604,7 +1613,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local dropIsReallyJustAGap = nil
     if droppingType then
         local _, jumpBottomSeg = self:GetNextPathArea( myArea )
-        local _, segAfterTheDrop = self:GetNextPathArea( myArea, 1 )
+        local _, segAfterTheDrop = self:GetNextPathArea( myArea, 2 )
         if jumpBottomSeg and segAfterTheDrop then
             local middleWeighted = ( currSegment.pos + ( jumpBottomSeg.pos * 0.5 ) ) / 1.5
 
@@ -1620,7 +1629,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             local hitBelowDest = result.HitPos.z < ( segAfterTheDrop.pos.z + -65 )
 
             --debugoverlay.Line( floorTraceDat.start, result.HitPos, 10, color_white, true )
-            --debugoverlay.Cross( segAfterTheDrop.pos, 10, 10 )
+            --debugoverlay.Cross( segAfterTheDrop.pos, 10, 10, color_white, true )
 
             if hitBelowDest and not result.StartSolid then
                 dropIsReallyJustAGap = true
@@ -1628,9 +1637,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                 myTbl.m_PathObstacleAvoidPos = nil
                 myTbl.wasADropTypeInterpretedAsAGap = true
 
-            end
-            -- landed jump, recalculate
-            if iAmOnGround and myPos.z < segAfterTheDrop.pos.z + 25 and myTbl.wasADropTypeInterpretedAsAGap then
+            elseif iAmOnGround and myPos.z < segAfterTheDrop.pos.z + 25 and myTbl.wasADropTypeInterpretedAsAGap then
                 self:InvalidatePath( "did a fake dropdown gap jump" )
                 return false
 
@@ -1639,8 +1646,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     end
 
     -- check if jumping over a gap is ACTUALLY jumping over a gap, should stop jumping up krangled stairs.
-    local realGapJump = nil
-    if aheadType == 3 or currType == 3 then
+    local realGapJump = segData.realGapJump
+    if ( aheadType == 3 or currType == 3 ) and realGapJump == nil then
 
         local middleOfGapHighestPoint = middle
         middleOfGapHighestPoint.z = math.max( currSegment.pos.z, aheadSegment.pos.z )
@@ -1670,21 +1677,22 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             local result = util.TraceHull( floorTraceDat )
             --debugoverlay.Cross( middle, 10, 1, color_white, true )
 
-            if not result.Hit then
+            if result.StartSolid then -- might happen idk
+                realGapJump = false
+
+            elseif not result.Hit then
                 realGapJump = true
 
-            end
-            -- if hit but started solid?
-            if result.StartSolid then
-                realGapJump = nil
-
-            end
-
-            if result.HitPos.z < aheadSegment.pos.z + -myTbl.loco:GetStepHeight() then
+            elseif result.HitPos.z < aheadSegment.pos.z + -myTbl.loco:GetStepHeight() then
                 realGapJump = true
+
+            else
+                realGapJump = false
 
             end
         end
+        segData.realGapJump = realGapJump
+
     end
 
     local sqrDistToGoal = myPos:DistToSqr( currSegment.pos )
@@ -1851,7 +1859,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
                 -- GetJumpBlockState is expensive! dont spam it!
                 local time = 0.2
-                if self.IsFodder then
+                if isFodder then
                     time = 0.75
 
                 end
@@ -1860,7 +1868,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             elseif jumpstate ~= 0 then
                 -- GetJumpBlockState is expensive! dont spam it!
                 local time = 0.10
-                if self.IsFodder then
+                if isFodder then
                     time = 0.5
 
                 end
@@ -2029,12 +2037,13 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     myTbl.isInTheMiddleOfJump = doingJump
 
     local range = self:GetRangeTo( self:GetPathPos() )
+    local valid = path:IsValid()
 
-    if not path:IsValid() and range <= myTbl.m_PathOptions.tolerance or range < myTbl.PathGoalToleranceFinal then
+    if ( not valid and range <= myTbl.m_PathOptions.tolerance ) or range < myTbl.PathGoalToleranceFinal then
         self:InvalidatePath( "i reached the end of my path!" )
         return true -- reached end
 
-    elseif path:IsValid() then
+    elseif valid then
         coroutine_yield()
         return nil -- not at end, stuck detection is done elsewhere
 
@@ -2846,5 +2855,45 @@ function ENT:TranslateActivity( act )
     end
 
     return translated or self.IdleActivity
+
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:SetupMotionType()
+    Desc: (INTERNAL) Called to setup motion type сonsidering motion speed and NEXTBOT:IsCrouching.
+    Arg1: 
+    Ret1: 
+--]]------------------------------------
+function ENT:SetupMotionType() -- override this to allow some npcs to more strictly play running anims
+    local moving = self:IsMoving()
+    local moType = TERMINATOR_NEXTBOT_MOTIONTYPE_IDLE
+
+    if self:IsJumping() then
+        moType = TERMINATOR_NEXTBOT_MOTIONTYPE_JUMPING
+    elseif self:IsCrouching() then
+        moType = moving and TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCHWALK or TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCH
+    elseif moving then
+        local speed = self:GetCurrentSpeed()
+        local runCheck
+        if self.term_AnimsWithIdealSpeed then -- override here
+            local runSpeed = self.RunSpeed
+            local moveSpeed = self.MoveSpeed
+            runCheck = moveSpeed + ( runSpeed - moveSpeed )
+
+        else
+            runCheck = self.MoveSpeed + 1
+
+        end
+
+        if speed > runCheck then
+            moType = TERMINATOR_NEXTBOT_MOTIONTYPE_RUN
+        elseif speed < self.MoveSpeed / 2 + 1 then
+            moType = TERMINATOR_NEXTBOT_MOTIONTYPE_WALK
+        else
+            moType = TERMINATOR_NEXTBOT_MOTIONTYPE_MOVE
+        end
+    end
+
+    self:SetMotionType( moType )
 
 end

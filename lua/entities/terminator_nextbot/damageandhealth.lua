@@ -366,12 +366,17 @@ local MEMORY_DAMAGING = 64
 
 function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
+    local attacker = dmg:GetAttacker()
+    if IsValid( attacker ) then
+        attacker.term_NoHealthChangeCount = nil -- stop ignoring whatever attacked us!
+
+    end
+
     local immuneMask = self.term_DMG_ImmunityMask
     if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
 
     if self:IsImmuneToDmg( dmg ) then return true end
 
-    local attacker = dmg:GetAttacker()
     ProtectedCall( function() self:RunTask( "OnDamaged", dmg ) end )
 
     local parent = attacker:GetParent()
@@ -598,4 +603,20 @@ function ENT:InitializeHealthRegen()
         me:SetHealth( newHealth )
 
     end
+end
+
+
+function ENT:OnFirstRelationWithPlayer( ply ) -- for boss npcs, etc
+    local extraHpPerPly = self.ExtraSpawnHealthPerPlayer
+    if not extraHpPerPly then return end
+    if ply:IsFlagSet( FL_NOTARGET ) then return end
+
+    local plysDone = self.ExtraSpawnHealthPlayersDone or 0
+    self.ExtraSpawnHealthPlayersDone = plysDone + 1
+    if plysDone <= 0 then return end -- ignore first ply
+
+    self.SpawnHealth = self.SpawnHealth + extraHpPerPly
+    self:SetMaxHealth( self:GetMaxHealth() + extraHpPerPly )
+    self:SetHealth( self:GetMaxHealth() )
+
 end
