@@ -364,7 +364,7 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     local noHealthChangeCount = entsTbl.term_NoHealthChangeCount
     if myTbl.JudgesEnemies and noHealthChangeCount then
-        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 200 + ( self:GetCreationID() % 200 ) )
+        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 150 + ( self:GetCreationID() % 150 ) )
         if weirdUnkillable then return false end
 
     end
@@ -1026,7 +1026,7 @@ end )
 hook.Add( "terminator_nextbot_noterms_exist", "setup_nohealthchange_reset", function()
     hook.Remove( "PlayerSpawn", "terminator_reset_nohealthchangecount" )
     for _, ply in player.Iterator() do
-        ply.term_NoHealthChangeCount = nil
+        --ply.term_NoHealthChangeCount = nil -- dont clean this up, too lame for bots to restart the whole process again
         ply.term_OldHealth = nil
 
     end
