@@ -1961,9 +1961,13 @@ function ENT:ControlPath2( AimMode )
     if myTbl.tryToHitUnstuck then
         local done = nil
         local toBeat = myTbl.entToBeatUp
-        local disrespector = myTbl.GetCachedDisrespector( self )
+        local lastShootBlocker = myTbl.LastShootBlocker
 
-        local newEnt = myTbl.overrideStuckBeatupEnt or myTbl.LastShootBlocker or bashableWithinReasonableRange[1] or disrespector
+        local disrespector = myTbl.overrideStuckBeatupEnt or lastShootBlocker or bashableWithinReasonableRange[1]
+        if not disrespector then
+            disrespector = myTbl.GetCachedDisrespector( self )
+
+        end
 
         if myTbl.hitTimeout then
             if IsValid( toBeat ) then
@@ -2008,7 +2012,7 @@ function ENT:ControlPath2( AimMode )
 
                 end
             end
-        elseif ( IsValid( myTbl.LastShootBlocker ) and myTbl.LastShootBlocker ~= myTbl.lastBeatUpEnt ) or ( IsValid( newEnt ) and newEnt ~= myTbl.lastBeatUpEnt ) then
+        elseif ( IsValid( lastShootBlocker ) and lastShootBlocker ~= myTbl.lastBeatUpEnt ) or ( IsValid( disrespector ) and disrespector ~= myTbl.lastBeatUpEnt ) then
             myTbl.hitTimeout = CurTime() + 3
 
             myTbl.overrideStuckBeatupEnt = nil
