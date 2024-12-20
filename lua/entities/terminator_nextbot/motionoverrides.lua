@@ -1,6 +1,8 @@
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
 
+local Vector = Vector
+
 local gapJumpHull = Vector( 5, 5, 5 )
 local down = Vector( 0, 0, -1 )
 local vector_up = Vector( 0, 0, 1 )
