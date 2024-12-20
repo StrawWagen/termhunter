@@ -861,6 +861,8 @@ local function GetJumpBlockState(self,dir)
 
 	local pos = self:GetPos()
 	local b1,b2 = self:GetCollisionBounds()
+	b1 = Vector( b1.x, b1.y, b1.z )
+	b2 = Vector( b2.x, b2.y, b2.z )
 	local step = self.loco:GetStepHeight()
 	
 	b1.x = b1.x/2
@@ -1282,6 +1284,8 @@ function ENT:OnStuck()
 	local b1,b2 = self:GetCollisionBounds()
 	
 	if !self.loco:IsOnGround() then
+        b1 = Vector( b1.x, b1.y, b1.z )
+        b2 = Vector( b2.x, b2.y, b2.z )
 		-- Seems in air trace check can return false, but bot is stuck (close to the wall). So we making test bounds bigger.
 	
 		b1.x = b1.x-1

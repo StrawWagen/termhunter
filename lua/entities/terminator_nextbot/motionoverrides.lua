@@ -198,7 +198,7 @@ function ENT:StuckCheck()
             end
         end
 
-        local b1,b2 = self:GetCollisionBounds()
+        local b1, b2 = self:GetCollisionBounds()
 
         local sizeIncrease = 0
         local checkOrigin = myPos
@@ -220,6 +220,8 @@ function ENT:StuckCheck()
         end
 
         if sizeIncrease > 0 then
+            b1 = Vector( b1.x, b1.y, b1.z )
+            b2 = Vector( b2.x, b2.y, b2.z )
             -- prevents getting stuck in air, and getting stuck in doors that slide into us
             b1.x = b1.x - sizeIncrease
             b1.y = b1.y - sizeIncrease
@@ -328,6 +330,8 @@ function ENT:OnStuck()
 
     local pos = self:GetPos()
     local b1, b2 = self:GetCollisionBounds()
+    b1 = Vector( b1.x, b1.y, b1.z )
+    b2 = Vector( b2.x, b2.y, b2.z )
 
     b1.x = b1.x - 4
     b1.y = b1.y - 4
@@ -788,6 +792,8 @@ local vector25Z = Vector( 0, 0, 25 )
 function ENT:BoundsAdjusted( hullSizeMul, assumeCrouch )
     hullSizeMul = hullSizeMul or 1
     local b1, b2 = self:GetCollisionBounds()
+    b1 = Vector( b1.x, b1.y, b1.z )
+    b2 = Vector( b2.x, b2.y, b2.z )
 
     b1.x = b1.x * hullSizeMul
     b1.y = b1.y * hullSizeMul
