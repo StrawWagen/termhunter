@@ -730,6 +730,7 @@ local headclearanceOffsets = {
 
 function ENT:ShouldCrouch()
     if not self.CanCrouch then return false end
+    if self.AlwaysCrouching then return false end -- HACK, for when this bot is always crouching size
 
     if self:IsControlledByPlayer() then
         if self:ControlPlayerKeyDown( IN_DUCK ) then

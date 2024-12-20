@@ -149,11 +149,24 @@ function ENT:CatDamage() -- cataSTROPIC DAMAGE
 end
 
 
+function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
+end
+
+function ImmuneCheck( self, dmg )
+    local immuneMask = self.term_DMG_ImmunityMask
+    if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
+
+    if self:IsImmuneToDmg( dmg ) then return true end
+
+end
+
+
 -- dmg with bodygroup data ( bullets )
 local function OnDamaged( damaged, Hitgroup, Damage )
 
     if not Damage:IsBulletDamage() then return end
     if not damaged.isTerminatorHunterBased then return end
+    if ImmuneCheck( damaged, Damage ) then return true end
     if damaged:PostTookDamage( Damage ) then return true end
     if damaged:PostTookBulletDamage( Damage, Hitgroup ) then return true end
 
@@ -205,6 +218,8 @@ function ENT:OnTakeDamage( Damage )
     self.lastDamagedTime = CurTime()
 
     if Damage:IsDamageType( DMG_BULLET ) then return end -- handled ABOVE!
+
+    if ImmuneCheck( self, Damage ) then return true end
 
     if self:PostTookDamage( Damage ) then return true end
 
@@ -353,11 +368,6 @@ function ENT:OnTakeDamage( Damage )
 
 end
 
-
-function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
-end
-
-
 function ENT:PostTookBulletDamage( _dmg, _hitGroup ) -- ver of postTookDamage, with hitgroup data
 end
 
@@ -372,20 +382,21 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     end
 
-    local immuneMask = self.term_DMG_ImmunityMask
-    if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
-
-    if self:IsImmuneToDmg( dmg ) then return true end
-
     ProtectedCall( function() self:RunTask( "OnDamaged", dmg ) end )
 
     local parent = attacker:GetParent()
 
     if attacker ~= self and not ( IsValid( parent ) and parent == self ) then -- dont feud/look at fire or self damage
-        self:MakeFeud( dmg:GetAttacker() )
+        self:MakeFeud( attacker )
 
         local dmgSourcePos = self:getBestPos( attacker )
         self.TookDamagePos = dmgSourcePos
+
+        -- update enemy stuff!
+        if dmg:IsBulletDamage() and terminator_Extras.PosCanSee( self:GetShootPos(), dmgSourcePos ) and dmgSourcePos:Distance( attacker:GetPos() ) < 350 then
+            self:UpdateEnemyMemory( attacker, attacker:GetPos() )
+
+        end
 
         local time = math.Rand( 1, 1.5 )
         if self:IsAngry() then

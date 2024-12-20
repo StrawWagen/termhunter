@@ -550,13 +550,16 @@ end
 	Arg1: 
 	Ret1: 
 --]]------------------------------------
+
+local ang_zero = Angle( 0, 0 ,0 ) -- maybe fix bugs with the shadow :(
+
 function ENT:UpdatePhysicsObject()
 	local phys = self:GetPhysicsObject()
 	
 	if IsValid(phys) then
-		phys:SetAngles(angle_zero)
+		phys:SetAngles(ang_zero)
 	
-		phys:UpdateShadow(self:GetPos(),angle_zero,self.BehaveInterval)
+		phys:UpdateShadow( self:GetPos(), ang_zero, self.BehaveInterval )
 		
 		phys:SetPos(self:GetPos())
 	end

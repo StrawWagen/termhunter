@@ -47,6 +47,9 @@ ENT.MyPhysicsMass = 85
 -- Can bot crouch
 ENT.CanCrouch = true
 
+-- Can bot always fit into NAV_CROUCH areas
+ENT.AlwaysCrouching = nil
+
 -- Max height the bot can step up
 ENT.StepHeight = 18
 

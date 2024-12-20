@@ -2048,7 +2048,10 @@ function ENT:ControlPath2( AimMode )
         end
         if Escaped or myTbl.unstuckingTimeout < CurTime() then
             myTbl.isUnstucking = nil
-            myTbl.SetupPathShell( self, myTbl.startUnstuckDestination )
+            if myTbl.startUnstuckDestination then
+                myTbl.SetupPathShell( self, myTbl.startUnstuckDestination )
+
+            end
         end
     else
         if not validPath then return end
@@ -2089,11 +2092,11 @@ function ENT:Use( user )
     if not user:IsPlayer() then return end
     if isCheats() ~= true then return end
     self.taskHistory = self.taskHistory or {}
+    print( self:GetPhysicsObject():GetAABB() )
     PrintTable( self.m_ActiveTasks )
     PrintTable( self.taskHistory )
     print( self.lastShootingType )
     print( self.lastPathInvalidateReason )
-    print( self:GetEyeAngles() )
     print( self:GetEyeAngles(), self:GetAimVector() )
 
 end
