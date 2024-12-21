@@ -2906,3 +2906,31 @@ function ENT:SetupMotionType() -- override this to allow some npcs to more stric
     self:SetMotionType( moType )
 
 end
+
+function ENT:InitializeCollisionBounds( mdlScale )
+    mdlScale = mdlScale or self:GetModelScale()
+
+    if mdlScale ~= 1 then
+        local normalCollisions = self.CollisionBounds
+        local mins = normalCollisions[1]
+        local maxs = normalCollisions[2]
+        self.CollisionBounds = { Vector( mins.x, mins.y, mins.z ) * mdlScale, Vector( maxs.x, maxs.y, maxs.z ) * mdlScale } -- i love vectors!
+
+    end
+
+    -- Bot's collision bounds when crouching, min max
+    if not self.CrouchCollisionBounds then
+        local normalCollisions = self.CollisionBounds
+        local mins = normalCollisions[1]
+        local maxs = normalCollisions[2]
+        self.CrouchCollisionBounds = { Vector( mins.x, mins.y, mins.z ), Vector( maxs.x, maxs.y, maxs.z ) } -- i loveeee vectors!!!
+        self.CrouchCollisionBounds[2].z = self.CrouchCollisionBounds[2].z * 0.65 -- dont make this too smal, it breaks headshots!
+
+    elseif mdlScale ~= 1 then
+        local normalCollisions = self.CrouchCollisionBounds
+        local mins = normalCollisions[1]
+        local maxs = normalCollisions[2]
+        self.CrouchCollisionBounds = { Vector( mins.x, mins.y, mins.z ) * mdlScale, Vector( maxs.x, maxs.y, maxs.z ) * mdlScale } -- i LOVE VECTORS!!!!!
+
+    end
+end

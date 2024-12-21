@@ -2874,6 +2874,8 @@ function ENT:Initialize()
 
     end
 
+    self:InitializeCollisionBounds( scale )
+
     timer.Simple( 0.1, function()
         if not IsValid( self ) then return end
         if navmesh.GetNavAreaCount() <= 0 then
@@ -6482,6 +6484,8 @@ function ENT:DoDefaultTasks()
                         -- determine where player CAN go
                         -- dont build path to somewhere behind walls
                         local mymins,mymaxs = self:GetCollisionBounds()
+                        mymins = Vector( mymins.x, mymins.y, mymins.z )
+                        mymaxs = Vector( mymaxs.x, mymaxs.y, mymaxs.z )
                         mymins = mymins * 0.5
                         mymaxs = mymaxs * 0.5
 

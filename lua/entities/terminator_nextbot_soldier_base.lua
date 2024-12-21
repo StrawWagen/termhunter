@@ -37,7 +37,6 @@ ENT.TaskList = {
 				
 				local _,diff = WorldToLocal(vector_origin,dir:Angle(),vector_origin,self:GetDesiredEyeAngles())
 				local side = diff.y>0 and 1 or -1
-				local b1,b2 = self:GetCollisionBounds()
 				
 				self:Approach(self:GetPos()+dir:Angle():Right()*side*10)
 			end

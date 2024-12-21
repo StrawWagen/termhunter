@@ -536,8 +536,7 @@ end
 function ENT:SetupCollisionBounds()
 	local data = self:IsCrouching() and self.CrouchCollisionBounds or self.CollisionBounds
 	
-	local scale = self:GetModelScale()
-	self:SetCollisionBounds(data[1]*scale,data[2]*scale)
+	self:SetCollisionBounds(data[1],data[2])
 	
 	if self:PhysicsInitShadow(false,false) then
 		self:GetPhysicsObject():SetMass(self.MyPhysicsMass)
