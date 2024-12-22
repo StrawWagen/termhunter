@@ -30,7 +30,7 @@ local singleplayer = game.SinglePlayer()
 function ENT:SetPosNoTeleport( pos )
     if not singleplayer then self:PhysicsDestroy() end -- HACK to fix stupid buggy movement that's plauged the bots for years, literally just CTRL-V'ed it from drgbase
     self:SetPos( pos )
-    if not singleplayer then self:PhysicsInitShadow() end
+    if not singleplayer then self:SetupCollisionBounds() end
 
 end
 

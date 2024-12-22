@@ -1,5 +1,7 @@
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
+local IsValid = IsValid
+
 local function yieldIfWeCan( reason )
     if not coroutine_running() then return end
     coroutine_yield( reason )
@@ -318,7 +320,7 @@ function ENT:AddAreasToAvoid( areas, mul )
     pathAreasAdditionalCost = pathAreasAdditionalCost or {}
     for _, avoid in ipairs( areas ) do
         -- lagspike if we try to flank around area that contains the destination
-        if avoid and ( avoid ~= flankingDest ) then
+        if avoid and IsValid( avoid ) and ( avoid ~= flankingDest ) then
             local oldMul = pathAreasAdditionalCost[ avoid:GetID() ] or 0
             pathAreasAdditionalCost[ avoid:GetID() ] = oldMul + mul
             --debugoverlay.Cross( avoid:GetCenter(), 10, 10, color_white, true )

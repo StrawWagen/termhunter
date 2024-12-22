@@ -105,8 +105,8 @@ function ENT:enemyBearingToMeAbs()
 end
 
 function ENT:EntShootPos( ent, random )
-    local hitboxes = {}
     if not IsValid( ent ) then return end
+    local hitboxes = {}
 
     local sets = entMeta.GetHitboxSetCount( ent )
 
