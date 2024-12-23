@@ -7901,7 +7901,7 @@ function ENT:DoDefaultTasks()
         ["playercontrol_handler"] = {
             StopControlByPlayer = function( self, data, ply )
                 self:StartTask2( "enemy_handler", nil, "begin" )
-                self:StartTask2( "movement_wait", nil, "begin" )
+                self:StartTask2( "movement_handler", nil, "begin" )
                 self:StartTask2( "shooting_handler", nil, "begin" )
             end,
         },
