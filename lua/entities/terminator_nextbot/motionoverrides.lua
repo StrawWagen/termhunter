@@ -25,6 +25,14 @@ local function TrFilterNoSelf( me )
 
 end
 
+function ENT:GetSafeCollisionBounds() -- collision bounds that can be messed with safely
+    local mins, maxs = self:GetCollisionBounds()
+    local b1 = Vector( mins.x, mins.y, mins.z )
+    local b2 = Vector( maxs.x, maxs.y, maxs.z )
+    return b1, b2
+
+end
+
 local singleplayer = game.SinglePlayer()
 
 function ENT:SetPosNoTeleport( pos )
@@ -200,7 +208,7 @@ function ENT:StuckCheck()
             end
         end
 
-        local b1, b2 = self:GetCollisionBounds()
+        local b1, b2 = self:GetSafeCollisionBounds()
 
         local sizeIncrease = 0
         local checkOrigin = myPos
@@ -222,8 +230,6 @@ function ENT:StuckCheck()
         end
 
         if sizeIncrease > 0 then
-            b1 = Vector( b1.x, b1.y, b1.z )
-            b2 = Vector( b2.x, b2.y, b2.z )
             -- prevents getting stuck in air, and getting stuck in doors that slide into us
             b1.x = b1.x - sizeIncrease
             b1.y = b1.y - sizeIncrease
@@ -331,9 +337,7 @@ function ENT:OnStuck()
     if IsValid( self.terminatorStucker ) then return end
 
     local pos = self:GetPos()
-    local b1, b2 = self:GetCollisionBounds()
-    b1 = Vector( b1.x, b1.y, b1.z )
-    b2 = Vector( b2.x, b2.y, b2.z )
+    local b1, b2 = self:GetSafeCollisionBounds()
 
     b1.x = b1.x - 4
     b1.y = b1.y - 4
@@ -793,9 +797,7 @@ local vector25Z = Vector( 0, 0, 25 )
 
 function ENT:BoundsAdjusted( hullSizeMul, assumeCrouch )
     hullSizeMul = hullSizeMul or 1
-    local b1, b2 = self:GetCollisionBounds()
-    b1 = Vector( b1.x, b1.y, b1.z )
-    b2 = Vector( b2.x, b2.y, b2.z )
+    local b1, b2 = self:GetSafeCollisionBounds()
 
     b1.x = b1.x * hullSizeMul
     b1.y = b1.y * hullSizeMul
@@ -1366,6 +1368,7 @@ function ENT:MoveInAirTowardsVisible( toChoose, destinationArea )
             self:SetPosNoTeleport( myPos + dir * setPosDist )
             self.loco:SetVelocity( dir * setPosDist )
             self.WasSetposCrouchJump = true
+            self.overrideCrouch = CurTime() + 4
 
         else
             self.loco:SetVelocity( myVel )
@@ -2353,7 +2356,8 @@ function ENT:ExitLadder( exit, recalculate )
     -- pos that is above the ladder or above the dest area
     local desiredPos = Vector( myPos.x, myPos.y, math.max( myPos.z + 15, pos.z + 35 ) )
 
-    local b1, b2 = self:GetCollisionBounds()
+    local b1, b2 = self:GetSafeCollisionBounds()
+
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
 

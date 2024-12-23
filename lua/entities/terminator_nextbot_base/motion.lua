@@ -554,12 +554,18 @@ local ang_zero = Angle( 0, 0 ,0 ) -- maybe fix bugs with the shadow :(
 
 function ENT:UpdatePhysicsObject()
 	local phys = self:GetPhysicsObject()
-	
+
 	if IsValid(phys) then
 		phys:SetAngles(ang_zero)
-	
+
+		if self:GetModelScale() ~= 1 then -- HACK, to fix the horrible blowing up collision bounds bug
+			local data = self:IsCrouching() and self.CrouchCollisionBounds or self.CollisionBounds
+			self:SetCollisionBounds( data[1], data[2] )
+
+		end
+
 		phys:UpdateShadow( self:GetPos(), ang_zero, self.BehaveInterval )
-		
+
 		phys:SetPos(self:GetPos())
 	end
 end
@@ -859,9 +865,7 @@ local function GetJumpBlockState(self,dir)
 	-- Returns state of jump block (nil - clear; true - should step back to jump correctly; false - can't reach goal, fully blocked)
 
 	local pos = self:GetPos()
-	local b1,b2 = self:GetCollisionBounds()
-	b1 = Vector( b1.x, b1.y, b1.z )
-	b2 = Vector( b2.x, b2.y, b2.z )
+	local b1, b2 = self:GetSafeCollisionBounds()
 	local step = self.loco:GetStepHeight()
 	
 	b1.x = b1.x/2
@@ -887,7 +891,13 @@ local function GetJumpBlockState(self,dir)
 	
 	if tr.Hit then
 		local maxjump = self.MaxJumpToPosHeight-step
-		local bounds = self.CanCrouch and self.CrouchCollisionBounds or self.CollisionBounds
+		local bounds = self:GetSafeCollisionBounds()
+		if self.CanCrouch then
+			local crouchBounds = self.CrouchCollisionBounds
+			bounds[1].z = crouchBounds[1].z
+			bounds[2].z = crouchBounds[2].z
+
+		end
 		
 		local bsize = bounds[2].z-bounds[1].z
 		local z = b1.z-step
@@ -1042,7 +1052,7 @@ function ENT:Jump()
 	local vel = self.loco:GetVelocity()
 	vel.z = (2*self.loco:GetGravity()*self.JumpHeight)^0.5
 	local pos = self:GetPos()
-	local b1,b2 = self:GetCollisionBounds()
+	local b1, b2 = self:GetSafeCollisionBounds()
 	
 	self.loco:Jump()
 	self.loco:SetVelocity(vel)
@@ -1254,7 +1264,7 @@ local function TryStuck(self,pos,t,tr)
 	
 	util.TraceHull(t)
 	
-	local b1,b2 = self:GetCollisionBounds()
+	local b1, b2 = self:GetSafeCollisionBounds()
 	
 	if !TraceHit(tr) then
 		self:SetPos(pos)
@@ -1280,7 +1290,7 @@ function ENT:OnStuck()
 	self:RunTask("OnStuck")
 
 	local pos = self:GetPos()
-	local b1,b2 = self:GetCollisionBounds()
+	local b1, b2 = self:GetSafeCollisionBounds()
 	
 	if !self.loco:IsOnGround() then
         b1 = Vector( b1.x, b1.y, b1.z )
@@ -1367,7 +1377,7 @@ function ENT:StuckCheck()
 				self:OnUnStuck()
 			end
 		else
-			local b1,b2 = self:GetCollisionBounds()
+			local b1, b2 = self:GetSafeCollisionBounds()
 			
 			if !self.loco:IsOnGround() then
 				-- Seems in air trace check can return false, but bot is stuck (close to the wall). So we making test bounds bigger.

@@ -1157,7 +1157,6 @@ end
 
 function ENT:tryToOpen( blocker, blockerTrace )
     if not IsValid( blocker ) then return end
-    local class = blocker:GetClass()
 
     local OpenTime = self.OpenDoorTime or 0
     if blocker and blocker ~= self.oldBlockerITriedToOpen then
@@ -1165,8 +1164,17 @@ function ENT:tryToOpen( blocker, blockerTrace )
         self.startedTryingToOpen = CurTime()
 
     end
+
+    local class = blocker:GetClass()
     local startedTryingToOpen = self.startedTryingToOpen or 0
     local sinceStarted = CurTime() - startedTryingToOpen
+
+    if blocker.isTerminatorHunterChummy == self.isTerminatorHunterChummy and ( self:GetCurrentSpeed() <= 5 or blocker:GetCurrentSpeed() <= 5 ) then
+        blocker:RunTask( "OnBlockingAlly", self, sinceStarted )
+        self:RunTask( "OnBlockedByAlly", blocker, sinceStarted )
+        return
+
+    end
 
     local doorTimeIsGood = CurTime() - OpenTime > 2
     local doorIsStale = sinceStarted > 2
@@ -1177,10 +1185,7 @@ function ENT:tryToOpen( blocker, blockerTrace )
     local breakableMemory = memory == MEMORY_BREAKABLE
 
     if self.IsStupid then
-        if blocker.isTerminatorHunterChummy == self.isTerminatorHunterChummy then
-            return
-
-        elseif self:IsReallyAngry() then
+        if self:IsReallyAngry() then
             self:WeaponPrimaryAttack()
 
         elseif sinceStarted > 0.75 and math.random( 0, 100 ) < 40 then
@@ -2092,12 +2097,12 @@ function ENT:Use( user )
     if not user:IsPlayer() then return end
     if isCheats() ~= true then return end
     self.taskHistory = self.taskHistory or {}
-    print( self:GetPhysicsObject():GetAABB() )
+    print( "aabb", self:GetPhysicsObject():GetAABB() )
+    print( "collisionbounds", self:GetCollisionBounds() )
     PrintTable( self.m_ActiveTasks )
     PrintTable( self.taskHistory )
     print( self.lastShootingType )
     print( self.lastPathInvalidateReason )
-    print( self:GetEyeAngles(), self:GetAimVector() )
 
 end
 
@@ -3439,6 +3444,7 @@ function ENT:DoDefaultTasks()
                         for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do
                             if area == nearestNavArea then continue end
                             yieldIfWeCan()
+                            if not IsValid( area ) then continue end
 
                             local aresCenter = area:GetCenter()
                             if aresCenter:Distance( enemyPos ) < distToEnemy then continue end
