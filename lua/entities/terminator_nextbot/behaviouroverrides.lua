@@ -88,13 +88,26 @@ end
 -- process the threads every tick if we can
 function ENT:Think()
     self:TermThink()
-    local threads = self.BehaviourThreads
+    local myTbl = self:GetTable()
+    local threads = myTbl.BehaviourThreads
     if not threads then return end
 
-    local thresh = self.CoroutineThresh
-    if self.IsFodder and not IsValid( self:GetEnemy() ) then
+    local enem = self:GetEnemy()
+    local thresh = myTbl.CoroutineThresh
+    if myTbl.IsFodder and not IsValid( enem ) then
         thresh = thresh / 2
 
+    elseif myTbl.ThreshMulIfDueling and enem:IsPlayer() then
+        local distToEnem = myTbl.DistToEnemy
+        local distFullBoost = math.max( myTbl.DuelEnemyDist, 500 )
+        local distHalfBoost = math.max( myTbl.DuelEnemyDist * 2, 1000 )
+        if distToEnem <= distFullBoost then
+            thresh = thresh * myTbl.ThreshMulIfDueling
+
+        elseif distToEnem <= distHalfBoost then
+            thresh = thresh * myTbl.ThreshMulIfClose
+
+        end
     end
 
     local doneSomething

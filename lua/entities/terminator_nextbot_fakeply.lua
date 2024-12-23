@@ -37,7 +37,9 @@ if CLIENT then
 
 end
 
-ENT.CoroutineThresh = 0.0005
+ENT.CoroutineThresh = 0.0002
+ENT.ThreshMulIfDueling = 3 -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
+ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
 ENT.IsFodder = true
 
 ENT.JumpHeight = 70

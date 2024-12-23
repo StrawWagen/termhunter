@@ -364,7 +364,7 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     local noHealthChangeCount = entsTbl.term_NoHealthChangeCount
     if myTbl.JudgesEnemies and noHealthChangeCount then
-        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 150 + ( self:GetCreationID() % 150 ) )
+        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 100 + ( self:GetCreationID() % 100 ) )
         if weirdUnkillable then return false end
 
     end
@@ -1167,4 +1167,67 @@ function ENT:Term_LookAround()
         return true
 
     end
+end
+
+
+do
+    local dynamicallyLagCompensating = {}
+
+    function ENT:InitializeLagCompensation()
+        if game.SinglePlayer() then return end
+        if self.IsFodder then
+            dynamicallyLagCompensating[self] = false
+            self:CallOnRemove( "term_cleanupdynamic_lagcomp", function()
+                dynamicallyLagCompensating[self] = nil
+
+            end )
+        else
+            self:SetLagCompensated( true )
+
+        end
+    end
+
+    local function compensate( ent )
+        if dynamicallyLagCompensating[ent] == true then return end
+        dynamicallyLagCompensating[ent] = true
+        ent:LagCompensation( true )
+
+    end
+    local function unCompensate( ent )
+        if dynamicallyLagCompensating[ent] == false then return end
+        dynamicallyLagCompensating[ent] = false
+        ent:LagCompensation( false )
+
+    end
+
+    hook.Add( "terminator_nextbot_oneterm_exists", "setup_dynamic_lagcomp", function()
+        hook.Add( "terminator_spotenemy", "term_dynamic_lagcomp", function( term, newEnemy )
+            if dynamicallyLagCompensating[term] == nil then return end
+            if not playersCache[newEnemy] then return end
+
+            compensate( term )
+
+        end )
+        hook.Add( "terminator_enemychanged", "term_dynamic_lagcomp", function( term, newEnemy, prevEnemy )
+            if dynamicallyLagCompensating[term] == nil then return end
+            if playersCache[newEnemy] then
+                compensate( term )
+
+            elseif playersCache[prevEnemy] then
+                unCompensate( term )
+
+            end
+        end )
+        hook.Add( "terminator_loseenemy", "term_dynamic_lagcomp", function( term )
+            if dynamicallyLagCompensating[term] == nil then return end
+            unCompensate( term )
+
+        end )
+    end )
+    hook.Add( "terminator_nextbot_noterms_exist", "teardown_dynamic_lagcomp", function()
+        hook.Remove( "terminator_spotenemy", "term_dynamic_lagcomp" )
+        hook.Remove( "terminator_enemychanged", "term_dynamic_lagcomp" )
+        hook.Remove( "terminator_loseenemy", "term_dynamic_lagcomp" )
+
+    end )
 end

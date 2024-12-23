@@ -156,8 +156,6 @@ function ENT:Initialize()
 	self:SetDesiredEyeAngles(self:GetAngles())
 	self:SetupDefaultCapabilities()
 
-	self:SetLagCompensated(true)
-
 	self:AddCallback("PhysicsCollide",self.PhysicsObjectCollide)
 
 	local wep = self:GetKeyValue("additionalequipment") or self.DefaultWeapon

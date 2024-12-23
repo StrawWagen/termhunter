@@ -286,7 +286,6 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     local res = nil
     local cur = nil
     local blockRadiusEnd = data.blockRadiusEnd
-
     if isvector( start ) then
         pos = start
         res = terminator_Extras.getNearestPosOnNav( pos )
@@ -1169,11 +1168,13 @@ function ENT:tryToOpen( blocker, blockerTrace )
     local startedTryingToOpen = self.startedTryingToOpen or 0
     local sinceStarted = CurTime() - startedTryingToOpen
 
-    if blocker.isTerminatorHunterChummy == self.isTerminatorHunterChummy and ( self:GetCurrentSpeed() <= 5 or blocker:GetCurrentSpeed() <= 5 ) then
-        blocker:RunTask( "OnBlockingAlly", self, sinceStarted )
-        self:RunTask( "OnBlockedByAlly", blocker, sinceStarted )
-        return
+    if blocker.isTerminatorHunterChummy == self.isTerminatorHunterChummy then
+        if ( self:GetCurrentSpeed() <= 5 or blocker:GetCurrentSpeed() <= 5 ) then
+            blocker:RunTask( "OnBlockingAlly", self, sinceStarted )
+            self:RunTask( "OnBlockedByAlly", blocker, sinceStarted )
 
+        end
+        return
     end
 
     local doorTimeIsGood = CurTime() - OpenTime > 2
@@ -2663,6 +2664,8 @@ end
 -- config vars
 ENT.TERM_FISTS = "weapon_terminatorfists_term"
 ENT.CoroutineThresh = 0.003 -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides
+ENT.ThreshMulIfDueling = nil -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
+ENT.ThreshMulIfClose = nil -- if we're closer than DuelEnemyDist * 2
 ENT.MaxPathingIterations = 20000 -- set this to like 5000 if you dont care about a specific bot having perfect ( read, expensive ) paths
 
 ENT.SpawnHealth = healthFunc
@@ -2880,6 +2883,8 @@ function ENT:Initialize()
     end
 
     self:InitializeCollisionBounds( scale )
+
+    self:InitializeLagCompensation()
 
     timer.Simple( 0.1, function()
         if not IsValid( self ) then return end
