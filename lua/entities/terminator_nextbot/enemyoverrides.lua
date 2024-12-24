@@ -640,7 +640,7 @@ function ENT:MakeFeud( enemy )
             end
         end
         if not self.neverManiac and not maniacHunter and not blockRandomInfighting:GetBool() then
-            maniacHunter = ( self:GetCreationID() % 20 ) == 1 -- infighting always gets a good laugh
+            maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- infighting always gets a good laugh
 
         end
         if not maniacHunter then return end -- this npc isnt a manaic, dont break the pal relation!

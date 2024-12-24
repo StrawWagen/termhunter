@@ -97,11 +97,11 @@ function ENT:Think()
     if myTbl.IsFodder and not IsValid( enem ) then
         thresh = thresh / 2
 
-    elseif myTbl.ThreshMulIfDueling and enem:IsPlayer() then
+    elseif myTbl.ThreshMulIfDueling then
         local distToEnem = myTbl.DistToEnemy
         local distFullBoost = math.max( myTbl.DuelEnemyDist, 500 )
-        local distHalfBoost = math.max( myTbl.DuelEnemyDist * 2, 1000 )
-        if distToEnem <= distFullBoost then
+        local distHalfBoost = math.max( myTbl.DuelEnemyDist * 3, 1500 )
+        if distToEnem <= distFullBoost and enem:IsPlayer() then
             thresh = thresh * myTbl.ThreshMulIfDueling
 
         elseif distToEnem <= distHalfBoost then
