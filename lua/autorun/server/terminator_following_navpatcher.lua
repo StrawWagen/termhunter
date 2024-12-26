@@ -422,19 +422,20 @@ local function navPatchSelectivelyThink()
     local cur = CurTime()
     local playersToPatch = {}
     local chasedPlayers = {}
-    local someoneWasChased = true
+    local someoneWasChased = nil
     local max = maxPlysToPatch:GetInt()
+
     -- we should always patch people being chased if we can!
     for _, ply in player.Iterator() do
         local lowCount = #playersToPatch < max
         local chasedUntil = plysCurrentlyBeingChased[ ply ]
-        if lowCount and chasedUntil and chasedUntil > cur then
+        if not lowCount then
+            break
+
+        elseif chasedUntil and chasedUntil > cur then
             table.insert( playersToPatch, ply )
             chasedPlayers[ ply ] = true
-            someoneWasChased = nil
-
-        elseif not lowCount then
-            break
+            someoneWasChased = true
 
         end
     end
@@ -443,11 +444,10 @@ local function navPatchSelectivelyThink()
     if #playersToPatch < 4 then
         for _, ply in player.Iterator() do
             local lowCount = #playersToPatch < max
-            if lowCount and not chasedPlayers[ ply ] and not ply:IsFlagSet( FL_NOTARGET ) then
-                table.insert( playersToPatch, ply )
-
-            elseif not lowCount then
+            if not lowCount then
                 break
+            elseif not chasedPlayers[ ply ] and not ply:IsFlagSet( FL_NOTARGET ) then
+                table.insert( playersToPatch, ply )
 
             end
         end

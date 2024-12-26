@@ -2928,8 +2928,6 @@ function ENT:InitializeCollisionBounds( mdlScale )
         local mins = normalCollisions[1]
         local maxs = normalCollisions[2]
         self.CrouchCollisionBounds = { Vector( mins.x, mins.y, mins.z ), Vector( maxs.x, maxs.y, maxs.z ) } -- i loveeee vectors!!!
-        self.CrouchCollisionBounds[2].x = self.CrouchCollisionBounds[2].x * 0.90 -- bit smaller in general when crouching
-        self.CrouchCollisionBounds[2].y = self.CrouchCollisionBounds[2].y * 0.90
         self.CrouchCollisionBounds[2].z = self.CrouchCollisionBounds[2].z * 0.65 -- dont make this too smal, it breaks headshots!
 
     elseif mdlScale ~= 1 then

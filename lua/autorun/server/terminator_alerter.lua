@@ -1,4 +1,6 @@
 local listening = nil
+local IsValid = IsValid
+local math = math
 
 terminator_Extras = terminator_Extras or {}
 terminator_Extras.listeners = terminator_Extras.listeners or {}
@@ -79,9 +81,9 @@ local squareVarLoud = 1.65
 
 local customRanges = {
     ["weapon_pistol"] = 7000,
-    ["weapon_357"] = 8000,
+    ["weapon_357"] = 12000,
     ["weapon_smg1"] = 7000,
-    ["weapon_ar2"] = 8000,
+    ["weapon_ar2"] = 12000,
     ["weapon_shotgun"] = 8000,
 }
 
@@ -93,31 +95,37 @@ local function bulletFireThink( entity, data )
     local weap = nil
     if entity:IsNPC() or entity:IsPlayer() then
         weap = entity:GetActiveWeapon()
+
     end
     local customRange = nil
     if IsValid( weap ) then
         customRange = customRanges[ weap:GetClass() ]
+
     end
     if customRange then
         range = customRange
+
     elseif not customRange then
         local dmg = 60
         if data.Damage > 0 then
             dmg = math.Round( data.Damage )
+
         end
-        local num = 1
-        if data.Num > 1 then
+        local num = data.Num or 1
+        if num > 1 then
             num = math.Clamp( data.Num / 2, 1, math.huge )
+
         end
         local totalDmg = dmg * num
         range = math.Clamp( totalDmg * 200, 3000, 10000 ) -- bigger gunz are louder
+
     end
 
     local src = data.Src
     terminatorsSendSoundHint( entity, src, range, true )
 
 end
-hook.Add( "EntityFireBullets", "straw_termalerter_firebullets", bulletFireThink )
+hook.Add( "PostEntityFireBullets", "straw_termalerter_firebullets", function( ... ) bulletFireThink( ... ) end )
 
 
 
@@ -146,7 +154,7 @@ local function soundHintThink( hint, pos, volume, _, owner )
     terminatorsSendSoundHint( owner, pos, radius, valuable )
 
 end
-hook.Add( "StrawSoundEmitHint", "straw_termalerter_soundhint", soundHintThink )
+hook.Add( "StrawSoundEmitHint", "straw_termalerter_soundhint", function( ... ) soundHintThink( ... ) end )
 
 
 -- bl damage
@@ -165,7 +173,7 @@ local function blastDamageHintThink( _, attacker, damageOrigin, damageRadius, da
     terminatorsSendSoundHint( attacker, damageOrigin, volume, true )
 
 end
-hook.Add( "StrawBlastDamage", "straw_termalerter_blastdamage", blastDamageHintThink )
+hook.Add( "StrawBlastDamage", "straw_termalerter_blastdamage", function( ... ) blastDamageHintThink( ... ) end )
 
 
 -- bl damage info
@@ -186,7 +194,7 @@ local function blastDamageInfoHintThink( dmg, damageOrigin, damageRadius )
 
 end
 
-hook.Add( "StrawBlastDamageInfo", "straw_termalerter_blastdamageinfo", blastDamageInfoHintThink )
+hook.Add( "StrawBlastDamageInfo", "straw_termalerter_blastdamageinfo", function( ... ) blastDamageInfoHintThink( ... ) end )
 
 
 
@@ -205,6 +213,7 @@ local function explosionHintThink( entity )
         local radius = damage
         if keys["iRadiusOverride"] or 0 > 0 then
             radius = keys["iRadiusOverride"]
+
         end
         local pos = entity:GetPos()
 
@@ -216,12 +225,11 @@ local function explosionHintThink( entity )
     end )
 end
 
-hook.Add( "OnEntityCreated", "straw_termalerter_explosioninfo", explosionHintThink )
-
+hook.Add( "OnEntityCreated", "straw_termalerter_explosioninfo", function( ... ) explosionHintThink( ... ) end )
 
 local function handleNormalSound( ent, pos, level, name )
     if not listening then return end
-    if pos == Vector() then return end
+    if not pos then return end
 
     local squareInternal = squareVarQuiet
     if level and level >= 80 then
@@ -259,7 +267,9 @@ local function soundPlayThink( name, pos, level, _, volume )
 
 end
 
-hook.Add( "StrawSoundPlayHook", "straw_termalerter_soundplayhook", soundPlayThink )
+hook.Add( "StrawSoundPlayHook", "straw_termalerter_soundplayhook", function( ... ) soundPlayThink( ... ) end )
+
+local string_StartsWith = string.StartWith
 
 
 -- sound reading!?!??
@@ -269,10 +279,10 @@ local function emitSoundThink( soundDat )
     if not IsValid( entity ) then return end
     local class = entity:GetClass()
     local valid = nil
-    if string.StartWith( class, "item" ) then valid = true end
-    if string.StartWith( class, "prop" ) then valid = true end
-    if string.StartWith( class, "player" ) then valid = true end
-    if string.StartWith( class, "func" ) then valid = true end
+    if string_StartsWith( class, "item" ) then valid = true end
+    if string_StartsWith( class, "prop" ) then valid = true end
+    if string_StartsWith( class, "player" ) then valid = true end
+    if string_StartsWith( class, "func" ) then valid = true end
     if entity.IsNPC and entity:IsNPC() then valid = true end
     if entity.IsNextBot and entity:IsNextBot() then valid = true end
     if entity.IsWeapon and entity:IsWeapon() then valid = true end
@@ -289,4 +299,4 @@ local function emitSoundThink( soundDat )
     end )
 end
 
-hook.Add( "EntityEmitSound", "straw_termalerter_soundinfo", emitSoundThink )
+hook.Add( "EntityEmitSound", "straw_termalerter_soundinfo", function( ... ) emitSoundThink( ... ) end )
