@@ -1572,6 +1572,7 @@ function ENT:beatUpEnt( ent, unstucking )
     local closeAndCanHit = canHit and isClose
     if quiteNear then
         self:crouchToGetCloserTo( entsRealPos )
+
     end
     --debugoverlay.Cross( entsRealPos, 50, 1, Color( 255, 255, 0 ), true )
 
@@ -1598,7 +1599,15 @@ function ENT:beatUpEnt( ent, unstucking )
     newPath = newPath and not closeAndCanHit
 
     if newPath and not unstucking then
-        if not self:nextNewPathIsGood() or self.term_ExpensivePath then yieldIfWeCan( "wait" ) return true end
+        if self.term_ExpensivePath then -- lagging the session, invalid
+            yieldIfWeCan( "wait" )
+            return
+
+        elseif not self:nextNewPathIsGood() then -- just not ready, sill valid, wait
+            yieldIfWeCan( "wait" )
+            return true
+
+        end
 
         local pathPos = entsRealPos
         local area = terminator_Extras.getNearestPosOnNav( entsRealPos ).area
@@ -1608,7 +1617,7 @@ function ENT:beatUpEnt( ent, unstucking )
         if validArea then
             local adjacents = area:GetAdjacentAreas()
             local foundBlocker = area:IsBlocked()
-            if #adjacents > 0 and not foundBlocker then
+            if not foundBlocker and #adjacents > 0 then -- locked door hack
                 for _, adjArea in ipairs( adjacents ) do
                     if adjArea:IsBlocked() and not foundBlocker then
                         adjacents = adjArea:GetAdjacentAreas()
@@ -1619,6 +1628,7 @@ function ENT:beatUpEnt( ent, unstucking )
             end
 
             -- the beating up is a blocker, build a path to one of the areas next to it, and make sure that path gets us close to the blocker!
+            -- basically a locked door hack
             if foundBlocker then
                 forcePath = true
                 terminator_Extras.lockedDoorAttempts[entsCreationId] = oldCount + 1
@@ -1650,11 +1660,6 @@ function ENT:beatUpEnt( ent, unstucking )
         end
 
         if validArea then
-        --debugoverlay.Cross( pathPos, 100, 1, color_white, true )
-        --debugoverlay.Cross( pathPos, 100, 1, color_white, true )
-
-            --debugoverlay.Cross( pathPos, 100, 1, color_white, true )
-
             self:SetupPathShell( pathPos, forcePath )
 
         end
@@ -2345,7 +2350,7 @@ function ENT:walkArea()
                 if ent == self then continue end -- self gets a special case
 
                 ent.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
-                self.nextUnreachableWipe = CurTime() + 1 -- never ever ever spam this
+                ent.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
 
             end
         end
@@ -2907,14 +2912,15 @@ function ENT:Initialize()
                     myCreator:PrintMessage( HUD_PRINTCENTER, msg )
                     myCreator:PrintMessage( HUD_PRINTTALK, msg )
                     myCreator:PrintMessage( HUD_PRINTCONSOLE, msg )
+                    SafeRemoveEntity( self )
                     return
 
                 end
             end
-            if terminator_Extras.IsLivePatching then return end
+            if not terminator_Extras.IsLivePatching then
+                terminator_Extras.dynamicallyPatchPos( self:GetPos() )
 
-            terminator_Extras.dynamicallyPatchPos( self:GetPos() )
-            return
+            end
 
         end
         self:RunTask( "OnCreated" )
