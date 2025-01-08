@@ -98,7 +98,7 @@ end
 -- should we assume that we will break this upon doing our path?
 function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
     local hitEnt = traceResult.Entity
-    if traceResult.MatType == MAT_GLASS and ( skipDistCheck or traceResult.HitPos:DistToSqr( traceStruct.endpos ) < 55^2 ) then
+    if traceResult.MatType == MAT_GLASS and ( skipDistCheck or traceResult.HitPos:DistToSqr( traceStruct.endpos ) < 55^2 ) then -- got to the end or its glass
         if IsValid( hitEnt ) then
             local class = hitEnt:GetClass()
             local isSurf = class == "func_breakable_surf"
@@ -118,11 +118,14 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
             return nil
 
         end
-    -- hey its breakable!
-    elseif IsValid( hitEnt ) then
+    elseif IsValid( hitEnt ) then -- didnt hit close to end or hit glass
         local class = hitEnt:GetClass()
         local isDoor = string.find( class, "door" ) and hitEnt:IsSolid()
-        if self:memorizedAsBreakable( hitEnt ) or hitEnt:IsNPC() or hitEnt:IsPlayer() or isDoor then
+        local enemy = self:GetEnemy()
+        if hitEnt == enemy then
+            return true
+
+        elseif self:memorizedAsBreakable( hitEnt ) or hitEnt:IsNPC() or hitEnt:IsPlayer() or isDoor then
             if isDoor and class == "prop_door_rotating" and not terminator_Extras.CanBashDoor( hitEnt ) then
                 return nil
 
@@ -133,7 +136,7 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
                 return true
 
             end
-        elseif hitEnt.GetDriver and IsValid( hitEnt:GetDriver() ) and hitEnt:GetDriver() == self:GetEnemy() then
+        elseif hitEnt.GetDriver and IsValid( hitEnt:GetDriver() ) and hitEnt:GetDriver() == enemy then
             return true
 
         else
