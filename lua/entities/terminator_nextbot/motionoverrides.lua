@@ -1571,7 +1571,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             --debugoverlay.Line( myPos, obstacleAvoid, 0.5, color_green, true )
             --debugoverlay.Cross( obstacleAvoid, 15, 0.5, color_white, true )
 
-            self:GotoPosSimple( goingTo, 0, true )
+            myTbl.GotoPosSimple( self, myTbl, goingTo, 0, true )
             return
 
         end
@@ -2194,7 +2194,7 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
 
     -- walk to the ladder
     else
-        self:GotoPosSimple( closestToLadderPos, 10 )
+        self:GotoPosSimple( nil, closestToLadderPos, 10 )
 
     end
 
@@ -2229,7 +2229,8 @@ function ENT:HandlePathRemovedWhileOnladder()
 end
 
 -- easy alias for approach
-function ENT:GotoPosSimple( pos, distance, noAdapt )
+function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
+    myTbl = myTbl or self:GetTable()
     if self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
         local zToPos = ( pos.z - myPos.z )
@@ -2243,7 +2244,7 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
         local heightDiffNeededToJump = simpleJumpMinHeight + 20
 
         -- simple jump up to the pos
-        if zToPos > heightDiffNeededToJump and self:IsAngry() then
+        if zToPos > heightDiffNeededToJump and myTbl.IsAngry( self ) then
             local dist2d = ( pos - myPos )
             dist2d.z = 0
             dist2d = dist2d:Length()
@@ -2260,47 +2261,48 @@ function ENT:GotoPosSimple( pos, distance, noAdapt )
             end
         end
 
-        local onGround = self.loco:IsOnGround()
+        local onGround = myTbl.loco:IsOnGround()
         if onGround then
-            local jumpstate, _, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, pos, false )
+            local jumpstate, _, jumpingHeight, jumpBlockClearPos = myTbl.GetJumpBlockState( self, dir, pos, false )
             local goalBasedJump = jumpstate ~= 2 and aboveUs
-            local readyToJump = not self.nextPathJump or self.nextPathJump < CurTime()
+            local readyToJump = not myTbl.nextPathJump or myTbl.nextPathJump < CurTime()
             --print( jumpstate, jumpingHeight )
             local adaptBlock = noAdapt
-            if self.IsFodder then
-                local hasCached = self.nextBringUsTowardsCache and self.nextBringUsTowardsCache > CurTime()
-                adaptBlock = not hasCached or ( self.IsFodder and math.random( 1, 100 ) > 90 )
+            if myTbl.IsFodder then
+                local hasCached = myTbl.nextBringUsTowardsCache and myTbl.nextBringUsTowardsCache > CurTime()
+                adaptBlock = not hasCached or ( myTbl.IsFodder and math.random( 1, 100 ) > 90 )
 
             end
             -- jump if the jumpblock says we should, or if the simple jump up says we should
             if readyToJump and ( jumpstate == 1 or goalBasedJump ) then
                 jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
-                self:Jump( jumpingHeight + 20 )
-                self.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
-                self.moveAlongPathJumpingHeight = jumpingHeight
+                myTbl.Jump( self, jumpingHeight + 20 )
+                myTbl.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
+                myTbl.moveAlongPathJumpingHeight = jumpingHeight
                 return
             -- adapt if the jumpstate says we need to
             elseif jumpstate == 2 and not adaptBlock then
-                local goodPosToGoto = self:PosThatWillBringUsTowards( myPos + vec_up15, pos, 50 )
+                local goodPosToGoto = myTbl.PosThatWillBringUsTowards( self, myPos + vec_up15, pos, 50 )
                 if not goodPosToGoto then return end
-                self.loco:Approach( goodPosToGoto, 10000 )
+                myTbl.loco:Approach( goodPosToGoto, 10000 )
                 return
 
             end
-        elseif not onGround and self.m_Jumping then
+        elseif not onGround and myTbl.m_Jumping then
             local toChoose = {
                 pos,
-                self.jumpBlockClearPos,
-                myPos + Vector( 0,0,self.moveAlongPathJumpingHeight ),
+                pos + vec_up25,
+                myTbl.jumpBlockClearPos,
+                myPos + Vector( 0,0,myTbl.moveAlongPathJumpingHeight ),
 
             }
-            if self:MoveInAirTowardsVisible( toChoose ) ~= true then return end
+            if myTbl.MoveInAirTowardsVisible( self, toChoose ) ~= true then return end
 
             return
 
         end
 
-        self.loco:Approach( pos, 10000 )
+        myTbl.loco:Approach( pos, 10000 )
         --debugoverlay.Cross( pos, 10, 1, color_white, true )
 
     end

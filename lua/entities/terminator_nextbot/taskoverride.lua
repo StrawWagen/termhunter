@@ -21,24 +21,25 @@ function ENT:RunTask( event, ... )
 
     local nextYield = 10
     local m_TaskList = self.m_TaskList
-    local PassedTasks = {}
+    local passedTasks = {}
 
     local k = 1
     while true do
-        local v = m_ActiveTasksNum[k]
-        if not v then break end
+        local currTask = m_ActiveTasksNum[k]
+        if not currTask then break end
 
-        local task,data = v[1],v[2]
+        local task,data = currTask[1],currTask[2]
 
-        if PassedTasks[task] then
+        if passedTasks[task] then
             k = k + 1
 
             continue
         end
-        PassedTasks[task] = true
+        passedTasks[task] = true
 
         local taskReal = m_TaskList[task]
-        if not taskReal then continue end -- fix using smellllly continue
+
+        if not taskReal then continue end
         local callback = taskReal[event]
 
         if callback then
@@ -48,7 +49,6 @@ function ENT:RunTask( event, ... )
                 yieldIfWeCan()
 
             end
-            --local old = SysTime()
             local args = { callback( self, data, ... ) }
 
             --local cost = math.abs( old - SysTime() )
@@ -64,7 +64,7 @@ function ENT:RunTask( event, ... )
 
             while k > 0 do
                 local cv = m_ActiveTasksNum[k]
-                if cv == v then break end
+                if cv == currTask then break end
 
                 k = k-1
             end
@@ -90,4 +90,29 @@ function ENT:KillAllTasksWith( withStr )
 
         end
     end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:StartTask
+    Desc: Starts new task with given data and calls 'OnStart' task callback. Does nothing if given task already started.
+    Arg1: any | task | Task name.
+    Arg2: (optional) table | data | Task data.
+    Ret1: 
+--]]------------------------------------
+function ENT:StartTask( task, data )
+    if self:IsTaskActive( task ) then return end
+
+    data = data or {}
+    data.myTbl = self:GetTable()
+    self.m_ActiveTasks[task] = data
+
+    local m_ActiveTasksNum = self.m_ActiveTasksNum
+    if not m_ActiveTasksNum then
+        m_ActiveTasksNum = {}
+        self.m_ActiveTasksNum = m_ActiveTasksNum
+    end
+    m_ActiveTasksNum[ #m_ActiveTasksNum + 1 ] = { task, data }
+
+    self:RunCurrentTask( task, "OnStart" )
+
 end

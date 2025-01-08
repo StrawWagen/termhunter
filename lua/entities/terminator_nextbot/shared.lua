@@ -1222,7 +1222,7 @@ function ENT:tryToOpen( blocker, blockerTrace )
     if blocker.huntersglee_breakablenails then
         self:GetTheBestWeapon()
         self:ReallyAnger( 5 )
-        self:beatUpEnt( blocker, true )
+        self:beatUpEnt( nil, blocker, true )
         self.overrideStuckBeatupEnt = blocker
 
     elseif class == "prop_door_rotating" and doorTimeIsGood then
@@ -1489,16 +1489,17 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
 
 end
 
-function ENT:canHitEnt( ent )
+function ENT:canHitEnt( myTbl, ent )
     if not IsValid( ent ) then return end
     local myShootPos = self:GetShootPos()
-    local objPos = self:getBestPos( ent )
+    local objPos = myTbl.getBestPos( self, ent )
     local behindObj = objPos + terminator_Extras.dirToPos( myShootPos, objPos ) * 40
 
     -- use fist's mask!
     local mask = nil
-    if self:IsFists() and self:GetWeapon().HitMask then
-        mask = self:GetWeapon().HitMask
+    local wepsMask = myTbl.IsFists( self ) and myTbl.GetWeapon( self ).HitMask or nil
+    if wepsMask then
+        mask = wepsMask
 
     end
 
@@ -1513,7 +1514,7 @@ function ENT:canHitEnt( ent )
         closenessSqr = myShootPos:DistToSqr( objPos )
 
     end
-    local weapDist = self:GetWeaponRange() + -20
+    local weapDist = myTbl.GetWeaponRange( self ) + -20
     local hitReallyClose = SqrDistLessThan( hitTrace.HitPos:DistToSqr( behindObj ), 30 ) or SqrDistLessThan( hitTrace.HitPos:DistToSqr( objPos ), 30 )
     local visible = ( hitTrace.Entity == ent ) or hitReallyClose
 
@@ -1539,20 +1540,21 @@ function ENT:crouchToGetCloserTo( pos )
 end
 
 -- throw away swep, go towards ent, and beat it up
-function ENT:beatUpEnt( ent, unstucking )
+function ENT:beatUpEnt( myTbl, ent, unstucking )
     if not IsValid( ent ) then return end
+    myTbl = myTbl or self:GetTable()
 
     local entsCreationId = ent:GetCreationID()
     local oldCount = terminator_Extras.lockedDoorAttempts[entsCreationId] or 0
 
     -- stupid hack for when there's extremely busted locked doors
     if oldCount > 45 then
-        for _, door in ipairs( self.awarenessLockedDoors ) do
-            local doorPos = self:getBestPos( door )
+        for _, door in ipairs( myTbl.awarenessLockedDoors ) do
+            local doorPos = myTbl.getBestPos( self, door )
             if terminator_Extras.PosCanSee( self:GetShootPos(), doorPos ) then
                 ent = door
-                self:GotoPosSimple( doorPos, 10 )
-                self:ReallyAnger( 10 )
+                myTbl:GotoPosSimple( self, myTbl, nil, doorPos, 10 )
+                myTbl.ReallyAnger( self, 10 )
                 break
 
             end
@@ -1562,7 +1564,7 @@ function ENT:beatUpEnt( ent, unstucking )
     local valid = true
     local forcePath = nil
     local alwaysValid = nil
-    local canHit, closenessSqr, entsRealPos, _, visible = self:canHitEnt( ent )
+    local canHit, closenessSqr, entsRealPos, _, visible = myTbl.canHitEnt( self, myTbl, ent )
 
     local isNear = SqrDistLessThan( closenessSqr, 500 )
     local quiteNear = SqrDistLessThan( closenessSqr, 150 )
@@ -1571,7 +1573,7 @@ function ENT:beatUpEnt( ent, unstucking )
     local nearAndCanHit = canHit and isNear
     local closeAndCanHit = canHit and isClose
     if quiteNear then
-        self:crouchToGetCloserTo( entsRealPos )
+        myTbl.crouchToGetCloserTo( self, entsRealPos )
 
     end
     --debugoverlay.Cross( entsRealPos, 50, 1, Color( 255, 255, 0 ), true )
@@ -1579,31 +1581,31 @@ function ENT:beatUpEnt( ent, unstucking )
     local attacked = nil
 
     if canHit then
-        if closeAndCanHit and not self:IsFists() and self.HasFists then
-            self:DoFists()
+        if closeAndCanHit and not myTbl.IsFists( self ) and myTbl.HasFists then
+            myTbl.DoFists( self )
 
         end
-        _, attacked = self:shootAt( entsRealPos, nil )
-        self.blockAimingAtEnemy = CurTime() + 0.2
+        _, attacked = myTbl.shootAt( self, entsRealPos, nil )
+        myTbl.blockAimingAtEnemy = CurTime() + 0.2
 
     end
 
-    local pathValid = self:primaryPathIsValid()
+    local pathValid = myTbl.primaryPathIsValid( self )
     if unstucking then
-        pathValid = self:PathIsValid()
+        pathValid = myTbl.PathIsValid( self )
 
     end
 
-    local newPathWouldBeCheap = pathValid and self:CanDoNewPath( entsRealPos )
+    local newPathWouldBeCheap = pathValid and myTbl.CanDoNewPath( self, entsRealPos )
     local newPath = not pathValid or newPathWouldBeCheap
     newPath = newPath and not closeAndCanHit
 
     if newPath and not unstucking then
-        if self.term_ExpensivePath then -- lagging the session, invalid
+        if myTbl.term_ExpensivePath then -- lagging the session, invalid
             yieldIfWeCan( "wait" )
             return
 
-        elseif not self:nextNewPathIsGood() then -- just not ready, sill valid, wait
+        elseif not myTbl.nextNewPathIsGood( self ) then -- just not ready, sill valid, wait
             yieldIfWeCan( "wait" )
             return true
 
@@ -1612,7 +1614,7 @@ function ENT:beatUpEnt( ent, unstucking )
         local pathPos = entsRealPos
         local area = terminator_Extras.getNearestPosOnNav( entsRealPos ).area
 
-        local validArea = IsValid( area ) and self:areaIsReachable( area )
+        local validArea = IsValid( area ) and myTbl.areaIsReachable( area )
 
         if validArea then
             local adjacents = area:GetAdjacentAreas()
@@ -1660,25 +1662,25 @@ function ENT:beatUpEnt( ent, unstucking )
         end
 
         if validArea then
-            self:SetupPathShell( pathPos, forcePath )
+            myTbl.SetupPathShell( self, pathPos, forcePath )
 
         end
 
-        if not self:primaryPathIsValid() and not alwaysValid then
-            self:ignoreEnt( ent, 20 )
+        if not myTbl.primaryPathIsValid( self ) and not alwaysValid then
+            myTbl.ignoreEnt( self, ent, 20 )
             valid = false
 
         end
     -- valid path and unstucker is not handling path
     elseif pathValid and not unstucking then
-        self:ControlPath2( not self.IsSeeEnemy )
+        myTbl.ControlPath2( self, not myTbl.IsSeeEnemy )
 
     -- no valid path and one doesnt need to be built
     elseif not unstucking then
-        self:GotoPosSimple( entsRealPos, 5 )
+        myTbl.GotoPosSimple( self, myTbl, entsRealPos, 5 )
 
-        self.forcedShouldWalk = CurTime() + 0.3
-        self.blockControlPath = CurTime() + 0.15
+        myTbl.forcedShouldWalk = CurTime() + 0.3
+        myTbl.blockControlPath = CurTime() + 0.15
 
     end
 
@@ -1982,7 +1984,7 @@ function ENT:ControlPath2( AimMode )
 
         if myTbl.hitTimeout then
             if IsValid( toBeat ) then
-                local valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose, visible = myTbl.beatUpEnt( self, toBeat, true )
+                local valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose, visible = myTbl.beatUpEnt( self, myTbl, toBeat, true )
                 local isNailed = istable( toBeat.huntersglee_breakablenails )
                 local isInDanger = myTbl.getLostHealth( self ) >= 20
                 local dangerAndNotNailed = isInDanger and not isNailed
@@ -2944,18 +2946,19 @@ function ENT:DoDefaultTasks()
             OnStart = function( self, data )
             end,
             BehaveUpdatePriority = function( self, data, interval )
-                local enemy = self:GetEnemy()
+                local myTbl = data.myTbl
+                local enemy = myTbl.GetEnemy( self )
 
-                local wep = self:GetActiveLuaWeapon() or self:GetActiveWeapon()
+                local wep = myTbl.GetActiveLuaWeapon( self ) or myTbl.GetActiveWeapon( self )
                 -- edge case
                 if not IsValid( wep ) then
-                    if self.HasFists then
-                        self:Give( self.TERM_FISTS )
+                    if myTbl.HasFists then
+                        myTbl.Give( self, myTbl.TERM_FISTS )
                         return
 
                     elseif IsValid( enemy ) then
-                        self.lastShootingType = "noweapon"
-                        self:shootAt( self.LastEnemyShootPos, self.PreventShooting )
+                        myTbl.lastShootingType = "noweapon"
+                        myTbl.shootAt( self, myTbl.LastEnemyShootPos, myTbl.PreventShooting )
                         return
 
                     else
@@ -2964,31 +2967,31 @@ function ENT:DoDefaultTasks()
                     end
                 end
 
-                local forcedToLook = self:Term_LookAround()
+                local forcedToLook = myTbl.Term_LookAround( self )
                 if forcedToLook then return end
 
-                local doShootingPrevent = self.PreventShooting
+                local doShootingPrevent = myTbl.PreventShooting
 
-                if wep.terminatorCrappyWeapon == true and self.HasFists then
-                    self:DoFists()
+                if wep.terminatorCrappyWeapon == true and myTbl.HasFists then
+                    myTbl.DoFists( self )
 
-                elseif wep.Clip1 and wep:Clip1() <= 0 and wep:GetMaxClip1() > 0 and not self.IsReloadingWeapon then
-                    self:WeaponReload()
+                elseif wep.Clip1 and wep:Clip1() <= 0 and wep:GetMaxClip1() > 0 and not myTbl.IsReloadingWeapon then
+                    myTbl.WeaponReload( self )
 
                 -- allow us to not stop shooting at the witness player, glee
-                elseif IsValid( self.OverrideShootAtThing ) and self.OverrideShootAtThing:Health() > 0 then
-                    self:shootAt( self:EntShootPos( self.OverrideShootAtThing ) )
-                    self.lastShootingType = "witnessplayer"
+                elseif IsValid( myTbl.OverrideShootAtThing ) and myTbl.OverrideShootAtThing:Health() > 0 then
+                    myTbl.shootAt( self, self:EntShootPos( myTbl.OverrideShootAtThing ) )
+                    myTbl.lastShootingType = "witnessplayer"
 
-                elseif IsValid( enemy ) and not ( self.blockAimingAtEnemy and self.blockAimingAtEnemy > CurTime() ) then
+                elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
                     local wepRange = self:GetWeaponRange()
-                    local seeOrWeaponDoesntCare = self.IsSeeEnemy or wep.worksWithoutSightline
+                    local seeOrWeaponDoesntCare = myTbl.IsSeeEnemy or wep.worksWithoutSightline
                     if wep and self:IsRangedWeapon( wep ) and seeOrWeaponDoesntCare then
                         local shootableVolatile = self:getShootableVolatile( enemy )
 
                         if IsValid( shootableVolatile ) and not doShootingPrevent then
-                            self:shootAt( self:getBestPos( shootableVolatile ), nil )
-                            self.lastShootingType = "shootvolatile"
+                            myTbl.shootAt( self, self:getBestPos( shootableVolatile ), nil )
+                            myTbl.lastShootingType = "shootvolatile"
 
                         -- does the weapon know better than us?
                         elseif wep.terminatorAimingFunc then
@@ -2996,43 +2999,43 @@ function ENT:DoDefaultTasks()
                                 doShootingPrevent = nil
 
                             end
-                            self:shootAt( wep:terminatorAimingFunc(), doShootingPrevent )
-                            self.lastShootingType = "aimingfuncranged"
+                            myTbl.shootAt( self, wep:terminatorAimingFunc(), doShootingPrevent )
+                            myTbl.lastShootingType = "aimingfuncranged"
 
                         else
-                            if self.DistToEnemy > wepRange and not self:IsReallyAngry() then -- too far, dont shoot
+                            if myTbl.DistToEnemy > wepRange and not myTbl.IsReallyAngry( self ) then -- too far, dont shoot
                                 doShootingPrevent = true
 
                             end
-                            self:shootAt( self.LastEnemyShootPos, doShootingPrevent )
-                            self.lastShootingType = "normalranged"
+                            myTbl.shootAt( self, myTbl.LastEnemyShootPos, doShootingPrevent )
+                            myTbl.lastShootingType = "normalranged"
 
                         end
                     --melee
-                    elseif wep and self:IsMeleeWeapon( wep ) then
+                    elseif wep and myTbl.IsMeleeWeapon( self, wep ) then
                         local blockShoot = doShootingPrevent or true
-                        local meleeAtPos = self.LastEnemyShootPos
+                        local meleeAtPos = myTbl.LastEnemyShootPos
 
                         -- dont just swing our weap around
-                        if self.DistToEnemy < wepRange * 1.5 and self.IsSeeEnemy then
+                        if myTbl.DistToEnemy < wepRange * 1.5 and myTbl.IsSeeEnemy then
                             blockShoot = nil
                             -- fix bot looking around like an idiot when meleeing?
-                            meleeAtPos = self:EntShootPos( enemy )
+                            meleeAtPos = myTbl.EntShootPos( self, enemy )
 
                         -- fallback?
-                        elseif self.DistToEnemy < wepRange * 1 then
+                        elseif myTbl.DistToEnemy < wepRange * 1 then
                             blockShoot = nil
-                            meleeAtPos = self:EntShootPos( enemy )
+                            meleeAtPos = myTbl.EntShootPos( self, enemy )
 
                         end
 
-                        self.lastShootingType = "melee"
-                        self:shootAt( meleeAtPos, blockShoot )
+                        myTbl.lastShootingType = "melee"
+                        myTbl.shootAt( self, meleeAtPos, blockShoot )
 
                     end
                 else
-                    if wep.Clip1 and ( wep:GetMaxClip1() > 0 ) and ( wep:Clip1() < wep:GetMaxClip1() / 2 ) and not self.IsReloadingWeapon then
-                        self:WeaponReload()
+                    if wep.Clip1 and ( wep:GetMaxClip1() > 0 ) and ( wep:Clip1() < wep:GetMaxClip1() / 2 ) and not myTbl.IsReloadingWeapon then
+                        myTbl.WeaponReload( self )
 
                     end
                 end
@@ -3047,28 +3050,31 @@ function ENT:DoDefaultTasks()
                 data.HasEnemy = false
                 data.playerCheckIndex = 0
                 data.blockSwitchingEnemies = 0
-                self.IsSeeEnemy = false
-                self.NothingOrBreakableBetweenEnemy = false
-                self.DistToEnemy = 0
-                self:SetEnemy( NULL )
+                local myTbl = data.myTbl
+                myTbl.IsSeeEnemy = false
+                myTbl.NothingOrBreakableBetweenEnemy = false
+                myTbl.DistToEnemy = 0
+                myTbl.SetEnemy( self, NULL )
             end,
             BehaveUpdatePriority = function( self, data, interval )
                 local prevEnemy = self:GetEnemy()
                 local newEnemy = prevEnemy
                 local myShoot = self:GetShootPos()
+                local myPos = self:GetPos()
+                local myTbl = data.myTbl
 
-                self.IsSeeEnemy = false -- assume false
-                self.NothingOrBreakableBetweenEnemy = false
-                self.EnemiesVehicle = false
+                myTbl.IsSeeEnemy = false -- assume false
+                myTbl.NothingOrBreakableBetweenEnemy = false
+                myTbl.EnemiesVehicle = false
 
                 if forceupdateenemies or not data.UpdateEnemies or CurTime() > data.UpdateEnemies or data.HasEnemy and not IsValid( prevEnemy ) then
                     data.UpdateEnemies = CurTime() + 0.5
 
-                    self:FindEnemies()
-                    local priorityEnemy = self:FindPriorityEnemy()
+                    myTbl.FindEnemies( self )
+                    local priorityEnemy = myTbl.FindPriorityEnemy( self )
                     local pickedPlayer
 
-                    if not IsValid( priorityEnemy ) and not self:IgnoringPlayers() and not self.IsFodder then -- cheap infinite view distance
+                    if not myTbl.IsFodder and not IsValid( priorityEnemy ) and not myTbl.IgnoringPlayers( self ) then -- cheap infinite view distance
                         -- only run this code if no enemies, go thru player table one-by-one and check los to see if they can be enemy
                         local allPlayers = player.GetAll()
                         -- check only one ply per run
@@ -3077,26 +3083,28 @@ function ENT:DoDefaultTasks()
                         local new = data.playerCheckIndex + 1
                         if new > #allPlayers then
                             data.playerCheckIndex = 1
+
                         else
                             data.playerCheckIndex = new
+
                         end
                     end
                     if IsValid( pickedPlayer ) then
-                        local isLinkedPlayer = pickedPlayer == self.linkedPlayer
+                        local isLinkedPlayer = pickedPlayer == myTbl.linkedPlayer
                         local alive = pickedPlayer:Health() > 0
 
-                        if alive and self:ShouldBeEnemy( pickedPlayer ) and self:IsInMyFov( pickedPlayer ) then
-                            local theirShoot = self:EntShootPos( pickedPlayer )
+                        if alive and myTbl.ShouldBeEnemy( self, pickedPlayer ) and myTbl.IsInMyFov( self, pickedPlayer ) then
+                            local theirShoot = myTbl.EntShootPos( self, pickedPlayer )
                             local canSee = terminator_Extras.PosCanSee( myShoot, theirShoot )
-                            local clearOrBreakable = canSee and self:ClearOrBreakable( myShoot, self:EntShootPos( priorityEnemy ) )
-                            if clearOrBreakable then
-                                self:UpdateEnemyMemory( pickedPlayer, pickedPlayer:GetPos() )
+                            local clearOrBreakable = canSee and myTbl.ClearOrBreakable( self, myShoot, theirShoot )
+                            if clearOrBreakable then -- perfect visibility
+                                myTbl.UpdateEnemyMemory( self, pickedPlayer, pickedPlayer:GetPos() )
 
-                            elseif canSee then
-                                self:RegisterForcedEnemyCheckPos( newEnemy )
+                            elseif canSee then -- they are obscured by a prop
+                                myTbl.RegisterForcedEnemyCheckPos( self, newEnemy )
 
-                            elseif isLinkedPlayer and alive then -- HACK
-                                self:SaveSoundHint( pickedPlayer:GetPos(), true )
+                            elseif isLinkedPlayer and alive then -- GLEE HACK
+                                myTbl.SaveSoundHint( self, pickedPlayer:GetPos(), true )
 
                             end
                         end
@@ -3107,37 +3115,35 @@ function ENT:DoDefaultTasks()
                     if
                         IsValid( priorityEnemy ) and
                         IsValid( prevEnemy ) and
-                        self.IsSeeEnemy and
+                        myTbl.IsSeeEnemy and
                         prevEnemy:Health() > 0 and -- old enemy needs to be alive...
                         prevEnemy ~= priorityEnemy and
                         (
                             data.blockSwitchingEnemies > 0 or
-                            ( self.NothingOrBreakableBetweenEnemy and not self:ClearOrBreakable( myShoot, self:EntShootPos( priorityEnemy ) ) ) -- dont switch from visible to obscured
+                            ( myTbl.NothingOrBreakableBetweenEnemy and not myTbl.ClearOrBreakable( self, myShoot, myTbl.EntShootPos( self, priorityEnemy ) ) ) -- dont switch from visible to obscured
                         ) and
-                        self:GetPos():Distance( priorityEnemy:GetPos() ) > self.CloseEnemyDistance -- enemy needs to be far away, otherwise just switch now
+                        myPos:Distance( priorityEnemy:GetPos() ) > myTbl.CloseEnemyDistance -- enemy needs to be far away, otherwise just switch now
 
-                    then
+                    then -- that mess above tells us dont swap yet
                         local removed = 1
-                        if not self.NothingOrBreakableBetweenEnemy then
+                        if not myTbl.NothingOrBreakableBetweenEnemy then -- our current enemy is crap
                             removed = removed + 4
 
                         end
-                        if self:GetPos():Distance( priorityEnemy:GetPos() ) < self.DuelEnemyDist then
+                        if myPos:Distance( priorityEnemy:GetPos() ) < myTbl.DuelEnemyDist then -- new enemy is too close
                             removed = removed * 4
 
                         end
                         data.blockSwitchingEnemies = math.max( data.blockSwitchingEnemies - removed, 0 )
                         priorityEnemy = prevEnemy
 
-                    -- no friction blocking us, new enemy!
-                    elseif IsValid( priorityEnemy ) then
+                    elseif IsValid( priorityEnemy ) then -- no friction blocking us, new enemy!
                         newEnemy = priorityEnemy
 
-                    elseif self.forcedCheckPositions and table.Count( self.forcedCheckPositions ) >= 1 then
-                        local myPos = self:GetPos()
-                        for positionKey, position in pairs( self.forcedCheckPositions ) do
-                            if SqrDistLessThan( position:DistToSqr( myPos ), 150 ) then
-                                self.forcedCheckPositions[ positionKey ] = nil
+                    elseif myTbl.forcedCheckPositions and table.Count( myTbl.forcedCheckPositions ) >= 1 then -- nuke these
+                        for positionKey, position in pairs( myTbl.forcedCheckPositions ) do
+                            if SqrDistLessThan( position:DistToSqr( myPos ), 200 ) then
+                                myTbl.forcedCheckPositions[ positionKey ] = nil
                                 break
 
                             end
@@ -3150,83 +3156,84 @@ function ENT:DoDefaultTasks()
                     local theirCar = newEnemy:IsPlayer() and newEnemy:GetVehicle()
                     if IsValid( theirCar ) then
                         local carsParent = theirCar:GetParent()
-                        if IsValid( carsParent ) and carsParent:IsVehicle() then -- sim fphys....
+                        if IsValid( carsParent ) and carsParent:IsVehicle() then -- sim fphys ( or glide... )....
                             theirCar = carsParent
 
                         end
                     end
 
-                    self.DistToEnemy = self:GetPos():Distance( enemyPos )
-                    self.IsSeeEnemy = self:CanSeePosition( newEnemy )
-                    self.EnemiesVehicle = IsValid( theirCar ) and theirCar
+                    local newEnemsShoot = myTbl.EntShootPos( self, newEnemy )
+                    myTbl.DistToEnemy = myPos:Distance( enemyPos )
+                    myTbl.IsSeeEnemy = self:CanSeePosition( newEnemsShoot )
+                    myTbl.EnemiesVehicle = IsValid( theirCar ) and theirCar
 
-                    if self.IsSeeEnemy and not self.WasSeeEnemy then
+                    if myTbl.IsSeeEnemy and not myTbl.WasSeeEnemy then
                         local added = math.Rand( 0.4, 0.7 )
-                        if self.DistToEnemy > 2500 then
+                        if myTbl.DistToEnemy > 2500 then
                             added = math.Rand( 0.9, 1.5 )
 
                         end
-                        self.terminator_DontImmiediatelyFire = math.max( CurTime() + added, self.terminator_DontImmiediatelyFire )
+                        myTbl.terminator_DontImmiediatelyFire = math.max( CurTime() + added, myTbl.terminator_DontImmiediatelyFire )
 
                     end
 
-                    self.WasSeeEnemy = self.IsSeeEnemy
+                    myTbl.WasSeeEnemy = myTbl.IsSeeEnemy
 
-                    if self.EnemiesVehicle and self.IsSeeEnemy then
-                        self.term_VehicleIHateAlot = self.EnemiesVehicle
+                    if myTbl.EnemiesVehicle and myTbl.IsSeeEnemy then
+                        myTbl.term_VehicleIHateAlot = myTbl.EnemiesVehicle
 
                     end
 
                     -- override enemy's relations to me
-                    self:MakeFeud( newEnemy )
+                    myTbl.MakeFeud( self, newEnemy )
 
                     -- we cheatily store the enemy's stuff for a second to make bot feel smarter
                     -- people can intuit where someone ran off to after 1 second, so bot can too
-                    local posCheatsLeft = self.EnemyPosCheatsLeft or 0
-                    if self.IsSeeEnemy then
+                    local posCheatsLeft = myTbl.EnemyPosCheatsLeft or 0
+                    if myTbl.IsSeeEnemy then
                         posCheatsLeft = 5
-                        self.LastEnemyShootPos = self:EntShootPos( newEnemy )
-                    -- doesn't time out if we are too close to them
-                    elseif self.DistToEnemy < 500 and posCheatsLeft >= 1 then
+                        myTbl.LastEnemyShootPos = newEnemsShoot
+
+                    elseif myTbl.DistToEnemy < 500 and posCheatsLeft >= 1 then -- doesn't time out if we are too close to them
                         --debugoverlay.Line( enemyPos, self:GetPos(), 0.3, Color( 255,255,255 ), true )
                         posCheatsLeft = math.max( 1, posCheatsLeft )
 
                     end
-                    if self.IsSeeEnemy or posCheatsLeft > 0 then
-                        self.NothingOrBreakableBetweenEnemy = self:ClearOrBreakable( myShoot, self:EntShootPos( newEnemy ) )
-                        self.EnemyLastPosOffsetted = self.EnemyLastPos + terminator_Extras.dirToPos( self.EnemyLastPos, enemyPos ) * 150
-                        self.LastEnemyForward = newEnemy:GetForward()
-                        self.EnemyLastPos = enemyPos
-                        self:RegisterForcedEnemyCheckPos( newEnemy )
-                        self:UpdateEnemyMemory( newEnemy, enemyPos )
-                        --debugoverlay.Line( enemyPos, enemyPos + ( self.EnemyLastDir * 100 ), 5, Color( 255, 255, 255 ), true )
+
+                    if myTbl.IsSeeEnemy or posCheatsLeft > 0 then
+                        myTbl.NothingOrBreakableBetweenEnemy = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
+                        myTbl.EnemyLastPosOffsetted = myTbl.EnemyLastPos + terminator_Extras.dirToPos( myTbl.EnemyLastPos, enemyPos ) * 150
+                        myTbl.EnemyLastPos = enemyPos
+                        myTbl.RegisterForcedEnemyCheckPos( self, newEnemy )
+                        myTbl.UpdateEnemyMemory( self, newEnemy, enemyPos )
+                        --debugoverlay.Line( enemyPos, enemyPos + ( myTbl.EnemyLastDir * 100 ), 5, Color( 255, 255, 255 ), true )
 
                     end
 
                     if newEnemy and newEnemy.Alive and newEnemy:Health() > 0 then
-                        self.EnemyPosCheatsLeft = posCheatsLeft + -1
+                        myTbl.EnemyPosCheatsLeft = posCheatsLeft + -1
 
-                    else
-                        self.EnemyPosCheatsLeft = nil
+                    else -- they died, cheating stops here
+                        myTbl.EnemyPosCheatsLeft = nil
 
                     end
 
                     if not data.HasEnemy then
-                        local sinceLastFound = CurTime() - self.LastEnemySpotTime
-                        self:RunTask( "EnemyFound", newEnemy, sinceLastFound )
+                        local sinceLastFound = CurTime() - myTbl.LastEnemySpotTime
+                        myTbl.RunTask( self, "EnemyFound", newEnemy, sinceLastFound )
                         hook.Run( "terminator_spotenemy", self, newEnemy )
 
                     elseif prevEnemy ~= newEnemy then
                         local blockSwitch = math.random( 2, 4 )
-                        if self:IsReallyAngry() then
+                        if myTbl.IsReallyAngry( self ) then
                             blockSwitch = blockSwitch + math.random( 5, 8 )
 
-                        elseif self:IsAngry() then
+                        elseif myTbl.IsAngry( self ) then
                             blockSwitch = blockSwitch + 3
 
                         end
                         data.blockSwitchingEnemies = blockSwitch
-                        self:RunTask( "EnemyChanged", newEnemy, prevEnemy )
+                        myTbl.RunTask( self, "EnemyChanged", newEnemy, prevEnemy )
                         hook.Run( "terminator_enemychanged", self, newEnemy, prevEnemy )
 
                     elseif prevEnemy == newEnemy then
@@ -3236,22 +3243,21 @@ function ENT:DoDefaultTasks()
 
                     data.HasEnemy = true
 
-                    if self.IsSeeEnemy then
-                        self.LastEnemySpotTime = CurTime()
+                    if myTbl.IsSeeEnemy then
+                        myTbl.LastEnemySpotTime = CurTime()
 
                     end
-
                 else
                     if data.HasEnemy then
-                        local memory, _ = self:getMemoryOfObject( prevEnemy )
+                        local memory, _ = myTbl.getMemoryOfObject( self, prevEnemy )
 
                         if prevEnemy:IsPlayer() or memory == MEMORY_WEAPONIZEDNPC then
                             -- reset searching progress!
-                            self.SearchCheckedNavs = self.SearchBadNavAreas
-                            self.SearchCheckedNavsCount = 0
+                            myTbl.SearchCheckedNavs = myTbl.SearchBadNavAreas
+                            myTbl.SearchCheckedNavsCount = 0
 
                         end
-                        self:RunTask( "EnemyLost", prevEnemy )
+                        myTbl.RunTask( self, "EnemyLost", prevEnemy )
                         hook.Run( "terminator_loseenemy", self, prevEnemy )
 
                     end
@@ -3259,26 +3265,28 @@ function ENT:DoDefaultTasks()
                     data.HasEnemy = false
 
                 end
-                local decayTime = self.VisibilityStartingHealthDecay or 0
+                local decayTime = myTbl.VisibilityStartingHealthDecay or 0
 
-                if self.IsSeeEnemy then
+                if myTbl.IsSeeEnemy then
                     -- save old health
-                    local oldHealth = self.VisibilityStartingHealth
-                    local ratio = self:Health() / self:GetMaxHealth()
+                    local myHealth = self:Health()
+                    local oldHealth = myTbl.VisibilityStartingHealth
+                    local ratio = myHealth / self:GetMaxHealth()
 
-                    self.VisibilityStartingHealthDecay = CurTime() + ratio * 5
+                    myTbl.VisibilityStartingHealthDecay = CurTime() + ratio * 5
 
                     if not isnumber( oldHealth ) then
-                        self.VisibilityStartingHealth = self:Health()
+                        myTbl.VisibilityStartingHealth = myHealth
 
                     end
 
-                elseif self.VisibilityStartingHealth ~= nil and decayTime and decayTime < CurTime() then
-                    --print( self.VisibilityStartingHealth, "a" )
-                    self.VisibilityStartingHealth = nil
+                elseif myTbl.VisibilityStartingHealth ~= nil and decayTime and decayTime < CurTime() then
+                    --print( myTbl.VisibilityStartingHealth, "a" )
+                    myTbl.VisibilityStartingHealth = nil
+
                 end
 
-                self:SetEnemy( newEnemy )
+                myTbl.SetEnemy( self, newEnemy )
 
             end,
             StartControlByPlayer = function( self, data, ply )
@@ -3290,7 +3298,7 @@ function ENT:DoDefaultTasks()
                 local nextAware = data.nextAwareness or 0
                 if nextAware < CurTime() then
                     local add = 2
-                    if self.IsFodder then
+                    if data.myTbl.IsFodder then
                         add = math.Rand( 8, 12 )
 
                     end
@@ -3310,23 +3318,24 @@ function ENT:DoDefaultTasks()
                 data.freedomGotoPosSimple = nil
             end,
             BehaveUpdateMotion = function( self, data )
+                local myTbl = data.myTbl
                 if data.freedomGotoPosSimple and data.extremeUnstucking > CurTime() then -- try and unstuck without teleporting!
                     local dist = self:GetPos():Distance2D( data.freedomGotoPosSimple )
                     if dist < 150 then
                         data.freedomGotoPosSimple = nil
-                        self:KillAllTasksWith( "movement" )
-                        self:StartTask2( "movement_handler", nil, "yay, i got back on the navmesh!" )
+                        myTbl.KillAllTasksWith( self, "movement" )
+                        myTbl.StartTask2( self, "movement_handler", nil, "yay, i got back on the navmesh!" )
                         return
 
                     else
                         if data.oldNavArea and data.oldNavArea ~= self:GetCurrentNavArea() then -- we're doing something!
-                            self.overrideVeryStuck = nil
+                            myTbl.overrideVeryStuck = nil
                             data.oldNavArea = nil
 
                         end
 
-                        self:GotoPosSimple( data.freedomGotoPosSimple, 0 )
-                        self.nextNewPath = CurTime() + 0.5
+                        myTbl.GotoPosSimple( self, myTbl, data.freedomGotoPosSimple, 0 )
+                        myTbl.nextNewPath = CurTime() + 0.5
 
                     end
                 end
@@ -3340,7 +3349,7 @@ function ENT:DoDefaultTasks()
 
                     data.nextCache = CurTime() + 1
 
-                    local noNav = self.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
+                    local noNav = myTbl.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
                     local doAddCount = 1
                     -- go faster
                     if noNav then
@@ -3351,7 +3360,7 @@ function ENT:DoDefaultTasks()
 
                         end
                     end
-                    if self.isUnstucking then
+                    if myTbl.isUnstucking then
                         doAddCount = doAddCount * 2
 
                     end
@@ -3371,7 +3380,7 @@ function ENT:DoDefaultTasks()
 
                     local stuck = nil
                     local sortaStuck = nil
-                    local overrideStuck = self.overrideVeryStuck
+                    local overrideStuck = myTbl.overrideVeryStuck
 
                     local nextDisplacementCheck = data.nextUnderDisplacementCheck or 0
                     if nextDisplacementCheck < CurTime() then
@@ -3437,12 +3446,12 @@ function ENT:DoDefaultTasks()
                         --PrintTable( data.historicNavs )
                         --debugoverlay.Cross( myPos, 100, 100, color_white, true )
 
-                        self.overrideVeryStuck = nil
+                        myTbl.overrideVeryStuck = nil
                         local distToEnemy = 0
                         local enemyPos = self:GetPos()
                         if IsValid( self:GetEnemy() ) then
-                            distToEnemy = self.DistToEnemy
-                            enemyPos = self.EnemyLastPos or self:GetEnemy():GetPos()
+                            distToEnemy = myTbl.DistToEnemy
+                            enemyPos = myTbl.EnemyLastPos or self:GetEnemy():GetPos()
 
                         end
 
@@ -3478,15 +3487,15 @@ function ENT:DoDefaultTasks()
                         local extremeStuck = underDisplacement or not freedomPos
                         local canGotoEscape = data.nextUnstuckGotoEscape < CurTime() and data.extremeUnstucking < CurTime()
 
-                        if not self.IsSeeEnemy and extremeUnstucking:GetBool() and ( extremeStuck or not canGotoEscape ) then
+                        if not myTbl.IsSeeEnemy and extremeUnstucking:GetBool() and ( extremeStuck or not canGotoEscape ) then
                             data.extremeUnstucking = 0
                             data.freedomGotoPosSimple = nil
                             data.oldNavArea = nil
                             if freedomPos then
                                 self:SetPosNoTeleport( freedomPos )
                                 self:InvalidatePath( "i was hard unstucked! bailing path." )
-                                self.loco:SetVelocity( vec_zero )
-                                self.loco:ClearStuck()
+                                myTbl.loco:SetVelocity( vec_zero )
+                                myTbl.loco:ClearStuck()
 
                             elseif GAMEMODE.getValidHunterPos then
                                 freedomPos = GAMEMODE:getValidHunterPos()
@@ -3495,11 +3504,11 @@ function ENT:DoDefaultTasks()
                                     self:SetPosNoTeleport( freedomPos )
                                     self:InvalidatePath( "i was hard unstucked! bailing path. 2" )
 
-                                    self.loco:SetVelocity( vec_zero )
-                                    self.loco:ClearStuck()
+                                    myTbl.loco:SetVelocity( vec_zero )
+                                    myTbl.loco:ClearStuck()
 
                                 end
-                            elseif not self:PathIsValid() and not self.ReallyStuckNeverRemove then -- only remove if its not pathing!
+                            elseif not self:PathIsValid() and not myTbl.ReallyStuckNeverRemove then -- only remove if its not pathing!
                                 SafeRemoveEntity( self )
 
                             end
@@ -3539,6 +3548,10 @@ function ENT:DoDefaultTasks()
                     self:TaskComplete( "movement_handler" )
                     self:StartTask2( "movement_wait", { time = math.abs( self.nextNewPath - CurTime() ) }, "wait..." )
                     return
+
+                elseif self.term_WaitingForEnemy then
+                    self:TaskComplete( "movement_handler" )
+                    self:StartTask2( "movement_waitforenemy", nil, "wait... ( for enemy )" )
 
                 else
                     local canWep, potentialWep = self:canGetWeapon()
@@ -3672,7 +3685,7 @@ function ENT:DoDefaultTasks()
                     if IsValid( data.object ) then
                         -- BEATUP
                         local old = SysTime()
-                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = self:beatUpEnt( data.object )
+                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = self:beatUpEnt( data.myTbl, data.object )
                         data.gotAHitIn = data.gotAHitIn or attacked
 
                         if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
@@ -3681,7 +3694,7 @@ function ENT:DoDefaultTasks()
                         end
                         -- edge case
                         if not valid and visible then
-                            self:GotoPosSimple( data.object:WorldSpaceCenter(), 5 )
+                            self:GotoPosSimple( data.myTbl, data.object:WorldSpaceCenter(), 5 )
                             self:Anger( 1 )
 
                         elseif not valid and not visible then
@@ -3851,7 +3864,7 @@ function ENT:DoDefaultTasks()
                     local valid, attacked, nearAndCanHit, closeAndCanHit, isClose
                     if not self.isUnstucking and IsValid( data.object ) then
                         -- UNDERSTAND
-                        valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose = self:beatUpEnt( data.object )
+                        valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose = self:beatUpEnt( data.myTbl, data.object )
                         --print( valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose )
                         --debugoverlay.Cross( data.object:GetPos(), 100, 1, Color( 255,0,0 ), true )
                         if valid == false then
@@ -3944,6 +3957,15 @@ function ENT:DoDefaultTasks()
                     self:StartTask2( "movement_handler", nil, "all done waiting" )
 
                 end
+            end,
+        },
+        ["movement_waitforenemy"] = {
+            OnStart = function( self, data )
+            end,
+            BehaveUpdateMotion = function( self, data, interval )
+                self.term_WaitingForEnemy = nil
+                self:StartTask2( "movement_handler", nil, "spotted enemy!" )
+
             end,
         },
         ["movement_getweapon"] = {
@@ -6575,7 +6597,7 @@ function ENT:DoDefaultTasks()
                             gotoPos = gotoPos + VectorRand() * 15
 
                             --debugoverlay.Cross( gotoPos, 10, 1, Color( 255,255,0 ) )
-                            self:GotoPosSimple( gotoPos, 10 )
+                            self:GotoPosSimple( data.myTbl, gotoPos, 10 )
                             if self.DistToEnemy < 100 then
                                 self:crouchToGetCloserTo( self:EntShootPos( enemy ) )
 

@@ -304,31 +304,32 @@ local function navPatchingThink( ply, beingChased, someoneWasChased )
 
     end
 
+    local plyPos = ply:GetPos()
     local currArea, distToArea
     if ply.GetNavAreaData then -- glee
         currArea, distToArea = ply:GetNavAreaData()
         if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
 
     else
-        local plyPos = ply:GetPos()
         currArea = navmesh.GetNearestNavArea( plyPos, false, 25, false, true, -2 )
         if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
 
         local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
         distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
 
-        if distToArea > 15 and ply:Crouching() then onNoArea( ply, beingChased, someoneWasChased ) return end
+    end
 
-        local patchABitAhead = beingChased and not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100
-        if patchABitAhead then
-            local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
-            if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
-                local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
+    if distToArea > 15 and ply:Crouching() then onNoArea( ply, beingChased, someoneWasChased ) return end
 
-                if not IsValid( aheadArea ) then
-                    terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
+    local patchABitAhead = beingChased and not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100
+    if patchABitAhead then
+        local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
+        if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
+            local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
 
-                end
+            if not IsValid( aheadArea ) then
+                terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
+
             end
         end
     end

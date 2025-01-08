@@ -473,11 +473,12 @@ local function patchCoroutine()
 
         debugPrint( "Patching region from", pos1, "to", pos2 )
 
-        local openVoxelsSeq = {}
-        local closedVoxels = {}
-        local solidVoxels = {}
-        local vecsToPlace = {}
-        local headroomTbl = {}
+        local openVoxelsSeq = {} -- spots we are yet to check
+        local closedVoxels = {} -- spots that we dont need to check
+        local solidVoxels = {} -- solid spots
+        local vecsToPlace = {} -- good spots we found
+        local headroomTbl = {} -- headroom, for simple crouching checks
+        local validatedAreas = {} -- all the areas we made this pass
 
         local biggest = VectorMax( pos1, pos2 )
         local smallest = VectorMin( pos1, pos2 )
@@ -604,7 +605,7 @@ local function patchCoroutine()
                     end
                 end
             end
-            local validatedAreas = {}
+            validatedAreas = {}
             for _, area in ipairs( justNewAreasSeq ) do
                 if IsValid( area ) then
                     table.insert( validatedAreas, area )
@@ -633,6 +634,9 @@ local function patchCoroutine()
         end
         terminator_Extras.IsLivePatching = nil
         coroutine.yield( "waitlong" )
+
+        local areaCreatedCount = #validatedAreas
+        hook.Run( "terminator_areapatcher_doneapatch", validatedAreas, areaCreatedCount )
 
     end
 
