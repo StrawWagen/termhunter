@@ -289,7 +289,7 @@ end
 -- patches gaps in navmesh, using players as a guide
 -- patches will never be ideal, but they will be better than nothing
 
-local doorCheckHull = Vector( 10, 10, 1 )
+local doorCheckHull = Vector( 18, 18, 1 )
 local flattener = Vector( 1, 1, 0.5 )
 local tooFarDistSqr = 40^2
 
@@ -462,7 +462,6 @@ end
 
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_following_navpatcher", function()
     if not doFollowingPatching then return end
-    if GAMEMODE.IsReallyHuntersGlee == true then return end -- TODO: REMOVE THIS!
     plysCurrentlyBeingChased = {}
     hook.Add( "Think", "terminator_following_navpatcher", function()
         navPatchSelectivelyThink()
