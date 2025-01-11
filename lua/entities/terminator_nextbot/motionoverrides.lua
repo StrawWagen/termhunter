@@ -370,6 +370,7 @@ function ENT:OnStuck()
                 if TryStuck( self, pos + Vector( -x, y, z ),    t, tr ) then return end
                 if TryStuck( self, pos + Vector( x, -y, z ),    t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, -y, z ),   t, tr ) then return end
+                if yieldable then coroutine_yield() end
                 if TryStuck( self, pos + Vector( x, y, -z ),    t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, y, -z ),   t, tr ) then return end
                 if TryStuck( self, pos + Vector( x, -y, -z ),   t, tr ) then return end

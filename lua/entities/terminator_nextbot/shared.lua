@@ -1601,9 +1601,9 @@ function ENT:beatUpEnt( myTbl, ent, unstucking )
     newPath = newPath and not closeAndCanHit
 
     if newPath and not unstucking then
-        if myTbl.term_ExpensivePath then -- lagging the session, invalid
+        if myTbl.term_ExpensivePath then -- lagging the session
             yieldIfWeCan( "wait" )
-            return
+            return -- invalid
 
         elseif not myTbl.nextNewPathIsGood( self ) then -- just not ready, sill valid, wait
             yieldIfWeCan( "wait" )
@@ -1614,7 +1614,7 @@ function ENT:beatUpEnt( myTbl, ent, unstucking )
         local pathPos = entsRealPos
         local area = terminator_Extras.getNearestPosOnNav( entsRealPos ).area
 
-        local validArea = IsValid( area ) and myTbl.areaIsReachable( area )
+        local validArea = IsValid( area ) and myTbl.areaIsReachable( self, area )
 
         if validArea then
             local adjacents = area:GetAdjacentAreas()
@@ -5569,18 +5569,20 @@ function ENT:DoDefaultTasks()
                 if data.InvalidAfterwards then
                     if self.IsSeeEnemy then
                         -- missing a fail here caused massive cascade
-                        self:TaskFail( "movement_stalkenemy" )
                         local oldUpHighFails = data.standUpHighFails or 0
-                        local doBackupCamp = oldUpHighFails > 15 and self.IsSeeEnemy
+                        local doBackupCamp = oldUpHighFails > 5 and self.IsSeeEnemy
                         self:GetTheBestWeapon()
 
                         if reachable and not tooDangerousToApproach then
+                            self:TaskFail( "movement_stalkenemy" )
                             self:StartTask2( "movement_flankenemy", { Time = 0.2 }, "i can reach them, ill just go around" )
 
                         elseif doBackupCamp then
+                            self:TaskFail( "movement_stalkenemy" )
                             self:StartTask2( "movement_camp", { maxNoSeeing = 300 }, "i failed to stand somewhere high too much, SHOOT!" )
 
                         else
+                            self:TaskFail( "movement_stalkenemy" )
                             self:StartTask2( "movement_stalkenemy", { Time = 0.2, perchWhenHidden = true, standUpHighFails = oldUpHighFails + 1, bearingAdded = data.bearingAdded }, "i cant reach them, ill stand somewhere high up i can see them" )
 
                         end

@@ -65,6 +65,61 @@ terminator_Extras.BearingToPos = function( pos1, ang1, pos2, ang2 )
 
 end
 
+local coroutine_yield = coroutine.yield
+
+terminator_Extras.posIsInterrupting = function( pos, yieldable )
+    for _, ply in player.Iterator() do
+        if yieldable then
+            coroutine_yield()
+
+        end
+        local viewEnt = ply:GetViewEntity()
+        local shoot = ply:GetShootPos()
+        local viewPos
+        local interrupting = shoot:DistToSqr( pos ) < 1000^2
+        if IsValid( viewEnt ) and viewEnt ~= ply then
+            viewPos = viewEnt:WorldSpaceCenter()
+            interrupting = interrupting or viewPos:DistToSqr( pos ) < 1000^2
+
+        else
+            viewPos = shoot
+
+        end
+
+        if interrupting or terminator_Extras.PosCanSee( pos, viewPos ) then
+            return true
+
+        end
+    end
+end
+
+terminator_Extras.areaIsInterruptingSomeone = function( area, areasCenter, yieldable )
+    areasCenter = areasCenter or area:GetCenter()
+
+    for _, ply in player.Iterator() do
+        if yieldable then
+            coroutine_yield()
+
+        end
+        local viewEnt = ply:GetViewEntity()
+        local shoot = ply:GetShootPos()
+        local viewPos
+        local interrupting = shoot:DistToSqr( areasCenter ) < 1000^2
+        if IsValid( viewEnt ) and viewEnt ~= ply then
+            viewPos = viewEnt:WorldSpaceCenter()
+            interrupting = interrupting or viewPos:DistToSqr( areasCenter ) < 1000^2
+
+        else
+            viewPos = shoot
+
+        end
+        if interrupting or area:IsVisible( viewPos ) then
+            return true
+
+        end
+    end
+end
+
 --[[ find memory leaks!
 for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
     local biggestSize = 0
