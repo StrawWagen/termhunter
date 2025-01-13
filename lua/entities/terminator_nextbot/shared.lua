@@ -3184,9 +3184,6 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    -- override enemy's relations to me
-                    myTbl.MakeFeud( self, newEnemy )
-
                     -- we cheatily store the enemy's stuff for a second to make bot feel smarter
                     -- people can intuit where someone ran off to after 1 second, so bot can too
                     local posCheatsLeft = myTbl.EnemyPosCheatsLeft or 0
@@ -3220,6 +3217,9 @@ function ENT:DoDefaultTasks()
 
                     if not data.HasEnemy then
                         local sinceLastFound = CurTime() - myTbl.LastEnemySpotTime
+
+                        -- override enemy's relations to me
+                        myTbl.MakeFeud( self, newEnemy )
                         myTbl.RunTask( self, "EnemyFound", newEnemy, sinceLastFound )
                         hook.Run( "terminator_spotenemy", self, newEnemy )
 
@@ -3233,6 +3233,8 @@ function ENT:DoDefaultTasks()
 
                         end
                         data.blockSwitchingEnemies = blockSwitch
+                        -- override enemy's relations to me
+                        myTbl.MakeFeud( self, newEnemy )
                         myTbl.RunTask( self, "EnemyChanged", newEnemy, prevEnemy )
                         hook.Run( "terminator_enemychanged", self, newEnemy, prevEnemy )
 

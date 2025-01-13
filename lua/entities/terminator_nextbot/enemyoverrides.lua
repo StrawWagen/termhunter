@@ -625,8 +625,10 @@ function ENT:MakeFeud( enemy )
     if enemy == self then return end
     if not enemy.Health then return end
     if enemy:Health() <= 0 then return end
-    if enemy:GetClass() == "rpg_missile" then return end -- crazy fuckin bug
-    if enemy:GetClass() == "env_flare" then return end -- just as crazy
+
+    local class = enemy:GetClass()
+    if class == "rpg_missile" then return false end -- crazy fuckin bug
+    if class == "env_flare" then return false end -- just as crazy
 
     if pals( self, enemy ) then
         if blockAllInfighting:GetBool() then return end
@@ -647,7 +649,9 @@ function ENT:MakeFeud( enemy )
 
     end
 
-    if enemy:IsPlayer() then
+    local isPly = playersCache[enemy]
+
+    if isPly then
         self:Term_SetEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else
 
     elseif enemy:IsNPC() or enemy:IsNextBot() then
@@ -658,7 +662,7 @@ function ENT:MakeFeud( enemy )
 
     end
 
-    if enemy:IsPlayer() then return end
+    if isPly then return end
     if enemy.GetActiveWeapon and IsValid( enemy:GetActiveWeapon() ) then
         self:memorizeEntAs( enemy, MEMORY_WEAPONIZEDNPC )
 
