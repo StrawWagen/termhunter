@@ -2783,7 +2783,7 @@ end
 function ENT:TermThink( myTbl ) -- inside coroutine :)
     myTbl.AdditionalThink( self )
     if myTbl.CanSpeak then
-        myTbl.SpokenLinesThink( self )
+        myTbl.SpokenLinesThink( self, myTbl )
 
     end
     if myTbl.HealthRegen then

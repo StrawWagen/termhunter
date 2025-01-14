@@ -19,9 +19,8 @@ end
 
 local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )
 
-function ENT:SpokenLinesThink()
-    if not self.CanSpeak then return end
-    local myTbl = self:GetTable()
+function ENT:SpokenLinesThink( myTbl )
+    if not myTbl.CanSpeak then return end
 
     if myTbl.NextTermSpeak > CurTime() then return end
     local noLines = #myTbl.StuffToSay <= 0
@@ -208,6 +207,12 @@ function ENT:Term_SpeakSound( pathIn, conditionFunc )
         table.insert( self.StuffToSay, { path = pathIn } )
 
     end
+end
+
+function ENT:Term_ClearStuffToSay()
+    self.StuffToSay = {}
+    self.NextTermSpeak = 0
+
 end
 
 hook.Add( "PlayerDeath", "terminator_killedenemy", function( _, _, killer )
