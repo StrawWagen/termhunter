@@ -329,11 +329,11 @@ local function onTermsTableUpdate()
 	end
 
 	if count > 0 then
-		terminator_Extras.setupIsNPCHack()
+		terminator_Extras.setupExpensiveHacks()
 		hook.Run( "terminator_nextbot_oneterm_exists" )
 
 	else
-		terminator_Extras.teardownIsNPCHack()
+		terminator_Extras.teardownExpensiveHacks()
 		hook.Run( "terminator_nextbot_noterms_exist" )
 
 	end
@@ -368,23 +368,34 @@ meta.term_Old_IsNPC = meta.term_Old_IsNPC or meta.IsNPC
 
 local function termIsNPCHack( ent )
 	if terms[ent] then return true end
-	return ent:term_Old_IsNPC()
+	return meta.term_Old_IsNPC( ent )
+
+end
+
+meta.term_Old_EyeAngles = meta.term_Old_EyeAngles or meta.EyeAngles
+
+-- when the weapon uses eyeangles instead of aimvector....
+local function termEyeAnglesHack( ent )
+	if terms[ent] then return ent:GetEyeAngles() end
+	return meta.term_Old_EyeAngles( ent )
 
 end
 
 local wasHacking
 
-function terminator_Extras.setupIsNPCHack()
+function terminator_Extras.setupExpensiveHacks()
 	if wasHacking then return end
 	wasHacking = true
 
 	meta.IsNPC = termIsNPCHack
+	meta.EyeAngles = termEyeAnglesHack
 
 end
-function terminator_Extras.teardownIsNPCHack()
+function terminator_Extras.teardownExpensiveHacks()
 	if not wasHacking then return end
 	wasHacking = nil
 
 	meta.IsNPC = meta.term_Old_IsNPC
+	meta.EyeAngles = meta.term_Old_EyeAngles
 
 end

@@ -28,20 +28,19 @@ function ENT:BehaveUpdate( interval )
         end
     end
 
-    self:SetupSpeed()
-    self:SetupMotionType()
-    self:ProcessFootsteps()
-    self:ChildrenCleanupHack( myTbl ) -- for some reason bots slowly accumulate themself in their _children table?????
+    myTbl.SetupSpeed( self )
+    myTbl.SetupMotionType( self )
+    myTbl.ProcessFootsteps( self )
+    myTbl.ChildrenCleanupHack( self, myTbl ) -- for some reason bots slowly accumulate themself in their _children table?????
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z
 
     if not disable then
-        self:SetupEyeAngles()
-        self:UpdatePhysicsObject()
-        self:ForgetOldEnemies()
-        self:HandlePathRemovedWhileOnladder()
+        myTbl.SetupEyeAngles( self )
+        myTbl.UpdatePhysicsObject( self )
+        myTbl.HandlePathRemovedWhileOnladder( self )
 
         local ply = self:GetControlPlayer()
-        if IsValid( ply ) then
+        if IsValid( ply ) then -- not optimizing this
             -- Sending current weapon clips data
 
             if self:HasWeapon() then
@@ -71,28 +70,32 @@ function ENT:BehaveUpdate( interval )
             end
 
             if not threads.priorityCor then
-                threads.priorityCor = coroutine.create( function( self ) self:BehaviourPriorityCoroutine() end )
+                threads.priorityCor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end )
 
             end
             if not threads.motionCor then
-                threads.motionCor = coroutine.create( function( self ) self:BehaviourMotionCoroutine() end )
+                threads.motionCor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end )
 
             end
         end
     end
 
-    self:SetupGesturePosture()
+    myTbl.SetupGesturePosture( self )
 
 end
 
 -- process the threads every tick if we can
 function ENT:Think()
-    self:TermThink()
     local myTbl = self:GetTable()
-    local threads = myTbl.BehaviourThreads
-    if not threads then return end
 
-    local enem = self:GetEnemy()
+    local threads = myTbl.BehaviourThreads
+    if not threads then
+        self:NextThink( CurTime() + 0.01 )
+        return true
+
+    end
+
+    local enem = myTbl.GetEnemy( self )
     local thresh = myTbl.CoroutineThresh
     if myTbl.IsFodder and not IsValid( enem ) then
         thresh = thresh / 2
@@ -116,7 +119,7 @@ function ENT:Think()
 
         while SysTime() - oldTime < thresh do
             doneSomething = true
-            local noErrors, result = coroutine_resume( thread, self )
+            local noErrors, result = coroutine_resume( thread, self, myTbl )
             if noErrors == false then
                 threads[index] = nil
                 ErrorNoHaltWithStack( result )
@@ -135,28 +138,32 @@ function ENT:Think()
         self:NextThink( CurTime() )
         return true
 
+    else
+        myTbl.BehaviourThreads = nil
+
     end
 end
 
 -- do enemy handling ( looking around, finding enemies, shooting ) asynced to the movement coroutine
-function ENT:BehaviourPriorityCoroutine()
+function ENT:BehaviourPriorityCoroutine( myTbl )
     -- do shoot blocking thinking
-    self:BehaviourThink()
+    myTbl.TermThink( self, myTbl )
+    myTbl.BehaviourThink( self, myTbl )
 
     -- Calling task callbacks
-    self:RunTask( "BehaveUpdatePriority" )
+    myTbl.RunTask( self, "BehaveUpdatePriority" )
 
     coroutine_yield( "done" )
 
 end
 
 -- do motion, anything super computationally expensive on this coroutine
-function ENT:BehaviourMotionCoroutine()
-    self:StuckCheck()
-    self:walkArea()
+function ENT:BehaviourMotionCoroutine( myTbl )
+    myTbl.StuckCheck( self )
+    myTbl.walkArea( self )
 
     -- Calling task callbacks
-    self:RunTask( "BehaveUpdateMotion" )
+    myTbl.RunTask( self, "BehaveUpdateMotion" )
 
     coroutine_yield( "done" )
 

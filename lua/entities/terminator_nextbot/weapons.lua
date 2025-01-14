@@ -27,6 +27,36 @@ termHunter_WeaponAnalogs = EngineAnalogs
 local IsValid = IsValid
 local entMeta = FindMetaTable( "Entity" )
 
+function ENT:GetWeapon( myTbl )
+    myTbl = myTbl or self:GetTable()
+    return self:GetActiveLuaWeapon( myTbl ) or self:GetActiveWeapon()
+
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:GetActiveLuaWeapon
+    Desc: Returns current weapon entity. If active weapon is engine weapon, returns lua analog.
+    Arg1: 
+    Ret1: Weapon | Active weapon.
+--]]------------------------------------
+function ENT:GetActiveLuaWeapon( myTbl )
+    myTbl = myTbl or self:GetTable()
+    return myTbl.m_ActualWeapon or NULL
+
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:HasWeapon
+    Desc: Returns has bot any weapon or not.
+    Arg1: 
+    Ret1: bool | Has weapon or not
+--]]------------------------------------
+function ENT:HasWeapon( myTbl )
+    myTbl = myTbl or self:GetTable()
+    return myTbl.term_hasWeapon
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:Give
     Desc: Gives weapon to bot.
@@ -69,17 +99,6 @@ function ENT:HateBuggyWeapon( wep, successful )
     self:Anger( 10 )
 
     return true
-
-end
-
---[[------------------------------------
-    Name: NEXTBOT:GetActiveLuaWeapon
-    Desc: Returns current weapon entity. If active weapon is engine weapon, returns lua analog.
-    Arg1: 
-    Ret1: Weapon | Active weapon.
---]]------------------------------------
-function ENT:GetActiveLuaWeapon()
-    return self.m_ActualWeapon or NULL
 
 end
 
@@ -133,15 +152,13 @@ function ENT:SetupWeapon( wep )
         actwep:SetClip1( wep:Clip1() )
         actwep:SetClip2( wep:Clip2() )
 
-        hook.Add( "Think", actwep, function( self )
+        hook.Add( "Think", actwep, function()
             if not IsValid( wep ) then return end
-            wep:SetClip1( self:Clip1() )
-            wep:SetClip2( self:Clip2() )
+            wep:SetClip1( actwep:Clip1() )
+            wep:SetClip2( actwep:Clip2() )
         end )
 
-        hook.Add( "EntityRemoved", actwep, function( self,ent )
-            if ent == wep then self:Remove() end
-        end )
+        wep:DeleteOnRemove( actwep )
         actwep:DeleteOnRemove( wep )
 
         self.m_ActualWeapon = actwep
@@ -197,6 +214,19 @@ function ENT:SetupWeapon( wep )
     self.terminator_LastFiringIsAllowed = 0
     self:NextWeapSearch( 0 )
 
+    self.term_hasWeapon = true
+    wep:CallOnRemove( "term_unset_hasweapon", function()
+        local currWep = self:GetActiveWeapon()
+        local validWep = IsValid( currWep )
+        if validWep and currWep ~= wep then
+            return
+
+        end
+        self.term_hasWeapon = nil
+        self.m_ActualWeapon = nil
+
+    end )
+
     --[[
     -- debug for testing holstering
     timer.Simple( 0.5, function()
@@ -214,9 +244,6 @@ end
 --[[------------------------------------
     Name: NEXTBOT:DropWeapon
     Desc: Drops current active weapon.
-    Arg1: (optional) Vector | velocity | Sets velocity of weapon. Max speed is 400.
-    Arg2: (optional) bool | justdrop | If true, just drop weapon from current hand position. Don't apply velocity and position.
-    Ret1: Weapon | Dropped weapon. If active weapon is lua analog of engine weapon, then this will be engine weapon, not lua analog.
 --]]------------------------------------
 function ENT:DropWeapon( noHolster, droppingOverride )
     local wep
@@ -238,6 +265,9 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     self:SetActiveWeapon( NULL )
 
     if wep:GetClass() == self.TERM_FISTS then
+        wep:RemoveCallOnRemove( "term_unset_hasweapon" )
+        self.m_ActualWeapon = nil
+        self.term_hasWeapon = nil
         SafeRemoveEntity( wep )
         return
 
@@ -331,12 +361,14 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
     end
 
-    if self:CanHolsterWeap( wep ) and noHolster ~= true then -- holster wep if we can, and it's not crappy!
+    if noHolster ~= true and self:CanHolsterWeap( wep ) then -- holster wep if we can, and it's not crappy!
         self:HolsterWeap( wep )
 
     end
 
     self.terminator_NextWeaponPickup = CurTime() + math.Rand( 1, 2 )
+    self.term_hasWeapon = nil
+    wep:RemoveCallOnRemove( "term_unset_hasweapon" )
 
     return wep
 end
@@ -362,8 +394,9 @@ function ENT:ReloadWeaponData()
 end
 
 function ENT:AssumeWeaponNextShootTime()
-    local wep = self:GetWeapon()
-    local wepData = self.m_WeaponData
+    local myTbl = self:GetTable()
+    local wep = myTbl.GetWeapon( self, myTbl )
+    local wepData = myTbl.m_WeaponData
 
     if isnumber( wep.NPC_NextPrimaryFireT ) then -- vj BASE
         return wep.NPC_NextPrimaryFireT
@@ -374,7 +407,7 @@ function ENT:AssumeWeaponNextShootTime()
     elseif wep.GetNextPrimaryFire and not ( wep.terminator_FiredBefore and wep:GetNextPrimaryFire() == 0 ) then
         if wep.Primary.Automatic ~= true and wep.terminator_IsBurst then
             local nextFire = wep:GetNextPrimaryFire()
-            if self:IsAngry() then
+            if myTbl.IsAngry( self ) then
                 nextFire = nextFire + math.Rand( 0.5, 1 )
 
             else
@@ -484,20 +517,10 @@ function ENT:WeaponPrimaryAttack()
 
             end
 
-        elseif wep.NPCShoot_Primary then --some other kind of weapon
-            --debugoverlay.Line( self:GetShootPos(), self:GetShootPos() + self:GetAimVector() * 100, 20  )
-            if wep.NPC_TimeUntilFire then -- VJ BASE!
-                --print( "vjbase" )
-                self:fakeVjBaseWeaponFiring( wep )
-
-            else
-                --print( "npcshoot_primary_alt" )
-                wep:PrimaryAttack()
-
-            end
+        elseif wep.NPCShoot_Primary and wep.NPC_TimeUntilFire then -- VJ BASE!
+            self:fakeVjBaseWeaponFiring( wep )
 
         elseif IsValid( wep ) then
-            --print( "primaryAttack" )
             wep:PrimaryAttack()
 
         end
@@ -771,10 +794,12 @@ function ENT:IsRangedWeapon( wep )
 
 end
 
-function ENT:IsFists()
-    local wep = self:GetWeapon()
+function ENT:IsFists( myTbl )
+    myTbl = myTbl or self:GetTable()
+
+    local wep = myTbl.GetWeapon( self, myTbl )
     if not IsValid( wep ) then return end
-    if wep:GetClass() == self.TERM_FISTS then return true end
+    if wep:GetClass() == myTbl.TERM_FISTS then return true end
 
     return nil
 
@@ -804,11 +829,6 @@ end
 
 function ENT:PickupObject()
     return
-
-end
-
-function ENT:GetWeapon()
-    return self:GetActiveLuaWeapon() or self:GetActiveWeapon()
 
 end
 
@@ -872,8 +892,9 @@ local function weapDamage( wep )
 
 end
 
-function ENT:GetWeaponRange()
-    local wep = self:GetActiveLuaWeapon() or self:GetActiveWeapon()
+function ENT:GetWeaponRange( myTbl )
+    myTbl = myTbl or self:GetTable()
+    local wep = self:GetActiveLuaWeapon( myTbl ) or self:GetActiveWeapon()
 
     if not IsValid( wep ) then return math.huge end
     if wep.ArcCW then return wep.Range * 52 end -- HACK
@@ -1293,82 +1314,91 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
             target.term_DamageDealtTimes = nil
         else
             local old = target.term_DamageDealtTimes or 0
-            target.term_DamageDealtTimes = old + 1 
+            target.term_DamageDealtTimes = old + 1
 
         end
     end )
 end )
 
---[[------------------------------------
-    Name: NEXTBOT:GetAimVector
-    Desc: Returns direction that used for weapon, including spread.
-    Arg1: 
-    Ret1: Vector | Aim direction.
---]]------------------------------------
-function ENT:GetAimVector()
-    local dir = self:GetEyeAngles():Forward()
+do
+    local Vector = Vector
+    local vecMeta = FindMetaTable( "Vector" )
+    local angMeta = FindMetaTable( "Angle" )
 
-    if self:HasWeapon() then
-        local prof = self:GetCurrentWeaponProficiency() + 0.95
-        local deg = 0 + ( 0.35 / prof )
+    --[[------------------------------------
+        Name: NEXTBOT:GetAimVector
+        Desc: Returns direction that used for weapon, including spread.
+        Arg1: 
+        Ret1: Vector | Aim direction.
+    --]]------------------------------------
+    function ENT:GetAimVector( myTbl )
+        myTbl = myTbl or self:GetTable()
+        local eyeAng = myTbl.GetEyeAngles( self )
+        local dir = angMeta.Forward( eyeAng )
 
-        local velLeng = self:GetCurrentSpeed()
-        if velLeng > 10 then
-            deg = ( velLeng / 10 ) / prof
+        if myTbl.HasWeapon( self, myTbl ) then
+            local prof = myTbl.GetCurrentWeaponProficiency( self ) + 0.95
+            local deg = 0 + ( 0.35 / prof )
 
-        end
-
-        local active = self:GetActiveLuaWeapon()
-
-        if active.NPC_CustomSpread then
-            deg = self.WeaponSpread * ( active.NPC_CustomSpread / prof )
-
-        elseif isfunction( active.GetNPCBulletSpread ) then
-            deg = active:GetNPCBulletSpread( self:GetCurrentWeaponProficiency() ) / 4
-
-        -- let the wep handle the spread
-        elseif weapSpread( active ) ~= 0 then
-            deg = 0
-
-        end
-
-        if self:IsCrouching() then
-            deg = deg / 100
-
-        end
-
-        local nextOverrideWalk = self.term_nextMissingAlotWalk or 0
-
-        local degToOverrideWalk = 10
-        if active.terminator_NoLeading then
-            degToOverrideWalk = degToOverrideWalk / 2
-
-        end
-
-        if self.IsSeeEnemy and deg > degToOverrideWalk and self.terminator_FiringIsAllowed and not self:inSeriousDanger() and nextOverrideWalk < CurTime() then
-            self.term_nextMissingAlotWalk = CurTime() + 5
-            if self:IsAngry() then
-                local activeNotLua = self:GetActiveWeapon()
-                local trackedDmg = getTrackedDamage( self, activeNotLua )
-                if not self:IsCrouching() and trackedDmg > 100 and activeNotLua.terminator_ReallyLikesThisOne then
-                    self.term_nextMissingAlotWalk = 0
-                    self.overrideCrouch = CurTime() + 1
-
-                end
-            else-- walk if we miss with a boring weapon 
-                self.forcedShouldWalk = CurTime() + 1 -- walk if we miss alot
+            local velLeng = myTbl.GetCurrentSpeed( self )
+            if velLeng > 10 then
+                deg = ( velLeng / 10 ) / prof
 
             end
 
+            local active = myTbl.GetActiveLuaWeapon( self, myTbl )
+            local activeTbl = active:GetTable()
+
+            if activeTbl.NPC_CustomSpread then
+                deg = myTbl.WeaponSpread * ( activeTbl.NPC_CustomSpread / prof )
+
+            elseif isfunction( activeTbl.GetNPCBulletSpread ) then
+                deg = activeTbl.GetNPCBulletSpread( active, myTbl.GetCurrentWeaponProficiency( self ) ) / 4
+
+            -- let the wep handle the spread
+            elseif weapSpread( active ) ~= 0 then
+                deg = 0
+
+            end
+
+            if myTbl.IsCrouching( self ) then
+                deg = deg / 100
+
+            end
+
+            local nextOverrideWalk = myTbl.term_nextMissingAlotWalk or 0
+
+            local degToOverrideWalk = 10
+            if activeTbl.terminator_NoLeading then
+                degToOverrideWalk = degToOverrideWalk / 2
+
+            end
+
+            if myTbl.IsSeeEnemy and deg > degToOverrideWalk and myTbl.terminator_FiringIsAllowed and not myTbl.inSeriousDanger( self ) and nextOverrideWalk < CurTime() then
+                myTbl.term_nextMissingAlotWalk = CurTime() + 5
+                if myTbl.IsAngry( self ) then
+                    local activeNotLua = myTbl.GetActiveWeapon( self )
+                    local trackedDmg = getTrackedDamage( self, activeNotLua )
+                    if not myTbl.IsCrouching( self ) and trackedDmg > 100 and activeNotLua.terminator_ReallyLikesThisOne then
+                        myTbl.term_nextMissingAlotWalk = 0
+                        myTbl.overrideCrouch = CurTime() + 1
+
+                    end
+                else-- walk if we miss with a boring weapon 
+                    myTbl.forcedShouldWalk = CurTime() + 1 -- walk if we miss alot
+
+                end
+
+            end
+
+            deg = deg / 180
+
+            vecMeta.Add( dir, Vector( math.Rand( -deg, deg ), math.Rand( -deg, deg ), math.Rand( -deg, deg ) ) )
+
         end
 
-        deg = deg / 180
-
-        dir:Add( Vector( math.Rand( -deg, deg ), math.Rand( -deg, deg ), math.Rand( -deg, deg ) ) )
-
+        return dir
     end
-
-    return dir
 end
 
 local dropWeps = CreateConVar( "termhunter_dropuselessweapons", 1, FCVAR_NONE, "Detect and drop useless weapons? Does not stop bot from dropping erroring weapons" )

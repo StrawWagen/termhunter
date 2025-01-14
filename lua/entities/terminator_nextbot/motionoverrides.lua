@@ -2853,27 +2853,29 @@ ENT.IdleActivityTranslations = {
 }
 
 function ENT:TranslateActivity( act )
-    local task = self:RunTask( "TranslateActivity", act )
+    local myTbl = self:GetTable()
+    local task = myTbl.RunTask( self, "TranslateActivity", act )
     if task then return task end
 
-    if self:HasWeapon() then
-        self:DontRegisterAsNpc()
+    if myTbl.HasWeapon( self, myTbl ) then
+        myTbl.DontRegisterAsNpc( self )
         local newact
-        ProtectedCall( function() newact = self:GetActiveLuaWeapon():TranslateActivity( act ) end ) -- ?????
-        self:ReRegisterAsNpc()
+        local luaWep = myTbl.GetActiveLuaWeapon( self, myTbl )
+        ProtectedCall( function() newact = luaWep:TranslateActivity( act ) end ) -- ?????
+        myTbl.ReRegisterAsNpc( self )
 
         if newact then
             return newact
 
         end
     end
-    local translated = self.IdleActivityTranslations[act]
+    local translated = myTbl.IdleActivityTranslations[act]
     if isfunction( translated ) then
         translated = translated( self )
 
     end
 
-    return translated or self.IdleActivity
+    return translated or myTbl.IdleActivity
 
 end
 

@@ -289,131 +289,148 @@ end
 -- patches gaps in navmesh, using players as a guide
 -- patches will never be ideal, but they will be better than nothing
 
-local doorCheckHull = Vector( 18, 18, 1 )
-local flattener = Vector( 1, 1, 0.5 )
-local tooFarDistSqr = 40^2
+local navPatchingThink
 
-local function navPatchingThink( ply, beingChased, someoneWasChased )
+do
+    local entsMeta = FindMetaTable( "Entity" )
+    local plyMeta = FindMetaTable( "Player" )
+    local areaMeta = FindMetaTable( "CNavArea" )
+    local vecMeta = FindMetaTable( "Vector" )
+    local math = math
+    local Vector = Vector
 
-    local badMovement = ply:GetMoveType() == MOVETYPE_NOCLIP or ply:Health() <= 0 or ply:GetObserverMode() ~= OBS_MODE_NONE or ply:InVehicle()
+    local speedToPatchAhead = 100^2
+    local doorCheckHull = Vector( 18, 18, 1 )
+    local flattener = Vector( 1, 1, 0.5 )
+    local tooFarDistSqr = 40^2
 
-    if badMovement then
-        ply.term_PatchingData = nil
-        ply.oldPatchingArea = nil
-        return
+    navPatchingThink = function( ply, beingChased, someoneWasChased )
 
-    end
+        local plyTbl = ply:GetTable()
 
-    local plyPos = ply:GetPos()
-    local currArea, distToArea
-    if ply.GetNavAreaData then -- glee
-        currArea, distToArea = ply:GetNavAreaData()
-        if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
+        local badMovement = entsMeta.GetMoveType( ply ) == MOVETYPE_NOCLIP or entsMeta.Health( ply ) <= 0 or plyMeta.GetObserverMode( ply ) ~= OBS_MODE_NONE or plyMeta.InVehicle( ply )
 
-    else
-        currArea = navmesh.GetNearestNavArea( plyPos, false, 25, false, true, -2 )
-        if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
+        if badMovement then
+            plyTbl.term_PatchingData = nil
+            plyTbl.oldPatchingArea = nil
+            return
 
-        local plysNearestToCenter = ply:NearestPoint( currArea:GetCenter() )
-        distToArea = plysNearestToCenter:Distance( currArea:GetClosestPointOnArea( plysNearestToCenter ) )
+        end
 
-    end
+        local plyPos = entsMeta.GetPos( ply )
+        local currArea, distToArea
+        if plyTbl.GetNavAreaData then -- glee
+            currArea, distToArea = plyTbl.GetNavAreaData( ply )
+            if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
 
-    if distToArea > 15 and ply:Crouching() then onNoArea( ply, beingChased, someoneWasChased ) return end
+        else
+            currArea = navmesh.GetNearestNavArea( plyPos, false, 25, false, true, -2 )
+            if not IsValid( currArea ) then onNoArea( ply, beingChased, someoneWasChased ) return end
 
-    local patchABitAhead = beingChased and not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and ply:GetVelocity():Length() > 100
-    if patchABitAhead then
-        local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
-        if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
-            local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
+            local plysNearestToCenter = entsMeta.NearestPoint( ply, areaMeta.GetCenter( currArea ) )
+            distToArea = vecMeta.Distance( plysNearestToCenter, areaMeta.GetClosestPointOnArea( currArea, plysNearestToCenter ) )
 
-            if not IsValid( aheadArea ) then
-                terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
+        end
 
+        if distToArea > 15 and plyMeta.Crouching( ply ) then onNoArea( ply, beingChased, someoneWasChased ) return end
+
+        local patchABitAhead = beingChased and not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and vecMeta.LengthSqr( entsMeta.GetVelocity( ply ) ) > speedToPatchAhead
+        if patchABitAhead then -- rare, not doing _index optim
+            local aheadPos = plyPos + ( ply:GetVelocity() * flattener ):GetNormalized() * 250
+            if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
+                local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
+
+                if not IsValid( aheadArea ) then
+                    terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
+
+                end
             end
         end
+
+        -- cant be sure of areas further away from the player than this!
+        if distToArea > tooFarDistSqr then return end
+
+        local oldArea = plyTbl.oldPatchingArea
+        if not IsValid( oldArea ) then
+            oldArea = currArea
+            plyTbl.oldPatchingArea = oldArea
+
+        end
+
+        local plysCenter = entsMeta.WorldSpaceCenter( ply )
+        local patchData = plyTbl.term_PatchingData
+        if not patchData then
+            patchData = {}
+            patchData.highestGotOffGround = plysCenter.z
+            plyTbl.term_PatchingData = patchData
+
+        end
+        if not entsMeta.IsOnGround( ply ) then
+            patchData.highestGotOffGround = math.max( patchData.highestGotOffGround, plysCenter.z )
+            patchData.wasOffGround = true
+            return
+
+        end
+
+        -- most operations stop here
+        if currArea == oldArea then onSameArea( ply, beingChased, someoneWasChased ) return end
+
+        -- dont waste connections to areas that are gonna get merged
+        if terminator_Extras.IsLivePatching then return end
+
+        patchData = table.Copy( patchData )
+
+        plyTbl.term_PatchingData = nil
+        plyTbl.oldPatchingArea = currArea
+
+        if areaMeta.IsConnected( oldArea, currArea ) and areaMeta.IsConnected( currArea, oldArea ) then return end
+        if not AreasHaveAnyOverlap( oldArea, currArea ) then debugPrint( "0" ) return end
+
+        local currClosestPos = areaMeta.GetClosestPointOnArea( currArea, plysCenter )
+        local oldClosestPos = areaMeta.GetClosestPointOnArea( oldArea, plysCenter )
+        local highestHeight = math.max( patchData.highestGotOffGround, oldClosestPos.z + 25, currClosestPos.z + 25 )
+
+        local plysCenter2 = Vector( plysCenter.x, plysCenter.y, highestHeight ) -- yuck
+        local currClosestPosInAir = Vector( currClosestPos.x, currClosestPos.y, highestHeight )
+        local oldClosestPosInAir = Vector( oldClosestPos.x, oldClosestPos.y, highestHeight )
+
+        if debugging then
+            -- currClosestPos + upTen so that this doesnt fail when the area is ~10 units underground
+            debugoverlay.Line( currClosestPos + upTen, currClosestPosInAir, 5, color_white, true )
+            debugoverlay.Line( currClosestPosInAir, plysCenter2, 5, color_white, true )
+            debugoverlay.Line( plysCenter2, oldClosestPosInAir, 5, color_white, true )
+            debugoverlay.Line( oldClosestPos + upTen, oldClosestPosInAir, 5, color_white, true )
+
+        end
+
+        -- goes from last area, to the highest height, then back down to the current area
+        if not terminator_Extras.PosCanSee( currClosestPos + upTen, currClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "1" ) return end
+        if not terminator_Extras.PosCanSee( currClosestPosInAir, plysCenter2, MASK_SOLID_BRUSHONLY ) then debugPrint( "2" ) return end
+        if not terminator_Extras.PosCanSee( plysCenter2, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "3" ) return end
+        if not terminator_Extras.PosCanSee( oldClosestPos + upTen, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "4" ) return end
+
+        -- detect really shabby doorways that non-terminator nextbots cannot navigate if we patch normally
+        if math.max( areaMeta.GetSizeX( oldArea ), areaMeta.GetSizeY( oldArea ) ) > 75 and math.max( areaMeta.GetSizeX( currArea ), areaMeta.GetSizeY( currArea ) ) > 75 then
+            local betweenPos = ( currClosestPosInAir + oldClosestPosInAir ) / 2
+            local oldCenterOffsetted = areaMeta.GetCenter( oldArea )
+            oldCenterOffsetted.z = highestHeight
+            if debugging then debugoverlay.Line( oldCenterOffsetted, currClosestPosInAir, 5, color_white, true ) end
+            if not terminator_Extras.PosCanSeeHull( oldCenterOffsetted, currClosestPosInAir, MASK_SOLID_BRUSHONLY, doorCheckHull ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4a" ) return end
+
+            local currCenterOffsetted = areaMeta.GetCenter( currArea )
+            currCenterOffsetted.z = highestHeight
+            if debugging then debugoverlay.Line( currCenterOffsetted, oldClosestPosInAir, 5, color_white, true ) end
+            if not terminator_Extras.PosCanSeeHull( currCenterOffsetted, oldClosestPosInAir, MASK_SOLID_BRUSHONLY, doorCheckHull ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4b" ) return end
+
+        end
+
+        -- if ply was on the ground the entire time, we can skip all the anti-krangle stuff
+        local skipBigChecks = not patchData.wasOffGround
+
+        terminator_Extras.smartConnectionThink( oldArea, currArea, skipBigChecks )
+        terminator_Extras.smartConnectionThink( currArea, oldArea, skipBigChecks )
+
     end
-
-    -- cant be sure of areas further away from the player than this!
-    if distToArea > tooFarDistSqr then return end
-
-    local oldArea = ply.oldPatchingArea
-    if not IsValid( oldArea ) then
-        oldArea = currArea
-        ply.oldPatchingArea = oldArea
-
-    end
-
-    local plysCenter = ply:WorldSpaceCenter()
-    local patchData = ply.term_PatchingData
-    if not patchData then
-        patchData = {}
-        patchData.highestGotOffGround = plysCenter.z
-        ply.term_PatchingData = patchData
-
-    end
-    if not ply:IsOnGround() then
-        patchData.highestGotOffGround = math.max( patchData.highestGotOffGround, plysCenter.z )
-        patchData.wasOffGround = true
-        return
-
-    end
-
-    if currArea == oldArea then onSameArea( ply, beingChased, someoneWasChased ) return end
-    if terminator_Extras.IsLivePatching then return end
-
-    patchData = table.Copy( patchData )
-
-    ply.term_PatchingData = nil
-    ply.oldPatchingArea = currArea
-
-    if oldArea:IsConnected( currArea ) and currArea:IsConnected( oldArea ) then return end
-    if not AreasHaveAnyOverlap( oldArea, currArea ) then debugPrint( "0" ) return end
-
-    local currClosestPos = currArea:GetClosestPointOnArea( plysCenter )
-    local oldClosestPos = oldArea:GetClosestPointOnArea( plysCenter )
-    local highestHeight = math.max( patchData.highestGotOffGround, oldClosestPos.z + 25, currClosestPos.z + 25 )
-
-    local plysCenter2 = Vector( plysCenter.x, plysCenter.y, highestHeight ) -- yuck
-    local currClosestPosInAir = Vector( currClosestPos.x, currClosestPos.y, highestHeight )
-    local oldClosestPosInAir = Vector( oldClosestPos.x, oldClosestPos.y, highestHeight )
-
-    if debugging then
-        -- currClosestPos + upTen so that this doesnt fail when the area is ~10 units underground
-        debugoverlay.Line( currClosestPos + upTen, currClosestPosInAir, 5, color_white, true )
-        debugoverlay.Line( currClosestPosInAir, plysCenter2, 5, color_white, true )
-        debugoverlay.Line( plysCenter2, oldClosestPosInAir, 5, color_white, true )
-        debugoverlay.Line( oldClosestPos + upTen, oldClosestPosInAir, 5, color_white, true )
-
-    end
-
-    -- goes from last area, to the highest height, then back down to the current area
-    if not terminator_Extras.PosCanSee( currClosestPos + upTen, currClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "1" ) return end
-    if not terminator_Extras.PosCanSee( currClosestPosInAir, plysCenter2, MASK_SOLID_BRUSHONLY ) then debugPrint( "2" ) return end
-    if not terminator_Extras.PosCanSee( plysCenter2, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "3" ) return end
-    if not terminator_Extras.PosCanSee( oldClosestPos + upTen, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "4" ) return end
-
-    -- detect really shabby doorways that non-terminator nextbots cannot navigate if we patch normally
-    if math.max( oldArea:GetSizeX(), oldArea:GetSizeY() ) > 75 and math.max( currArea:GetSizeX(), currArea:GetSizeY() ) > 75 then
-        local betweenPos = ( currClosestPosInAir + oldClosestPosInAir ) / 2
-        local oldCenterOffsetted = oldArea:GetCenter()
-        oldCenterOffsetted.z = highestHeight
-        if debugging then debugoverlay.Line( oldCenterOffsetted, currClosestPosInAir, 5, color_white, true ) end
-        if not terminator_Extras.PosCanSeeHull( oldCenterOffsetted, currClosestPosInAir, MASK_SOLID_BRUSHONLY, doorCheckHull ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4a" ) return end
-
-        local currCenterOffsetted = currArea:GetCenter()
-        currCenterOffsetted.z = highestHeight
-        if debugging then debugoverlay.Line( currCenterOffsetted, oldClosestPosInAir, 5, color_white, true ) end
-        if not terminator_Extras.PosCanSeeHull( currCenterOffsetted, oldClosestPosInAir, MASK_SOLID_BRUSHONLY, doorCheckHull ) then terminator_Extras.dynamicallyPatchPos( betweenPos ) debugPrint( "4b" ) return end
-
-    end
-
-    -- if ply was on the ground the entire time, we can skip all the anti-krangle stuff
-    local skipBigChecks = not patchData.wasOffGround
-
-    terminator_Extras.smartConnectionThink( oldArea, currArea, skipBigChecks )
-    terminator_Extras.smartConnectionThink( currArea, oldArea, skipBigChecks )
-
 end
 
 local plysCurrentlyBeingChased

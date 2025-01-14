@@ -54,19 +54,7 @@ if SERVER then
 
 end
 
--- approximate player funcs!
-
--- DISGUSTING!!!!!!
-local entsMeta = FindMetaTable( "Entity" )
-local Terminator_OldEyeAngles = entsMeta.EyeAngles
-
--- when the weapon uses eyeangles instead of aimvector....
-entsMeta.EyeAngles = function( self )
-    if self.GetEyeAngles then return self:GetEyeAngles() end
-
-    return Terminator_OldEyeAngles( self )
-
-end
+-- approximate player/npc funcs!
 
 function ENT:GetTarget()
     return self:GetEnemy()

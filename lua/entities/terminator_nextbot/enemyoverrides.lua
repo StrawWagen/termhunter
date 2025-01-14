@@ -3,7 +3,9 @@ local MEMORY_WEAPONIZEDNPC = 32
 
 local IsValid = IsValid
 local LocalToWorld = LocalToWorld
+local isentity = isentity
 local entMeta = FindMetaTable( "Entity" )
+local matrixMeta = FindMetaTable( "VMatrix" )
 
 local IsFlagSet = entMeta.IsFlagSet
 
@@ -104,69 +106,93 @@ function ENT:enemyBearingToMeAbs()
 
 end
 
-function ENT:EntShootPos( ent, random )
-    if not IsValid( ent ) then return end
-    local hitboxes = {}
+do
+    local function cacheEntShootPos( ent, entsTbl, pos )
+        entsTbl.term_cachedEntShootPos = pos
+        timer.Simple( 0.01, function() -- cache this for barely more than a tick, HUGE perf save if there's lots and lots of bots
+            if not IsValid( ent ) then return end
+            entsTbl.term_cachedEntShootPos = nil
 
-    local sets = entMeta.GetHitboxSetCount( ent )
+        end )
+        return pos
 
-    local isPly = playersCache[ent]
-    local isPlayerInVehicle = isPly and ent:InVehicle()
-    local isCrouchingPlayer = isPly and ent:Crouching()
-
-    if isPlayerInVehicle then
-        return self:getBestPos( ent:GetVehicle() )
-
-    elseif not isCrouchingPlayer and sets then
-
-        local data = ent.cachedHitboxData or nil
-
-        if not data then
-            for num1 = 0, sets - 1 do
-                for num2 = 0, entMeta.GetHitBoxCount( ent, num1 ) - 1 do
-                    local group = entMeta.GetHitBoxHitGroup( ent, num2, num1 )
-
-                    hitboxes[group] = hitboxes[group] or {}
-                    hitboxes[group][#hitboxes[group] + 1] = { entMeta.GetHitBoxBone( ent, num2, num1 ), entMeta.GetHitBoxBounds( ent, num2, num1 ) }
-
-                end
-            end
-
-            if hitboxes[HITGROUP_HEAD] then
-                data = hitboxes[HITGROUP_HEAD][ random and math.random( #hitboxes[HITGROUP_HEAD] ) or 1 ]
-
-            elseif hitboxes[HITGROUP_CHEST] then
-                data = hitboxes[HITGROUP_CHEST][ random and math.random( #hitboxes[HITGROUP_CHEST] ) or 1 ]
-
-            elseif hitboxes[HITGROUP_GENERIC] then
-                data = hitboxes[HITGROUP_GENERIC][ random and math.random( #hitboxes[HITGROUP_GENERIC] ) or 1 ]
-
-            end
-            ent.cachedHitboxData = data
-            -- just in case their model changes
-            timer.Simple( math.Rand( 5, 10 ), function()
-                if not IsValid( self ) then return end
-                if not IsValid( ent ) then return end
-                ent.cachedHitboxData = nil
-
-            end )
-        end
-
-        if data then
-            local bonem = entMeta.GetBoneMatrix( ent, data[1] )
-            if bonem then
-                local theCenter = data[2] + ( data[3] - data[2] ) / 2
-
-                local pos = LocalToWorld( theCenter, angle_zero, bonem:GetTranslation(), bonem:GetAngles() )
-                return pos
-
-            end
-        end
     end
 
-    --debugoverlay.Cross( ent:WorldSpaceCenter(), 5, 10, Color( 255,255,255 ), true )
-    return ent:WorldSpaceCenter()
+    function ENT:EntShootPos( ent, random, entsTbl )
+        if not entsTbl and not IsValid( ent ) then return end -- entstbl is supplied if the ent is already valid, so we dont need to check
+        entsTbl = entsTbl or ent:GetTable()
 
+        local hardCache = entsTbl.term_cachedEntShootPos
+        if hardCache then return hardCache end
+
+        local isPly = playersCache[ent]
+        local isPlayerInVehicle = isPly and ent:InVehicle()
+
+        if isPlayerInVehicle then
+            local pos = self:getBestPos( ent:GetVehicle() )
+            return cacheEntShootPos( ent, entsTbl, pos )
+
+        end
+
+        local isCrouchingPlayer = isPly and ent:Crouching()
+
+        if not isCrouchingPlayer then
+            local sets = entMeta.GetHitboxSetCount( ent )
+            if sets then
+                local hitboxes = {}
+                entsTbl = entsTbl or ent:GetTable()
+                local data = entsTbl.term_cachedHitboxData or nil
+
+
+                if not data then
+                    for num1 = 0, sets - 1 do
+                        for num2 = 0, entMeta.GetHitBoxCount( ent, num1 ) - 1 do
+                            local group = entMeta.GetHitBoxHitGroup( ent, num2, num1 )
+
+                            hitboxes[group] = hitboxes[group] or {}
+                            hitboxes[group][#hitboxes[group] + 1] = { entMeta.GetHitBoxBone( ent, num2, num1 ), entMeta.GetHitBoxBounds( ent, num2, num1 ) }
+
+                        end
+                    end
+
+                    if hitboxes[HITGROUP_HEAD] then
+                        data = hitboxes[HITGROUP_HEAD][ random and math.random( #hitboxes[HITGROUP_HEAD] ) or 1 ]
+
+                    elseif hitboxes[HITGROUP_CHEST] then
+                        data = hitboxes[HITGROUP_CHEST][ random and math.random( #hitboxes[HITGROUP_CHEST] ) or 1 ]
+
+                    elseif hitboxes[HITGROUP_GENERIC] then
+                        data = hitboxes[HITGROUP_GENERIC][ random and math.random( #hitboxes[HITGROUP_GENERIC] ) or 1 ]
+
+                    end
+                    entsTbl.term_cachedHitboxData = data
+                    -- just in case their model changes
+                    timer.Simple( math.Rand( 5, 10 ), function()
+                        if not IsValid( self ) then return end
+                        if not IsValid( ent ) then return end
+                        entsTbl.term_cachedHitboxData = nil
+
+                    end )
+                end
+
+                if data then
+                    local bonem = entMeta.GetBoneMatrix( ent, data[1] )
+                    if bonem then
+                        local theCenter = data[2] + ( data[3] - data[2] ) / 2
+
+                        local pos = LocalToWorld( theCenter, angle_zero, matrixMeta.GetTranslation( bonem ), matrixMeta.GetAngles( bonem ) )
+                        return cacheEntShootPos( ent, entsTbl, pos )
+
+                    end
+                end
+            end
+        end
+
+        --debugoverlay.Cross( ent:WorldSpaceCenter(), 5, 10, Color( 255,255,255 ), true )
+        local pos = entMeta.WorldSpaceCenter( ent )
+        return cacheEntShootPos( ent, entsTbl, pos )
+
+    end
 end
 
 
@@ -385,15 +411,16 @@ end
 
 local isentity = isentity
 
-function ENT:CanSeePosition( check )
+function ENT:CanSeePosition( check, myTbl, checksTbl )
+    myTbl = myTbl or self:GetTable()
     local pos = check
     if isentity( check ) then
-        pos = self:EntShootPos( check )
+        pos = myTbl.EntShootPos( self, check, checksTbl )
 
     end
 
     local tr = util.TraceLine( {
-        start = self:GetShootPos(),
+        start = myTbl.GetShootPos( self ),
         endpos = pos,
         mask = self.LineOfSightMask,
         filter = self
@@ -404,8 +431,8 @@ function ENT:CanSeePosition( check )
 
 end
 
-function ENT:FindEnemies()
-    local myTbl = self:GetTable()
+function ENT:FindEnemies( myTbl )
+    myTbl = myTbl or self:GetTable()
     local ShouldBeEnemy = myTbl.ShouldBeEnemy
     local CanSeePosition = myTbl.CanSeePosition
     local UpdateEnemyMemory = myTbl.UpdateEnemyMemory
@@ -421,8 +448,30 @@ function ENT:FindEnemies()
     end
 
     for _, ent in ipairs( found ) do
-        if ent ~= self and not notEnemyCache[ ent ] and ShouldBeEnemy( self, ent, myFov, myTbl, ent:GetTable() ) and CanSeePosition( self, ent ) then
-            UpdateEnemyMemory( self, ent, EntShootPos( self, ent ), true )
+        if ( ent ~= self ) and ( not notEnemyCache[ ent ] ) then
+            local entsTbl = ent:GetTable()
+            if ShouldBeEnemy( self, ent, myFov, myTbl, entsTbl ) and CanSeePosition( self, ent, myTbl, entsTbl ) then
+                UpdateEnemyMemory( self, ent, EntShootPos( self, ent, entsTbl ), true )
+
+            end
+        end
+    end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:ForgetOldEnemies
+    Desc: (INTERNAL) Clears bot memory from enemies that not valid, not updating very long time or not should be enemy.
+    Arg1: 
+    Ret1: 
+--]]------------------------------------
+function ENT:ForgetOldEnemies( myTbl )
+    local cur = CurTime()
+    local myFov = myTbl.Term_FOV
+    local forgetEnemyTime = myTbl.ForgetEnemyTime
+
+    for ent, memory in pairs( myTbl.m_EnemiesMemory ) do
+        if ( not IsValid( ent ) ) or ( ( cur - memory.lastupdate ) >= forgetEnemyTime ) or ( not myTbl.ShouldBeEnemy( self, ent, myFov, myTbl, ent:GetTable() ) ) then
+            myTbl.ClearEnemyMemory( self, ent )
 
         end
     end
@@ -431,22 +480,26 @@ end
 do
     local Either = Either
 
-    function ENT:FindPriorityEnemy()
+    function ENT:FindPriorityEnemy( myTbl )
+        myTbl = myTbl or self:GetTable()
         local notsee = {}
         local enemy, bestRange, priority
         local ignorePriority = false
-        local closeEnemDistSqr = self.CloseEnemyDistance^2
+        local myFov = myTbl.Term_FOV
+        local closeEnemDistSqr = myTbl.CloseEnemyDistance^2
 
-        for curr, _ in pairs( self.m_EnemiesMemory ) do
-            if not IsValid( curr ) or not self:ShouldBeEnemy( curr ) then continue end
+        for curr, _ in pairs( myTbl.m_EnemiesMemory ) do
+            if not IsValid( curr ) then continue end
+            local entsTbl = curr:GetTable()
+            if not myTbl.ShouldBeEnemy( self, curr, myFov, myTbl, entsTbl ) then continue end
 
-            if not self:CanSeePosition( curr ) then
+            if not myTbl.CanSeePosition( self, curr, myTbl, entsTbl ) then
                 notsee[#notsee + 1] = curr
                 continue
             end
 
             local rang = self:GetRangeSquaredTo( curr )
-            local _, pr = self:GetRelationship( curr )
+            local _, pr = myTbl.GetRelationship( self, curr )
 
             if not ignorePriority and rang <= closeEnemDistSqr then
                 -- too close, we now ignore priority for all enemies, focus on proximity
@@ -511,40 +564,40 @@ do
     end
 end
 
-function ENT:SetupEntityRelationship( ent )
-    local disp,priority,theirdisp = self:GetDesiredEnemyRelationship( ent, true )
-    self:Term_SetEntityRelationship( ent, disp, priority )
+function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
     if notEnemyCache[ent] then return end
+    local disp, priority, theirdisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl, true )
+    myTbl.Term_SetEntityRelationship( self, ent, disp, priority )
     timer.Simple( 0, function()
         if not IsValid( ent ) then return end
         if not IsValid( self ) then return end
         --print( ent, "has relation with", self, theirdisp )
 
-        if ent.TerminatorNextBot then
-            ent:Term_SetEntityRelationship( self, theirdisp, nil )
+        if entsTbl.TerminatorNextBot then
+            myTbl.Term_SetEntityRelationship( self, theirdisp, nil )
             return
 
         end
-        if ent.AddEntityRelationship then
+        if entsTbl.AddEntityRelationship then
             ent:AddEntityRelationship( self, theirdisp, 0 )
 
         end
 
         -- stupid hack
-        if ent.IsVJBaseSNPC == true then
-            if not IsValid( ent ) or not IsValid( self ) or not istable( ent.CurrentPossibleEnemies ) then return end
-            ent.CurrentPossibleEnemies[#ent.CurrentPossibleEnemies + 1] = self
+        if entsTbl.IsVJBaseSNPC == true then
+            if not IsValid( ent ) or not IsValid( self ) or not istable( entsTbl.CurrentPossibleEnemies ) then return end
+            entsTbl.CurrentPossibleEnemies[#entsTbl.CurrentPossibleEnemies + 1] = self
 
         end
     end )
 end
 
-function ENT:GetDesiredEnemyRelationship( ent, isFirst )
+function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
     local disp = D_HT
     local theirdisp = D_HT
     local priority = 1
 
-    local hardCodedRelation = self.term_HardCodedRelations[ent:GetClass()]
+    local hardCodedRelation = myTbl.term_HardCodedRelations[entMeta.GetClass( ent )]
     if hardCodedRelation then
         disp = hardCodedRelation[1] or disp
         theirdisp = hardCodedRelation[2] or theirdisp
@@ -553,7 +606,7 @@ function ENT:GetDesiredEnemyRelationship( ent, isFirst )
 
     end
 
-    if ent.isTerminatorHunterChummy then
+    if entsTbl.isTerminatorHunterChummy then
         if pals( self, ent ) then
             disp = D_LI
             theirdisp = D_LI
@@ -564,20 +617,20 @@ function ENT:GetDesiredEnemyRelationship( ent, isFirst )
 
         end
 
-    elseif ent:IsPlayer() then
+    elseif playersCache[ent] then
         priority = 1000
         if isFirst then
-            self:OnFirstRelationWithPlayer( ent, disp, priority, theirdisp )
+            myTbl.OnFirstRelationWithPlayer( self, ent, disp, priority, theirdisp )
 
         end
 
     elseif ent:IsNPC() or ent:IsNextBot() then
         local memories = {}
-        if self.awarenessMemory then
-            memories = self.awarenessMemory
+        if myTbl.awarenessMemory then
+            memories = myTbl.awarenessMemory
 
         end
-        local key = self:getAwarenessKey( ent )
+        local key = myTbl.getAwarenessKey( self, ent )
         local memory = memories[key]
         if memory == MEMORY_WEAPONIZEDNPC then
             priority = priority + 200
@@ -589,20 +642,24 @@ function ENT:GetDesiredEnemyRelationship( ent, isFirst )
             priority = priority + 100
 
         end
-        if ent.Health and ent:Health() < self:Health() / 100 then
-            theirdisp = D_FR
+        if entsTbl.Health then -- seagulls
+            local hp = entsTbl.Health( ent )
+            if hp < hp / 100 then
+                theirdisp = D_FR
 
+            end
         end
     end
     return disp,priority,theirdisp
 
 end
 
-function ENT:SetupRelationships()
-    local SetupEntityRelationship = self.SetupEntityRelationship
+function ENT:SetupRelationships( myTbl )
+    local SetupEntityRelationship = myTbl.SetupEntityRelationship
     for _, ent in ents.Iterator() do
         if not notEnemyCache[ent] then
-            SetupEntityRelationship( self, ent )
+            local entsTbl = ent:GetTable()
+            SetupEntityRelationship( self, myTbl, ent, entsTbl )
 
         end
     end
@@ -614,7 +671,8 @@ function ENT:SetupRelationships()
         timer.Simple( 0.5, function()
             if not IsValid( self ) then return end
             if not IsValid( ent ) then return end
-            self:SetupEntityRelationship( ent )
+            local entsTbl = ent:GetTable()
+            myTbl.SetupEntityRelationship( self, myTbl, ent, entsTbl )
 
         end )
     end )
@@ -1114,7 +1172,7 @@ function ENT:Term_LookAround()
         lookAtPos = genericHint.source
         --lookAtType = "generichint"
 
-    elseif lookAtGoal and pathIsValid and not seeEnem and ( enemyStillFresh or shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos ) ) ) then
+    elseif lookAtGoal and pathIsValid and not seeEnem and ( enemyStillFresh or shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos, myTbl ) ) ) then
         if not shouldLookTime then
             myTbl.LookAtEnemyLastPos = cur + sndCuriosity
 
