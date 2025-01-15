@@ -337,7 +337,7 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     else
         -- if an ent has killed terminators, we do more thurough checks on it!
         -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-        local class = ent:GetClass()
+        local class = entMeta.GetClass( ent )
         if not ( isPly or ent:IsNextBot() or ent:IsNPC() or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then return false end
         krangledKiller = true
 
@@ -352,7 +352,7 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     end
 
-    local class = ent:GetClass()
+    local class = entMeta.GetClass( ent )
     if class == "rpg_missile" then return false end
     if class == "env_flare" then return false end
 
@@ -578,7 +578,7 @@ function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
             return
 
         end
-        if entsTbl.AddEntityRelationship then
+        if ent.AddEntityRelationship then
             ent:AddEntityRelationship( self, theirdisp, 0 )
 
         end
@@ -650,7 +650,7 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
             end
         end
     end
-    return disp,priority,theirdisp
+    return disp, priority, theirdisp
 
 end
 
@@ -659,15 +659,18 @@ function ENT:SetupRelationships( myTbl )
     for _, ent in ents.Iterator() do
         if not notEnemyCache[ent] then
             local entsTbl = ent:GetTable()
-            SetupEntityRelationship( self, myTbl, ent, entsTbl )
+            if not ( playersCache[ent] or ent:IsNPC() or ent:IsNextBot() or entsTbl.isTerminatorHunterKiller ) then
+                notEnemyCache[ent] = true
 
+            else
+                SetupEntityRelationship( self, myTbl, ent, entsTbl )
+
+            end
         end
     end
 
-    local hookId = "term_terminator_relations_" .. self:GetCreationID()
-
-    hook.Add( "OnEntityCreated", hookId, function( ent )
-        if not IsValid( self ) then hook.Remove( "OnEntityCreated", hookId ) return end
+    hook.Add( "OnEntityCreated", self, function( _, ent )
+        if notEnemyCache[ent] then return end
         timer.Simple( 0.5, function()
             if not IsValid( self ) then return end
             if not IsValid( ent ) then return end

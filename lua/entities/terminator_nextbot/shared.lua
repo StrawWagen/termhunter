@@ -680,6 +680,7 @@ function ENT:memorizedAsBreakable( ent )
 end
 
 function ENT:understandObject( ent )
+    if not IsValid( ent ) then return end
     local class = ent:GetClass()
     local memory, _ = self:getMemoryOfObject( ent )
 
