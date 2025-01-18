@@ -157,9 +157,9 @@ function ENT:MimicPlayer( toMimic )
 
 end
 
-function ENT:AdditionalThink()
-    if not IsValid( self.MimicTarget ) then return end
-    if self.MimicTarget.IsTyping and self.MimicTarget:IsTyping() then
+function ENT:AdditionalThink( myTbl )
+    if not IsValid( myTbl.MimicTarget ) then return end
+    if myTbl.MimicTarget.IsTyping and myTbl.MimicTarget:IsTyping() then
         self:AddGesture( ACT_GMOD_IN_CHAT, 1 )
 
     end

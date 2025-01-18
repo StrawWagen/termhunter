@@ -390,7 +390,6 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
         self:MakeFeud( attacker )
 
         local dmgSourcePos = self:getBestPos( attacker )
-        self.TookDamagePos = dmgSourcePos
 
         -- update enemy stuff!
         if dmg:IsBulletDamage() and terminator_Extras.PosCanSee( self:GetShootPos(), dmgSourcePos ) and dmgSourcePos:Distance( attacker:GetPos() ) < 350 then
@@ -407,13 +406,16 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
             time = time + ( 200 - self.AimSpeed ) / 100
 
         end
-        timer.Simple( time, function()
-            if not IsValid( self ) then return end
-            if self.TookDamagePos ~= dmgSourcePos then return end
-            self.TookDamagePos = nil
 
-        end )
+        if attacker ~= self:GetEnemy() then
+            self.TookDamagePos = dmgSourcePos
+            timer.Simple( time, function()
+                if not IsValid( self ) then return end
+                if self.TookDamagePos ~= dmgSourcePos then return end
+                self.TookDamagePos = nil
 
+            end )
+        end
     end
 
 

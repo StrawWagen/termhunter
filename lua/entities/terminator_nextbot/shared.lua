@@ -2782,7 +2782,7 @@ function ENT:AdditionalThink( _myTbl )
 end
 
 function ENT:TermThink( myTbl ) -- inside coroutine :)
-    myTbl.AdditionalThink( self )
+    myTbl.AdditionalThink( self, myTbl )
     if myTbl.CanSpeak then
         myTbl.SpokenLinesThink( self, myTbl )
 
@@ -2999,7 +2999,7 @@ function ENT:DoDefaultTasks()
                     end
                 end
 
-                local forcedToLook = myTbl.Term_LookAround( self )
+                local forcedToLook = myTbl.Term_LookAround( self, myTbl )
                 if forcedToLook then return end
 
                 local doShootingPrevent = myTbl.PreventShooting
@@ -7924,7 +7924,7 @@ function ENT:DoDefaultTasks()
                 data.Inform = function( enemy, pos, senderPos )
                     for _, ent in ipairs( self:GetNearbyAllies() ) do
                         if not IsValid( ent ) then continue end
-                        ent:RunTask( "InformReceive", enemy, enemy:GetTable(), pos, senderPos )
+                        ent:RunTask( "InformReceive", enemy, nil, pos, senderPos )
 
                     end
                 end
@@ -7945,10 +7945,10 @@ function ENT:DoDefaultTasks()
 
                 end
                 data.EnemyPosInform = CurTime() + add
-                data.Inform( enemy, myTbl:EntShootPos( enemy ), self:GetPos() )
+                data.Inform( enemy, myTbl.EntShootPos( self, enemy ), self:GetPos() )
 
             end,
-            InformReceive = function( self, data, enemy, enemysTbl, pos, senderpos )
+            InformReceive = function( self, data, enemy, _enemysTbl, pos, senderpos )
                 if not senderpos or not IsValid( enemy ) then return end
                 local myTbl = data.myTbl
 

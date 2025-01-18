@@ -1099,9 +1099,8 @@ end )
 
 local vec_up25 = Vector( 0, 0, 25 )
 
-function ENT:Term_LookAround()
+function ENT:Term_LookAround( myTbl )
     local cur = CurTime()
-    local myTbl = self:GetTable()
     local myPos = self:GetPos()
 
     local myArea = myTbl.GetTrueCurrentNavArea( self )
