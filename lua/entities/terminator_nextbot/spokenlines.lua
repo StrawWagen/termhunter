@@ -1,3 +1,15 @@
+
+-- ENT.term_SoundPitchShift
+-- ENT.term_SoundLevelShift
+-- ENT.term_SoundDSP
+
+function asNumber( ent, entsTbl, var )
+    if not var then return 0 end
+    if isfunction( var ) then return var( ent, entsTbl ) end
+    return var
+
+end
+
 function ENT:InitializeSpeaking()
     if not self.CanSpeak then return end
     self.NextTermSpeak = 0
@@ -60,12 +72,22 @@ function ENT:SpokenLinesThink( myTbl )
             end
             local pickedSound = loopingSounds[ math.random( 1, #loopingSounds ) ]
 
-            local pitShift = myTbl.term_SoundPitchShift or 0
-            local lvlShift = myTbl.term_SoundLevelShift or 0
-            myTbl.term_IdleLoopingSound = CreateSound( self, pickedSound )
-            myTbl.term_IdleLoopingSound:PlayEx( 0, math.random( 95, 105 ) + pitShift )
-            myTbl.term_IdleLoopingSound:SetSoundLevel( myTbl.term_IdleLoopingSound:GetSoundLevel() + lvlShift )
-            myTbl.term_IdleLoopingSound:ChangeVolume( 1, math.Rand( 0.45, 0.75 ) )
+            local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
+            local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
+            local dsp = asNumber( self, myTbl, myTbl.term_SoundDSP )
+            local term_IdleLoopingSound = CreateSound( self, pickedSound )
+            myTbl.term_IdleLoopingSound = term_IdleLoopingSound
+
+            term_IdleLoopingSound:PlayEx( 0, math.random( 95, 105 ) + pitShift )
+            term_IdleLoopingSound:SetSoundLevel( term_IdleLoopingSound:GetSoundLevel() + lvlShift )
+            term_IdleLoopingSound:ChangeVolume( 1, math.Rand( 0.45, 0.75 ) )
+
+            if dsp ~= 0 then
+                dsp = 
+                term_IdleLoopingSound:SetDSP( dsp )
+
+            end
+
             local duration = SoundDuration( pickedSound )
             if string.find( string.lower( pickedSound ), "loop" ) then
                 duration = duration * math.random( 2, 4 )
@@ -111,8 +133,9 @@ function ENT:SpokenLinesThink( myTbl )
 
         myTbl.lastSpokenSentence = sentence
 
-        local pitShift = myTbl.term_SoundPitchShift or 0
-        local lvlShift = myTbl.term_SoundLevelShift or 0
+        local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
+        local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
+        -- EmitSentence doesnt take dsp
         EmitSentence( sentence, self:GetShootPos(), self:EntIndex(), CHAN_AUTO, 1, 80 + lvlShift, 0, 100 + pitShift )
 
         local additional = math.random( 10, 15 ) / 50
@@ -145,17 +168,11 @@ function ENT:SpokenLinesThink( myTbl )
 
         myTbl.lastSpokenSound = path
 
-        local pitShift = myTbl.term_SoundPitchShift or 0
-        local lvlShift = myTbl.term_SoundLevelShift or 0
-        if isfunction( pitShift ) then
-            pitShift = pitShift( self )
+        local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
+        local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
+        local dsp = asNumber( self, myTbl, myTbl.term_SoundDSP )
 
-        end
-        if isfunction( lvlShift ) then
-            lvlShift = lvlShift( self )
-
-        end
-        self:EmitSound( path, 76 + lvlShift, 100 + pitShift, 1, CHAN_VOICE, sndFlags )
+        self:EmitSound( path, 76 + lvlShift, 100 + pitShift, 1, CHAN_VOICE, sndFlags, dsp )
 
         nextSpeakWhenSoundIsOver( self, path )
         return
@@ -166,21 +183,16 @@ end
 function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
     specificPitchShift = specificPitchShift or 0
 
-    local pitShift = self.term_SoundPitchShift or 0
-    local lvlShift = self.term_SoundLevelShift or 0
-    if isfunction( pitShift ) then
-        pitShift = pitShift( self )
+    local myTbl = self:GetTable()
+    local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
+    local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
+    local dsp = asNumber( self, myTbl, myTbl.term_SoundDSP )
 
-    end
-    if isfunction( lvlShift ) then
-        lvlShift = lvlShift( self )
-
-    end
     if istable( pathIn ) then
         pathIn = pathIn[ math.random( 1, #pathIn ) ]
 
     end
-    self:EmitSound( pathIn, 76 + lvlShift, 100 + pitShift + specificPitchShift, 1, CHAN_VOICE, sndFlags )
+    self:EmitSound( pathIn, 76 + lvlShift, 100 + pitShift + specificPitchShift, 1, CHAN_VOICE, sndFlags, dsp )
     nextSpeakWhenSoundIsOver( self, pathIn )
 
 end

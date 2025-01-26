@@ -80,6 +80,9 @@ local upCrouch
 local finalAreaCheckMins
 local finalAreaCheckMaxs
 
+local gridOffset
+local oldGenCenter
+
 local function updateGridSize( newSize )
     gridSize = newSize
 
@@ -269,15 +272,15 @@ local up = Vector( 0, 0, 1 )
 local red = Color( 255, 0, 0 )
 
 local function SnapToGrid( vec )
-    vec.x = math.Round( vec.x / gridSize ) * gridSize
-    vec.y = math.Round( vec.y / gridSize ) * gridSize
-    vec.z = math.Round( vec.z / gridSize ) * gridSize
+    vec.x = ( math.Round( vec.x / gridSize ) * gridSize ) + gridOffset
+    vec.y = ( math.Round( vec.y / gridSize ) * gridSize ) + gridOffset
+    vec.z = ( math.Round( vec.z / gridSize ) * gridSize ) + gridOffset
 
 end
 local function GetSnappedToGrid( vec )
-    local x = math.Round( vec.x / gridSize ) * gridSize
-    local y = math.Round( vec.y / gridSize ) * gridSize
-    local z = math.Round( vec.z / gridSize ) * gridSize
+    local x = ( math.Round( vec.x / gridSize ) * gridSize ) + gridOffset
+    local y = ( math.Round( vec.y / gridSize ) * gridSize ) + gridOffset
+    local z = ( math.Round( vec.z / gridSize ) * gridSize ) + gridOffset
     return Vector( x, y, z )
 
 end
@@ -312,7 +315,7 @@ local function filterFunc( hit )
     if hit:IsWorld() then return true end
     return nil
 
-    --[[
+    --[[ dead prop support idea
     local class = hit:GetClass()
     local isDoor = string.find( class, "door" ) and hit:IsSolid()
     if hit:IsNPC() or hit:IsPlayer() or isDoor then
@@ -466,10 +469,24 @@ local function patchCoroutine()
         local region = table.remove( regionsQueue, 1 )
         updateGridSize( region.gridSize )
 
+        local newGenCenter = region.pos1 + region.pos2
+        newGenCenter = newGenCenter / 2
+
+        if oldGenCenter and gridSize < 12.5 and oldGenCenter:Distance( newGenCenter ) < ( gridSize * 6 ) then -- we are stuck regenerating one point, try shuffling this
+            gridOffset = math.random( -4, 4 )
+            debugPrint( "Area generation is stuck, offsetting grid by " .. gridOffset )
+
+        else
+            gridOffset = 0
+
+        end
+
         local pos1 = VectorMin( region.pos1, region.pos2 )
         local pos2 = VectorMax( region.pos1, region.pos2 )
         SnapToGrid( pos1 )
         SnapToGrid( pos2 )
+
+        oldGenCenter = newGenCenter
 
         debugPrint( "Patching region from", pos1, "to", pos2 )
 

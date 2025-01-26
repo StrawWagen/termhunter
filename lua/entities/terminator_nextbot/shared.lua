@@ -1733,6 +1733,20 @@ function ENT:ResetUnstuckInfo()
 
 end
 
+function ENT:TryGeneratingAreas()
+    local oldArea = self.term_OldAreaWeTriedGeneratingAt
+    if oldArea then
+        local currArea = self:GetTrueCurrentNavArea()
+        if oldArea == currArea then return end
+
+        self.term_OldAreaWeTriedGeneratingAt = currArea
+
+    end
+
+    terminator_Extras.dynamicallyPatchPos( self:GetPos() )
+
+end
+
 -- MoveAlongPath found this segment to be impossible to cross 
 function ENT:OnHardBlocked()
     --print( "hardblocked" )
@@ -1742,7 +1756,7 @@ function ENT:OnHardBlocked()
     self.nextPosUpdate = CurTime()
     self.blockUnstuckRetrace = CurTime() + 1
 
-    terminator_Extras.dynamicallyPatchPos( self:GetPos() )
+    self:TryGeneratingAreas()
 
 end
 
@@ -1892,7 +1906,7 @@ function ENT:ControlPath2( AimMode )
         myTbl.lastUnstuckStart = CurTime()
 
         if validPath and not terminator_Extras.IsLivePatching then
-            terminator_Extras.dynamicallyPatchPos( myPos )
+            self:TryGeneratingAreas()
 
         end
 
@@ -2098,7 +2112,7 @@ function ENT:ControlPath2( AimMode )
             end
         end
     else
-        if not validPath then return end
+        if not validPath then return end --ErrorNoHaltWithStack() return end 
         local wep = myTbl.GetWeapon( self, myTbl )
         if wep and wep.worksWithoutSightline and IsValid( myTbl.GetEnemy( self ) ) and AimMode == true then
             AimMode = nil
@@ -2952,7 +2966,7 @@ function ENT:Initialize()
                 end
             end
             if not terminator_Extras.IsLivePatching then
-                terminator_Extras.dynamicallyPatchPos( self:GetPos() )
+                self:TryGeneratingAreas()
 
             end
 
@@ -3410,7 +3424,7 @@ function ENT:DoDefaultTasks()
                         size = size / 8
                         doAddCount = doAddCount * 4
                         if not terminator_Extras.IsLivePatching then
-                            terminator_Extras.dynamicallyPatchPos( myPos )
+                            self:TryGeneratingAreas()
 
                         end
                     end
@@ -5852,6 +5866,10 @@ function ENT:DoDefaultTasks()
 
                 -- invalid path, keep stalking
                 elseif result == false then
+                    valid = true
+
+                -- invalid path again
+                elseif not self:primaryPathIsValid() then
                     valid = true
 
                 end

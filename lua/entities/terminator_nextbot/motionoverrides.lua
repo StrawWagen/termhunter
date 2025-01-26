@@ -2804,6 +2804,31 @@ function ENT:SwitchCrouch( crouch )
 
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:CanStandUp
+    Desc: (INTERNAL) Can bot stand up from crouch and dont stuck anywhere.
+    Arg1: 
+    Ret1: bool | Can stand up or not
+--]]------------------------------------
+function ENT:CanStandUp( myTbl )
+    if not myTbl.IsCrouching( self ) then return true end
+
+    local pos = self:GetPos()
+    local bounds = myTbl.CollisionBounds
+    local trDat = {
+        start = pos,
+        endpos = pos,
+        mask = self:GetSolidMask(),
+        collisiongroup = self:GetCollisionGroup(),
+        filter = TrFilterNoSelf( self ),
+        mins = bounds[1],
+        maxs = bounds[2],
+    }
+    local result = util.TraceHull( trDat )
+
+    return not result.Hit and not result.StartSolid
+end
+
 hook.Add( "OnPhysgunPickup", "terminatorNextBotResetPhysgunned", function( ply,  ent )
     if not ent.TerminatorNextBot or not ent.isTerminatorHunterBased then return end
     if ply == ent:GetEnemy() then -- RAAAGH, HOW COULD YOU DO THIS!!!!

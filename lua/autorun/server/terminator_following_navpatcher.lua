@@ -299,6 +299,7 @@ do
     local math = math
     local Vector = Vector
 
+    local upMagicNum = 20
     local speedToPatchAhead = 100^2
     local doorCheckHull = Vector( 18, 18, 1 )
     local flattener = Vector( 1, 1, 0.5 )
@@ -308,7 +309,7 @@ do
 
         local plyTbl = ply:GetTable()
 
-        local badMovement = entsMeta.GetMoveType( ply ) == MOVETYPE_NOCLIP or entsMeta.Health( ply ) <= 0 or plyMeta.GetObserverMode( ply ) ~= OBS_MODE_NONE or plyMeta.InVehicle( ply )
+        local badMovement = entsMeta.GetMoveType( ply ) == MOVETYPE_NOCLIP or entsMeta.Health( ply ) <= 0 or plyMeta.GetObserverMode( ply ) ~= OBS_MODE_NONE
 
         if badMovement then
             plyTbl.term_PatchingData = nil
@@ -316,6 +317,8 @@ do
             return
 
         end
+
+        local specialMovement = plyMeta.InVehicle( ply ) or entsMeta.WaterLevel( ply ) > 1
 
         local plyPos = entsMeta.GetPos( ply )
         local currArea, distToArea
@@ -332,6 +335,7 @@ do
 
         end
 
+        -- we are crouching and theres no area? navpatch NOW!
         if distToArea > 15 and plyMeta.Crouching( ply ) then onNoArea( ply, beingChased, someoneWasChased ) return end
 
         local patchABitAhead = beingChased and not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and vecMeta.LengthSqr( entsMeta.GetVelocity( ply ) ) > speedToPatchAhead
@@ -360,16 +364,21 @@ do
         local plysCenter = entsMeta.WorldSpaceCenter( ply )
         local patchData = plyTbl.term_PatchingData
         if not patchData then
-            patchData = {}
-            patchData.highestGotOffGround = plysCenter.z
+            patchData = { highestGotOffGround = plysCenter.z }
             plyTbl.term_PatchingData = patchData
 
         end
-        if not entsMeta.IsOnGround( ply ) then
+        if specialMovement then
+            patchData.wasSpecialMovement = true
             patchData.highestGotOffGround = math.max( patchData.highestGotOffGround, plysCenter.z )
-            patchData.wasOffGround = true
-            return
 
+        else
+            if not entsMeta.IsOnGround( ply ) then
+                patchData.highestGotOffGround = math.max( patchData.highestGotOffGround, plysCenter.z )
+                patchData.wasOffGround = true
+                return
+
+            end
         end
 
         -- most operations stop here
@@ -388,7 +397,7 @@ do
 
         local currClosestPos = areaMeta.GetClosestPointOnArea( currArea, plysCenter )
         local oldClosestPos = areaMeta.GetClosestPointOnArea( oldArea, plysCenter )
-        local highestHeight = math.max( patchData.highestGotOffGround, oldClosestPos.z + 25, currClosestPos.z + 25 )
+        local highestHeight = math.max( patchData.highestGotOffGround, oldClosestPos.z + upMagicNum, currClosestPos.z + upMagicNum )
 
         local plysCenter2 = Vector( plysCenter.x, plysCenter.y, highestHeight ) -- yuck
         local currClosestPosInAir = Vector( currClosestPos.x, currClosestPos.y, highestHeight )
@@ -410,7 +419,10 @@ do
         if not terminator_Extras.PosCanSee( oldClosestPos + upTen, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "4" ) return end
 
         -- detect really shabby doorways that non-terminator nextbots cannot navigate if we patch normally
-        if math.max( areaMeta.GetSizeX( oldArea ), areaMeta.GetSizeY( oldArea ) ) > 75 and math.max( areaMeta.GetSizeX( currArea ), areaMeta.GetSizeY( currArea ) ) > 75 then
+        local shabbyDoorwayCheck = math.max( areaMeta.GetSizeX( oldArea ), areaMeta.GetSizeY( oldArea ) ) >= 75 -- shabby doorways are only a problem if both areas are relatively big
+        shabbyDoorwayCheck = shabbyDoorwayCheck and math.max( areaMeta.GetSizeX( currArea ), areaMeta.GetSizeY( currArea ) ) >= 75
+        shabbyDoorwayCheck = shabbyDoorwayCheck and math.abs( currClosestPos.z - oldClosestPos.z ) < upMagicNum -- this check is for doorways!
+        if shabbyDoorwayCheck then
             local betweenPos = ( currClosestPosInAir + oldClosestPosInAir ) / 2
             local oldCenterOffsetted = areaMeta.GetCenter( oldArea )
             oldCenterOffsetted.z = highestHeight
@@ -425,7 +437,7 @@ do
         end
 
         -- if ply was on the ground the entire time, we can skip all the anti-krangle stuff
-        local skipBigChecks = not patchData.wasOffGround
+        local skipBigChecks = not ( patchData.wasOffGround or patchData.wasSpecialMovement )
 
         terminator_Extras.smartConnectionThink( oldArea, currArea, skipBigChecks )
         terminator_Extras.smartConnectionThink( currArea, oldArea, skipBigChecks )
