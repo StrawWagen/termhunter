@@ -7023,7 +7023,7 @@ function ENT:DoDefaultTasks()
                             self.bigInertiaPreserveBeenAreas = data.beenAreas
 
                         end
-                    elseif result == false and not self:primaryPathIsValid() then
+                    elseif result == false or not self:primaryPathIsValid() then
                         self:TaskComplete( "movement_biginertia" )
                         self:StartTask2( "movement_biginertia", { Want = want, beenAreas = data.beenAreas }, "my path failed, but i still want to wander" )
                         self.bigInertiaPreserveBeenAreas = data.beenAreas
