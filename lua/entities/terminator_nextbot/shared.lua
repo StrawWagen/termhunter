@@ -69,8 +69,6 @@ local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug t
 local vec_zero = Vector( 0 )
 local vectorUp = Vector( 0, 0, 1 )
 local vecFiftyZ = Vector( 0, 0, 50 )
-local vector6000ZUp = Vector( 0, 0, 6000 )
-local vector1000ZDown = Vector( 0, 0, -1000 )
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 local plus25Z = Vector( 0,0,25 )
 
@@ -1853,35 +1851,8 @@ end
 
 function ENT:IsUnderDisplacement()
     local myPos = self:GetShootPos()
+    return terminator_Extras.posIsUnderDisplacement( myPos )
 
-    -- get the sky
-    local firstTraceDat = {
-        start = myPos,
-        endpos = myPos + vector6000ZUp,
-        mask = MASK_SOLID_BRUSHONLY,
-    }
-    local firstTraceResult = util.TraceLine( firstTraceDat )
-
-    -- go back down
-    local secondTraceDat = {
-        start = firstTraceResult.HitPos,
-        endpos = myPos,
-        mask = MASK_SOLID_BRUSHONLY,
-    }
-    local secondTraceResult = util.TraceLine( secondTraceDat )
-    if secondTraceResult.HitTexture ~= "**displacement**" then return end
-
-    -- final check to make sure
-    local thirdTraceDat = {
-        start = myPos,
-        endpos = myPos + vector1000ZDown,
-        mask = MASK_SOLID_BRUSHONLY,
-    }
-    local thirdTraceResult = util.TraceLine( thirdTraceDat )
-    if thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" then return nil, true end -- we are probably under a displacement
-
-    -- we are DEFINITely under one
-    return true, nil
 end
 
 --do this so we can override the nextbot's current path

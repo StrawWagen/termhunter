@@ -55,6 +55,8 @@ local function debugPrint( ... )
 
 end
 
+local posIsUnderDisplacement
+
 local gridSize
 
 local halfGrid
@@ -108,6 +110,8 @@ local function updateGridSize( newSize )
 
     finalAreaCheckMins = Vector( -halfGrid, -halfGrid, -55 )
     finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 55 )
+
+    posIsUnderDisplacement = terminator_Extras.posIsUnderDisplacement
 
 end
 
@@ -428,6 +432,8 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     local collideResult = util.TraceHull( trStrucCollide )
     if collideResult.StartSolid then return end
 
+    local defUnder, probUnder = posIsUnderDisplacement( hitPos )
+    if defUnder or probUnder then return end
 
     local existingArea = navmesh.GetNearestNavArea( hitPos, false, halfGrid, false, true, -2 )
     if IsValid( existingArea ) then return end

@@ -145,3 +145,78 @@ for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
     PrintTable( counts )
 
 end--]]
+
+local vector6000ZUp = Vector( 0, 0, 6000 )
+local vector1000ZDown = Vector( 0, 0, -1000 )
+local bigNegativeZ = Vector( 0, 0, -3000 )
+local startOffset = Vector( 0, 0, 100 )
+
+local function getFloorTr( pos )
+    local traceDat = {
+        mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
+        start = pos + startOffset,
+        endpos = pos + bigNegativeZ
+    }
+
+    local trace = util.TraceLine( traceDat )
+    return trace
+
+end
+
+local function posIsDisplacement( pos )
+    local tr = getFloorTr( pos )
+    if not tr then return end
+    if tr.HitTexture ~= "**displacement**" then return end
+    return true
+
+end
+
+terminator_Extras.posIsDisplacement = posIsDisplacement
+
+terminator_Extras.areaIsEntirelyOverDisplacements = function( area )
+    local positions = {
+        area:GetCorner( 0 ),
+        area:GetCorner( 1 ),
+        area:GetCorner( 2 ),
+        area:GetCorner( 3 ),
+
+    }
+    for _, position in ipairs( positions ) do
+        -- if just 1 of these is not on a displacement, then return nil
+        if not posIsDisplacement( position ) then return end
+    end
+    -- every corner passed the check
+    return true
+
+end
+
+terminator_Extras.posIsUnderDisplacement = function( pos )
+    -- get the sky
+    local firstTraceDat = {
+        start = pos,
+        endpos = pos + vector6000ZUp,
+        mask = MASK_SOLID_BRUSHONLY,
+    }
+    local firstTraceResult = util.TraceLine( firstTraceDat )
+
+    -- go back down
+    local secondTraceDat = {
+        start = firstTraceResult.HitPos,
+        endpos = pos,
+        mask = MASK_SOLID_BRUSHONLY,
+    }
+    local secondTraceResult = util.TraceLine( secondTraceDat )
+    if secondTraceResult.HitTexture ~= "**displacement**" then return end
+
+    -- final check to make sure
+    local thirdTraceDat = {
+        start = pos,
+        endpos = pos + vector1000ZDown,
+        mask = MASK_SOLID_BRUSHONLY,
+    }
+    local thirdTraceResult = util.TraceLine( thirdTraceDat )
+    if thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" then return nil, true end -- we are probably under a displacement
+
+    -- we are DEFINITely under one
+    return true, nil
+end
