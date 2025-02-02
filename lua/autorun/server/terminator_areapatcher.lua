@@ -97,7 +97,7 @@ local function updateGridSize( newSize )
     trMaxs = Vector( gridSmaller, gridSmaller, 1 )
     local collideXY = math.max( 15, gridSize * 0.65 )
     collideTrMins = Vector( -collideXY, -collideXY, -1 )
-    collideTrMaxs = Vector( collideXY, collideXY, 1 )
+    collideTrMaxs = Vector( collideXY, collideXY, collideXY )
 
     areaCenteringOffset = Vector( -halfGrid, -halfGrid, 2 )
     oppCornerOffset = Vector( halfGrid, halfGrid, 2 )

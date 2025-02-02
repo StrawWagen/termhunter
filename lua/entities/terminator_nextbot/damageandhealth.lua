@@ -1,6 +1,7 @@
 
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 
+local isnumber = isnumber
 local CurTime = CurTime
 
 ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG
@@ -545,6 +546,12 @@ end
 function ENT:OnKilled( dmg )
     if self.term_Dead then return end
     self.term_Dead = true
+    timer.Simple( 0, function()
+        if self.term_PostDead then return end -- it worked fine
+        ErrorNoHaltWithStack( "Bot didn't die!", self )
+        SafeRemoveEntity( self )
+
+    end )
 
     self:AdditionalOnKilled( dmg )
 
@@ -597,6 +604,8 @@ function ENT:OnKilled( dmg )
     self:RunTask( "OnKilled", dmg, ragdoll )
     hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
 
+    self.term_PostDead = true
+
 end
 
 
@@ -610,7 +619,7 @@ function ENT:InitializeHealthRegen()
         me.NextRegenHeal = CurTime() + me.HealthRegenInterval
 
         local oldHealth = me:Health()
-        if oldHealth <= 0 then return end
+        if oldHealth <= 0 then return end -- dont cause resurrect issues
 
         local newHealth = math.Clamp( oldHealth + me.HealthRegen, 0, me:GetMaxHealth() )
         me:SetHealth( newHealth )

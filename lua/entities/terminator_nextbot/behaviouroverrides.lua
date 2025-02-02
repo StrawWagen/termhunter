@@ -21,7 +21,7 @@ function ENT:BehaveUpdate( interval )
     local disable = myTbl.DisableBehaviour( self )
 
     if not disable then
-        local crouch = myTbl.ShouldCrouch( self )
+        local crouch = myTbl.ShouldCrouch( self, myTbl )
         if crouch ~= myTbl.IsCrouching( self ) and ( not crouch or myTbl.CanStandUp( self, myTbl ) ) then
             myTbl.SwitchCrouch( self, crouch )
 

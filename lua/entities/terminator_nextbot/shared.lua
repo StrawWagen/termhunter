@@ -1870,7 +1870,9 @@ function ENT:ControlPath2( AimMode )
     local doUnstuckPath = blockUnstuckRetrace < CurTime()
     myTbl.blockUnstuckRetrace = nil
 
-    if badPathAndStuck or HunterIsStuck( self, myTbl ) then -- new unstuck
+    local posBasedStuck = HunterIsStuck( self, myTbl )
+
+    if badPathAndStuck or posBasedStuck then -- new unstuck
         local myPos = self:GetPos()
         myTbl.startUnstuckDestination = myTbl.PathEndPos -- save where we were going
         myTbl.startUnstuckPos = myPos
@@ -1974,7 +1976,7 @@ function ENT:ControlPath2( AimMode )
 
                 end
             end
-            if not self:PathIsValid() then return end
+            if not self:PathIsValid() then return false end
             self.isUnstucking = true
 
         end
@@ -1986,6 +1988,7 @@ function ENT:ControlPath2( AimMode )
     end
 
     yieldIfWeCan()
+    validPath = myTbl.PathIsValid( self )
 
     if myTbl.tryToHitUnstuck then
         local done = nil
@@ -2057,7 +2060,11 @@ function ENT:ControlPath2( AimMode )
 
         end
     elseif myTbl.isUnstucking then
-        if not validPath then return end
+        if not validPath then
+            myTbl.isUnstucking = false
+            return false
+
+        end
         result = myTbl.ControlPath( self, AimMode )
         local DistToStart = self:GetPos():Distance( myTbl.startUnstuckPos )
         local FarEnough = DistToStart > 200
@@ -2083,7 +2090,7 @@ function ENT:ControlPath2( AimMode )
             end
         end
     else
-        if not validPath then return end --ErrorNoHaltWithStack() return end 
+        if not validPath then return false end
         local wep = myTbl.GetWeapon( self, myTbl )
         if wep and wep.worksWithoutSightline and IsValid( myTbl.GetEnemy( self ) ) and AimMode == true then
             AimMode = nil
@@ -2320,14 +2327,22 @@ function ENT:EnemyAcquired( currentTask )
         end
     elseif canRushKiller then
         self:TaskComplete( currentTask )
-        self:StartTask2( "movement_flankenemy", nil, "ea, rush a killer" )
+        if self.term_DoesntFlank then
+            self:StartTask2( "movement_followenemy", nil, "ea, rush a killer" )
+        else
+            self:StartTask2( "movement_flankenemy", nil, "ea, rush a killer" )
+        end
         self.PreventShooting = nil
     elseif doStalk then
         self:TaskComplete( currentTask )
         self:StartTask2( "movement_stalkenemy", nil, "ea, stalk them" )
     elseif doFlank then
         self:TaskComplete( currentTask )
-        self:StartTask2( "movement_flankenemy", nil, "ea, flank them" )
+        if self.term_DoesntFlank then
+            self:StartTask2( "movement_followenemy", nil, "ea, flank them but i dont like flanking" )
+        else
+            self:StartTask2( "movement_flankenemy", nil, "ea, flank them" )
+        end
         self.PreventShooting = nil
     else
         self:TaskComplete( currentTask )
@@ -6461,7 +6476,7 @@ function ENT:DoDefaultTasks()
 
                         end
                     end
-                elseif self:EnemyIsLethalInMelee( enemy ) or self:inSeriousDanger() and enemy and not data.wasStalk then
+                elseif ( self:EnemyIsLethalInMelee( enemy ) or self:inSeriousDanger() ) and enemy and not data.wasStalk then
                     self:TaskFail( "movement_duelenemy_near" )
                     self:GetTheBestWeapon()
                     self:StartTask2( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "i dont want to die" )
@@ -6681,9 +6696,15 @@ function ENT:DoDefaultTasks()
 
                     ::SkipRemainingCriteria::
                     if data.Unreachable and data.NextRandPathAtt < CurTime() then
-                        data.NextRandPathAtt = CurTime() + math.random( 1, 2 )
-                        self:SetupPathShell( myNavArea:GetRandomPoint() )
+                        if IsValid( myNavArea ) then
+                            data.NextRandPathAtt = CurTime() + math.random( 1, 2 )
+                            self:SetupPathShell( myNavArea:GetRandomPoint() )
 
+                        else
+                            self:TaskFail( "movement_duelenemy_near" )
+                            self:StartTask2( "movement_handler", nil, "FAIL" )
+
+                        end
                     end
                 end
             end,
@@ -7023,7 +7044,7 @@ function ENT:DoDefaultTasks()
                             self.bigInertiaPreserveBeenAreas = data.beenAreas
 
                         end
-                    elseif result == false or not self:primaryPathIsValid() then
+                    elseif result == false and not self:primaryPathIsValid() then
                         self:TaskComplete( "movement_biginertia" )
                         self:StartTask2( "movement_biginertia", { Want = want, beenAreas = data.beenAreas }, "my path failed, but i still want to wander" )
                         self.bigInertiaPreserveBeenAreas = data.beenAreas

@@ -694,7 +694,7 @@ function ENT:MakeFeud( enemy )
     if pals( self, enemy ) then
         if blockAllInfighting:GetBool() then return end
 
-        local maniacHunter = self.alwaysManiac -- allow pals to hate eachother if one is a "maniac"
+        local maniacHunter = self.alwaysManiac -- script infighting
         if isfunction( maniacHunter ) then
             maniacHunter = maniacHunter( self )
             if maniacHunter then
@@ -702,7 +702,7 @@ function ENT:MakeFeud( enemy )
 
             end
         end
-        if not self.neverManiac and not maniacHunter and not blockRandomInfighting:GetBool() then
+        if not self.neverManiac and not maniacHunter and not blockRandomInfighting:GetBool() then -- random infighting
             maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- infighting always gets a good laugh
 
         end
@@ -711,15 +711,19 @@ function ENT:MakeFeud( enemy )
     end
 
     local isPly = playersCache[enemy]
+    local priority
 
     if isPly then
-        self:Term_SetEntityRelationship( enemy, D_HT, 1000 ) -- hate players more than anything else
+        priority = 1000
+        self:Term_SetEntityRelationship( enemy, D_HT, priority ) -- hate players more than anything else
 
     elseif enemy:IsNPC() or enemy:IsNextBot() then
-        self:Term_SetEntityRelationship( enemy, D_HT, 100 )
+        priority = 100
+        self:Term_SetEntityRelationship( enemy, D_HT, priority )
 
     else
-        self:Term_SetEntityRelationship( enemy, D_HT, 1 )
+        priority = 1
+        self:Term_SetEntityRelationship( enemy, D_HT, priority )
 
     end
 
@@ -733,11 +737,16 @@ function ENT:MakeFeud( enemy )
     end
 
     if not enemy.Disposition then return end
-    Disp = enemy:Disposition( self )
-    if Disp == D_HT then return end
-    if not enemy.AddEntityRelationship then return end
-    enemy:AddEntityRelationship( self, D_HT )
+    local disp = enemy:Disposition( self )
 
+    if disp == D_HT then return end
+    if enemy.TerminatorNextBot then
+        enemy:Term_SetEntityRelationship( self, D_HT, priority )
+
+    elseif enemy.AddEntityRelationship then
+        enemy:AddEntityRelationship( self, D_HT, priority )
+
+    end
 end
 
 -- used in shouldcrouch in motionoverrides

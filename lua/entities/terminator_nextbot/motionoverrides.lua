@@ -1,6 +1,8 @@
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
 
+local MDLSCALE_LARGE = 1.2
+
 local Vector = Vector
 
 local gapJumpHull = Vector( 5, 5, 5 )
@@ -15,6 +17,7 @@ local function TraceHit( tr )
 end
 
 local CurTime = CurTime
+local math = math
 local math_Rand = math.Rand
 
 local function TrFilterNoSelf( me )
@@ -489,9 +492,22 @@ function ENT:MakeFootstepSound( volume, surface, mul )
                     clompingLvl = 76
 
                 end
+                local lvlShift = self.term_SoundLevelShift
+                if lvlShift then
+                    clompingLvl = clompingLvl + lvlShift
+
+                end
                 clompingLvl = clompingLvl * mul
 
-                self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, math.random( 20, 30 ) / mul, intVolume / 1.5, CHAN_STATIC )
+                local pit = math.random( 20, 30 )
+                local pitShift = self.term_SoundPitchShift
+                if pitShift then
+                    pit = pit + pitShift
+
+                end
+                pit = pit / mul
+
+                self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, pit, intVolume / 1.5, CHAN_STATIC )
 
             end
             self:EmitSound( theSnd, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
@@ -725,9 +741,9 @@ function ENT:shouldDoWalk()
 
 end
 
-local Squared60 = 60^2
-local sideOffs = 8
-local aboveHead = 70
+local sideOffs = 10
+local aboveHead = 71
+local middleHead = 55
 local belowHead = 40
 
 local headclearanceOffsets = {
@@ -742,57 +758,146 @@ local headclearanceOffsets = {
 
 }
 
-function ENT:ShouldCrouch()
-    if not self.CanCrouch then return false end
-    if self.AlwaysCrouching then return false end -- HACK, for when this bot is always crouching size
+local headclearanceOffsetsOversized = {
+    Vector( sideOffs, sideOffs, aboveHead ),
+    Vector( -sideOffs, sideOffs, aboveHead ),
+    Vector( -sideOffs, -sideOffs, aboveHead ),
+    Vector( sideOffs, -sideOffs, aboveHead ),
+    Vector( sideOffs, sideOffs, middleHead ),
+    Vector( -sideOffs, sideOffs, middleHead ),
+    Vector( -sideOffs, -sideOffs, middleHead ),
+    Vector( sideOffs, -sideOffs, middleHead ),
+    Vector( sideOffs, sideOffs, belowHead ),
+    Vector( -sideOffs, sideOffs, belowHead ),
+    Vector( -sideOffs, -sideOffs, belowHead ),
+    Vector( sideOffs, -sideOffs, belowHead ),
 
-    if self:IsControlledByPlayer() then
+}
+
+local function canFitSimple( pos, scale )
+    local blockedCount = 0
+    local offsets = headclearanceOffsets
+    if scale >= MDLSCALE_LARGE then
+        offsets = headclearanceOffsetsOversized
+
+    end
+    for _, check in ipairs( offsets ) do
+        local scaledCheck = ( check * scale )
+        --debugoverlay.Cross( pos + scaledCheck, 1, 0.1 )
+        if not util.IsInWorld( pos + scaledCheck ) then
+            blockedCount = blockedCount + 1
+
+        end
+        if blockedCount >= 2 then
+            return false
+
+        end
+    end
+    return true
+end
+
+function ENT:ShouldCrouch( myTbl )
+    myTbl = myTbl or self:GetTable()
+    if not myTbl.CanCrouch then return false end
+    if myTbl.AlwaysCrouching then return false end -- HACK, for when this bot is always crouching size
+
+    if myTbl.IsControlledByPlayer( self ) then
         if self:ControlPlayerKeyDown( IN_DUCK ) then
             return true
         end
 
         return false
     else
-        if self.overrideCrouch and self.overrideCrouch > CurTime() then return true end
+        if myTbl.overrideCrouch and myTbl.overrideCrouch > CurTime() then return true end
 
-        if self.m_Jumping then return true end
+        if myTbl.m_Jumping then return true end
 
         local myPos = self:GetPos()
+        local myScale = self:GetModelScale()
 
-        local blockedCount = 0
-        for _, check in ipairs( headclearanceOffsets ) do
-            --debugoverlay.Cross( myPos + check, 1, 0.1 )
-            if not util.IsInWorld( myPos + check ) then
-                blockedCount = blockedCount + 1
+        if not canFitSimple( myPos, myScale ) then
+            myTbl.overrideCrouch = CurTime() + 0.75 -- dont check as soon!
+            return true
 
-            end
-            if blockedCount >= 2 then
-                self.overrideCrouch = CurTime() + 0.75 -- dont check as soon!
-                return true
-
-            end
         end
 
-        if self:PathIsValid() then
-            local currArea = self:GetCurrentNavArea()
-            local nextArea, goalPathPoint = self:GetNextPathArea()
+        if myTbl.PathIsValid( self ) then
+            local currArea = myTbl.GetCurrentNavArea( self )
+            local nextArea = myTbl.GetNextPathArea( self )
+
             if IsValid( currArea ) and currArea:HasAttributes( NAV_MESH_CROUCH ) then
-                self.overrideCrouch = CurTime() + 0.35
+                myTbl.overrideCrouch = CurTime() + 0.35
                 return true
-            elseif IsValid( nextArea ) and ( nextArea:HasAttributes( NAV_MESH_CROUCH ) or math.min( nextArea:GetSizeX(), nextArea:GetSizeY() ) <= 20 ) and goalPathPoint.pos:DistToSqr( myPos ) < Squared60 then
-                self.overrideCrouch = CurTime() + 0.35
+
+            end
+            local validNext = IsValid( nextArea )
+            local nextsClosest = validNext and nextArea:GetClosestPointOnArea( myPos ) or nil
+            local crouchNextArea = validNext and nextsClosest:Distance( myPos ) < 60 and ( nextArea:HasAttributes( NAV_MESH_CROUCH ) or math.min( nextArea:GetSizeX(), nextArea:GetSizeY() ) <= 20 or not canFitSimple( nextArea:GetCenter(), myScale ) or not canFitSimple( nextsClosest, myScale ) )
+
+            if myScale >= MDLSCALE_LARGE then -- if we're very large
+                crouchNextArea = crouchNextArea or ( validNext and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + terminator_Extras.dirToPos( myPos, nextsClosest ) * 25 ) )
+
+            end
+
+            if crouchNextArea then
+                myTbl.overrideCrouch = CurTime() + 0.35
                 return true
+
             end
         end
 
-        local hasToCrouchToSee = self:HasToCrouchToSeeEnemy()
+        local hasToCrouchToSee = myTbl.HasToCrouchToSeeEnemy( self )
         if hasToCrouchToSee == true then
             return true
 
         end
 
-        return self:RunTask( "ShouldCrouch" ) or false
+        return myTbl.RunTask( self, "ShouldCrouch" ) or false
     end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:CanStandUp
+    Desc: (INTERNAL) Can bot stand up from crouch and dont stuck anywhere.
+    Arg1: 
+    Ret1: bool | Can stand up or not
+--]]------------------------------------
+function ENT:CanStandUp( myTbl )
+    if not myTbl.IsCrouching( self ) then return true end
+    return myTbl.CanStandAtPos( self, myTbl, self:GetPos() )
+
+end
+
+function ENT:CanStandAtPos( myTbl, pos, endPos )
+    local scale = self:GetModelScale()
+    if not canFitSimple( pos, scale ) then return false end -- skip the trace if we can
+
+    endPos = endPos or pos
+
+    local bounds = myTbl.CollisionBounds
+    local trDat = {
+        start = pos,
+        endpos = endPos,
+        mask = self:GetSolidMask(),
+        collisiongroup = self:GetCollisionGroup(),
+        filter = TrFilterNoSelf( self ),
+        mins = bounds[1] * scale,
+        maxs = bounds[2] * scale,
+    }
+    local result = util.TraceHull( trDat )
+
+    local canStand = not result.Hit and not result.StartSolid
+
+    if not canStand and scale >= MDLSCALE_LARGE and IsValid( result.Entity ) then
+        local entsObj = result.Entity:GetPhysicsObject()
+        if IsValid( entsObj ) and entsObj:GetMass() <= myTbl.MyPhysicsMass / 6 then
+            return true
+
+        end
+    end
+
+    return canStand
+
 end
 
 local fivePositiveZ = Vector( 0,0,5 )
@@ -1042,11 +1147,6 @@ local scalar = 0.75
 
 -- simple check, can the bot exist left/right in the direction of the goal.
 function ENT:CanStepAside( dir, goal )
-
-    -- attempt to make bot ignore this when stuck in stuff
-    local crouch = self.overrideCrouch or 0
-    if crouch > CurTime() then return false end
-
     local pos = self:GetPos() + vec_up15
     local b1,b2 = self:BoundsAdjusted( scalar )
     local mask = self:GetSolidMask()
@@ -1061,11 +1161,12 @@ function ENT:CanStepAside( dir, goal )
     local rightOffset = ( myRight * distToTrace )
 
     local filter = TrFilterNoSelf( self )
+    local leftEnd = defEndPos - rightOffset
 
     -- do a trace in the dir we goin, likely flattened direction to next segment
     local dirConfigLeft = {
         start = pos - rightOffset,
-        endpos = defEndPos - rightOffset,
+        endpos = leftEnd,
         mins = b1,
         maxs = b2,
         filter = filter,
@@ -1080,13 +1181,15 @@ function ENT:CanStepAside( dir, goal )
     --debugoverlay.Box( leftResult.HitPos, dirConfigLeft.mins, dirConfigLeft.maxs, 4, color )
 
     if not leftResult.Hit or self:hitBreakable( dirConfigLeft, leftResult ) then
-        return true
+        return true, leftEnd
 
     end
 
+    local rightEnd = defEndPos + rightOffset
+
     local dirConfigRight = {
         start = pos + rightOffset,
-        endpos = defEndPos + rightOffset,
+        endpos = rightEnd,
         mins = b1,
         maxs = b2,
         filter = filter,
@@ -1101,7 +1204,7 @@ function ENT:CanStepAside( dir, goal )
     --debugoverlay.Box( rightResult.HitPos, dirConfigRight.mins, dirConfigRight.maxs, 4, color )
 
     if not rightResult.Hit or self:hitBreakable( dirConfigRight, rightResult ) then
-        return true
+        return true, rightEnd
 
     end
     return false
@@ -2242,6 +2345,12 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
         dir.z = dir.z * 0.05
         dir:Normalize()
 
+        local overrideCrouch = myTbl.overrideCrouch or 0
+        if overrideCrouch < CurTime() and self:GetModelScale() >= MDLSCALE_LARGE and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + dir * 5 ) then
+            myTbl.overrideCrouch = CurTime() + 0.5
+
+        end
+
         local aboveUs
         local simpleClearPos
         local aboveUsJumpHeight
@@ -2277,18 +2386,31 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 adaptBlock = not hasCached or ( myTbl.IsFodder and math.random( 1, 100 ) > 90 )
 
             end
+            local jump = readyToJump and ( jumpstate == 1 or goalBasedJump )
             -- jump if the jumpblock says we should, or if the simple jump up says we should
-            if readyToJump and ( jumpstate == 1 or goalBasedJump ) then
-                jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
-                myTbl.Jump( self, jumpingHeight + 20 )
-                myTbl.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
-                myTbl.moveAlongPathJumpingHeight = jumpingHeight
-                return
+            if jump then
+                local stepAside, asidePos
+                if not goalBasedJump then
+                    stepAside, asidePos = myTbl.CanStepAside( self, dir, pos )
+
+                end
+                if stepAside then
+                    pos = asidePos
+
+                else
+                    jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
+                    myTbl.Jump( self, jumpingHeight + 20 )
+                    myTbl.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
+                    myTbl.moveAlongPathJumpingHeight = jumpingHeight
+                    return
+
+                end
             -- adapt if the jumpstate says we need to
             elseif jumpstate == 2 and not adaptBlock then
                 local goodPosToGoto = myTbl.PosThatWillBringUsTowards( self, myPos + vec_up15, pos, 50 )
                 if not goodPosToGoto then return end
                 myTbl.loco:Approach( goodPosToGoto, 10000 )
+                --debugoverlay.Cross( pos, 10, 1, Color( 255, 0, 0 ), true )
                 return
 
             end
@@ -2804,31 +2926,6 @@ function ENT:SwitchCrouch( crouch )
 
 end
 
---[[------------------------------------
-    Name: NEXTBOT:CanStandUp
-    Desc: (INTERNAL) Can bot stand up from crouch and dont stuck anywhere.
-    Arg1: 
-    Ret1: bool | Can stand up or not
---]]------------------------------------
-function ENT:CanStandUp( myTbl )
-    if not myTbl.IsCrouching( self ) then return true end
-
-    local pos = self:GetPos()
-    local bounds = myTbl.CollisionBounds
-    local trDat = {
-        start = pos,
-        endpos = pos,
-        mask = self:GetSolidMask(),
-        collisiongroup = self:GetCollisionGroup(),
-        filter = TrFilterNoSelf( self ),
-        mins = bounds[1],
-        maxs = bounds[2],
-    }
-    local result = util.TraceHull( trDat )
-
-    return not result.Hit and not result.StartSolid
-end
-
 hook.Add( "OnPhysgunPickup", "terminatorNextBotResetPhysgunned", function( ply,  ent )
     if not ent.TerminatorNextBot or not ent.isTerminatorHunterBased then return end
     if ply == ent:GetEnemy() then -- RAAAGH, HOW COULD YOU DO THIS!!!!
@@ -2961,7 +3058,7 @@ function ENT:InitializeCollisionBounds( mdlScale )
         local mins = normalCollisions[1]
         local maxs = normalCollisions[2]
         self.CrouchCollisionBounds = { Vector( mins.x, mins.y, mins.z ), Vector( maxs.x, maxs.y, maxs.z ) } -- i loveeee vectors!!!
-        self.CrouchCollisionBounds[2].z = self.CrouchCollisionBounds[2].z * 0.65 -- dont make this too smal, it breaks headshots!
+        self.CrouchCollisionBounds[2].z = self.CrouchCollisionBounds[2].z * 0.6 -- dont make this too smal, it breaks headshots!
 
     elseif mdlScale ~= 1 then
         local normalCollisions = self.CrouchCollisionBounds

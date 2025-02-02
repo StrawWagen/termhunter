@@ -451,6 +451,11 @@ function SWEP:DealDamage()
 
             end
 
+            if owner.PostHitObject then
+                owner:PostHitObject( hitEnt, damageToDeal )
+
+            end
+
         end
         local MEMORY_BREAKABLE = 4
         local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()

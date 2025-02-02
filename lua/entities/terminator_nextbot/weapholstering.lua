@@ -15,6 +15,7 @@ function ENT:IsHolsteredWeap( wep )
 end
 
 function ENT:CanHolsterWeap( wep )
+    if not self.term_CanHolsterWeapons then return false end
     if self:IsHolsteredWeap( wep ) then return false end
     if wep:GetClass() == self.TERM_FISTS then return false end
 
