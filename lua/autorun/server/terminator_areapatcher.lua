@@ -402,6 +402,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     closedVoxels[vecAsKey( voxel )] = true
 
     if result.HitTexture == "TOOLS/TOOLSNODRAW" then return end
+    if result.HitSky then return end
 
     -- slope check
     if result.HitNormal:Dot( up ) < 0.5 then return end
