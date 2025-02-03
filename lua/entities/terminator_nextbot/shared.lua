@@ -2736,6 +2736,7 @@ ENT.InformRadius = 20000
 ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if the enemy is unreachable or lethal in melee
 ENT.AwarenessCheckRange = 1500 -- used by weapon searching too if wep search radius is <= this
 
+ENT.CanHolsterWeapons = true
 ENT.CanUseStuff = true
 ENT.JudgesEnemies = true -- dynamically ignore enemies if they aren't taking damage?
 ENT.IsFodder = nil -- enables optimisations that make sense on bullet fodder enemies
