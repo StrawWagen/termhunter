@@ -401,8 +401,8 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     if not result.Hit then return end
     closedVoxels[vecAsKey( voxel )] = true
 
-    if result.HitTexture == "TOOLS/TOOLSNODRAW" then return end
-    if result.HitSky then return end
+    if result.HitTexture == "TOOLS/TOOLSNODRAW" then return end -- dont place outside of maps
+    if result.HitSky then return end -- dont place on skybox, probably an "endless" pit
 
     -- slope check
     if result.HitNormal:Dot( up ) < 0.5 then return end
@@ -433,8 +433,9 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     local collideResult = util.TraceHull( trStrucCollide )
     if collideResult.StartSolid then return end
 
-    local defUnder, probUnder = posIsUnderDisplacement( hitPos )
+    local defUnder, probUnder, upTrResult = posIsUnderDisplacement( hitPos )
     if defUnder or probUnder then return end
+    if upTrResult.HitPos:Distance( hitPos ) < headroomCrouchRaw then return end -- really tiny space
 
     local existingArea = navmesh.GetNearestNavArea( hitPos, false, halfGrid, false, true, -2 )
     if IsValid( existingArea ) then return end

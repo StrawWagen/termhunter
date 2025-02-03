@@ -206,7 +206,7 @@ terminator_Extras.posIsUnderDisplacement = function( pos )
         mask = MASK_SOLID_BRUSHONLY,
     }
     local secondTraceResult = util.TraceLine( secondTraceDat )
-    if secondTraceResult.HitTexture ~= "**displacement**" then return end
+    if secondTraceResult.HitTexture ~= "**displacement**" then return nil, nil, firstTraceResult end
 
     -- final check to make sure
     local thirdTraceDat = {
@@ -215,8 +215,8 @@ terminator_Extras.posIsUnderDisplacement = function( pos )
         mask = MASK_SOLID_BRUSHONLY,
     }
     local thirdTraceResult = util.TraceLine( thirdTraceDat )
-    if thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" then return nil, true end -- we are probably under a displacement
+    if thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" then return nil, true, firstTraceResult end -- we are probably under a displacement
 
     -- we are DEFINITely under one
-    return true, nil
+    return true, nil, firstTraceResult
 end
