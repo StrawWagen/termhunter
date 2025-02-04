@@ -2643,6 +2643,7 @@ function ENT:OnLeaveGround( _ )
 
 end
 
+local probablyInLeak = 32000
 local lethalFallHeightReal = 2000
 local noticeFall = lethalFallHeightReal * 0.25
 local fearFall = lethalFallHeightReal + -( lethalFallHeightReal * 0.2 )
@@ -2655,6 +2656,11 @@ function ENT:HandleInAir()
 
     if fallHeight > 200 and self.ReallyHeavy and not self:IsSilentStepping() and not self.terminator_playingFallingSound then
         StartFallingSound( self )
+
+    end
+
+    if fallHeight > probablyInLeak then -- weird leak maps
+        self:FallIntoTheVoid()
 
     end
 
@@ -2687,7 +2693,7 @@ function ENT:HandleInAir()
 
     local waterLevel = self:WaterLevel()
     local oldLevel = self.oldJumpingWaterLevel or 0
-    if oldLevel ~= waterLevel then
+    if oldLevel ~= waterLevel then -- sploosh
         self.oldJumpingWaterLevel = waterLevel
         if oldLevel == 0 and self:IsSolid() then
             local traceStruc = {
