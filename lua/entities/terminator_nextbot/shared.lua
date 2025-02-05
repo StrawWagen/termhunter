@@ -2685,13 +2685,12 @@ cvars.AddChangeCallback( "termhunter_fovoverride", function()
 end )
 
 
-terminator_Extras.healthDefault = 900
 local healthVar = CreateConVar( "termhunter_health", -1, FCVAR_ARCHIVE, "Override the terminator's health, -1 for default, ( " .. terminator_Extras.healthDefault .. " )", -1, 99999999 )
 
 local function healthFunc()
     local valRaw = healthVar:GetInt()
     if valRaw <= -1 then
-        return terminator_Extras.healthDefault
+        return terminator_Extras.healthDefault -- defined in sh_terminator_funcs
 
     else
         return valRaw

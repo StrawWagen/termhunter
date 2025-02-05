@@ -3,6 +3,8 @@ AddCSLuaFile()
 
 terminator_Extras = terminator_Extras or {}
 
+terminator_Extras.healthDefault = 900 -- shared, for GLEE
+
 terminator_Extras.PosCanSee = function( startPos, endPos, mask )
     if not startPos then return end
     if not endPos then return end
