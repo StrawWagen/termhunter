@@ -2301,7 +2301,7 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
 
     -- walk to the ladder
     else
-        self:GotoPosSimple( nil, closestToLadderPos, 10 )
+        self:GotoPosSimple( self:GetTable(), closestToLadderPos, 10 )
 
     end
 

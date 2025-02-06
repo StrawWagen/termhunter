@@ -3748,7 +3748,7 @@ function ENT:DoDefaultTasks()
                         end
                         -- edge case
                         if not valid and visible then
-                            self:GotoPosSimple( data.myTbl, data.object:WorldSpaceCenter(), 5 )
+                            data.myTbl.GotoPosSimple( self, data.myTbl, data.object:WorldSpaceCenter(), 5 )
                             self:Anger( 1 )
 
                         elseif not valid and not visible then
@@ -6657,7 +6657,7 @@ function ENT:DoDefaultTasks()
                             gotoPos = gotoPos + VectorRand() * 15
 
                             --debugoverlay.Cross( gotoPos, 10, 1, Color( 255,255,0 ) )
-                            self:GotoPosSimple( data.myTbl, gotoPos, 10 )
+                            data.myTbl.GotoPosSimple( self, data.myTbl, gotoPos, 10 )
                             if self.DistToEnemy < 100 then
                                 self:crouchToGetCloserTo( self:EntShootPos( enemy ) )
 
