@@ -2338,6 +2338,10 @@ end
 -- easy alias for approach
 function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     myTbl = myTbl or self:GetTable()
+    if not self.NearestPoint then
+        ErrorNoHaltWithStack()
+
+    end
     if self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
         local zToPos = ( pos.z - myPos.z )

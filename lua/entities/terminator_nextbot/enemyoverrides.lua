@@ -3,9 +3,7 @@ local MEMORY_WEAPONIZEDNPC = 32
 
 local IsValid = IsValid
 local LocalToWorld = LocalToWorld
-local isentity = isentity
 local entMeta = FindMetaTable( "Entity" )
-local matrixMeta = FindMetaTable( "VMatrix" )
 
 local IsFlagSet = entMeta.IsFlagSet
 
@@ -13,8 +11,11 @@ local blockRandomInfighting = CreateConVar( "terminator_block_random_infighting"
 local blockAllInfighting = CreateConVar( "terminator_block_infighting", 0, FCVAR_ARCHIVE, "Disable ALL infighting?" )
 
 
-local playersCache = nil -- i love overoptimisation
-terminator_Extras.DOINGPLYCACHE = terminator_Extras.DOINGPLYCACHE or nil
+local playersCache -- i love overoptimisation
+local npcClassCache
+local nextbotClassCache
+
+terminator_Extras.DOINGTYPECACHE = terminator_Extras.DOINGTYPECACHE or nil
 local function doPlayersCache()
     playersCache = {}
     for _, ply in player.Iterator() do
@@ -22,22 +23,29 @@ local function doPlayersCache()
 
     end
 end
-if terminator_Extras.DOINGPLYCACHE then -- the joys of autorefresh
+
+if terminator_Extras.DOINGTYPECACHE then -- the joys of autorefresh
     doPlayersCache()
+    npcClassCache = {}
+    nextbotClassCache = {}
 
 end
 
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
-    terminator_Extras.DOINGPLYCACHE = true
     doPlayersCache()
-    timer.Create( "term_cache_players", 1, 0, function()
+    npcClassCache = {}
+    nextbotClassCache = {}
+    terminator_Extras.DOINGTYPECACHE = true
+    timer.Create( "term_cache_players", 2, 0, function()
         doPlayersCache()
     end )
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
     timer.Remove( "term_cache_players" )
-    playersCache = {}
-    terminator_Extras.DOINGPLYCACHE = nil
+    playersCache = nil
+    npcClassCache = nil
+    nextbotClassCache = nil
+    terminator_Extras.DOINGTYPECACHE = nil
 
 end )
 
@@ -55,6 +63,34 @@ hook.Add( "terminator_nextbot_noterms_exist", "setup_shouldbeenemy_notenemycache
     notEnemyCache = {}
 
 end )
+
+local function isNpcEntClass( ent, class ) -- more optimized than ent:IsNPC(), worth it to have 40+ npcs spawned
+    local cached = npcClassCache[class]
+    if cached == nil then
+        cached = ent:IsNPC()
+        npcClassCache[class] = cached
+
+    end
+    return cached
+
+end
+local function isNextbotEntClass( ent, class ) -- ditto
+    local cached = nextbotClassCache[class]
+    if cached == nil then
+        cached = ent:IsNextBot()
+        nextbotClassCache[class] = cached
+
+    end
+    return cached
+
+end
+
+local function isNextbotOrNpcEnt( ent )
+    local class = entMeta.GetClass( ent )
+    return isNpcEntClass( ent, class ) or isNextbotEntClass( ent, class )
+
+end
+
 
 local fogRange
 -- from CFC's LFS fork, code by reeedox
@@ -107,6 +143,8 @@ function ENT:enemyBearingToMeAbs()
 end
 
 do
+    local matrixMeta = FindMetaTable( "VMatrix" )
+
     local function cacheEntShootPos( ent, entsTbl, pos )
         entsTbl.term_cachedEntShootPos = pos
         timer.Simple( 0.01, function() -- cache this for barely more than a tick, HUGE perf save if there's lots and lots of bots
@@ -326,18 +364,19 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     local killer
     local krangledKiller
+    local class = entMeta.GetClass( ent )
 
     if not ent.isTerminatorHunterKiller then
-        local interesting = isPly or ent:IsNextBot() or ent:IsNPC()
+        local interesting = isPly or isNextbotEntClass( ent, class ) or isNpcEntClass( ent, class )
         if not isObject and not interesting then
             notEnemyCache[ent] = true
             return false
 
         end
     else
-        -- if an ent has killed terminators, we do more thurough checks on it!
+        -- if an ent has killed terminators
+        -- we do more thurough checks on it!
         -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-        local class = entMeta.GetClass( ent )
         if not ( isPly or ent:IsNextBot() or ent:IsNPC() or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then return false end
         krangledKiller = true
 
@@ -352,14 +391,13 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     end
 
-    local class = entMeta.GetClass( ent )
     if class == "rpg_missile" then return false end
     if class == "env_flare" then return false end
 
-    local isDeadNPC = ent:IsNPC() and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )
+    local isDeadNPC = isNpcEntClass( ent, class ) and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )
 
     if not entsTbl.TerminatorNextBot and isDeadNPC then return false end
-    if ( entsTbl.TerminatorNextBot or not ent:IsNPC() ) and ent:Health() <= 0 then return false end
+    if ( entsTbl.TerminatorNextBot or not isNpcEntClass( ent, class ) ) and ent:Health() <= 0 then return false end
 
     local killerNotChummy = killer and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
     local memory, _ = myTbl.getMemoryOfObject( self, ent )
@@ -409,26 +447,28 @@ function ENT:ClearEnemyMemory( enemy )
     end
 end
 
-local isentity = isentity
+do
+    local isentity = isentity
 
-function ENT:CanSeePosition( check, myTbl, checksTbl )
-    myTbl = myTbl or self:GetTable()
-    local pos = check
-    if isentity( check ) then
-        pos = myTbl.EntShootPos( self, check, checksTbl )
+    function ENT:CanSeePosition( check, myTbl, checksTbl )
+        myTbl = myTbl or self:GetTable()
+        local pos = check
+        if isentity( check ) then
+            pos = myTbl.EntShootPos( self, check, checksTbl )
+
+        end
+
+        local tr = util.TraceLine( {
+            start = myTbl.GetShootPos( self ),
+            endpos = pos,
+            mask = self.LineOfSightMask,
+            filter = self
+        } )
+
+        local seeBasic = not tr.Hit or ( isentity( check ) and tr.Entity == check )
+        return seeBasic
 
     end
-
-    local tr = util.TraceLine( {
-        start = myTbl.GetShootPos( self ),
-        endpos = pos,
-        mask = self.LineOfSightMask,
-        filter = self
-    } )
-
-    local seeBasic = not tr.Hit or ( isentity( check ) and tr.Entity == check )
-    return seeBasic
-
 end
 
 function ENT:FindEnemies( myTbl )
@@ -624,7 +664,7 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
 
         end
 
-    elseif ent:IsNPC() or ent:IsNextBot() then
+    elseif isNextbotOrNpcEnt( ent ) then
         local memories = {}
         if myTbl.awarenessMemory then
             memories = myTbl.awarenessMemory
@@ -659,7 +699,7 @@ function ENT:SetupRelationships( myTbl )
     for _, ent in ents.Iterator() do
         if not notEnemyCache[ent] then
             local entsTbl = ent:GetTable()
-            if not ( playersCache[ent] or ent:IsNPC() or ent:IsNextBot() or entsTbl.isTerminatorHunterKiller ) then
+            if not ( playersCache[ent] or isNextbotOrNpcEnt( ent ) or entsTbl.isTerminatorHunterKiller ) then
                 notEnemyCache[ent] = true
 
             else
@@ -717,7 +757,7 @@ function ENT:MakeFeud( enemy )
         priority = 1000
         self:Term_SetEntityRelationship( enemy, D_HT, priority ) -- hate players more than anything else
 
-    elseif enemy:IsNPC() or enemy:IsNextBot() then
+    elseif isNpcEntClass( enemy, class ) or isNextbotEntClass( enemy, class ) then
         priority = 100
         self:Term_SetEntityRelationship( enemy, D_HT, priority )
 
@@ -913,7 +953,7 @@ function ENT:validSoundHint()
 
     local emitter = hint.emitter
     if IsValid( emitter ) then
-        local interesting = emitter:IsPlayer() or emitter:IsNextBot() or emitter:IsNPC()
+        local interesting = emitter:IsPlayer() or isNextbotOrNpcEnt( emitter )
         if interesting then return true end
 
         local id = emitter:GetCreationID()
