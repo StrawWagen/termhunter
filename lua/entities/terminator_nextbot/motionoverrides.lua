@@ -1433,15 +1433,28 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
 
 end
 
-function ENT:MoveInAirTowardsVisible( toChoose, destinationArea )
+function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
     local myPos = self:GetPos()
     local nextPos, indexThatWasVisible, hitBreakable = self:ChooseBasedOnVisible( myPos, toChoose )
 
     if nextPos then
-        local myVel = self.loco:GetVelocity()
+        myTbl.term_LastApproachPos = nextPos
+
+        local myVel = myTbl.loco:GetVelocity()
         local subtProduct = nextPos - myPos
         local subtFlattened = subtProduct
-        subtFlattened.z = 0
+        local swimming, level = myTbl.IsSwimming( self, myTbl )
+        if swimming then
+            local desiredSwimSpeed = nextPos.z - myPos.z
+            desiredSwimSpeed = desiredSwimSpeed * level
+
+            local maxSwimAccel = self.MoveSpeed
+            myVel.z = math.Clamp( desiredSwimSpeed, -maxSwimAccel, maxSwimAccel )
+
+        else
+            myVel.z = 0
+
+        end
 
         local dir = ( subtProduct ):GetNormalized()
         local dist2d = subtFlattened:Length2D()
@@ -1540,6 +1553,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local myPos = self:GetPos()
     local myArea = self:GetTrueCurrentNavArea()
     local iAmOnGround = myTbl.loco:IsOnGround()
+    local iAmSwimming = myTbl.IsSwimming( self, myTbl )
     local _, aheadSegment = self:GetNextPathArea( myArea ) -- top of the jump
     local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
 
@@ -2002,8 +2016,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local inAirNoDestination = nil
     -- off ground
     if not iAmOnGround and aheadSegment then
-        if self:IsJumping() then
-            local nextPathArea = self:GetNextPathArea( self:GetTrueCurrentNavArea() )
+        if myTbl.IsJumping( self, myTbl ) or iAmSwimming then
+            local nextPathArea = myTbl.GetNextPathArea( self, myTbl.GetTrueCurrentNavArea( self ) )
 
             local smallJumpEnd = nil
             local desiredSegmentPos = nil
@@ -2071,7 +2085,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             table.insert( toChoose, validJumpableBotRelative )
             table.insert( toChoose, validJumpablePathRelative )
 
-            local didMove = self:MoveInAirTowardsVisible( toChoose, nextPathArea )
+            local didMove = myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose, nextPathArea )
 
             if didMove ~= true then
                 inAirNoDestination = true
@@ -2106,6 +2120,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             return false -- pls recalculate path!
 
         else
+            myTbl.term_LastApproachPos = currSegment.pos
+
             local ang = self:GetAngles()
             path:Update( self )
             -- if this doesnt run then bot always looks toward next path seg, doesn't aim at ply
@@ -2260,7 +2276,10 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
         ladderClimbTarget = closestToLadderPos + -laddersUp * 150
         if dist2DToLadder < 30 then
             self.terminator_HandlingLadder = true
-            self.loco:Jump() -- if we are on ground, jump
+            if self:IsOnGround() then
+                self.loco:Jump() -- if we are on ground, jump
+
+            end
 
             local recalculate = nil
             local madFastDrop = self.IsSeeEnemy and self:IsReallyAngry() and myPos.z < bottom.z + 2000
@@ -2338,10 +2357,6 @@ end
 -- easy alias for approach
 function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     myTbl = myTbl or self:GetTable()
-    if not self.NearestPoint then
-        ErrorNoHaltWithStack()
-
-    end
     if self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local myPos = self:GetPos()
         local zToPos = ( pos.z - myPos.z )
@@ -2413,12 +2428,13 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             elseif jumpstate == 2 and not adaptBlock then
                 local goodPosToGoto = myTbl.PosThatWillBringUsTowards( self, myPos + vec_up15, pos, 50 )
                 if not goodPosToGoto then return end
+                myTbl.term_LastApproachPos = goodPosToGoto
                 myTbl.loco:Approach( goodPosToGoto, 10000 )
                 --debugoverlay.Cross( pos, 10, 1, Color( 255, 0, 0 ), true )
                 return
 
             end
-        elseif not onGround and myTbl.m_Jumping then
+        elseif not onGround and ( myTbl.IsJumping( self, myTbl ) or myTbl.IsSwimming( self, myTbl ) ) then
             local toChoose = {
                 pos,
                 pos + vec_up25,
@@ -2426,12 +2442,13 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 myPos + Vector( 0,0,myTbl.moveAlongPathJumpingHeight ),
 
             }
-            if myTbl.MoveInAirTowardsVisible( self, toChoose ) ~= true then return end
+            if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) ~= true then return end
 
             return
 
         end
 
+        myTbl.term_LastApproachPos = pos
         myTbl.loco:Approach( pos, 10000 )
         --debugoverlay.Cross( pos, 10, 1, color_white, true )
 
@@ -2439,21 +2456,20 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 end
 
 function ENT:EnterLadder()
-    self.preLadderGravity = self.loco:GetGravity()
-    self.loco:SetGravity( 0 )
+    self:UpdateGravity()
 
-    if not self:IsSilentStepping() then
-        local bite = 15
-        if self.ReallyHeavy then
-            bite = 0
+    if self:IsSilentStepping() then return end
 
-        end
-        local lvl = 98 + -bite
-        local pitch = math.random( 60, 70 ) + bite
-        self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", lvl, pitch )
-        util.ScreenShake( self:GetPos(), 10 / bite, 20, 0.2, 1000 )
+    local bite = 15
+    if self.ReallyHeavy then
+        bite = 0
 
     end
+    local lvl = 98 + -bite
+    local pitch = math.random( 60, 70 ) + bite
+    self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", lvl, pitch )
+    util.ScreenShake( self:GetPos(), 10 / bite, 20, 0.2, 1000 )
+
 end
 
 function ENT:ExitLadder( exit, recalculate )
@@ -2517,23 +2533,22 @@ function ENT:ExitLadder( exit, recalculate )
 
     timer.Simple( 0, function()
         if not IsValid( self ) then return end
-        self.loco:SetGravity( self.preLadderGravity or 600 )
+        self:UpdateGravity()
         self.loco:SetVelocity( ladderExitVel )
 
     end )
 
-    if not self:IsSilentStepping() then
-        local bite = 15
-        if self.ReallyHeavy then
-            bite = 0
-
-        end
-        local lvl = 98 + -bite
-        local pitch = math.random( 60, 70 ) + bite
-        self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", lvl, pitch )
-        util.ScreenShake( self:GetPos(), 10 / bite, 20, 0.2, 1000 )
+    if self:IsSilentStepping() then return end
+    local bite = 15
+    if self.ReallyHeavy then
+        bite = 0
 
     end
+    local lvl = 98 + -bite
+    local pitch = math.random( 60, 70 ) + bite
+    self:EmitSound( "player/footsteps/ladder" .. math.random( 1, 4 ) .. ".wav", lvl, pitch )
+    util.ScreenShake( self:GetPos(), 10 / bite, 20, 0.2, 1000 )
+
 end
 
 --[[------------------------------------
@@ -2581,6 +2596,8 @@ function ENT:Jump( height )
     self.m_Jumping = true
 
     self:RunTask( "OnJump", height )
+    self:UpdateGravity()
+
 end
 
 local airSoundPath = "ambient/wind/wind_rooftop1.wav"
@@ -2652,19 +2669,30 @@ local lethalFallHeightReal = 2000
 local noticeFall = lethalFallHeightReal * 0.25
 local fearFall = lethalFallHeightReal + -( lethalFallHeightReal * 0.2 )
 
-function ENT:HandleInAir()
+function ENT:HandleInAir( myTbl )
+    if myTbl.term_SwimmingNeedsGravityUpdate and self:WaterLevel() <= 2 then
+        self:UpdateGravity()
+        myTbl.term_SwimmingNeedsGravityUpdate = nil
+
+        local sploosh = EffectData()
+        sploosh:SetScale( 5 * self:GetModelScale() )
+        sploosh:SetOrigin( self:GetPos() )
+        util.Effect( "watersplash", sploosh )
+
+    end
+
     local myPos = self:GetPos()
-    self:DoJumpPeak( myPos )
+    myTbl.DoJumpPeak( self, myPos )
 
-    local fallHeight = self:FallHeight()
+    local fallHeight = myTbl.FallHeight( self )
 
-    if fallHeight > 200 and self.ReallyHeavy and not self:IsSilentStepping() and not self.terminator_playingFallingSound then
+    if fallHeight > 200 and myTbl.ReallyHeavy and not myTbl.IsSilentStepping( self ) and not myTbl.terminator_playingFallingSound then
         StartFallingSound( self )
 
     end
 
     if fallHeight > probablyInLeak then -- weird leak maps
-        self:FallIntoTheVoid()
+        myTbl.FallIntoTheVoid( self )
 
     end
 
@@ -2686,22 +2714,22 @@ function ENT:HandleInAir()
         end
 
         if fallHeight > fearFall then
-            self:WeaponPrimaryAttack()
+            myTbl.WeaponPrimaryAttack( self )
 
         end
         if lookAt then
-            self:SetDesiredEyeAngles( lookAt )
+            myTbl.SetDesiredEyeAngles( self, lookAt )
 
         end
     end
 
     local waterLevel = self:WaterLevel()
-    local oldLevel = self.oldJumpingWaterLevel or 0
+    local oldLevel = myTbl.oldJumpingWaterLevel or 0
     if oldLevel ~= waterLevel then -- sploosh
-        self.oldJumpingWaterLevel = waterLevel
+        myTbl.oldJumpingWaterLevel = waterLevel
         if oldLevel == 0 and self:IsSolid() then
             local traceStruc = {
-                start = self.jumpingPeak,
+                start = myTbl.jumpingPeak,
                 endpos = myPos,
                 mask = MASK_WATER
 
@@ -2710,8 +2738,8 @@ function ENT:HandleInAir()
             local waterResult = util.TraceLine( traceStruc )
             local watersSurface = Vector( myPos.x, myPos.y, waterResult.HitPos.z )
 
-            local scale = self:FallHeight() / 18
-            if not self.ReallyHeavy then
+            local scale = myTbl.FallHeight( self ) / 18
+            if not myTbl.ReallyHeavy then
                 scale = scale / 100
 
             end
@@ -2734,6 +2762,40 @@ function ENT:HandleInAir()
             end
         end
     end
+end
+
+function ENT:IsSwimming( myTbl )
+    if not myTbl.CanSwim then return end
+
+    local level = self:WaterLevel()
+    return not myTbl.loco.IsOnGround( myTbl.loco ) and level >= 3, level
+
+end
+
+function ENT:HandleSwimming( myTbl, level )
+    local myPos = self:GetPos()
+    myTbl.DoJumpPeak( self, myPos )
+    myTbl.UpdateGravity( self, myTbl )
+
+    myTbl.term_SwimmingNeedsGravityUpdate = true
+
+end
+
+function ENT:UpdateGravity( myTbl )
+    myTbl = myTbl or self:GetTable()
+    local gravity = myTbl.DefaultGravity
+    if myTbl.m_Physguned then
+        gravity = 0
+
+    elseif myTbl.terminator_HandlingLadder then
+        gravity = 0
+
+    elseif self:IsSwimming( myTbl ) then
+        gravity = 0
+
+    end
+    self.loco:SetGravity( gravity )
+
 end
 
 local vecDown = Vector( 0, 0, -1 )
@@ -2908,6 +2970,7 @@ end
 
 
 function ENT:Approach( pos )
+    self.term_LastApproachPos = pos
     self.loco:Approach( pos, 1 )
 
 end
@@ -2943,7 +3006,7 @@ hook.Add( "OnPhysgunPickup", "terminatorNextBotResetPhysgunned", function( ply, 
 
     end
     ent.m_Physguned = true
-    ent.loco:SetGravity( 0 )
+    ent:UpdateGravity()
     ent.lastGroundLeavingPos = ent:GetPos()
 
 end )
@@ -2955,7 +3018,7 @@ hook.Add( "PhysgunDrop", "terminatorNextBotResetPhysgunned", function( ply, ent 
 
     end
     ent.m_Physguned = false
-    ent.loco:SetGravity( ent.DefaultGravity )
+    ent:UpdateGravity()
     ent.lastGroundLeavingPos = ent:GetPos()
 
 end )
@@ -3017,37 +3080,39 @@ end
     Arg1: 
     Ret1: 
 --]]------------------------------------
-function ENT:SetupMotionType() -- override this to allow some npcs to more strictly play running anims
-    local moving = self:IsMoving()
+function ENT:SetupMotionType( myTbl ) -- override this to allow some npcs to more strictly play running anims
+    local moving = myTbl.IsMoving( self )
     local moType = TERMINATOR_NEXTBOT_MOTIONTYPE_IDLE
 
-    if self:IsJumping() then
+    if myTbl.IsSwimming( self, myTbl ) then
+        moType = TERMINATOR_NEXTBOT_MOTIONTYPE_SWIMMING
+    elseif myTbl.IsJumping( self, myTbl ) then
         moType = TERMINATOR_NEXTBOT_MOTIONTYPE_JUMPING
-    elseif self:IsCrouching() then
+    elseif myTbl.IsCrouching( self ) then
         moType = moving and TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCHWALK or TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCH
     elseif moving then
-        local speed = self:GetCurrentSpeed()
+        local speed = myTbl.GetCurrentSpeed( self )
         local runCheck
-        if self.term_AnimsWithIdealSpeed then -- override here
-            local runSpeed = self.RunSpeed
-            local moveSpeed = self.MoveSpeed
+        if myTbl.term_AnimsWithIdealSpeed then -- override here
+            local runSpeed = myTbl.RunSpeed
+            local moveSpeed = myTbl.MoveSpeed
             runCheck = moveSpeed + ( runSpeed - moveSpeed )
 
         else
-            runCheck = self.MoveSpeed + 1
+            runCheck = myTbl.MoveSpeed + 1
 
         end
 
         if speed > runCheck then
             moType = TERMINATOR_NEXTBOT_MOTIONTYPE_RUN
-        elseif speed < self.MoveSpeed / 2 + 1 then
+        elseif speed < myTbl.MoveSpeed / 2 + 1 then
             moType = TERMINATOR_NEXTBOT_MOTIONTYPE_WALK
         else
             moType = TERMINATOR_NEXTBOT_MOTIONTYPE_MOVE
         end
     end
 
-    self:SetMotionType( moType )
+    myTbl.SetMotionType( self, moType )
 
 end
 

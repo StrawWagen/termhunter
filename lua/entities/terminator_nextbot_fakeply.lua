@@ -56,9 +56,10 @@ ENT.WalkSpeed = 100
 ENT.MoveSpeed = 200
 ENT.RunSpeed = 400
 ENT.AccelerationSpeed = 1500
-ENT.DeathDropHeight = 200
+ENT.DeathDropHeight = 400
 ENT.InformRadius = 0
 
+ENT.CanSwim = true
 ENT.ThrowingForceMul = 0.5
 
 ENT.alwaysManiac = true

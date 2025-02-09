@@ -1582,7 +1582,7 @@ function ENT:beatUpEnt( myTbl, ent, unstucking )
             local doorPos = myTbl.getBestPos( self, door )
             if terminator_Extras.PosCanSee( self:GetShootPos(), doorPos ) then
                 ent = door
-                myTbl:GotoPosSimple( self, myTbl, nil, doorPos, 10 )
+                myTbl.GotoPosSimple( self, myTbl, nil, doorPos, 10 )
                 myTbl.ReallyAnger( self, 10 )
                 break
 
@@ -1819,7 +1819,7 @@ local function HunterIsStuck( self, myTbl )
     local nextPosUpdate = myTbl.nextPosUpdate or 0
 
     if nextPosUpdate < CurTime() and IsPath then
-        if myTbl.canDoRun( self ) and not myTbl.IsJumping( self ) then
+        if myTbl.canDoRun( self ) and not myTbl.IsJumping( self, myTbl ) then
             myTbl.nextPosUpdate = CurTime() + 0.25
 
         else
@@ -2722,6 +2722,7 @@ ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
 ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
 ENT.CanUseLadders = true
+ENT.CanSwim = false
 
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_PERFECT
 ENT.AimSpeed = 480
@@ -2792,8 +2793,14 @@ function ENT:TermThink( myTbl ) -- inside coroutine :)
 
     end
     if not myTbl.loco:IsOnGround( myTbl.loco ) then
-        myTbl.HandleInAir( self )
+        local swimming, waterLevel = myTbl.IsSwimming( self, myTbl )
+        if swimming then
+            myTbl.HandleSwimming( self, myTbl, waterLevel )
 
+        else
+            myTbl.HandleInAir( self, myTbl )
+
+        end
     end
 
     --[[
@@ -3739,7 +3746,7 @@ function ENT:DoDefaultTasks()
                     if IsValid( data.object ) then
                         -- BEATUP
                         local old = SysTime()
-                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = self:beatUpEnt( data.myTbl, data.object )
+                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = data.myTbl.beatUpEnt( self, data.myTbl, data.object )
                         data.gotAHitIn = data.gotAHitIn or attacked
 
                         if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
@@ -6438,9 +6445,16 @@ function ENT:DoDefaultTasks()
 
                 end
 
+                local waterFight
+
                 if not badEnemy then
                     data.badEnemyCounts = nil
+                    waterFight = enemy:WaterLevel() >= 1 and not enemy:OnGround() and self:WaterLevel() >= 2
+                    if waterFight and self.loco:IsOnGround() then
+                        self:Jump( self.loco:GetMaxJumpHeight() )
+                        self:SetPosNoTeleport( myPos + vectorUp * 15 )
 
+                    end
                 end
 
                 local fisticuffsDist = 135
@@ -6540,7 +6554,7 @@ function ENT:DoDefaultTasks()
                     local wepIsUseful = wep and self:IsRangedWeapon( wep ) and wepIsOk
 
                     -- ranged weap
-                    if newPathIsGood and wepIsUseful and not reallyLowHealth and IsValid( myNavArea ) then
+                    if not waterFight and newPathIsGood and wepIsUseful and not reallyLowHealth and IsValid( myNavArea ) then
                         data.minNewPathTime = CurTime() + 0.3
                         pathAttemptTime = 3
                         local adjAreas = myNavArea:GetAdjacentAreas()
@@ -6572,7 +6586,7 @@ function ENT:DoDefaultTasks()
                         end
                         data.NextPathAtt = CurTime() + pathAttemptTime
                     --melee
-                    elseif newPathIsGood then
+                    elseif newPathIsGood or waterFight then
                         data.minNewPathTime = CurTime() + 0.05
 
                         local enemVel = enemy:GetVelocity()

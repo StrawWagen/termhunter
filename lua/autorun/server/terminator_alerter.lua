@@ -1,4 +1,6 @@
 local listening = nil
+local entsMeta = FindMetaTable( "Entity" )
+local FL_NOTARGET = FL_NOTARGET
 local IsValid = IsValid
 local math = math
 
@@ -45,10 +47,10 @@ end
 
 local function terminatorsSendSoundHint( thing, src, range, valuable )
     if not range then return end
-    if range < 200 then return end -- dont waste perf on useless sounds!
     if not src then return end
+    if range < 200 then return end -- dont waste perf on useless sounds!
     for _ = 1, 10 do
-        if IsValid( thing ) and thing.GetParent and IsValid( thing:GetParent() ) then
+        if IsValid( thing ) and thing.GetParent and IsValid( thing:GetParent() ) then -- find true parent
             thing = thing:GetParent()
 
         else
@@ -58,9 +60,26 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     end
 
     if IsValid( thing ) then
-        if thing:IsFlagSet( FL_NOTARGET ) then return end
+        if entsMeta.IsFlagSet( thing, FL_NOTARGET ) then return end
         if thing.usedByTerm then return end
 
+        local last = thing.term_LastSoundEmit
+        local cur = CurTime()
+        if last then
+            local since = cur - last.time
+            local uselessBlockingValuable = not last.valuable and valuable
+            if since < 5 and not uselessBlockingValuable then
+                local cutoff = last.range - ( since * 100 )
+                if cutoff > range then return end -- louder sound just happened, dont do another sound
+
+            end
+        end
+        thing.term_LastSoundEmit = {
+            time = cur,
+            range = range,
+            valuable = valuable,
+
+        }
     end
 
     for _, currTerm in pairs( terminator_Extras.listeners ) do
@@ -99,7 +118,7 @@ local function bulletFireThink( entity, data )
     end
     local customRange = nil
     if IsValid( weap ) then
-        customRange = customRanges[ weap:GetClass() ]
+        customRange = customRanges[ entsMeta.GetClass( weap ) ]
 
     end
     if customRange then
@@ -202,9 +221,9 @@ hook.Add( "StrawBlastDamageInfo", "straw_termalerter_blastdamageinfo", function(
 local function explosionHintThink( entity )
     if not listening then return end
     if not IsValid( entity ) then return end
-    if entity:GetClass() ~= "env_explosion" then return end
+    if entsMeta.GetClass( entity ) ~= "env_explosion" then return end
 
-    timer.Simple( engine.TickInterval(), function()
+    timer.Simple( 0, function()
 
         if not IsValid( entity ) then return end
         local keys = entity:GetKeyValues()
@@ -261,7 +280,7 @@ local function soundPlayThink( name, pos, level, _, volume )
     level = level or 75
 
     local volumeAdjusted = level * volume
-    timer.Simple( engine.TickInterval(), function()
+    timer.Simple( 0, function()
         handleNormalSound( nil, pos, volumeAdjusted, name )
     end )
 
@@ -269,15 +288,15 @@ end
 
 hook.Add( "StrawSoundPlayHook", "straw_termalerter_soundplayhook", function( ... ) soundPlayThink( ... ) end )
 
-local string_StartsWith = string.StartWith
 
+local string_StartsWith = string.StartWith
 
 -- sound reading!?!??
 local function emitSoundThink( soundDat )
     if not listening then return end
     local entity = soundDat.Entity
     if not IsValid( entity ) then return end
-    local class = entity:GetClass()
+    local class = entsMeta.GetClass( entity )
     local valid = nil
     if string_StartsWith( class, "item" ) then valid = true end
     if string_StartsWith( class, "prop" ) then valid = true end
@@ -288,8 +307,7 @@ local function emitSoundThink( soundDat )
     if entity.IsWeapon and entity:IsWeapon() then valid = true end
     if not valid then return end
 
-    timer.Simple( engine.TickInterval(), function()
-
+    timer.Simple( 0, function()
         if not IsValid( entity ) then return end
         local soundLvl = soundDat.SoundLevel * soundDat.Volume
 

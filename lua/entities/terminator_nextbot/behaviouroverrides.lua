@@ -29,7 +29,7 @@ function ENT:BehaveUpdate( interval )
     end
 
     myTbl.SetupSpeed( self )
-    myTbl.SetupMotionType( self )
+    myTbl.SetupMotionType( self, myTbl )
     myTbl.ProcessFootsteps( self )
     myTbl.ChildrenCleanupHack( self, myTbl ) -- for some reason bots slowly accumulate themself in their _children table?????
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z

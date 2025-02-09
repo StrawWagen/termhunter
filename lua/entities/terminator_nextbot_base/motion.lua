@@ -6,6 +6,7 @@ TERMINATOR_NEXTBOT_MOTIONTYPE_WALK = 3
 TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCH = 4
 TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCHWALK = 5
 TERMINATOR_NEXTBOT_MOTIONTYPE_JUMPING = 6
+TERMINATOR_NEXTBOT_MOTIONTYPE_SWIMMING = 7
 
 -- Default movetype acts can be changed
 ENT.MotionTypeActivities = {
@@ -16,6 +17,7 @@ ENT.MotionTypeActivities = {
 	[TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCH] = ACT_MP_CROUCH_IDLE,
 	[TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCHWALK] = ACT_MP_CROUCHWALK,
 	[TERMINATOR_NEXTBOT_MOTIONTYPE_JUMPING] = ACT_MP_JUMP,
+	[TERMINATOR_NEXTBOT_MOTIONTYPE_SWIMMING] = ACT_MP_SWIM,
 }
 
 --[[------------------------------------
@@ -1074,8 +1076,8 @@ end
 	Arg1: 
 	Ret1: bool | Bot is jumped
 --]]------------------------------------
-function ENT:IsJumping()
-	return self.m_Jumping or false
+function ENT:IsJumping( myTbl )
+	return myTbl.m_Jumping or false
 end
 
 --[[------------------------------------

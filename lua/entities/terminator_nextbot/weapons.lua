@@ -364,6 +364,9 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     if noHolster ~= true and self:CanHolsterWeap( wep ) then -- holster wep if we can, and it's not crappy!
         self:HolsterWeap( wep )
 
+    else
+        hook.Run( "term_dropweapon", self, wep )
+
     end
 
     self.terminator_NextWeaponPickup = CurTime() + math.Rand( 1, 2 )

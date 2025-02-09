@@ -290,7 +290,7 @@ function ENT:OnTakeDamage( Damage )
             self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
 
         elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or ( Damage:IsDamageType( DMG_DIRECT ) and ( IsValid( attacker ) and string.find( attacker:GetClass(), "fire" ) ) ) then -- fire damage!
-            Damage:ScaleDamage( 0 )
+            Damage:ScaleDamage( 0.05 ) -- dont ignore instakill damage, eg, lava
 
             BgDamage = 1
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
@@ -385,6 +385,13 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     ProtectedCall( function() self:RunTask( "OnDamaged", dmg ) end )
 
+    local cur = CurTime()
+    local nextNoticeDamage = self.term_NextNoticeDamage or 0
+    if nextNoticeDamage > cur then return end
+
+    local add = math.Clamp( dmg:GetDamage(), 0, 250 ) / 250
+    self.term_NextNoticeDamage = cur + add
+
     local parent = attacker:GetParent()
 
     if attacker ~= self and not ( IsValid( parent ) and parent == self ) then -- dont feud/look at fire or self damage
@@ -424,8 +431,8 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     -- make groups of bots react to 1 getting damaged
     local nextGroupAnger = self.term_NextDamagedGroupAnger or 0
-    if attacker and attacker == self:GetEnemy() and nextGroupAnger < CurTime() then
-        self.term_NextDamagedGroupAnger = CurTime() + 5
+    if attacker and attacker == self:GetEnemy() and nextGroupAnger < cur then
+        self.term_NextDamagedGroupAnger = cur + 5
 
         for _, ally in ipairs( self:GetNearbyAllies() ) do
             if not IsValid( ally ) then return end -- GetNearbyAllies is cached
@@ -455,8 +462,11 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     if self.IsStupid or self.IsFodder then return end -- durr
 
+    local radius = dmg:GetDamage()
+    radius = math.min( radius, 250 ) -- no huge radius pls
+
     -- dont walk in this area ever again!
-    local areas = navmesh.Find( self:GetPos(), dmg:GetDamage(), self.JumpHeight, self.JumpHeight )
+    local areas = navmesh.Find( self:GetPos(), radius, self.JumpHeight, self.JumpHeight )
     for _, area in ipairs( areas ) do
         table.insert( self.hazardousAreas, area )
 
