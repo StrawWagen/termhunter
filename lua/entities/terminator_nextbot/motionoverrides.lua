@@ -1452,7 +1452,7 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
             myVel.z = math.Clamp( desiredSwimSpeed, -maxSwimAccel, maxSwimAccel )
 
         else
-            myVel.z = 0
+            subtFlattened.z = 0
 
         end
 
