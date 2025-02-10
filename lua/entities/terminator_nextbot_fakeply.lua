@@ -60,6 +60,7 @@ ENT.DeathDropHeight = 400
 ENT.InformRadius = 0
 
 ENT.CanSwim = true
+ENT.BreathesAir = true
 ENT.ThrowingForceMul = 0.5
 
 ENT.alwaysManiac = true

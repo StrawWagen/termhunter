@@ -2723,6 +2723,8 @@ ENT.StepHeight = ENT.StandingStepHeight
 ENT.PathGoalToleranceFinal = 50
 ENT.CanUseLadders = true
 ENT.CanSwim = false
+ENT.BreathesAir = false
+ENT.BreathesWater = false
 
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_PERFECT
 ENT.AimSpeed = 480
@@ -2790,6 +2792,10 @@ function ENT:TermThink( myTbl ) -- inside coroutine :)
     end
     if myTbl.HealthRegen then
         myTbl.HealthRegenThink( self )
+
+    end
+    if myTbl.DrowningThink then
+        myTbl.DrowningThink( self, myTbl )
 
     end
     if not myTbl.loco:IsOnGround( myTbl.loco ) then
@@ -2920,6 +2926,7 @@ function ENT:Initialize()
     myTbl.AdditionalInitialize( self )
     myTbl.InitializeSpeaking( self )
     myTbl.InitializeHealthRegen( self )
+    myTbl.InitializeDrowning( self, myTbl )
 
     myTbl.DoHardcodedRelations( self )
 
@@ -6451,8 +6458,7 @@ function ENT:DoDefaultTasks()
                     data.badEnemyCounts = nil
                     waterFight = enemy:WaterLevel() >= 1 and not enemy:OnGround() and self:WaterLevel() >= 2
                     if waterFight and self.loco:IsOnGround() then
-                        self:Jump( self.loco:GetMaxJumpHeight() )
-                        self:SetPosNoTeleport( myPos + vectorUp * 15 )
+                        self:StartSwimming()
 
                     end
                 end

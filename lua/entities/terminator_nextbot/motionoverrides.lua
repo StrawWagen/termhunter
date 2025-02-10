@@ -659,7 +659,7 @@ function ENT:IsAngry()
         elseif self.isUnstucking then
             angryTime = angryTime + 6
 
-        elseif self:inSeriousDanger() or self:EnemyIsUnkillable() or ( enemy.InVehicle and enemy:InVehicle() ) then
+        elseif self:inSeriousDanger() or self:EnemyIsUnkillable() or ( enemy and enemy.InVehicle and enemy:InVehicle() ) then
             angryTime = angryTime + math.random( 5, 15 )
 
         elseif self:getLostHealth() > 0.5 then
@@ -1361,7 +1361,7 @@ function ENT:GetJumpBlockState( dir, goal )
             if ( not checkHit and thisCheckCanCompleteJump ) or not finalCheckResult.Hit then
                 -- obstacle to jump over!
                 if checksThatHit >= 1 then
-                    return 1, dirConfig.start, height, dirConfig.endpos
+                    return 1, height, dirConfig.endpos
 
                 -- never hit anything, proceed as normal
                 else
@@ -1387,6 +1387,7 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
     local b1, b2 = self:BoundsAdjusted()
     local mask = self:GetSolidMask()
     local collisiongroup = nil
+    local enemy = self:GetEnemy()
     collisiongroup = self:GetCollisionGroup()
 
     local minsBelow = b1 * 0.5
@@ -1402,9 +1403,11 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
         collisiongroup = collisiongroup,
     }
 
+    local swimming = self:IsSwimming( self:GetTable() )
+
     for index, potentialVisible in ipairs( potentiallyVisible ) do
         if potentialVisible then
-            if potentialVisible.z < check.z then
+            if potentialVisible.z < check.z or swimming then
                 theTrace.mins = minsBelow
                 theTrace.maxs = maxsBelow
 
@@ -1419,8 +1422,8 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
             theTrace.endpos = potentialVisible
             local result = util.TraceHull( theTrace )
             local hitBreakable = self:hitBreakable( theTrace, result )
-            if not result.Hit or hitBreakable then
-                --debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
+            if not result.Hit or hitBreakable or result.Entity == enemy then
+                debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
                 return potentialVisible, index, hitBreakable
 
             else
@@ -1458,9 +1461,9 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
 
         local dir = ( subtProduct ):GetNormalized()
         local dist2d = subtFlattened:Length2D()
-        local dist2dMaxed = math.Clamp( dist2d, 0, self.RunSpeed )
+        local dist2dMaxed = math.Clamp( dist2d, 0, myTbl.RunSpeed )
 
-        local dirProportional = dir * math.Clamp( self.RunSpeed * 0.8, self.RunSpeed / 5, dist2dMaxed + 50 )
+        local dirProportional = dir * math.Clamp( myTbl.RunSpeed * 0.8, myTbl.RunSpeed / 5, dist2dMaxed + 50 )
 
 
         myVel.x = dirProportional.x
@@ -1471,27 +1474,27 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
 
         end
 
-        if self:IsReallyAngry() then
-            self.overrideCrouch = CurTime() + 0.15
+        if myTbl.IsReallyAngry( self ) then
+            myTbl.overrideCrouch = CurTime() + 0.15
 
         else
-            self.overrideCrouch = CurTime() + 0.75
+            myTbl.overrideCrouch = CurTime() + 0.75
 
         end
 
         local beginSetposCrouchJump = IsValid( destinationArea ) and indexThatWasVisible <= 4 and destinationArea:HasAttributes( NAV_MESH_CROUCH ) and not hitBreakable
-        local justSetposUsThere = IsValid( destinationArea ) and ( self.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( destinationArea:GetClosestPointOnArea( myPos ) ) < 40^2
+        local justSetposUsThere = IsValid( destinationArea ) and ( myTbl.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( destinationArea:GetClosestPointOnArea( myPos ) ) < 40^2
 
         -- i HATE VENTS!
         if justSetposUsThere then
-            local setPosDist = math.Clamp( dist2d, 5, 35 )
-            self:SetPosNoTeleport( myPos + dir * setPosDist )
-            self.loco:SetVelocity( dir * setPosDist )
-            self.WasSetposCrouchJump = true
-            self.overrideCrouch = CurTime() + 4
+            myTbl.setPosDist = math.Clamp( dist2d, 5, 35 )
+            myTbl.SetPosNoTeleport( self, myPos + dir * setPosDist )
+            myTbl.loco:SetVelocity( dir * setPosDist )
+            myTbl.WasSetposCrouchJump = true
+            myTbl.overrideCrouch = CurTime() + 4
 
         else
-            self.loco:SetVelocity( myVel )
+            myTbl.loco:SetVelocity( myVel )
 
         end
         return true
@@ -1867,10 +1870,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             dir.z = 0
             dir:Normalize()
 
-            local jumpstate, jumpBlockerJumpOver, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, aheadSegment.pos )
+            local jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, aheadSegment.pos )
 
             myTbl.moveAlongPathJumpingHeight = jumpingHeight or myTbl.moveAlongPathJumpingHeight
-            myTbl.jumpBlockerJumpOver = jumpBlockerJumpOver or myTbl.jumpBlockerJumpOver
 
             -- jump height that matches gap we're jumping over
             if gapping and aheadSegment then
@@ -2357,12 +2359,14 @@ end
 -- easy alias for approach
 function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     myTbl = myTbl or self:GetTable()
+
+    local myPos = self:GetPos()
+    local dir = terminator_Extras.dirToPos( myPos, pos )
+    dir.z = dir.z * 0.05
+    dir:Normalize()
+
     if self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
-        local myPos = self:GetPos()
         local zToPos = ( pos.z - myPos.z )
-        local dir = terminator_Extras.dirToPos( myPos, pos )
-        dir.z = dir.z * 0.05
-        dir:Normalize()
 
         local overrideCrouch = myTbl.overrideCrouch or 0
         if overrideCrouch < CurTime() and self:GetModelScale() >= MDLSCALE_LARGE and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + dir * 5 ) then
@@ -2395,7 +2399,12 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
         local onGround = myTbl.loco:IsOnGround()
         if onGround then
-            local jumpstate, _, jumpingHeight, jumpBlockClearPos = myTbl.GetJumpBlockState( self, dir, pos, false )
+            if myTbl.CanSwim and self:WaterLevel() >= 3 then
+                myTbl.StartSwimming( self )
+                return
+
+            end
+            local jumpstate, jumpingHeight, jumpBlockClearPos = myTbl.GetJumpBlockState( self, dir, pos, false )
             local goalBasedJump = jumpstate ~= 2 and aboveUs
             local readyToJump = not myTbl.nextPathJump or myTbl.nextPathJump < CurTime()
             --print( jumpstate, jumpingHeight )
@@ -2434,18 +2443,36 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 return
 
             end
-        elseif not onGround and ( myTbl.IsJumping( self, myTbl ) or myTbl.IsSwimming( self, myTbl ) ) then
-            local toChoose = {
-                pos,
-                pos + vec_up25,
-                myTbl.jumpBlockClearPos,
-                myPos + Vector( 0,0,myTbl.moveAlongPathJumpingHeight ),
+        elseif not onGround then
+            if myTbl.IsJumping( self, myTbl ) then
+                local toChoose = {
+                    pos,
+                    pos + vec_up25,
+                    myTbl.jumpBlockClearPos,
+                    myPos + Vector( 0,0,myTbl.moveAlongPathJumpingHeight ),
 
-            }
-            if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) ~= true then return end
+                }
+                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then return end
 
-            return
+            elseif myTbl.IsSwimming( self, myTbl ) then
+                local swimmingExitPos
+                local swimmingExitPosHigher
+                if swimming then
+                    swimmingExitPos = Vector( myPos.x, myPos.y, pos.z ) + dir * 10
+                    swimmingExitPosHigher = swimmingExitPos + vector_up * 50
+                    swimmingExitPosHigherForward = swimmingExitPosHigher + dir * 100
 
+                end
+                local toChoose = {
+                    pos,
+                    swimmingExitPosHigherForward,
+                    swimmingExitPosHigher,
+                    swimmingExitPos,
+
+                }
+                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then myTbl.term_LastApproachPos = pos return end
+
+            end
         end
 
         myTbl.term_LastApproachPos = pos
@@ -2557,8 +2584,8 @@ end
     Arg1: 
     Ret1: 
 --]]------------------------------------
-function ENT:Jump( height )
-    if not self.loco:IsOnGround() then return end
+function ENT:Jump( height, fakeJump )
+    if not fakeJump and not self.loco:IsOnGround() then return end
 
     local heightInternal = 0
 
@@ -2670,18 +2697,29 @@ local noticeFall = lethalFallHeightReal * 0.25
 local fearFall = lethalFallHeightReal + -( lethalFallHeightReal * 0.2 )
 
 function ENT:HandleInAir( myTbl )
+    local myPos = self:GetPos()
     if myTbl.term_SwimmingNeedsGravityUpdate and self:WaterLevel() <= 2 then
-        self:UpdateGravity()
+        myTbl.UpdateGravity( self, myTbl )
         myTbl.term_SwimmingNeedsGravityUpdate = nil
+
+        local goal = myTbl.term_LastApproachPos or myTbl.EnemyLastPos
+        local heightDiffToGoal = goal.z - myPos.z
+        if heightDiffToGoal > 0 then
+            local jumpstate, jumpingHeight = myTbl.GetJumpBlockState( self, terminator_Extras.dirToPos( myPos, goal ), goal ) ~= 0
+            if jumpstate == 1 then
+                myTbl.Jump( self, jumpingHeight, true )
+                myTbl.RunTask( self, "OnJumpOutOfWater", height )
+
+            end
+        end
 
         local sploosh = EffectData()
         sploosh:SetScale( 5 * self:GetModelScale() )
-        sploosh:SetOrigin( self:GetPos() )
+        sploosh:SetOrigin( myPos )
         util.Effect( "watersplash", sploosh )
 
     end
 
-    local myPos = self:GetPos()
     myTbl.DoJumpPeak( self, myPos )
 
     local fallHeight = myTbl.FallHeight( self )
@@ -2764,6 +2802,18 @@ function ENT:HandleInAir( myTbl )
     end
 end
 
+function ENT:StartSwimming()
+    local level = self:WaterLevel()
+    if level < 3 then return end -- not in water, cant swim
+
+    local myPos = self:GetPos()
+    self:Jump( self.loco:GetMaxJumpHeight(), true )
+    self:SetPosNoTeleport( myPos + vector_up * 25 )
+    self.overrideCrouch = CurTime() + 0.15
+    self:UpdateGravity()
+
+end
+
 function ENT:IsSwimming( myTbl )
     if not myTbl.CanSwim then return end
 
@@ -2772,7 +2822,7 @@ function ENT:IsSwimming( myTbl )
 
 end
 
-function ENT:HandleSwimming( myTbl, level )
+function ENT:HandleSwimming( myTbl )
     local myPos = self:GetPos()
     myTbl.DoJumpPeak( self, myPos )
     myTbl.UpdateGravity( self, myTbl )

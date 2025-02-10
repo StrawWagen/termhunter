@@ -119,3 +119,38 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     return facesBlocked, hits
 
 end
+
+
+local vector6000ZUp = Vector( 0, 0, 6000 )
+local vector1000ZDown = Vector( 0, 0, -1000 )
+
+terminator_Extras.posIsUnderDisplacement = function( pos )
+    -- get the sky
+    local firstTraceDat = {
+        start = pos,
+        endpos = pos + vector6000ZUp,
+        mask = MASK_SOLID_BRUSHONLY,
+    }
+    local firstTraceResult = util.TraceLine( firstTraceDat )
+
+    -- go back down
+    local secondTraceDat = {
+        start = firstTraceResult.HitPos,
+        endpos = pos,
+        mask = MASK_SOLID_BRUSHONLY,
+    }
+    local secondTraceResult = util.TraceLine( secondTraceDat )
+    if secondTraceResult.HitTexture ~= "**displacement**" then return nil, nil, firstTraceResult end
+
+    -- final check to make sure
+    local thirdTraceDat = {
+        start = pos,
+        endpos = pos + vector1000ZDown,
+        mask = MASK_SOLID_BRUSHONLY,
+    }
+    local thirdTraceResult = util.TraceLine( thirdTraceDat )
+    if thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" then return nil, true, firstTraceResult end -- we are probably under a displacement
+
+    -- we are DEFINITely under one
+    return true, nil, firstTraceResult
+end

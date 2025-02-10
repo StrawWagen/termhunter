@@ -652,3 +652,58 @@ function ENT:OnFirstRelationWithPlayer( ply ) -- for boss npcs, etc
     self:SetHealth( self:GetMaxHealth() )
 
 end
+
+local lungSize = 15
+
+function ENT:InitializeDrowning( myTbl )
+    local breathesAir = myTbl.BreathesAir
+    local breathesWater = myTbl.BreathesWater
+
+    if not ( breathesAir or breathesWater ) then return end
+    if breathesAir and breathesWater then return end -- can breath in both air and water, won't drown
+
+    myTbl.term_BreathCount = lungSize
+    myTbl.term_NextDrownThink = CurTime() + 1
+
+    function self:DrowningThink( myTbl2 )
+        if myTbl2.term_NextDrownThink > CurTime() then return end
+        myTbl2.term_NextDrownThink = CurTime() + 1
+
+        local underwater = self:WaterLevel() >= 3
+        local breathing
+        if breathesAir then
+            breathing = not underwater
+
+        elseif breathesWater then
+            breathing = underwater
+
+        end
+        local old = myTbl2.term_BreathCount
+        if breathing then
+            myTbl2.term_BreathCount = math.max( old + 10, lungSize )
+
+        else
+            if old < 0 then
+                local world = game.GetWorld()
+                local dmg = DamageInfo()
+                dmg:SetDamage( math.min( self:GetMaxHealth() * 0.15, 100 ) )
+                dmg:SetAttacker( world )
+                dmg:SetInflictor( world )
+                dmg:SetDamagePosition( self:GetPos() )
+                dmg:SetDamageType( DMG_DROWN )
+                self:TakeDamageInfo( dmg )
+
+                self:Term_SpeakSoundNow( "player/pl_drown" .. math.random( 2, 3 ) .. ".wav" )
+
+                self.NextRegenHeal = CurTime() + 5
+                self:RunTask( "OnDrown" )
+                self:ReallyAnger( 30 )
+                self:StartSwimming()
+
+            else
+                myTbl2.term_BreathCount = old + -1
+
+            end
+        end
+    end
+end
