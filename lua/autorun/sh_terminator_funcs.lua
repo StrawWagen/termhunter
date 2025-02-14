@@ -98,10 +98,12 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
         }
 
         local trace = util.TraceLine( traceData )
-        if not trace.Hit then continue end
 
         local fraction
-        if trace.HitSky then -- its not a nook if its NEXT TO THE SKYBOX!!!
+        if not trace.Hit then
+            fraction = 1
+
+        elseif trace.HitSky then -- its not a nook if its NEXT TO THE SKYBOX!!!
             fraction = 1
 
         else

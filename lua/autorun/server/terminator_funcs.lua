@@ -87,7 +87,7 @@ terminator_Extras.posIsInterrupting = function( pos, yieldable )
         end
 
         if interrupting or terminator_Extras.PosCanSee( pos, viewPos ) then
-            return true
+            return true, ply
 
         end
     end
@@ -114,7 +114,7 @@ terminator_Extras.areaIsInterruptingSomeone = function( area, areasCenter, yield
 
         end
         if interrupting or area:IsVisible( viewPos ) then
-            return true
+            return true, ply
 
         end
     end

@@ -11,6 +11,8 @@ list.Set( "NPC", "terminator_nextbot", {
     Weapons = { "weapon_terminatorfists_term" },
 } )
 
+include( "sharedextras.lua" )
+
 -- these need to be shared
 include( "compatibilityhacks.lua" )
 
@@ -7546,10 +7548,10 @@ function ENT:DoDefaultTasks()
                     -- Vector( 0, -0.7, -0.3 ),
 
                     -- 45 degree directions with a bias downwards
-                    Vector( -0.35, 0.35, -0.3 ),
-                    Vector( -0.35, -0.35, -0.3 ),
-                    Vector( 0.35, 0.35, -0.3 ),
-                    Vector( 0.35, -0.35, -0.3 ),
+                    Vector( -0.35, 0.35, -0.15 ),
+                    Vector( -0.35, -0.35, -0.15 ),
+                    Vector( 0.35, 0.35, -0.15 ),
+                    Vector( 0.35, -0.35, -0.15 ),
 
                 }
 

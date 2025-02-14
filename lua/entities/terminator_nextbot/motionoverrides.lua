@@ -383,11 +383,6 @@ function ENT:OnStuck()
     end
 end
 
-function ENT:IsSilentStepping()
-    return false
-
-end
-
 function ENT:GetFootstepSoundTime()
     local time = self.Term_BaseTimeBetweenSteps
     local speed = self:GetCurrentSpeed()
@@ -1423,7 +1418,7 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
             local result = util.TraceHull( theTrace )
             local hitBreakable = self:hitBreakable( theTrace, result )
             if not result.Hit or hitBreakable or result.Entity == enemy then
-                debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
+                --debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
                 return potentialVisible, index, hitBreakable
 
             else
@@ -1487,7 +1482,7 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
 
         -- i HATE VENTS!
         if justSetposUsThere then
-            myTbl.setPosDist = math.Clamp( dist2d, 5, 35 )
+            local setPosDist = math.Clamp( dist2d, 5, 35 )
             myTbl.SetPosNoTeleport( self, myPos + dir * setPosDist )
             myTbl.loco:SetVelocity( dir * setPosDist )
             myTbl.WasSetposCrouchJump = true
@@ -2713,11 +2708,13 @@ function ENT:HandleInAir( myTbl )
             end
         end
 
-        local sploosh = EffectData()
-        sploosh:SetScale( 5 * self:GetModelScale() )
-        sploosh:SetOrigin( myPos )
-        util.Effect( "watersplash", sploosh )
+        if not self:IsSilentStepping() then
+            local sploosh = EffectData()
+            sploosh:SetScale( 5 * self:GetModelScale() )
+            sploosh:SetOrigin( myPos )
+            util.Effect( "watersplash", sploosh )
 
+        end
     end
 
     myTbl.DoJumpPeak( self, myPos )
