@@ -2360,6 +2360,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     dir.z = dir.z * 0.05
     dir:Normalize()
 
+    if not self.NearestPoint then
+        ErrorNoHaltWithStack() --- grrrr
+
+    end
     if self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
         local zToPos = ( pos.z - myPos.z )
 
