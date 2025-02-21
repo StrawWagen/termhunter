@@ -2129,6 +2129,10 @@ end
 function ENT:Use( user )
     if not user:IsPlayer() then return end
     if isCheats() ~= true then return end
+
+    if ( self.nextCheatUse or 0 ) > CurTime() then return end
+    self.nextCheatUse = CurTime() + 1
+
     self.taskHistory = self.taskHistory or {}
     print( "aabb", self:GetPhysicsObject():GetAABB() )
     print( "collisionbounds", self:GetCollisionBounds() )

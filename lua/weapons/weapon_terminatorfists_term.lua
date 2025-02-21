@@ -346,6 +346,7 @@ end
 
 function SWEP:Initialize()
     self:SetHoldType( "normal" )
+    self:DrawShadow( false )
 
     if not SERVER then return end
     self.doFistsTime = 0

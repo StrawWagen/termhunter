@@ -41,7 +41,7 @@ if SERVER then
 
 end
 
---see SetupEntityRelationship in the big shared.lua file for more vj base stuff
+--see SetupEntityRelationship in enemyoverrides.lua for more vj base stuff
 
 -- drg base
 -- drg assumes that all nextbots are drg nextbots, stupid
