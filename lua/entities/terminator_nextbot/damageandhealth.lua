@@ -554,11 +554,14 @@ function ENT:AdditionalOnKilled( _dmg ) -- stub! for your convenience
 end
 
 function ENT:OnKilled( dmg )
-    if self.term_Dead then return end
+    if self.term_Dead then ErrorNoHaltWithStack( "tried to die twice" ) return end
     self.term_Dead = true
-    timer.Simple( 0, function()
-        if self.term_PostDead then return end -- it worked fine
-        ErrorNoHaltWithStack( "Bot didn't die!", self )
+
+    timer.Simple( 10, function() -- HACK
+        if not IsValid( self ) then return end
+        if not self.term_Dead then return end
+
+        if self:Health() > 0 then return end
         SafeRemoveEntity( self )
 
     end )
@@ -584,7 +587,9 @@ function ENT:OnKilled( dmg )
 
     local ragdoll
 
-    if not self:RunTask( "PreventBecomeRagdollOnKilled", dmg ) then
+    local preventRagdoll, blockRemove = self:RunTask( "PreventBecomeRagdollOnKilled", dmg )
+
+    if not preventRagdoll then
         if dmg:IsDamageType( DMG_DISSOLVE ) then
             self:DissolveEntity()
             self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
@@ -595,6 +600,9 @@ function ENT:OnKilled( dmg )
 
         end
         ragdoll = self:BecomeRagdoll( dmg )
+
+    elseif not blockRemove then
+        SafeRemoveEntityDelayed( self, 5 )
 
     end
 
@@ -613,8 +621,6 @@ function ENT:OnKilled( dmg )
     -- do these last just in case something below here errors
     self:RunTask( "OnKilled", dmg, ragdoll )
     hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
-
-    self.term_PostDead = true
 
 end
 
