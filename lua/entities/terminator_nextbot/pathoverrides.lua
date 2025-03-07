@@ -17,18 +17,17 @@ end
 
 function ENT:GetTrueCurrentNavArea()
     -- don't redo this when we just updated it
-    local area = NULL
     local nextTrueAreaCache = self.nextTrueAreaCache or 0
     if nextTrueAreaCache < CurTime() then
-        area = terminator_Extras.getNearestNavFloor( self:GetPos() )
         self.nextTrueAreaCache = CurTime() + 0.08
+        area = terminator_Extras.getNearestNavFloor( self:GetPos() )
+        self.cachedTrueArea = area
+        return area
+
+    else
+        return self.cachedTrueArea
 
     end
-    if area == NULL then area = nil end
-    self.cachedTrueArea = area
-
-    return area
-
 end
 
 function ENT:InvalidatePath( reason )

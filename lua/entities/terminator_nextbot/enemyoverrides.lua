@@ -539,6 +539,7 @@ do
             end
 
             local rang = self:GetRangeSquaredTo( curr )
+            if not rang then continue end -- ???????
             local _, pr = myTbl.GetRelationship( self, curr )
 
             if not ignorePriority and rang <= closeEnemDistSqr then
@@ -556,7 +557,9 @@ do
             -- we dont see any enemy, but we know last position
 
             for _, curr in ipairs( notsee ) do
-                local rang = self:GetRangeSquaredTo( self:GetLastEnemyPosition( curr ) )
+                local lastPos = self:GetLastEnemyPosition( curr )
+                if not lastPos then continue end -- ???
+                local rang = self:GetRangeSquaredTo( lastPos )
 
                 if not enemy or rang < bestRange then
                     enemy, bestRange = curr, rang
