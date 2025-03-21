@@ -224,6 +224,11 @@ function ENT:OnTakeDamage( Damage )
 
     if self:PostTookDamage( Damage ) then return true end
 
+    if Damage:GetDamage() >= 1 and self:Health() <= 0 then -- HACK!
+        SafeRemoveEntityDelayed( self, 1 )
+
+    end
+
     if self.DoMetallicDamage then
         local attacker = Damage:GetAttacker()
         local BgDamage
@@ -487,6 +492,9 @@ local flinchesForGroups = {
 
 -- it's very subtle, but yes this works ( on most models... )
 function ENT:HandleFlinching( dmg, hitGroup )
+    local nextFlinch = self.term_NexFlinch or 0
+    if nextFlinch > CurTime() then return end
+
     local gesture = nil
 
     if hitGroup then
@@ -522,6 +530,8 @@ function ENT:HandleFlinching( dmg, hitGroup )
     local layer = self:AddGesture( gesture )
     self:SetLayerPlaybackRate( layer, playRate )
     self:SetLayerWeight( layer, weight )
+
+    self.term_NexFlinch = CurTime() + weight / 2
 
 end
 

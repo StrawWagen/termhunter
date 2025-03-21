@@ -1,10 +1,12 @@
+local entMeta = FindMetaTable( "Entity" )
+local vecMeta = FindMetaTable( "Vector" )
+
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
 
-local MDLSCALE_LARGE = 1.2
-
 local Vector = Vector
 
+local MDLSCALE_LARGE = 1.2
 local gapJumpHull = Vector( 5, 5, 5 )
 local down = Vector( 0, 0, -1 )
 local vector_up = Vector( 0, 0, 1 )
@@ -128,7 +130,7 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
         if hitEnt == enemy then
             return true
 
-        elseif self:memorizedAsBreakable( hitEnt ) or hitEnt:IsNPC() or hitEnt:IsPlayer() or isDoor then
+        elseif self:memorizedAsBreakable( self:GetTable(), hitEnt ) or hitEnt:IsNPC() or hitEnt:IsPlayer() or isDoor then
             if isDoor and class == "prop_door_rotating" and not terminator_Extras.CanBashDoor( hitEnt ) then
                 return nil
 
@@ -170,8 +172,8 @@ Desc: Decides should behaviour be disabled.
 Arg1: 
 Ret1: bool | Return true to disable.
 --]]------------------------------------
-function ENT:DisableBehaviour()
-    return self:IsPostureActive() or self:IsGestureActive( true ) or self:DisabledThinking() and not self:IsControlledByPlayer() or self:RunTask( "DisableBehaviour" )
+function ENT:DisableBehaviour( myTbl )
+    return myTbl.IsPostureActive( self ) or myTbl.IsGestureActive( self, true ) or myTbl.DisabledThinking( self ) and not myTbl.IsControlledByPlayer( self ) or myTbl.RunTask( self, "DisableBehaviour" )
 end
 
 function ENT:PhysicallyPushEnt( ent, strength )
@@ -2355,20 +2357,17 @@ end
 function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     myTbl = myTbl or self:GetTable()
 
-    local myPos = self:GetPos()
+    local myPos = entMeta.GetPos( self )
     local dir = terminator_Extras.dirToPos( myPos, pos )
     dir.z = dir.z * 0.05
-    dir:Normalize()
+    vecMeta.Normalize( dir )
 
-    if not self.NearestPoint then
-        ErrorNoHaltWithStack() --- grrrr
-
-    end
-    if self:NearestPoint( pos ):DistToSqr( pos ) > distance^2 then
+    if vecMeta.DistToSqr( entMeta.NearestPoint( self, pos ), pos ) > distance^2 then
+        coroutine_yield()
         local zToPos = ( pos.z - myPos.z )
 
         local overrideCrouch = myTbl.overrideCrouch or 0
-        if overrideCrouch < CurTime() and self:GetModelScale() >= MDLSCALE_LARGE and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + dir * 5 ) then
+        if overrideCrouch < CurTime() and entMeta.GetModelScale( self ) >= MDLSCALE_LARGE and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + dir * 5 ) then
             myTbl.overrideCrouch = CurTime() + 0.5
 
         end
@@ -2398,7 +2397,9 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
         local onGround = myTbl.loco:IsOnGround()
         if onGround then
-            if myTbl.CanSwim and self:WaterLevel() >= 3 then
+            coroutine_yield()
+
+            if myTbl.CanSwim and entMeta.WaterLevel( self ) >= 3 then
                 myTbl.StartSwimming( self )
                 return
 
@@ -2434,6 +2435,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 end
             -- adapt if the jumpstate says we need to
             elseif jumpstate == 2 and not adaptBlock then
+                coroutine_yield()
                 local goodPosToGoto = myTbl.PosThatWillBringUsTowards( self, myPos + vec_up15, pos, 50 )
                 if not goodPosToGoto then return end
                 myTbl.term_LastApproachPos = goodPosToGoto
@@ -2444,6 +2446,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             end
         elseif not onGround then
             if myTbl.IsJumping( self, myTbl ) then
+                coroutine_yield()
                 local toChoose = {
                     pos,
                     pos + vec_up25,
@@ -2454,6 +2457,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then return end
 
             elseif myTbl.IsSwimming( self, myTbl ) then
+                coroutine_yield()
                 local swimmingExitPos
                 local swimmingExitPosHigher
                 if swimming then
@@ -2474,6 +2478,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             end
         end
 
+        coroutine_yield()
         myTbl.term_LastApproachPos = pos
         myTbl.loco:Approach( pos, 10000 )
         --debugoverlay.Cross( pos, 10, 1, color_white, true )

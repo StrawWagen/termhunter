@@ -1,7 +1,7 @@
 ENT.Base = "base_nextbot"
 
 ENT.PrintName = "SB Advanced NextBot Base"
-ENT.Author = "Shadow Bonnie (RUS)"
+ENT.Author = "Shadow Bonnie (RUS)" -- from SB advanced nextbots, https://steamcommunity.com/sharedfiles/filedetails/?id=2148063174
 ENT.Purpose = "Create your own advanced nextbots using this base"
 
 ENT.RenderGroup = RENDERGROUP_OPAQUE

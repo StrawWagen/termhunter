@@ -3,6 +3,7 @@ AddCSLuaFile()
 ENT.Base = "terminator_nextbot_soldier_base"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator"
+ENT.Author = "StrawWagen"
 
 list.Set( "NPC", "terminator_nextbot", {
     Name = "Terminator Overcharged",
@@ -74,6 +75,14 @@ local vecFiftyZ = Vector( 0, 0, 50 )
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 local plus25Z = Vector( 0,0,25 )
 
+local vecMeta = FindMetaTable( "Vector" )
+local entMeta = FindMetaTable( "Entity" )
+local strMeta = FindMetaTable( "String" )
+local wepMeta = FindMetaTable( "Weapon" )
+
+local math = math -- math is math!
+
+local distToSqr = vecMeta.DistToSqr
 local CurTime = CurTime
 local IsValid = IsValid
 
@@ -91,7 +100,7 @@ local function PickRealVec( toPick )
 end
 
 local function hasReasonableHealth( ent )
-    local entsHp = ent:Health()
+    local entsHp = entMeta.Health( ent )
     return entsHp > 0 and entsHp < 300
 
 end
@@ -626,223 +635,266 @@ function ENT:unIgnoreEnt( ent )
     ent.terminatorIgnoreEnt = nil
 
 end
-function ENT:caresAbout( ent )
-    if not IsValid( ent ) then return end
-    if ent == self then return end
-    if not IsValid( ent:GetPhysicsObject() ) then return end
-    if not ent:IsSolid() then return end
-    if ent:IsFlagSet( FL_WORLDBRUSH ) then return end
-    if ent:IsFlagSet( FL_STATICPROP ) then return end
-    return true
 
-end
+do
+    local IsValidAwareness = IsValid
+    local isstring = isstring
+    local isentity = isentity
+    local isfunction = isfunction
+    local table = table
+    local table_insertAware = table_insert
+    local string_find = string.find
 
-function ENT:getAwarenessKey( ent )
-    if not IsValid( ent ) then return end
-    local model = ent:GetModel()
-    local class = ent:GetClass()
-    if not isstring( class ) or not isstring( model ) then return "" end
-    return class .. " " .. model
+    -- i love overoptimisation
+    local notInterestingCache = {}
+    hook.Add( "terminator_nextbot_oneterm_exists", "setup_notinterestingcache", function()
+        timer.Create( "term_cache_isnotinteresting", 10, 0, function()
+            notInterestingCache = {}
 
-end
-
-function ENT:memorizeEntAs( dat1, memory )
-    local key = nil
-    if isentity( dat1 ) then
-        key = self:getAwarenessKey( dat1 )
-    elseif isstring( dat1 ) then
-        key = dat1
-    end
-    if not key then return end
-    self.awarenessMemory[key] = memory
-end
-
-function ENT:getMemoryOfObject( ent )
-    local key = self:getAwarenessKey( ent )
-    local memory = nil
-    local overrideResponse = ent.terminatorHunterInnateReaction
-    if isfunction( overrideResponse ) then
-        memory = overrideResponse( ent, self )
-    else
-        memory = self.awarenessMemory[key]
-    end
-    return memory, key
-
-end
-
-function ENT:memorizedAsBreakable( ent )
-    local memory, _ = self:getMemoryOfObject( ent )
-
-    if isnumber( memory ) and memory == MEMORY_BREAKABLE then
-        return true
-
-    end
-end
-
-function ENT:understandObject( ent )
-    if not IsValid( ent ) then return end
-    local class = ent:GetClass()
-    local memory, _ = self:getMemoryOfObject( ent )
-
-    local isLockedDoor = class == "prop_door_rotating" and ent:GetInternalVariable( "m_bLocked" ) ~= false and ent:IsSolid() and terminator_Extras.CanBashDoor( ent )
-
-    if isLockedDoor then
-        -- locked doors create navmesh blocker flags under them even though we can bash them down
-        -- KILL ALL LOCKED DOORS!
-        table.insert( self.awarenessLockedDoors, ent )
-        table.insert( self.awarenessBash, ent )
-
-    end
-
-    if ent.terminatorIgnoreEnt then return end
-
-    if isnumber( memory ) then
-        if memory == MEMORY_MEMORIZING then
-            table.insert( self.awarenessUnknown, ent )
-
-        elseif memory == MEMORY_INERT then
-            return
-            -- do nothing, it's inert
-
-        elseif memory == MEMORY_BREAKABLE then -- entities that we can shoot if they're blocking us
-            table.insert( self.awarenessBash, ent )
-
-        elseif memory == MEMORY_VOLATILE or memory == MEMORY_DAMAGING then -- stay away, it hurt us before!
-            table.insert( self.awarenessDamaging, ent )
-
-            if memory == MEMORY_VOLATILE then -- entities that we can shoot to damage enemies
-                table.insert( self.awarenessVolatiles, ent )
-
-            end
-        elseif memory == MEMORY_WEAPONIZEDNPC and ( ent:IsNPC() or ent:IsNextBot() ) then
-            self:MakeFeud( ent )
-
-        end
-    else
-        if class == "player" then return end
-
-        local mdl = ent:GetModel()
-        local isFunc = class:StartWith( "func_" )
-        local isDynamic = class:StartWith( "prop_dynamic" )
-        local isWoodBoard = mdl and string.find( mdl, "wood_board" )
-        local isVentGuard = mdl and string.find( mdl, "/vent" )
-        local isExplosiveBarrel = mdl and string.find( mdl, "oildrum001_explosive" )
-        local isSlam = class and ( class == "npc_satchel" or class == "npc_tripmine" )
-        if isFunc then
-            local isFuncBreakable = class:StartWith( "func_breakable" )
-            if isFuncBreakable and hasReasonableHealth( ent ) then
-                self:memorizeEntAs( ent, MEMORY_BREAKABLE )
-
-            else
-                self:memorizeEntAs( ent, MEMORY_INERT )
-
-            end
-        elseif ent.huntersglee_breakablenails then
-            table.insert( self.awarenessBash, ent )
-
-        elseif isDynamic or class == "base_entity" then
-            self:memorizeEntAs( ent, MEMORY_INERT )
-
-        elseif isWoodBoard or isVentGuard then
-            self:memorizeEntAs( ent, MEMORY_BREAKABLE )
-
-        elseif isExplosiveBarrel or isSlam then
-            self:memorizeEntAs( ent, MEMORY_VOLATILE )
-
-        else
-            if class == self:GetClass() and mdl == self:GetModel() then
-                self:memorizeEntAs( ent, MEMORY_INERT )
-
-            else
-                self:memorizeEntAs( ent, MEMORY_MEMORIZING )
-                table.insert( self.awarenessUnknown, ent )
-
-            end
-        end
-    end
-end
-
-function ENT:AdditionalUnderstand()
-end
-
-local vecMeta = FindMetaTable( "Vector" )
-local distToSqr = vecMeta.DistToSqr
-
-function ENT:understandSurroundings()
-    local myTbl = self:GetTable()
-    myTbl.awarenessSubstantialStuff = {}
-    myTbl.awarenessUnknown = {}
-    myTbl.awarenessBash = {}
-    myTbl.awarenessDamaging = {}
-    myTbl.awarenessVolatiles = {}
-    myTbl.awarenessLockedDoors = {}
-    coroutine_yield()
-
-    local pos = self:GetPos()
-    local surroundings = ents.FindInSphere( pos, self.AwarenessCheckRange )
-
-    local enemy = self:GetEnemy()
-    if IsValid( enemy ) and self.IsSeeEnemy and self.DistToEnemy > 1250 then
-        local enemSurroundings = ents.FindInSphere( enemy:GetPos(), 400 ) -- shoot explosive barrels next to enemies!
-        table.Add( surroundings, enemSurroundings )
-
-    end
-
-    coroutine_yield()
-
-    local centers = {}
-
-    for _, ent in ipairs( surroundings ) do
-        if not IsValid( ent ) then continue end
-        centers[ent] = ent:WorldSpaceCenter()
-
-    end
-
-    table.sort( surroundings, function( a, b ) -- sort ents by distance to me
-        if not IsValid( a ) then return false end
-        if not IsValid( b ) then return true end
-        local ADist = distToSqr( centers[a], pos )
-        local BDist = distToSqr( centers[b], pos )
-        return ADist < BDist
+        end )
+    end )
+    hook.Add( "terminator_nextbot_noterms_exist", "teardown_notinterestingcache", function()
+        timer.Remove( "term_cache_isnotinteresting" )
+        notInterestingCache = {}
 
     end )
 
-    coroutine_yield()
+    local function boring( ent )
+        if not ent then return end
+        notInterestingCache[ent] = true
 
-    local added = 0
-    local substantialStuff = {}
-    local caresAbout = self.caresAbout
-    for _, currEnt in ipairs( surroundings ) do
-        if ( added % 40 ) == 0 then coroutine_yield() end
-        if added > 400 then -- cap this!
-            break
+    end
+
+    function ENT:caresAbout( ent )
+        if notInterestingCache[ent] then return end
+        if not IsValidAwareness( ent ) then boring( ent ) return end
+        if ent == self then return end
+        if not IsValidAwareness( entMeta.GetPhysicsObject( ent ) ) then boring( ent ) return end
+        if not entMeta.IsSolid( ent ) then return end
+        if entMeta.IsFlagSet( ent, FL_WORLDBRUSH ) then boring( ent ) return end
+        if entMeta.IsFlagSet( ent, FL_STATICPROP ) then boring( ent ) return end
+        return true
+
+    end
+
+    function ENT:getAwarenessKey( ent )
+        if notInterestingCache[ent] then return end
+        if not IsValidAwareness( ent ) then boring( ent ) return end
+        local model = entMeta.GetModel( ent )
+        local class = entMeta.GetClass( ent )
+        if not isstring( class ) or not isstring( model ) then boring( ent ) return end
+        return class .. " " .. model
+
+    end
+
+    function ENT:memorizeEntAs( dat1, memory )
+        local key = nil
+        if isentity( dat1 ) then
+            key = self:getAwarenessKey( dat1 )
+        elseif isstring( dat1 ) then
+            key = dat1
+        end
+        if not key then return end
+        self.awarenessMemory[key] = memory
+    end
+
+    function ENT:getMemoryOfObject( myTbl, ent )
+        if not ent then ErrorNoHaltWithStack() end
+        local key = myTbl.getAwarenessKey( self, ent )
+        local memory = nil
+        local overrideResponse = ent.terminatorHunterInnateReaction
+        if overrideResponse and isfunction( overrideResponse ) then
+            memory = overrideResponse( ent, self )
+        else
+            memory = myTbl.awarenessMemory[key]
+        end
+        return memory, key
+
+    end
+
+    function ENT:memorizedAsBreakable( myTbl, ent )
+        local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
+
+        if isnumber( memory ) and memory == MEMORY_BREAKABLE then
+            return true
 
         end
-        if caresAbout( self, currEnt ) then
+    end
+
+    function ENT:understandObject( myTbl, ent )
+        if notInterestingCache[ent] then return end
+        if not IsValidAwareness( ent ) then boring( ent ) return end
+
+        local entsTbl = ent:GetTable()
+        local class = entMeta.GetClass( ent )
+
+        -- locked doors create navmesh blocker flags under them even though we can bash them down
+        -- KILL ALL LOCKED DOORS!
+        local isLockedDoor = class == "prop_door_rotating" and entMeta.GetInternalVariable( ent, "m_bLocked" ) ~= false and entMeta.IsSolid( ent ) and terminator_Extras.CanBashDoor( ent )
+        if isLockedDoor then
+            table_insertAware( myTbl.awarenessLockedDoors, ent )
+            table_insertAware( myTbl.awarenessBash, ent )
+
+        end
+
+        if entsTbl.terminatorIgnoreEnt then return end
+
+        local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
+
+        if isnumber( memory ) then
+            if memory == MEMORY_MEMORIZING then
+                table_insertAware( myTbl.awarenessUnknown, ent )
+
+            elseif memory == MEMORY_INERT then
+                return
+                -- do nothing, it's inert
+
+            elseif memory == MEMORY_BREAKABLE then -- entities that we can shoot if they're blocking us
+                table_insertAware( myTbl.awarenessBash, ent )
+
+            elseif memory == MEMORY_VOLATILE or memory == MEMORY_DAMAGING then -- stay away, it hurt us before!
+                table_insertAware( myTbl.awarenessDamaging, ent )
+
+                if memory == MEMORY_VOLATILE then -- entities that we can shoot to damage enemies
+                    table_insertAware( myTbl.awarenessVolatiles, ent )
+
+                end
+            elseif memory == MEMORY_WEAPONIZEDNPC and ( ent:IsNPC() or ent:IsNextBot() ) then
+                myTbl.MakeFeud( self, ent )
+
+            end
+        else
+            if class == "player" then return end
+
+            local mdl = entMeta.GetModel( ent )
+            local isFunc = strMeta.StartWith( class, "func_" )
+            local isDynamic = strMeta.StartWith( class, "prop_dynamic" )
+            local isWoodBoard = mdl and string_find( mdl, "wood_board" )
+            local isVentGuard = mdl and string_find( mdl, "/vent" )
+            local isExplosiveBarrel = mdl and string_find( mdl, "oildrum001_explosive" )
+            local isSlam = class and ( class == "npc_satchel" or class == "npc_tripmine" )
+            if isFunc then
+                local isFuncBreakable = strMeta.StartWith( class, "func_breakable" )
+                if isFuncBreakable and hasReasonableHealth( ent ) then
+                    myTbl.memorizeEntAs( self, ent, MEMORY_BREAKABLE )
+
+                else
+                    myTbl.memorizeEntAs( self, ent, MEMORY_INERT )
+
+                end
+            elseif ent.huntersglee_breakablenails then
+                table_insertAware( myTbl.awarenessBash, ent )
+
+            elseif isDynamic or class == "base_entity" then
+                myTbl.memorizeEntAs( self, ent, MEMORY_INERT )
+
+            elseif isWoodBoard or isVentGuard then
+                myTbl.memorizeEntAs( self, ent, MEMORY_BREAKABLE )
+
+            elseif isExplosiveBarrel or isSlam then
+                myTbl.memorizeEntAs( self, ent, MEMORY_VOLATILE )
+
+            else
+                if entsTbl.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
+                    myTbl.memorizeEntAs( self, ent, MEMORY_INERT )
+
+                else
+                    myTbl.memorizeEntAs( self, ent, MEMORY_MEMORIZING ) -- need to beat this up
+                    table_insertAware( myTbl.awarenessUnknown, ent )
+
+                end
+            end
+        end
+    end
+
+    function ENT:AdditionalUnderstand( _substantialStuff ) -- stub
+    end
+
+    function ENT:understandSurroundings()
+        local myTbl = entMeta.GetTable( self )
+        myTbl.awarenessSubstantialStuff = {}
+        myTbl.awarenessUnknown = {}
+        myTbl.awarenessBash = {}
+        myTbl.awarenessDamaging = {}
+        myTbl.awarenessVolatiles = {}
+        myTbl.awarenessLockedDoors = {}
+        coroutine_yield()
+
+        local pos = entMeta.GetPos( self )
+        local rawSurroundings = ents.FindInSphere( pos, myTbl.AwarenessCheckRange )
+
+        local enemy = myTbl.GetEnemy( self )
+        if IsValidAwareness( enemy ) and not myTbl.IsFodder and myTbl.IsSeeEnemy and myTbl.DistToEnemy > 1250 then
+            local enemSurroundings = ents.FindInSphere( entMeta.GetPos( enemy ), 400 ) -- shoot explosive barrels next to enemies!
+            table.Add( rawSurroundings, enemSurroundings )
+
+        end
+
+        local surroundings = {} 
+        for _, ent in ipairs( rawSurroundings ) do
+            if not notInterestingCache[ent] then
+                table.insert( surroundings, ent )
+
+            end
+        end
+
+
+        coroutine_yield()
+
+        local centers = {}
+
+        for _, ent in ipairs( surroundings ) do
+            if not IsValidAwareness( ent ) then continue end
+            centers[ent] = entMeta.WorldSpaceCenter( ent )
+
+        end
+
+        table.sort( surroundings, function( a, b ) -- sort ents by distance to me
+            if not IsValidAwareness( a ) then return false end
+            if not IsValidAwareness( b ) then return true end
+            local ADist = distToSqr( centers[a], pos )
+            local BDist = distToSqr( centers[b], pos )
+            return ADist < BDist
+
+        end )
+
+        coroutine_yield()
+
+        local added = 0
+        local substantialStuff = {}
+        local caresAbout = myTbl.caresAbout
+        for _, currEnt in ipairs( surroundings ) do
+            if ( added % 40 ) == 0 then coroutine_yield() end
+            if added > 400 then -- cap this!
+                break
+
+            end
+            if caresAbout( self, currEnt ) then
+                added = added + 1
+                table_insert( substantialStuff, currEnt )
+
+            end
+        end
+
+        coroutine_yield()
+
+        added = 0
+        local understandObject = myTbl.understandObject
+
+        for _, currEnt in ipairs( substantialStuff ) do
+            if not IsValid( currEnt ) then continue end
+            if ( added % 40 ) == 0 then coroutine_yield() end
             added = added + 1
-            table_insert( substantialStuff, currEnt )
+            understandObject( self, currEnt )
+            table_insert( myTbl.awarenessSubstantialStuff, currEnt )
 
         end
-    end
 
-    coroutine_yield()
+        coroutine_yield()
 
-    added = 0
-    local understandObject = self.understandObject
-
-    for _, currEnt in ipairs( substantialStuff ) do
-        if not IsValid( currEnt ) then continue end
-        if ( added % 40 ) == 0 then coroutine_yield() end
-        added = added + 1
-        understandObject( self, currEnt )
-        table_insert( self.awarenessSubstantialStuff, currEnt )
+        myTbl.AdditionalUnderstand( self, substantialStuff )
 
     end
-
-    coroutine_yield()
-
-    self:AdditionalUnderstand( substantialStuff )
-
 end
 
 function ENT:getShootableVolatile( enemy )
@@ -922,17 +974,20 @@ end
 
 function ENT:GetDisrespectingEnt( myTbl )
     local myShootPos = myTbl.GetShootPos( self )
-    local myPos = self:GetPos()
+    local myPos = entMeta.GetPos( self )
     local disrespector = nil
     local disrespectorRange = 75
     local notClose = 0
 
     for _, potentialDisrespect in ipairs( myTbl.awarenessSubstantialStuff ) do
         if IsValid( potentialDisrespect ) and not potentialDisrespect:IsWeapon() then
-            if hook.Run( "terminator_blocktarget", self, potentialDisrespect ) == true then continue end
+            if hook.Run( "terminator_blocktarget", self, potentialDisrespect ) == true then continue end -- fix supercop attacking specdm players on cfcttt
+            if entMeta.IsFlagSet( self, FL_NOTARGET ) then continue end
 
-            local disrespectBestPos = potentialDisrespect:NearestPoint( myShootPos )
-            local close = SqrDistLessThan( disrespectBestPos:DistToSqr( myShootPos ), disrespectorRange ) or SqrDistLessThan( disrespectBestPos:DistToSqr( myPos ), disrespectorRange )
+            local disrespectBestPos = entMeta.NearestPoint( self, myShootPos )
+            local close = SqrDistLessThan( vecMeta.DistToSqr( disrespectBestPos, myShootPos ), disrespectorRange )
+            close = close or SqrDistLessThan( vecMeta.DistToSqr( disrespectBestPos, myPos ), disrespectorRange )
+
             if close then
                 local clear, trace = terminator_Extras.PosCanSeeComplex( myShootPos, disrespectBestPos, self )
                 if clear or ( IsValid( trace.Entity ) and trace.Entity == disrespector ) then
@@ -976,8 +1031,7 @@ end
 do
     -- interacting with shootblocker START
 
-    local entsMeta = FindMetaTable( "NextBot" )
-
+    local nextbotMeta = FindMetaTable( "NextBot" )
     local hullminFists = Vector( -20, -20, -30 )
     local hullmaxFists = Vector( 20, 20, 30 )
 
@@ -1036,7 +1090,7 @@ do
             start = start,
             endpos = pos,
             filter = filter,
-            mask = entsMeta.GetSolidMask( self ),
+            mask = nextbotMeta.GetSolidMask( self ),
         }
         local tr = util.TraceLine( traceStruc )
         if tr.Hit and not tr.HitWorld then return tr.Entity, tr end
@@ -1045,7 +1099,7 @@ do
             start = start,
             endpos = pos,
             filter = filter,
-            mask = entsMeta.GetSolidMask( self ),
+            mask = nextbotMeta.GetSolidMask( self ),
             mins = hullmin( self, myTbl ),
             maxs = hullmax( self, myTbl ),
         }
@@ -1194,7 +1248,7 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
     local doorIsVeryStale = sinceStarted > 8
 
 
-    local memory, _ = myTbl.getMemoryOfObject( self, blocker )
+    local memory, _ = myTbl.getMemoryOfObject( self, myTbl, blocker )
     local breakableMemory = memory == MEMORY_BREAKABLE
 
     if myTbl.IsStupid then
@@ -1328,46 +1382,46 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
 end
 
 function ENT:BehaviourThink( myTbl )
-    if not myTbl.IsControlledByPlayer( self ) and not myTbl.DisableBehaviour( myTbl ) then
-        local filter = self:GetChildren()
-        filter[#filter + 1] = self
+    myTbl.LastShootBlocker = false
+    if myTbl.IsControlledByPlayer( self ) then return end
+    if myTbl.DisableBehaviour( self, myTbl ) then return end
 
+    local filter = self:GetChildren()
+    filter[#filter + 1] = self
+
+    yieldIfWeCan()
+    local pos = myTbl.GetShootPos( self )
+    local aimVec = myTbl.GetAimVector( self, myTbl )
+    local endpos1 = pos + aimVec * 150
+    local blocker, blockerTrace = myTbl.ShootBlocker( self, myTbl, pos, endpos1, filter )
+    local worldBlocker
+    if not myTbl.IsFodder then
+        local endpos2 = pos + aimVec * 100
+        worldBlocker = myTbl.ShootBlockerWorld( self, myTbl, pos, endpos2, filter ) or {}
+
+    end
+
+    if IsValid( blocker ) and not blocker:IsWorld() then
         yieldIfWeCan()
-        local pos = myTbl.GetShootPos( self )
-        local aimVec = myTbl.GetAimVector( self, myTbl )
-        local endpos1 = pos + aimVec * 150
-        local blocker, blockerTrace = myTbl.ShootBlocker( self, myTbl, pos, endpos1, filter )
-        local worldBlocker
-        if not myTbl.IsFodder then
-            local endpos2 = pos + aimVec * 100
-            worldBlocker = myTbl.ShootBlockerWorld( self, myTbl, pos, endpos2, filter ) or {}
+        myTbl.tryToOpen( self, myTbl, blocker, blockerTrace )
 
-        end
+    end
 
-        if IsValid( blocker ) and not blocker:IsWorld() then
-            yieldIfWeCan()
-            myTbl.tryToOpen( self, myTbl, blocker, blockerTrace )
+    myTbl.LastShootBlocker = blocker
 
-        end
-
-        myTbl.LastShootBlocker = blocker
-
-        local blocks = { blockerTrace, worldBlocker }
-        -- slow down bot when it has stuff in front of it
-        for _, blocked in ipairs( blocks ) do
-            if blocked and blocked.Hit and blocked.Fraction < 0.25 then
-                local fractionAsTime = math.abs( blocked.Fraction - 1 )
-                local time = math.Clamp( fractionAsTime, 0.2, 1 ) * 0.6
-                local finalTime = CurTime() + time
-                local oldTime = myTbl.nearObstacleBlockRunning or 0
-                if oldTime < finalTime then
-                    myTbl.nearObstacleBlockRunning = finalTime
-                end
-                break
+    local blocks = { blockerTrace, worldBlocker }
+    -- slow down bot when it has stuff in front of it
+    for _, blocked in ipairs( blocks ) do
+        if blocked and blocked.Hit and blocked.Fraction < 0.25 then
+            local fractionAsTime = math.abs( blocked.Fraction - 1 )
+            local time = math.Clamp( fractionAsTime, 0.2, 1 ) * 0.6
+            local finalTime = CurTime() + time
+            local oldTime = myTbl.nearObstacleBlockRunning or 0
+            if oldTime < finalTime then
+                myTbl.nearObstacleBlockRunning = finalTime
             end
+            break
         end
-    else
-        myTbl.LastShootBlocker = false
     end
 end
 
@@ -1485,7 +1539,7 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
         local blockAttack = nil
         -- witness me hack for glee
         if validEnemy and enemy.AttackConfirmed then
-            if not blockShoot and enemy:Health() > 0 and myTbl.DistToEnemy < myTbl.GetWeaponRange( self ) * 1.5 then
+            if not blockShoot and enemy:Health() > 0 and myTbl.DistToEnemy < myTbl.GetWeaponRange( self, myTbl ) * 1.5 then
                 enemy.AttackConfirmed( enemy, self )
 
             end
@@ -1545,7 +1599,7 @@ function ENT:canHitEnt( myTbl, ent )
         closenessSqr = myShootPos:DistToSqr( objPos )
 
     end
-    local weapDist = myTbl.GetWeaponRange( self ) + -20
+    local weapDist = myTbl.GetWeaponRange( self, myTbl ) + -20
     local hitReallyClose = SqrDistLessThan( hitTrace.HitPos:DistToSqr( behindObj ), 30 ) or SqrDistLessThan( hitTrace.HitPos:DistToSqr( objPos ), 30 )
     local visible = ( hitTrace.Entity == ent ) or hitReallyClose
 
@@ -3027,22 +3081,22 @@ function ENT:DoDefaultTasks()
                 if wep.terminatorCrappyWeapon == true and myTbl.HasFists then
                     myTbl.DoFists( self )
 
-                elseif wep.Clip1 and wep:Clip1() <= 0 and wep:GetMaxClip1() > 0 and not myTbl.IsReloadingWeapon then
+                elseif wep.Clip1 and wepMeta.Clip1( wep ) <= 0 and wepMeta.GetMaxClip1( wep ) > 0 and not myTbl.IsReloadingWeapon then
                     myTbl.WeaponReload( self )
 
                 -- allow us to not stop shooting at the witness player, glee
-                elseif IsValid( myTbl.OverrideShootAtThing ) and myTbl.OverrideShootAtThing:Health() > 0 then
+                elseif IsValid( myTbl.OverrideShootAtThing ) and entMeta.Health( myTbl.OverrideShootAtThing ) > 0 then
                     myTbl.shootAt( self, self:EntShootPos( myTbl.OverrideShootAtThing ) )
                     myTbl.lastShootingType = "witnessplayer"
 
                 elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
-                    local wepRange = self:GetWeaponRange()
+                    local wepRange = myTbl.GetWeaponRange( self, myTbl )
                     local seeOrWeaponDoesntCare = myTbl.IsSeeEnemy or wep.worksWithoutSightline
-                    if wep and self:IsRangedWeapon( wep ) and seeOrWeaponDoesntCare then
-                        local shootableVolatile = self:getShootableVolatile( enemy )
+                    if wep and myTbl.IsRangedWeapon( self, wep ) and seeOrWeaponDoesntCare then
+                        local shootableVolatile = myTbl.getShootableVolatile( self, enemy )
 
                         if IsValid( shootableVolatile ) and not doShootingPrevent then
-                            myTbl.shootAt( self, self:getBestPos( shootableVolatile ), nil )
+                            myTbl.shootAt( self, myTbl.getBestPos( self, shootableVolatile ), nil )
                             myTbl.lastShootingType = "shootvolatile"
 
                         -- does the weapon know better than us?
@@ -3086,7 +3140,7 @@ function ENT:DoDefaultTasks()
 
                     end
                 else
-                    if wep.Clip1 and ( wep:GetMaxClip1() > 0 ) and ( wep:Clip1() < wep:GetMaxClip1() / 2 ) and not myTbl.IsReloadingWeapon then
+                    if wep.Clip1 and ( wepMeta.GetMaxClip1( wep ) > 0 ) and ( wepMeta.Clip1( wep ) < wepMeta.GetMaxClip1( wep ) / 2 ) and not myTbl.IsReloadingWeapon then
                         myTbl.WeaponReload( self )
 
                     end
@@ -3131,7 +3185,7 @@ function ENT:DoDefaultTasks()
                 local prevEnemy = myTbl.GetEnemy( self )
                 local newEnemy = prevEnemy
                 local myShoot = myTbl.GetShootPos( self )
-                local myPos = self:GetPos()
+                local myPos = entMeta.GetPos( self )
 
                 myTbl.IsSeeEnemy = false -- assume false
                 myTbl.NothingOrBreakableBetweenEnemy = false
@@ -3162,20 +3216,20 @@ function ENT:DoDefaultTasks()
                     end
                     if IsValid( pickedPlayer ) then
                         local isLinkedPlayer = pickedPlayer == myTbl.linkedPlayer
-                        local alive = pickedPlayer:Health() > 0
+                        local alive = entMeta.Health( pickedPlayer ) > 0
 
                         if alive and myTbl.ShouldBeEnemy( self, pickedPlayer ) and myTbl.IsInMyFov( self, pickedPlayer ) then
                             local theirShoot = myTbl.EntShootPos( self, pickedPlayer )
                             local canSee = terminator_Extras.PosCanSee( myShoot, theirShoot )
                             local clearOrBreakable = canSee and myTbl.ClearOrBreakable( self, myShoot, theirShoot )
                             if clearOrBreakable then -- perfect visibility
-                                myTbl.UpdateEnemyMemory( self, pickedPlayer, pickedPlayer:GetPos() )
+                                myTbl.UpdateEnemyMemory( self, pickedPlayer, entMeta.GetPos( pickedPlayer ) )
 
                             elseif canSee then -- they are obscured by a prop
                                 myTbl.RegisterForcedEnemyCheckPos( self, newEnemy )
 
                             elseif isLinkedPlayer and alive then -- GLEE HACK
-                                myTbl.SaveSoundHint( self, pickedPlayer:GetPos(), true )
+                                myTbl.SaveSoundHint( self, entMeta.GetPos( pickedPlayer ), true )
 
                             end
                         end
@@ -3187,13 +3241,13 @@ function ENT:DoDefaultTasks()
                         IsValid( priorityEnemy ) and
                         IsValid( prevEnemy ) and
                         myTbl.IsSeeEnemy and
-                        prevEnemy:Health() > 0 and -- old enemy needs to be alive...
+                        entMeta.Health( prevEnemy ) > 0 and -- old enemy needs to be alive...
                         prevEnemy ~= priorityEnemy and
                         (
                             data.blockSwitchingEnemies > 0 or
                             ( myTbl.NothingOrBreakableBetweenEnemy and not myTbl.ClearOrBreakable( self, myShoot, myTbl.EntShootPos( self, priorityEnemy ) ) ) -- dont switch from visible to obscured
                         ) and
-                        myPos:Distance( priorityEnemy:GetPos() ) > myTbl.CloseEnemyDistance -- enemy needs to be far away, otherwise just switch now
+                        vecMeta.Distance( myPos, entMeta.GetPos( priorityEnemy ) ) > myTbl.CloseEnemyDistance -- enemy needs to be far away, otherwise just switch now
 
                     then -- that mess above tells us dont swap yet
                         local removed = 1
@@ -3201,7 +3255,7 @@ function ENT:DoDefaultTasks()
                             removed = removed + 4
 
                         end
-                        if myPos:Distance( priorityEnemy:GetPos() ) < myTbl.DuelEnemyDist then -- new enemy is too close
+                        if vecMeta.Distance( myPos, entMeta.GetPos( priorityEnemy ) ) < myTbl.DuelEnemyDist then -- new enemy is too close
                             removed = removed * 4
 
                         end
@@ -3213,7 +3267,7 @@ function ENT:DoDefaultTasks()
 
                     elseif myTbl.forcedCheckPositions and table.Count( myTbl.forcedCheckPositions ) >= 1 then -- nuke these
                         for positionKey, position in pairs( myTbl.forcedCheckPositions ) do
-                            if SqrDistLessThan( position:DistToSqr( myPos ), 200 ) then
+                            if SqrDistLessThan( distToSqr( position, myPos ), 200 ) then
                                 myTbl.forcedCheckPositions[ positionKey ] = nil
                                 break
 
@@ -3223,11 +3277,13 @@ function ENT:DoDefaultTasks()
                 end
 
                 if IsValid( newEnemy ) then
-                    local newEnemysTbl = newEnemy:GetTable()
-                    local enemyPos = newEnemy:GetPos()
-                    local theirCar = newEnemy:IsPlayer() and newEnemy:GetVehicle()
+                    local newEnemysTbl = entMeta.GetTable( newEnemy )
+                    local newEnemsHealth = entMeta.Health( newEnemy ) 
+                    local enemyPos = entMeta.GetPos( newEnemy )
+                    local enemIsPlayer = entMeta.GetClass( newEnemy ) == "player"
+                    local theirCar = enemIsPlayer and newEnemy:GetVehicle()
                     if IsValid( theirCar ) then
-                        local carsParent = theirCar:GetParent()
+                        local carsParent = entMeta.GetParent( theirCar )
                         if IsValid( carsParent ) and carsParent:IsVehicle() then -- sim fphys ( or glide... )....
                             theirCar = carsParent
 
@@ -3235,7 +3291,7 @@ function ENT:DoDefaultTasks()
                     end
 
                     local newEnemsShoot = myTbl.EntShootPos( self, newEnemy, newEnemysTbl )
-                    myTbl.DistToEnemy = myPos:Distance( enemyPos )
+                    myTbl.DistToEnemy = vecMeta.Distance( myPos, enemyPos )
                     myTbl.IsSeeEnemy = myTbl.CanSeePosition( self, newEnemsShoot, myTbl )
                     myTbl.EnemiesVehicle = IsValid( theirCar ) and theirCar
 
@@ -3269,7 +3325,7 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    if ( myTbl.IsSeeEnemy or posCheatsLeft > 0 ) and newEnemy:Health() > 0 then -- health check fixed some silly problems
+                    if ( myTbl.IsSeeEnemy or posCheatsLeft > 0 ) and newEnemsHealth > 0 then -- health check fixed some silly problems
                         myTbl.NothingOrBreakableBetweenEnemy = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
                         myTbl.EnemyLastPosOffsetted = myTbl.EnemyLastPos + terminator_Extras.dirToPos( myTbl.EnemyLastPos, enemyPos ) * 150
                         myTbl.EnemyLastPos = enemyPos
@@ -3279,7 +3335,7 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    if newEnemy and newEnemy.Alive and newEnemy:Health() > 0 then
+                    if newEnemy and newEnemy.Alive and newEnemsHealth > 0 then
                         myTbl.EnemyPosCheatsLeft = posCheatsLeft + -1
 
                     else -- they died, cheating stops here
@@ -3323,9 +3379,9 @@ function ENT:DoDefaultTasks()
                     end
                 else
                     if data.HasEnemy then
-                        local memory, _ = myTbl.getMemoryOfObject( self, prevEnemy )
+                        local memory, _ = myTbl.getMemoryOfObject( self, myTbl, prevEnemy )
 
-                        if prevEnemy:IsPlayer() or memory == MEMORY_WEAPONIZEDNPC then
+                        if prevEnemy:IsPlayer() --[[ leaving this index, its rare ]] or memory == MEMORY_WEAPONIZEDNPC then
                             -- reset searching progress!
                             myTbl.SearchCheckedNavs = myTbl.SearchBadNavAreas
                             myTbl.SearchCheckedNavsCount = 0
@@ -3343,9 +3399,9 @@ function ENT:DoDefaultTasks()
 
                 if myTbl.IsSeeEnemy then
                     -- save old health
-                    local myHealth = self:Health()
+                    local myHealth = entMeta.Health( self )
                     local oldHealth = myTbl.VisibilityStartingHealth
-                    local ratio = myHealth / self:GetMaxHealth()
+                    local ratio = myHealth / entMeta.GetMaxHealth( self )
 
                     myTbl.VisibilityStartingHealthDecay = cur + ratio * 5
 
@@ -6812,6 +6868,7 @@ function ENT:DoDefaultTasks()
                 local result = self:ControlPath2( not self.IsSeeEnemy )
 
                 local canWep, potentialWep = self:canGetWeapon()
+                yieldIfWeCan()
 
                 if data.InvalidateAfterwards then
                     self:TaskFail( "movement_inertia" )
@@ -7993,8 +8050,8 @@ function ENT:DoDefaultTasks()
                 if IsValid( realEnemy ) then
                     if realEnemy == enemy and myTbl.IsSeeEnemy then return end -- we are already attacking this guy! dont wast perf!
 
-                    local _, priorityOfCurr = self:GetRelationship( realEnemy )
-                    local _, priorityOfNew = self:GetRelationship( enemy )
+                    local _, priorityOfCurr = myTbl.TERM_GetRelationship( self, myTbl, realEnemy )
+                    local _, priorityOfNew = myTbl.TERM_GetRelationship( self, myTbl, enemy )
                     if priorityOfCurr > priorityOfNew then return end -- dont care about low priority enemies if we already fighting something decent
 
                 end

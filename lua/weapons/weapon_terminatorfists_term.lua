@@ -373,6 +373,8 @@ function SWEP:PrimaryAttack()
     self:SetLastShootTime()
 end
 
+local MEMORY_BREAKABLE = 4
+
 function SWEP:DealDamage()
 
     local owner = self:GetOwner()
@@ -409,8 +411,6 @@ function SWEP:DealDamage()
         if IsGlass then
             hitEnt:Fire( "Shatter", tr.HitPos )
         else
-            local _, entMemoryKey = owner.getMemoryOfObject and owner:getMemoryOfObject( hitEnt )
-
             local dmgMul = strength
             if friendly then
                 dmgMul = 0.05
@@ -458,12 +458,12 @@ function SWEP:DealDamage()
             end
 
         end
-        local MEMORY_BREAKABLE = 4
         local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()
 
         if not isSignificant then
             hitEnt:ForcePlayerDrop()
             local oldHealth = hitEnt:Health()
+            local _, entMemoryKey = owner.getMemoryOfObject and owner:getMemoryOfObject( owner:GetTable(), hitEnt )
 
             timer.Simple( 0.1, function()
                 if not IsValid( self ) then return end

@@ -26,6 +26,27 @@ termHunter_WeaponAnalogs = EngineAnalogs
 
 local IsValid = IsValid
 local entMeta = FindMetaTable( "Entity" )
+local wepMeta = FindMetaTable( "Weapon" )
+
+-- i love overoptimisation
+local notAWeaponCache = {}
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_notaweaponcache", function()
+    timer.Create( "term_cache_isnotweapon", 15, 0, function()
+        notAWeaponCache = {}
+
+    end )
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "teardown_notaweaponcache", function()
+    timer.Remove( "term_cache_isnotweapon" )
+    notAWeaponCache = {}
+
+end )
+
+local function boring( ent )
+    if not ent then return end
+    notAWeaponCache[ent] = true
+
+end
 
 function ENT:GetWeapon( myTbl )
     myTbl = myTbl or self:GetTable()
@@ -153,10 +174,13 @@ function ENT:SetupWeapon( wep )
         actwep:SetClip2( wep:Clip2() )
 
         hook.Add( "Think", actwep, function()
-            if not IsValid( wep ) then return end
-            wep:SetClip1( actwep:Clip1() )
-            wep:SetClip2( actwep:Clip2() )
+            wepMeta.SetClip1( wep, wepMeta.Clip1( actwep ) )
+            wepMeta.SetClip2( wep, wepMeta.Clip2( actwep ) )
         end )
+        wep:CallOnRemove( "terminator_stopweaponthinkhack", function( _, actwep2 )
+            hook.Remove( "Think", actwep2 )
+
+        end, actwep )
 
         wep:DeleteOnRemove( actwep )
         actwep:DeleteOnRemove( wep )
@@ -694,30 +718,34 @@ local cratesMaxDistFromGround = 75^2
 local DistToSqr = FindMetaTable( "Vector" ).DistToSqr
 
 function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
-    if not wep then return end
-    wepsTbl = wepsTbl or wep:GetTable()
+    if not IsValid( wep ) then boring( wep ) return end
+    wepsTbl = wepsTbl or entMeta.GetTable( self )
 
-    if not wepsTbl then return end -- ????
+    if not wepsTbl then boring( wep ) return end -- ????
+    if not wep:IsWeapon() then boring( wep ) return false end
 
-    if wepsTbl.terminatorCrappyWeapon then return false end
+    local class = entMeta.GetClass( wep )
+    if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then boring( wep ) return false end
+
+
+    if wepsTbl.terminatorCrappyWeapon then boring( wep ) return false end
     if IsValid( entMeta.GetOwner( wep ) ) and not doingHolstered then return false end
 
-    local wepsParent = wep:GetParent()
+    local wepsParent = entMeta.GetParent( wep )
     if IsValid( wepsParent ) and not doingHolstered then return false end
 
     if doingHolstered and wepsParent ~= self then return false end
 
-    myTbl = myTbl or self:GetTable()
+    myTbl = myTbl or entMeta.GetTable( self )
     if doingHolstered and wepsParent == self and not myTbl.IsHolsteredWeap( self, wep ) then return false end -- we're already using this one... 
 
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
     if blockWeaponNoticing > CurTime() then return end
 
-    local class = entMeta.GetClass( wep )
-    if class == crateClass and myTbl.HasFists then
+    if class == crateClass and myTbl.HasFists then -- CRATE!
         local wepPos = entMeta.GetPos( wep )
         local result = terminator_Extras.getNearestPosOnNav( wepPos )
-        if result.area and result.area.IsValid and result.area:IsValid() and result.pos:DistToSqr( wepPos ) < cratesMaxDistFromGround then
+        if IsValid( result.area ) and result.pos:DistToSqr( wepPos ) < cratesMaxDistFromGround then
             return true
 
         else
@@ -725,9 +753,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
 
         end
     end
-    if not wep:IsWeapon() then return false end
-    if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then return false end
-    if myTbl.GetWeightOfWeapon( self, wep ) < -2 then return false end
+    if myTbl.GetWeightOfWeapon( self, wep ) < -2 then boring( wep ) return false end
 
     if myTbl.EnemyIsLethalInMelee( self ) and DistToSqr( entMeta.GetPos( wep ), entMeta.GetPos( self:GetEnemy() ) ) < 500^2 then return false end
 
@@ -772,12 +798,15 @@ end
     Ret1: bool | Weapon is melee weapon.
 --]]------------------------------------
 function ENT:IsMeleeWeapon( wep )
-    wep = wep or self:GetActiveWeapon()
+    local myTbl = entMeta.GetTable( self )
+    if myTbl.IsFists( self ) then return true end
 
-    if self:IsFists() then return true end
+    wep = wep or self:GetActiveWeapon()
     if not IsValid( wep ) then return false end
-    if wep.GetCapabilities then
-        local caps = wep:GetCapabilities()
+    local wepTable = entMeta.GetTable( wep )
+
+    if wepTable.GetCapabilities then
+        local caps = wepTable.GetCapabilities( wep )
         if bit.band( caps, CAP_WEAPON_MELEE_ATTACK1 ) ~= 0 then return true end
         if bit.band( caps, CAP_INNATE_MELEE_ATTACK1 ) ~= 0 then return true end
 
@@ -785,7 +814,7 @@ function ENT:IsMeleeWeapon( wep )
     if wep.IsMeleeWeapon then return true end
     if wep.IsMelee then return true end
 
-    local range = self:GetWeaponRange()
+    local range = myTbl.GetWeaponRange( self, myTbl, wep, wepTable )
     if range and range < 150 then return true end
 
     return false
@@ -802,7 +831,7 @@ function ENT:IsFists( myTbl )
 
     local wep = myTbl.GetWeapon( self, myTbl )
     if not IsValid( wep ) then return end
-    if wep:GetClass() == myTbl.TERM_FISTS then return true end
+    if entMeta.GetClass( wep ) == myTbl.TERM_FISTS then return true end
 
     return nil
 
@@ -895,18 +924,24 @@ local function weapDamage( wep )
 
 end
 
-function ENT:GetWeaponRange( myTbl )
-    myTbl = myTbl or self:GetTable()
-    local wep = self:GetActiveLuaWeapon( myTbl ) or self:GetActiveWeapon()
+function ENT:GetWeaponRange( myTbl, wep, wepTable )
+    myTbl = myTbl or entMeta.GetTable( self )
 
-    if not IsValid( wep ) then return math.huge end
-    if wep.ArcCW then return wep.Range * 52 end -- HACK
-    if isnumber( wep.Range ) then return wep.Range end
-    if isnumber( wep.MeleeWeaponDistance ) then return wep.MeleeWeaponDistance end
-    if isnumber( wep.HitRange ) then return wep.HitRange end
+    if not myTbl.GetActiveLuaWeapon then ErrorNoHaltWithStack() end
+    wep = wep or myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
+    if not IsValid( wep ) then return math.huge end -- our eyes have infinite range
 
-    local shotgun = string.find( wep:GetClass(), "shotgun" )
+    wepTable = wepTable or entMeta.GetTable( wep )
+
+    if wepTable.ArcCW then return wepTable.Range * 52 end -- HACK
+    if isnumber( wepTable.Range ) then return wepTable.Range end
+    if isnumber( wepTable.MeleeWeaponDistance ) then return wepTable.MeleeWeaponDistance end
+    if isnumber( wepTable.HitRange ) then return wepTable.HitRange end
+
+    local shotgun = string.find( entMeta.GetClass( wep ), "shotgun" )
     local spread = weapSpread( wep )
+
+    local range
 
     if spread then
         local bulletCount = weapBulletCount( wep )
@@ -922,7 +957,7 @@ function ENT:GetWeaponRange( myTbl )
             return 500
 
         end
-        local range = math.abs( num - 0.05 )
+        range = math.abs( num - 0.05 )
         range = range * 2000 -- make num big
         range = range ^ 2.05 -- this works p good
         range = range + 500 -- cut off the really spready stuff
@@ -932,11 +967,17 @@ function ENT:GetWeaponRange( myTbl )
 
         end
 
+        wepTable.Range = range -- sorry for caching this with generic name, oh not sorry actually
         return range
 
     end
 
-    if shotgun then return 800 end
+    if shotgun then
+        range = 800
+        wepTable.Range = range -- still not sorry :(
+        return range
+
+    end
 
     return math.huge
 
@@ -1071,7 +1112,7 @@ function ENT:canGetWeapon()
 
         local distToEnemy = myTbl.DistToEnemy or 0
         local range = wepDat.range or 0
-        local currWeapRange = myTbl.GetWeaponRange( self, currWeap )
+        local currWeapRange = myTbl.GetWeaponRange( self, myTbl, currWeap )
 
         local canHolster = myTbl.CanHolsterWeap( self, currWeap )
         local newIsHolstered = myTbl.IsHolsteredWeap( self, newWeap )
@@ -1110,7 +1151,7 @@ function ENT:GetTheBestWeapon()
     if nextGetBest > CurTime() then return end
 
     -- dont need a wep!
-    if IsValid( self:GetWeapon() ) and self:GetWeaponRange( self:GetWeapon() ) > self.DistToEnemy then return end
+    if IsValid( self:GetWeapon() ) and self:GetWeaponRange() > self.DistToEnemy then return end
     self.terminator_NeedsAWeaponNow = true
     self.term_NextNeedsAWeaponNow = CurTime() + math.random( 10, 20 )
 
@@ -1136,7 +1177,7 @@ function ENT:FindWeapon( myTbl )
         if not CanPickupWeapon( self, holsteredWeap, true, myTbl ) then continue end
 
         local wepWeight = myTbl.GetWeightOfWeapon( self, holsteredWeap )
-        local wepRange = myTbl.GetWeaponRange( self, holsteredWeap )
+        local wepRange = myTbl.GetWeaponRange( self, myTbl, holsteredWeap )
 
         if not wep or ( wepWeight > weight + 1 and wepRange >= distToEnemy ) then
             wep = holsteredWeap
@@ -1169,6 +1210,8 @@ function ENT:FindWeapon( myTbl )
 
     for _, potentialWeap in ipairs( found ) do
 
+        if notAWeaponCache[ potentialWeap ] then continue end
+
         local wepsTbl = potentialWeap:GetTable()
         if not CanPickupWeapon( self, potentialWeap, false, myTbl, wepsTbl ) then continue end
 
@@ -1186,7 +1229,7 @@ function ENT:FindWeapon( myTbl )
                 end
                 local clearness = tr.Fraction - 1
                 weight = wepWeight + ( clearness * 5 ) + ( -failedPathsToWeap * 20 )
-                range = myTbl.GetWeaponRange( self, potentialWeap )
+                range = myTbl.GetWeaponRange( self, myTbl, potentialWeap )
                 isBox = wep:GetClass() == "item_item_crate"
 
             end
@@ -1208,7 +1251,7 @@ function ENT:FindWeapon( myTbl )
     if not wep and canPickupBest and needsAWepNow then
         wep = bestWep
         weight = myTbl.GetWeightOfWeapon( self, bestWep )
-        range = myTbl.GetWeaponRange( self, bestWep )
+        range = myTbl.GetWeaponRange( self, myTbl, bestWep )
         isBox = wep:GetClass() == "item_item_crate"
 
     end

@@ -6,19 +6,24 @@ function ENT:BehaveStart()
 
 end
 
+local entMeta = FindMetaTable( "Entity" )
+
 local coroutine_yield = coroutine.yield
 local coroutine_resume = coroutine.resume
 local SysTime = SysTime
+local IsValid = IsValid
+local math = math
+local pairs = pairs
 
 function ENT:BehaveUpdate( interval )
-    local myTbl = self:GetTable()
+    local myTbl = entMeta.GetTable( self )
     myTbl.BehaveInterval = interval
 
     if myTbl.m_Physguned then
         myTbl.loco:SetVelocity( vector_origin )
     end
 
-    local disable = myTbl.DisableBehaviour( self )
+    local disable = myTbl.DisableBehaviour( self, myTbl )
 
     if not disable then
         local crouch = myTbl.ShouldCrouch( self, myTbl )
@@ -86,11 +91,11 @@ end
 
 -- process the threads every tick if we can
 function ENT:Think()
-    local myTbl = self:GetTable()
+    local myTbl = entMeta.GetTable( self )
 
     local threads = myTbl.BehaviourThreads
     if not threads then
-        self:NextThink( CurTime() + 0.01 )
+        entMeta.NextThink( self, CurTime() + 0.02 )
         return true
 
     end
@@ -104,7 +109,7 @@ function ENT:Think()
         local distToEnem = myTbl.DistToEnemy
         local distFullBoost = math.max( myTbl.DuelEnemyDist, 500 )
         local distHalfBoost = math.max( myTbl.DuelEnemyDist * 3, 1500 )
-        if distToEnem <= distFullBoost and enem:IsPlayer() then
+        if distToEnem <= distFullBoost and myTbl.IsPlyNoIndex( enem ) then
             thresh = thresh * myTbl.ThreshMulIfDueling
 
         elseif distToEnem <= distHalfBoost then
@@ -135,7 +140,7 @@ function ENT:Think()
         end
     end
     if doneSomething then
-        self:NextThink( CurTime() )
+        entMeta.NextThink( self, CurTime() )
         return true
 
     else

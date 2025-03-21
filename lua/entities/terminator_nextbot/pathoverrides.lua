@@ -259,8 +259,8 @@ end
 
 -- make nextbot recognize two nav areas that dont connect in practice
 function ENT:flagConnectionAsShit( area1, area2 )
-    if not area1:IsValid() then return end
-    if not area2:IsValid() then return end
+    if not IsValid( area1 ) then return end
+    if not IsValid( area2 ) then return end
     if not area1:IsConnected( area2 ) then return end -- no connection to flag! bot probably fell off it's path
 
     local connectionsId = getConnId( area1:GetID(), area2:GetID() )
@@ -447,11 +447,15 @@ local canLadderCached
 local maxExtentCached
 local currExtent
 
-local IsValid = IsValid
+local IsValidCost = IsValid
 local band = bit.band
 
+local navMeta = FindMetaTable( "CNavArea" )
+local ladMeta = FindMetaTable( "CNavLadder" )
+local vecMeta = FindMetaTable( "Vector" )
+
 function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
-    if not IsValid( fromArea ) then return 0 end
+    if not IsValidCost( fromArea ) then return 0 end
 
     if maxExtentCached then
         currExtent = currExtent + 1
@@ -459,27 +463,27 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     end
 
-    local toAreasId = toArea:GetID()
+    local toAreasId = navMeta.GetID( toArea )
     local dist
     local laddering
 
-    if IsValid( ladder ) then
+    if ladder and IsValidCost( ladder ) then
         if not canLadderCached then return -1 end
 
         laddering = true
         -- ladders are kinda dumb
         -- avoid if we can
-        dist = ladder:GetLength() * 2
+        dist = ladMeta.GetLength( ladder ) * 2
         dist = dist + 400
     elseif len > 0 then
         dist = len
     else
-        dist = fromArea:GetCenter():Distance( toArea:GetCenter() )
+        dist = vecMeta.Distance( navMeta.GetCenter( fromArea ), navMeta.GetCenter( toArea ) )
     end
 
-    dist = badConnectionCheck( getConnId( fromArea:GetID(), toAreasId ), dist )
+    dist = badConnectionCheck( getConnId( navMeta.GetID( fromArea ), toAreasId ), dist )
 
-    local costSoFar = fromArea:GetCostSoFar() or 0
+    local costSoFar = navMeta.GetCostSoFar( fromArea ) or 0
 
     if laddering then return costSoFar + dist end
 
@@ -489,7 +493,7 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     end
 
-    local attributes = toArea:GetAttributes()
+    local attributes = navMeta.GetAttributes( toArea )
     local crouching
 
     if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not self:transientAreaPathable( toArea, toAreasId ) then return false end
@@ -506,15 +510,15 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     end
 
     if band( attributes, NAV_MESH_OBSTACLE_TOP ) ~= 0 then
-        if fromArea:HasAttributes( NAV_MESH_OBSTACLE_TOP ) then
+        if navMeta.HasAttributes( fromArea, NAV_MESH_OBSTACLE_TOP ) then
             dist = dist * 4
         else
             dist = dist * 1.5 -- these usually look goofy
         end
     end
 
-    local sizeX = toArea:GetSizeX()
-    local sizeY = toArea:GetSizeY()
+    local sizeX = navMeta.GetSizeX( toArea )
+    local sizeY = navMeta.GetSizeY( toArea )
 
     if sizeX < 26 or sizeY < 26 then
         -- generator often makes small 1x1 areas with this attribute, on very complex terrain
@@ -534,13 +538,13 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
         dist = dist * 20
     end
 
-    if toArea:IsUnderwater() then
+    if navMeta.IsUnderwater( toArea ) then
         dist = dist * 2
     end
 
     local cost = dist + costSoFar
 
-    local deltaZ = fromArea:ComputeAdjacentConnectionHeightChange( toArea )
+    local deltaZ = navMeta.ComputeAdjacentConnectionHeightChange( fromArea, toArea )
     local stepHeight = stepHeightCached
     local jumpHeight = jumpHeightCached
     if deltaZ >= stepHeight then

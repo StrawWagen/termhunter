@@ -3,7 +3,7 @@ AddCSLuaFile()
 --[[------------------------------------
 	Soldier Advanced NextBot
 	
-	This bot USED SB Advanced NextBot Base.
+	This bot USED SB Advanced NextBot Base. https://steamcommunity.com/sharedfiles/filedetails/?id=2148063174
 	
 	He will follow you if you spawn it as Follower. Otherwise he will be neutral to you and other players.
 	If you damage bot, he will shoot you. Also he will shoot enemies if found. If bot friendly, he marks combine as enemies,

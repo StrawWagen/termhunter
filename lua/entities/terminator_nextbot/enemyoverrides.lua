@@ -49,6 +49,11 @@ hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", 
 
 end )
 
+function ENT:IsPlyNoIndex( ent )
+    return playersCache[ent]
+
+end
+
 
 -- i love overoptimisation x 2
 local notEnemyCache = {} -- this cache is used to skip alot of _index calls, perf, on checking if props, static things are enemies
@@ -158,7 +163,7 @@ do
 
     function ENT:EntShootPos( ent, random, entsTbl )
         if not entsTbl and not IsValid( ent ) then return end -- entstbl is supplied if the ent is already valid, so we dont need to check
-        entsTbl = entsTbl or ent:GetTable()
+        entsTbl = entsTbl or entMeta.GetTable( ent )
 
         local hardCache = entsTbl.term_cachedEntShootPos
         if hardCache then return hardCache end
@@ -377,7 +382,7 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
         -- if an ent has killed terminators
         -- we do more thurough checks on it!
         -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-        if not ( isPly or ent:IsNextBot() or ent:IsNPC() or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then return false end
+        if not ( isPly or isNextbotEntClass( ent, class ) or isNpcEntClass( ent, class ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then return false end
         krangledKiller = true
 
     end
@@ -394,14 +399,14 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     if class == "rpg_missile" then return false end
     if class == "env_flare" then return false end
 
-    local isDeadNPC = isNpcEntClass( ent, class ) and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and ent:GetInternalVariable( "m_takedamage" ) == 0 )
+    local isDeadNPC = isNpcEntClass( ent, class ) and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and entMeta.GetInternalVariable( ent, "m_takedamage" ) == 0 )
 
     if not entsTbl.TerminatorNextBot and isDeadNPC then return false end
-    if ( entsTbl.TerminatorNextBot or not isNpcEntClass( ent, class ) ) and ent:Health() <= 0 then return false end
+    if ( entsTbl.TerminatorNextBot or not isNpcEntClass( ent, class ) ) and entMeta.Health( ent ) <= 0 then return false end
 
     local killerNotChummy = killer and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
-    local memory, _ = myTbl.getMemoryOfObject( self, ent )
-    local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.GetRelationship( self, ent ) == D_HT or krangledKiller or killerNotChummy
+    local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
+    local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.TERM_GetRelationship( self, myTbl, ent ) == D_HT or krangledKiller or killerNotChummy
     if not knowsItsAnEnemy then return false end
 
     if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
@@ -428,7 +433,7 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     local noHealthChangeCount = entsTbl.term_NoHealthChangeCount
     if myTbl.JudgesEnemies and noHealthChangeCount then
-        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 100 + ( self:GetCreationID() % 100 ) )
+        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 100 + ( entMeta.GetCreationID( self ) % 100 ) )
         if weirdUnkillable then return false end
 
     end
@@ -540,7 +545,7 @@ do
 
             local rang = self:GetRangeSquaredTo( curr )
             if not rang then continue end -- ???????
-            local _, pr = myTbl.GetRelationship( self, curr )
+            local _, pr = myTbl.TERM_GetRelationship( self, myTbl, curr )
 
             if not ignorePriority and rang <= closeEnemDistSqr then
                 -- too close, we now ignore priority for all enemies, focus on proximity
@@ -575,34 +580,51 @@ do
     local DEF_RELATIONSHIP_PRIORITY = INT_MIN
 
     --[[------------------------------------
-        Name: NEXTBOT:GetRelationship
-        Desc: Returns how bot feels about this entity.
-        Arg1: Entity | ent | Entity to get disposition from.
+        Name: NEXTBOT:TERM_GetRelationship
+        Desc: Returns how bot feels about this entity, optimized.
+        Arg1: self's GetTable
+        Arg2: Entity | ent | Entity to get disposition from.
         Ret1: number | Priority disposition. See D_* Enums.
         Ret2: number | Priority of disposition.
     --]]------------------------------------
-    function ENT:GetRelationship( ent )
+    function ENT:TERM_GetRelationship( myTbl, ent )
         local d, priority
 
-        local entr = self.m_EntityRelationships[ent]
+        local entr = myTbl.m_EntityRelationships[ent]
         if entr then
             d, priority = entr[1], entr[2]
         end
 
-        local classr = self.m_ClassRelationships[ent:GetClass()]
+        local classr = myTbl.m_ClassRelationships[ entMeta.GetClass( ent )]
         if classr and ( not priority or classr[2] > priority ) then
             d, priority = classr[1], classr[2]
         end
 
         -- killers are higher priority
-        local killerStatus = ent.isTerminatorHunterKiller
+        local killerStatus = myTbl.isTerminatorHunterKiller
         if priority and killerStatus then
             local mul = 1 + ( killerStatus * 0.1 )
             priority = priority * mul
 
         end
 
-        return d or D_NU,priority or DEF_RELATIONSHIP_PRIORITY
+        priority = priority or DEF_RELATIONSHIP_PRIORITY
+        d = d or D_NU
+
+        return d, priority
+
+    end
+
+    -- for non-term code that won't supply myTbl
+    function ENT:GetRelationship( ent )
+        local myTbl = entMeta.GetTable( self )
+        return myTbl.TERM_GetRelationship( self, myTbl, ent )
+
+    end
+
+    function ENT:Disposition( ent )
+        local myTbl = entMeta.GetTable( self )
+        return myTbl.TERM_GetRelationship( self, myTbl, ent )
 
     end
 end
