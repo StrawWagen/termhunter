@@ -881,6 +881,9 @@ function ENT:CanStandAtPos( myTbl, pos, endPos )
         mins = bounds[1] * scale,
         maxs = bounds[2] * scale,
     }
+
+    trDat.mins.z = trDat.mins.z + myTbl.loco:GetStepHeight() -- dont hit it if we can step over it!
+
     local result = util.TraceHull( trDat )
 
     local canStand = not result.Hit and not result.StartSolid

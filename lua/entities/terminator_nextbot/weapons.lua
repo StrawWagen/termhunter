@@ -845,8 +845,11 @@ function ENT:DoFists()
 
     end
     self.terminator_NextWeaponPickup = CurTime() + 2.5
-    self:Give( self.TERM_FISTS )
+    local fists = self:Give( self.TERM_FISTS )
+    if self.FistRangeMul then
+        fists.Range = fists.Range * self.FistRangeMul
 
+    end
 end
 
 function ENT:GiveAmmo()
@@ -927,7 +930,8 @@ end
 function ENT:GetWeaponRange( myTbl, wep, wepTable )
     myTbl = myTbl or entMeta.GetTable( self )
 
-    if not myTbl.GetActiveLuaWeapon then ErrorNoHaltWithStack() end
+    if not myTbl.GetActiveLuaWeapon then ErrorNoHaltWithStack() end -- you did it wrong
+
     wep = wep or myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
     if not IsValid( wep ) then return math.huge end -- our eyes have infinite range
 

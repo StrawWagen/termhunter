@@ -251,7 +251,7 @@ if SERVER then
 
     function ENT:SwitchToDefaultWeapon()
         if not self.TERM_FISTS then return end
-        self:Give( self.TERM_FISTS )
+        self:DoFists()
 
     end
 

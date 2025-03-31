@@ -3059,7 +3059,7 @@ function ENT:DoDefaultTasks()
                 -- edge case
                 if not IsValid( wep ) then
                     if myTbl.HasFists then
-                        myTbl.Give( self, myTbl.TERM_FISTS )
+                        self:DoFists()
                         return
 
                     elseif IsValid( enemy ) then
@@ -3078,6 +3078,7 @@ function ENT:DoDefaultTasks()
 
                 local doShootingPrevent = myTbl.PreventShooting
 
+                -- drop crap wep
                 if wep.terminatorCrappyWeapon == true and myTbl.HasFists then
                     myTbl.DoFists( self )
 
