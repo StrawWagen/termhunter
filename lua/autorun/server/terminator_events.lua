@@ -59,7 +59,6 @@ end
 local fallback = -111112 -- nobody will ever crack this
 local function makeSureTheyGotDedi( ply, varName )
     local dedi = ply:GetInfoNum( varName, fallback )
-    print( dedi, fallback )
     if dedi == fallback then
         debugPrint( "asking for ply to setup var", ply, varName )
         SetGlobal2Bool( varName, true ) -- these cant be spoofed, right??
@@ -224,8 +223,6 @@ timer.Create( timerName, 30, 0, function()
                 continue
 
             end
-
-            print( theyGot, event.dedicationInfoNum )
 
             dedication = getDedication( event.dedicationInfoNum )
 
