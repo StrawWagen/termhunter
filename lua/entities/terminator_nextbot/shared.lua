@@ -2900,7 +2900,7 @@ function ENT:TermThink( myTbl ) -- inside coroutine :)
 end
 
 -- stub
-function ENT:AdditionalInitialize()
+function ENT:AdditionalInitialize( _myTbl )
 end
 
 -- stub
@@ -2983,7 +2983,7 @@ function ENT:Initialize()
     myTbl.DoCustomTasks( self, myTbl.TaskList )
 
     -- for stuff based on this
-    myTbl.AdditionalInitialize( self )
+    myTbl.AdditionalInitialize( self, myTbl )
     myTbl.InitializeSpeaking( self )
     myTbl.InitializeHealthRegen( self )
     myTbl.InitializeDrowning( self, myTbl )
