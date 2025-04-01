@@ -176,9 +176,20 @@ local aiDisabledVar = GetConVar( "ai_disabled" )
 local freebies = {}
 
 local thinkInterval = 30
-local timerName = "terminator_eventroll"
-timer.Create( timerName, thinkInterval, 0, function()
+local eventRollTimerName = "terminator_eventroll"
+
+local function startEventRollTimer()
+    timer.Create( eventRollTimerName, thinkInterval, 0, function()
+        terminator_Extras.eventRollThink()
+
+    end )
+end
+
+startEventRollTimer()
+
+function terminator_Extras.eventRollThink()
     if not enabledVar:GetBool() then return end
+    if not aPlyIsLoaded() then return end
 
     local haveNav = navmesh.GetNavAreaCount() > 0
     local activeEvents = terminator_Extras.activeEvents
@@ -207,7 +218,7 @@ timer.Create( timerName, thinkInterval, 0, function()
                 debugPrint( "waiting for firstply to setup infonum", event.dedicationInfoNum )
                 freebies[name] = true
                 thinkInterval = 5
-                timer.Adjust( timerName, thinkInterval )
+                timer.Adjust( eventRollTimerName, thinkInterval )
                 continue
 
             end
@@ -258,7 +269,7 @@ timer.Create( timerName, thinkInterval, 0, function()
     debugPrint( pickedEventName, " PICKED ", pickedVariant.variantName )
     terminator_Extras.startEvent( pickedEventName, pickedVariantInd )
 
-end )
+end
 
 
 function terminator_Extras.startEvent( eventName, pickedVariantInd )
@@ -581,4 +592,17 @@ hook.Add( "PreCleanupMap", "terminator_resetevents", function()
     end
 
     terminator_Extras.activeEvents = {}
+end )
+
+
+local nextCheck = CurTime() + 120
+
+hook.Add( "Think", "terminator_restartthedamntimer", function()
+    local cur = CurTime()
+    if nextCheck > cur then return end
+    nextCheck = cur + 120
+
+    if timer.Exists( eventRollTimerName ) then return end
+    startEventRollTimer()
+
 end )
