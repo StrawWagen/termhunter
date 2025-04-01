@@ -254,7 +254,8 @@ function ENT:SetupWeapon( wep )
     --[[
     -- debug for testing holstering
     timer.Simple( 0.5, function()
-        if true then
+        print( wep:GetModelScale() )
+        if false then
             self:DropWeapon()
 
         end

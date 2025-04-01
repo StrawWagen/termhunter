@@ -3,6 +3,8 @@
 -- ENT.term_SoundLevelShift
 -- ENT.term_SoundDSP
 
+local CurTime = CurTime
+
 function asNumber( ent, entsTbl, var )
     if not var then return 0 end
     if isfunction( var ) then return var( ent, entsTbl ) end
@@ -17,15 +19,11 @@ function ENT:InitializeSpeaking()
 
 end
 
-local function nextSpeakWhenSoundIsOver( ent, path )
-    local additional = math.random( 10, 15 ) / 25
-
-    local duration = SoundDuration( path ) or 1
-    if string.EndsWith( path, ".mp3" ) and duration == 60 then --bug
-        duration = 5
-
-    end
-    ent.NextTermSpeak = CurTime() + ( duration + additional )
+local function nextSpeakWhenSoundIsOver( ent, path, pitch )
+    local duration = SoundDuration( path ) or 1 -- FOLLOW GMOD WIKI FOR ACCURATE MP3 DURATIONS! SAVE WITH CONSTANT BITRATE!
+    local durDivisor = pitch / 100
+    duration = duration / durDivisor
+    ent.NextTermSpeak = CurTime() + duration
 
 end
 
@@ -83,7 +81,6 @@ function ENT:SpokenLinesThink( myTbl )
             term_IdleLoopingSound:ChangeVolume( 1, math.Rand( 0.45, 0.75 ) )
 
             if dsp ~= 0 then
-                dsp = 
                 term_IdleLoopingSound:SetDSP( dsp )
 
             end
@@ -136,11 +133,15 @@ function ENT:SpokenLinesThink( myTbl )
         local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
         local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
         -- EmitSentence doesnt take dsp
-        EmitSentence( sentence, self:GetShootPos(), self:EntIndex(), CHAN_AUTO, 1, 80 + lvlShift, 0, 100 + pitShift )
+
+        local pitch = 100 + pitShift
+        EmitSentence( sentence, self:GetShootPos(), self:EntIndex(), CHAN_AUTO, 1, 80 + lvlShift, 0, pitch )
 
         local additional = math.random( 10, 15 ) / 50
 
         local duration = SentenceDuration( sentence ) or 1
+        local durDivisor = pitch / 100
+        duration = duration / durDivisor
         myTbl.NextTermSpeak = CurTime() + ( duration + additional )
         return
 
@@ -172,9 +173,11 @@ function ENT:SpokenLinesThink( myTbl )
         local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
         local dsp = asNumber( self, myTbl, myTbl.term_SoundDSP )
 
-        self:EmitSound( path, 76 + lvlShift, 100 + pitShift, 1, CHAN_VOICE, sndFlags, dsp )
+        local pitch = 100 + pitShift
 
-        nextSpeakWhenSoundIsOver( self, path )
+        self:EmitSound( path, 76 + lvlShift, pitch, 1, CHAN_VOICE, sndFlags, dsp )
+
+        nextSpeakWhenSoundIsOver( self, path, pitch )
         return
 
     end
@@ -192,8 +195,11 @@ function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
         pathIn = pathIn[ math.random( 1, #pathIn ) ]
 
     end
-    self:EmitSound( pathIn, 76 + lvlShift, 100 + pitShift + specificPitchShift, 1, CHAN_VOICE, sndFlags, dsp )
-    nextSpeakWhenSoundIsOver( self, pathIn )
+
+    local pitch = 100 + pitShift + specificPitchShift
+
+    self:EmitSound( pathIn, 76 + lvlShift, pitch, 1, CHAN_VOICE, sndFlags, dsp )
+    nextSpeakWhenSoundIsOver( self, pathIn, pitch )
 
 end
 
