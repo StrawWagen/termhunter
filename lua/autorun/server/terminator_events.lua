@@ -103,6 +103,9 @@ function terminator_Extras.RegisterEvent( event, name )
     local defaultChance = event.defaultPercentChancePerMin
     if not isnumber( defaultChance ) then ErrorNoHaltWithStack( name .. ": Invalid .defaultPercentChancePerMin" ) return end
 
+    -- above, validate event
+    -- below, setup helpers and parse it
+
     local varName = chanceVarNamePrefix .. name
 
     event.eventChanceVar = CreateConVar( varName, -1, FCVAR_ARCHIVE, "% Chance for a \"" .. name .. "\" event to start every minute. -1 for default, " .. defaultChance, -1, 100 )
@@ -118,25 +121,7 @@ function terminator_Extras.RegisterEvent( event, name )
     doEventChance() -- set it on creation
     cvars.AddChangeCallback( varName, function() doEventChance() end, "term_eventlocalvar" ) -- live updates
 
-    -- above, validate event
-    -- below, setup helpers and parse it
-
     event.eventName = name -- helper
-
-    for _, variant in ipairs( variants ) do
-        local toRepeat = {}
-        for index, toSpawn in pairs( variant.unspawnedStuff ) do
-            local repeats = toSpawn.repeats
-            if not isnumber( repeats ) then continue end
-
-            for _ = 1, repeats do
-                local copy = table.Copy( variant )
-                copy.repeats = nil
-                table.insert( toRepeat, index + 1, copy )
-
-            end
-        end
-    end
 
     if event.doesDedicationProgression then
         event.dedicationInfoNum = "cl_termevent_" .. name .. "_dedication"
@@ -190,8 +175,9 @@ terminator_Extras.InitializeAllEvents()
 local aiDisabledVar = GetConVar( "ai_disabled" )
 local freebies = {}
 
+local thinkInterval = 30
 local timerName = "terminator_eventroll"
-timer.Create( timerName, 30, 0, function()
+timer.Create( timerName, thinkInterval, 0, function()
     if not enabledVar:GetBool() then return end
 
     local haveNav = navmesh.GetNavAreaCount() > 0
@@ -220,6 +206,8 @@ timer.Create( timerName, 30, 0, function()
             if not theyGot then
                 debugPrint( "waiting for firstply to setup infonum", event.dedicationInfoNum )
                 freebies[name] = true
+                thinkInterval = 5
+                timer.Adjust( timerName, thinkInterval )
                 continue
 
             end
@@ -256,6 +244,12 @@ timer.Create( timerName, 30, 0, function()
         end
 
         if pickedVariantInd then break end
+
+    end
+
+    if thinkInterval ~= 30 then
+        thinkInterval = 30
+        timer.Adjust( thinkInterval, thinkInterval )
 
     end
 
@@ -402,8 +396,8 @@ local function eventManage( event )
             local teammate = event.spawnedAlive[math.random( 1, #event.spawnedAlive )]
             if IsValid( teammate ) and teammate.GetShootPos then
                 local stepHeight = teammate.loco:GetStepHeight()
-                local teammateAreas = navmesh.Find( teammate:GetPos(), math.random( 2000, 5000 ), stepHeight, stepHeight )
-                spawnPos = steppedRandomRadius( currToSpawn, plyCount, teammateAreas, 4000 )
+                local teammateAreas = navmesh.Find( teammate:GetPos(), math.random( 2000, 6000 ), stepHeight, stepHeight )
+                spawnPos = steppedRandomRadius( currToSpawn, plyCount, teammateAreas, 6000 )
 
             else
                 spawnPos = steppedRandomRadius( currToSpawn, plyCount, allAreas, 4000 )
@@ -411,7 +405,16 @@ local function eventManage( event )
             end
         end
         if spawnPos then
-            local toSpawn = table.remove( activeVariant.unspawnedStuff, 1 )
+            local toSpawn = activeVariant.unspawnedStuff[1]
+            if toSpawn.repeats and toSpawn.repeats >= 1 then
+                toSpawn.repeats = toSpawn.repeats + -1
+                toSpawn = table.Copy( toSpawn )
+
+            else
+                toSpawn = table.remove( activeVariant.unspawnedStuff, 1 )
+
+            end
+
 
             local curr = ents.Create( toSpawn.class )
             if not IsValid( curr ) then return "SPAWNFAIL" end -- :(

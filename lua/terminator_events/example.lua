@@ -1,6 +1,6 @@
 
 local newEvent = {
-    defaultPercentChancePerMin = 0.005,
+    defaultPercentChancePerMin = 0.05,
 
     doesDedicationProgression = true,
     navmeshEvent = true,
