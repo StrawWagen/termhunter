@@ -9,6 +9,7 @@ local nextRecieve = 0
 local debuggingVar = GetConVar( "terminator_event_debug" )
 
 local function debugPrint( ... )
+    if not debuggingVar then return end
     if not debuggingVar:GetBool() then return end
     print( ... )
 
