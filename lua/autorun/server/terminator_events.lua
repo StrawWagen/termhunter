@@ -34,14 +34,25 @@ terminator_Extras.defaultSpawnTimeoutTime = hour / 2
 
 local CurTime = CurTime
 
+local activePly
 
-local function getFirstPly()
-    return Entity( 1 )
+local function theActivePlyIs( ply )
+    activePly = ply
 
 end
 
+local function getActivePly()
+    if IsValid( activePly ) then
+        return activePly
+
+    else
+        return Entity( 1 )
+
+    end
+end
+
 local function aPlyIsLoaded()
-    local firstPly = getFirstPly()
+    local firstPly = getActivePly()
     if not IsValid( firstPly ) then return end
     if not firstPly:IsPlayer() then return end
     if not firstPly.GetShootPos then return end
@@ -52,7 +63,7 @@ end
 
 local function getDedication( varName )
     if not aPlyIsLoaded() then return 0 end
-    return getFirstPly():GetInfoNum( varName, 0 ) or 0
+    return getActivePly():GetInfoNum( varName, 0 ) or 0
 
 end
 
@@ -213,7 +224,7 @@ function terminator_Extras.eventRollThink()
 
         local dedication
         if event.dedicationInfoNum then
-            local theyGot = makeSureTheyGotDedi( getFirstPly(), event.dedicationInfoNum )
+            local theyGot = makeSureTheyGotDedi( getActivePly(), event.dedicationInfoNum )
             if not theyGot then
                 debugPrint( "waiting for firstply to setup infonum", event.dedicationInfoNum )
                 freebies[name] = true
@@ -431,7 +442,7 @@ local function eventManage( event )
             if not IsValid( curr ) then return "SPAWNFAIL" end -- :(
             if debugging then
                 local color = Color( 255, 255, 255 )
-                debugoverlay.Line( getFirstPly():GetShootPos() + getFirstPly():GetAimVector() * 50, spawnPos, 5, color, true )
+                debugoverlay.Line( getActivePly():GetShootPos() + getActivePly():GetAimVector() * 50, spawnPos, 5, color, true )
                 debugoverlay.Box( spawnPos, Vector( -25, -25, 0 ), Vector( 25, 25, 0 ), 5, ColorAlpha( color, 50 ) )
 
             end
@@ -477,8 +488,11 @@ local function eventManage( event )
                 if not isParticipating then
                     isParticipating = true
                     event.participatingPlayers[enemy] = isParticipating
-                    makeSureTheyGotDedi( enemy, event.dedicationInfoNum )
+                    makeSureTheyGotDedi( enemy, event.dedicationInfoNum ) -- get em ready!
+                    if not IsValid( activePly ) then
+                        theActivePlyIs( enemy )
 
+                    end
                 end
                 curr.termEvent_HasMet = true
                 curr.termEvent_MetRememberance = 200
@@ -524,6 +538,7 @@ function onConcluded( event )
     local participatorCount = table.Count( event.participatingPlayers )
     if event.dedicationInfoNum and participatorCount > 0 then
         local bestDedication = 0
+        local bestDedicationPly
         local dedications = {}
         for ply, _ in pairs( event.participatingPlayers ) do
             if not IsValid( ply ) then continue end
@@ -532,10 +547,14 @@ function onConcluded( event )
 
             if theirDedication > bestDedication then
                 bestDedication = theirDedication
+                bestDedicationPly = ply
 
             end
         end
-        for ply, _ in pairs( event.participatingPlayers ) do
+        if not IsValid( bestDedicationPly ) then return end
+        theActivePlyIs( bestDedicationPly )
+
+        for ply, _ in pairs( event.participatingPlayers ) do -- this is kinda stupid, should base dedi off of the variant's dedi
             if not IsValid( ply ) then continue end
 
             -- catchup dedication faster for people lagging behind
