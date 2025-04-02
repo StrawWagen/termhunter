@@ -283,6 +283,16 @@ if SERVER then
     function ENT:StopMoving()
     end
 
+    function ENT:GetUserGroup()
+        return "user"
+
+    end
+
+    function ENT:Crouching()
+        return self:IsCrouching()
+
+    end
+
 else -- CLIENT
     function ENT:ShouldDrawLocalPlayer() -- for when you dont want to double-draw stuff
         return true
