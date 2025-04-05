@@ -383,7 +383,8 @@ local MEMORY_DAMAGING = 64
 function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     local attacker = dmg:GetAttacker()
-    if IsValid( attacker ) then
+    local validAttacker = IsValid( attacker )
+    if validAttacker then
         attacker.term_NoHealthChangeCount = nil -- stop ignoring whatever attacked us!
 
     end
@@ -397,9 +398,10 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
     local add = math.Clamp( dmg:GetDamage(), 0, 250 ) / 250
     self.term_NextNoticeDamage = cur + add
 
-    local parent = attacker:GetParent()
+    local parent = validAttacker and attacker:GetParent() or nil
 
-    if attacker ~= self and not ( IsValid( parent ) and parent == self ) then -- dont feud/look at fire or self damage
+     -- on fire damage is from fire parented to us, ignore that for feuding and looking at damage
+    if validAttacker and attacker ~= self and not ( IsValid( parent ) and parent == self ) then
         self:MakeFeud( attacker )
 
         local dmgSourcePos = self:getBestPos( attacker )
@@ -434,19 +436,29 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     if dmg:GetDamage() <= 75 then return end
 
+    local cheap = self.IsStupid or self.IsFodder -- durr
+
     -- make groups of bots react to 1 getting damaged
     local nextGroupAnger = self.term_NextDamagedGroupAnger or 0
-    if attacker and attacker == self:GetEnemy() and nextGroupAnger < cur then
+    if validAttacker and attacker == self:GetEnemy() and nextGroupAnger < cur then
         self.term_NextDamagedGroupAnger = cur + 5
+
+        self:Anger( math.random( 5, 10 ) )
 
         for _, ally in ipairs( self:GetNearbyAllies() ) do
             if not IsValid( ally ) then return end -- GetNearbyAllies is cached
             if ally:GetEnemy() ~= attacker then continue end
 
-            timer.Simple( math.Rand( 0.5, 1.5 ), function()
+            local delay = math.Rand( 0.5, 1.5 )
+            if cheap then
+                delay = delay * math.Rand( 1, 3 )
+
+            end
+
+            timer.Simple( delay, function()
                 if not IsValid( ally ) then return end
                 if not ally.Anger then return end
-                ally.term_NextDamagedGroupAnger = CurTime() + 1
+                ally.term_NextDamagedGroupAnger = CurTime() + delay
                 ally:Anger( math.random( 5, 10 ) )
 
             end )
@@ -465,7 +477,7 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
         end
     end
 
-    if self.IsStupid or self.IsFodder then return end -- durr
+    if cheap then return end
 
     local radius = dmg:GetDamage()
     radius = math.min( radius, 250 ) -- no huge radius pls

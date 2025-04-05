@@ -2830,6 +2830,9 @@ ENT.Term_StepSoundTimeMul = 0.6
 -- enable/disable spokenlines logic
 ENT.CanSpeak = false
 
+-- enable/disable hearing things
+ENT.CanHearStuff = true
+
 ENT.DuelEnemyDist = 550 -- dist to move from flank or follow enemy, to duel enemy
 
 -- all other relationships are created by MakeFeud in enemyoverrides when something damages us
@@ -2899,20 +2902,20 @@ function ENT:TermThink( myTbl ) -- inside coroutine :)
     --]]
 end
 
--- stub
-function ENT:AdditionalInitialize( _myTbl )
+-- stub for entities based on this
+-- passes terminator tasks, so you can copy over the base reallystuckhandler, etc
+function ENT:DoCustomTasks( _baseTasks ) -- old tasks
 end
 
--- stub
-function ENT:DoCustomTasks( _baseTasks ) -- old tasks
+function ENT:AdditionalInitialize( _myTbl )
 end
 
 
 function ENT:Initialize()
     -- internal stuff, don't edit unless you know what you're doing!
+    -- use additionalInitialize for your own entities based off this
 
     BaseClass.Initialize( self )
-    terminator_Extras.RegisterListener( self )
 
     local myTbl = self:GetTable()
     local myPos = self:GetPos()
@@ -2987,6 +2990,7 @@ function ENT:Initialize()
     myTbl.InitializeSpeaking( self )
     myTbl.InitializeHealthRegen( self )
     myTbl.InitializeDrowning( self, myTbl )
+    myTbl.InitializeListening( self, myTbl )
 
     myTbl.DoHardcodedRelations( self )
 
@@ -3029,7 +3033,6 @@ function ENT:Initialize()
                 self:TryGeneratingAreas()
 
             end
-
         end
         myTbl.RunTask( self, "OnCreated" )
         -- see enemyoverrides

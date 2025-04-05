@@ -1,5 +1,7 @@
 local listening = nil
-local entsMeta = FindMetaTable( "Entity" )
+local entMeta = FindMetaTable( "Entity" )
+local vecMeta = FindMetaTable( "Vector" )
+local ipairs = ipairs
 local FL_NOTARGET = FL_NOTARGET
 local IsValid = IsValid
 local math = math
@@ -7,15 +9,21 @@ local math = math
 terminator_Extras = terminator_Extras or {}
 terminator_Extras.listeners = terminator_Extras.listeners or {}
 
+local listenersToCleanup = {}
+
 local function cleanupListenerTbl()
     listening = true
-    for index, curr in ipairs( terminator_Extras.listeners ) do
-        if not IsValid( curr ) then
-            table.remove( terminator_Extras.listeners, index )
+    local listeners = terminator_Extras.listeners
+    for index, curr in pairs( listeners ) do
+        if listenersToCleanup[curr] or not IsValid( curr ) then
+            table.remove( listeners, index )
 
         end
     end
-    if #terminator_Extras.listeners <= 0 then
+
+    listenersToCleanup = {}
+
+    if #listeners <= 0 then
         listening = nil
 
     end
@@ -23,26 +31,27 @@ end
 
 cleanupListenerTbl()
 
+-- adds something to the listener table
+-- ENT:SaveSoundHint( source, valuable, emittingEnt ) is called whenever it hears anything
+-- valuable is true if the sound definitely has an enemy player/npc emitting it
+
 function terminator_Extras.RegisterListener( listener )
+    if not IsValid( listener ) then return end
+    if listener.term_IsListening then return end
+
     timer.Simple( 0, function()
         cleanupListenerTbl()
 
     end )
 
-    if not IsValid( listener ) then return end
     table.insert( terminator_Extras.listeners, listener )
+    listener.term_IsListening = true
 
     listener:CallOnRemove( "terminator_cleanupsoundlisteners", function()
-        timer.Simple( 0, function()
-            cleanupListenerTbl()
+        listenersToCleanup[listener] = true
+        cleanupListenerTbl()
 
-        end )
     end )
-end
-
-local function sqrDistLessThan( Dist1, Dist2 )
-    Dist2 = Dist2 ^ 2
-    return Dist1 < Dist2
 end
 
 local function terminatorsSendSoundHint( thing, src, range, valuable )
@@ -50,8 +59,8 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     if not src then return end
     if range < 200 then return end -- dont waste perf on useless sounds!
     for _ = 1, 10 do
-        if IsValid( thing ) and thing.GetParent and IsValid( thing:GetParent() ) then -- find true parent
-            thing = thing:GetParent()
+        if IsValid( thing ) and thing.GetParent and IsValid( entMeta.GetParent( thing ) ) then -- find true parent
+            thing = entMeta.GetParent( thing )
 
         else
             break
@@ -59,11 +68,15 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
         end
     end
 
-    if IsValid( thing ) then
-        if entsMeta.IsFlagSet( thing, FL_NOTARGET ) then return end
-        if thing.usedByTerm then return end
+    local thingTbl
 
-        local last = thing.term_LastSoundEmit
+    if IsValid( thing ) then
+        if entMeta.IsFlagSet( thing, FL_NOTARGET ) then return end
+
+        thingTbl = entMeta.GetTable( thing )
+        if thingTbl.usedByTerm then return end
+
+        local last = thingTbl.term_LastSoundEmit
         local cur = CurTime()
         if last then
             local since = cur - last.time
@@ -74,7 +87,7 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
 
             end
         end
-        thing.term_LastSoundEmit = {
+        thingTbl.term_LastSoundEmit = {
             time = cur,
             range = range,
             valuable = valuable,
@@ -82,16 +95,20 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
         }
     end
 
-    for _, currTerm in pairs( terminator_Extras.listeners ) do
-        if not IsValid( currTerm ) then continue end
-        if IsValid( thing ) and currTerm.isTerminatorHunterChummy == thing.isTerminatorHunterChummy then continue end -- bots know when sounds are coming from buddies
-        local isNotMe = thing ~= currTerm
-        if isNotMe and sqrDistLessThan( currTerm:GetPos():DistToSqr( src ), range ) then
-            --debugoverlay.Line( currTerm:GetPos(), src, 10, Vector(255,255,255), true )
+    local rangeSqr = range^2
 
-            currTerm:SaveSoundHint( src, valuable, thing )
+    local listeners = terminator_Extras.listeners
 
-        end
+    for _, currTerm in ipairs( listeners ) do
+        if thing == currTerm then continue end
+        if listenersToCleanup[currTerm] then continue end
+
+        local termsTbl = entMeta.GetTable( currTerm )
+        if IsValid( thing ) and termsTbl.isTerminatorHunterChummy == thingTbl.isTerminatorHunterChummy then continue end -- bots know when sounds are coming from buddies
+
+        if vecMeta.DistToSqr( entMeta.GetPos( currTerm ), src ) > rangeSqr then continue end
+        termsTbl.SaveSoundHint( currTerm, src, valuable, thing )
+
     end
 end
 
@@ -118,7 +135,7 @@ local function bulletFireThink( entity, data )
     end
     local customRange = nil
     if IsValid( weap ) then
-        customRange = customRanges[ entsMeta.GetClass( weap ) ]
+        customRange = customRanges[ entMeta.GetClass( weap ) ]
 
     end
     if customRange then
@@ -221,7 +238,7 @@ hook.Add( "StrawBlastDamageInfo", "straw_termalerter_blastdamageinfo", function(
 local function explosionHintThink( entity )
     if not listening then return end
     if not IsValid( entity ) then return end
-    if entsMeta.GetClass( entity ) ~= "env_explosion" then return end
+    if entMeta.GetClass( entity ) ~= "env_explosion" then return end
 
     timer.Simple( 0, function()
 
@@ -246,7 +263,7 @@ end
 
 hook.Add( "OnEntityCreated", "straw_termalerter_explosioninfo", function( ... ) explosionHintThink( ... ) end )
 
-local function handleNormalSound( ent, pos, level, name )
+local function handleNormalSound( ent, pos, level )
     if not listening then return end
     if not pos then return end
 
@@ -296,7 +313,7 @@ local function emitSoundThink( soundDat )
     if not listening then return end
     local entity = soundDat.Entity
     if not IsValid( entity ) then return end
-    local class = entsMeta.GetClass( entity )
+    local class = entMeta.GetClass( entity )
     local valid = nil
     if string_StartsWith( class, "item" ) then valid = true end
     if string_StartsWith( class, "prop" ) then valid = true end

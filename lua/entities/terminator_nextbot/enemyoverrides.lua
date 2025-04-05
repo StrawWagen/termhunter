@@ -1371,3 +1371,10 @@ do
 
     end )
 end
+
+
+function ENT:InitializeListening( myTbl )
+    if not myTbl.CanHearStuff then return end
+    terminator_Extras.RegisterListener( self )
+
+end
