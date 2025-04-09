@@ -5652,7 +5652,7 @@ function ENT:DoDefaultTasks()
                         return score
 
                     end
-                    local stalkPos = self:findValidNavResult( scoreData, self:GetPos(), math.Rand( 4000, 5000 ), scoreFunction )
+                    local stalkPos = self:findValidNavResult( scoreData, self:GetPos(), math.Rand( 5000, 7000 ), scoreFunction )
 
                     if stalkPos then
                         --debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
