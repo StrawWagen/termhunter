@@ -1050,6 +1050,9 @@ hook.Add( "PlayerCanPickupWeapon", "TerminatorNextBot", function( ply,wep )
     end
 end )
 
+-- get that weapon!
+-- can unholster a weapon.
+-- or if a weapon is not holstered, returns true, and kills oldTask
 function ENT:getTheWeapon( oldTask, theWep, nextTask, theDat )
     if IsValid( theWep ) and self:IsHolsteredWeap( theWep ) then
         -- equip holstered weap
@@ -1064,11 +1067,13 @@ function ENT:getTheWeapon( oldTask, theWep, nextTask, theDat )
     end
 end
 
+-- find a weapon... then
 function ENT:NextWeapSearch( time )
     self.nextWeapSearch = CurTime() + time
 
 end
 
+-- find a weapon, NOW!
 function ENT:ResetWeaponSearchTimers()
     self.terminator_NextWeaponPickup = 0
     self.nextWeapSearch = CurTime() + 0.1
@@ -1076,11 +1081,9 @@ function ENT:ResetWeaponSearchTimers()
 
 end
 
+-- used everywhere to find weapons
 function ENT:canGetWeapon()
-    -- can't do path to it
     local myTbl = self:GetTable()
-    local nextNewPath = myTbl.nextNewPath or 0
-    if nextNewPath > CurTime() then return false end
 
     local armed = not myTbl.IsFists( self )
     local nextSearch = myTbl.nextWeapSearch or 0
@@ -1095,7 +1098,9 @@ function ENT:canGetWeapon()
 
     if not IsValid( newWeap ) then return false, nil end
 
-    local justPickupTheDamnWep = not armed and myTbl.IsReallyAngry( self ) and not IsValid( newWeap:GetParent() ) and self:GetRangeTo( newWeap ) < 500
+    local reallyAngry = myTbl.IsReallyAngry( self )
+
+    local justPickupTheDamnWep = not armed and reallyAngry and not IsValid( newWeap:GetParent() ) and self:GetRangeTo( newWeap ) < 500
 
     -- we're pissed, just pick it up!
     if not justPickupTheDamnWep then
@@ -1110,6 +1115,12 @@ function ENT:canGetWeapon()
         local currWeap = self:GetActiveWeapon()
         if not IsValid( currWeap ) then return true, newWeap end
 
+        local badWepTolerance = 1
+        if reallyAngry then -- blinded by rage
+            badWepTolerance = 3
+
+        end
+
         local rand = math.random( 1, 100 )
 
         local weapWeight = wepDat.weight or 0
@@ -1122,25 +1133,30 @@ function ENT:canGetWeapon()
         local canHolster = myTbl.CanHolsterWeap( self, currWeap )
         local newIsHolstered = myTbl.IsHolsteredWeap( self, newWeap )
 
-        local isBetter = weapWeight > ( currWeapWeight + 1 )
+        local isBetter = weapWeight > ( currWeapWeight + badWepTolerance )
         local newHasRange = range > distToEnemy
         local oldHasRange = currWeapRange > distToEnemy
 
         local fillOutInventory = newHasRange and canHolster and not newIsHolstered and rand > 80 and newWeap:GetClass() ~= self:GetWeapon():GetClass()
 
         local betterWeap = isBetter or ( newHasRange and not oldHasRange ) or fillOutInventory
-        local badWepOrBox = wepDat.isBox and myTbl.IsFists( self ) and weapWeight <= 1 and not myTbl.IsSeeEnemy
+        local badWepOrBox = ( wepDat.isBox or weapWeight <= 1 ) and myTbl.IsFists( self ) and not myTbl.IsSeeEnemy -- we dont have a weapon, just get ANYTHING!
 
         local betterWeapOrJustHappyTohave = betterWeap or badWepOrBox
-        local canGet = IsValid( newWeap ) and betterWeapOrJustHappyTohave
-        return canGet, newWeap
+        return betterWeapOrJustHappyTohave, newWeap
 
     else
+        -- can't do path to it, wait!
+        local nextNewPath = myTbl.nextNewPath or 0
+        if nextNewPath > CurTime() then return false end
+
         return true, newWeap
 
     end
 end
 
+-- tells bot to get the best weapon it ever found, even if it's halfway across the map
+-- used in term tasks when enemy is unreachable 
 function ENT:GetTheBestWeapon()
     local nextGetBest = self.term_NextNeedsAWeaponNow
     if not nextGetBest then
@@ -1157,6 +1173,8 @@ function ENT:GetTheBestWeapon()
 
     -- dont need a wep!
     if IsValid( self:GetWeapon() ) and self:GetWeaponRange() > self.DistToEnemy then return end
+
+    -- ok, we gotta get a weapon
     self.terminator_NeedsAWeaponNow = true
     self.term_NextNeedsAWeaponNow = CurTime() + math.random( 10, 20 )
 
