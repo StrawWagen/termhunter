@@ -111,7 +111,7 @@ function terminator_Extras.RegisterEvent( event, name )
     local variants = event.variants
     if not istable( variants ) then ErrorNoHaltWithStack( name .. ": Invalid .variants table" ) return end
 
-    local defaultChance = event.defaultPercentChancePerMin
+    local defaultChance = event.defaultPercentChancePerMin -- var name is technically a lie....
     if not isnumber( defaultChance ) then ErrorNoHaltWithStack( name .. ": Invalid .defaultPercentChancePerMin" ) return end
 
     -- above, validate event
@@ -437,7 +437,6 @@ local function eventManage( event )
 
             end
 
-
             local curr = ents.Create( toSpawn.class )
             if not IsValid( curr ) then return "SPAWNFAIL" end -- :(
             if debugging then
@@ -446,9 +445,19 @@ local function eventManage( event )
                 debugoverlay.Box( spawnPos, Vector( -25, -25, 0 ), Vector( 25, 25, 0 ), 5, ColorAlpha( color, 50 ) )
 
             end
+
+            if toSpawn.preSpawnedFunc then
+                toSpawn.preSpawnedFunc( curr, toSpawn )
+
+            end
             debugPrint( "EVENT spawned", curr )
             curr:SetPos( spawnPos )
             curr:Spawn()
+
+            if toSpawn.onSpawnedFunc then
+                toSpawn.onSpawnedFunc( curr, toSpawn )
+
+            end
 
             table.insert( event.spawned, curr )
 

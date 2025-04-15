@@ -4694,6 +4694,12 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdateMotion = function( self, data )
                 local doneCount = data.doneCount or 0
+                local hidingToCheck = data.hidingToCheck
+
+                if not hidingToCheck then -- :clueless:
+                    data.InvalidAfterwards = true
+
+                end
 
                 if data.InvalidAfterwards and data.doneSearchesNearby < 5 then
                     self:TaskFail( "movement_search" )
@@ -4763,7 +4769,6 @@ function ENT:DoDefaultTasks()
                 if data.time > CurTime() then return end
 
                 local myPos = self:GetPos()
-                local hidingToCheck = data.hidingToCheck
                 local checkNavId = data.checkNavId
                 local distToHideSqr = myPos:DistToSqr( hidingToCheck )
 

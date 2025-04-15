@@ -1,3 +1,6 @@
+
+-- navmesh optimizer merging code
+
 terminator_Extras = terminator_Extras or {}
 
 local cornerIndexes = { 0,1,2,3 }

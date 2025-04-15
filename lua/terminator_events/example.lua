@@ -1,4 +1,9 @@
 
+local function giveCamera( arazzi )
+    arazzi:Give( "gmod_camera" )
+
+end
+
 local newEvent = {
     defaultPercentChancePerMin = 0.05,
 
@@ -14,6 +19,7 @@ local newEvent = {
                 {
                     class = "terminator_nextbot_fakeply",
                     spawnAlgo = "steppedRandomRadius",
+                    onSpawnedFunc = giveCamera,
                     deleteAfterMeet = true,
                     timeout = true, -- if bot has no enemy for this long, despawns em, true means it sets to the default, 30 min
 
@@ -31,6 +37,7 @@ local newEvent = {
                 {
                     class = "terminator_nextbot_fakeply",
                     spawnAlgo = "steppedRandomRadius",
+                    onSpawnedFunc = giveCamera,
                     scout = true, -- halts the spawning until this guy sees an enemy
                     timeout = true,
 
@@ -38,7 +45,8 @@ local newEvent = {
                 {
                     class = "terminator_nextbot_fakeply",
                     spawnAlgo = "steppedRandomRadiusNearby",
-                    repeats = 2
+                    onSpawnedFunc = giveCamera,
+                    repeats = 2,
 
                 },
             },
@@ -52,16 +60,18 @@ local newEvent = {
             overrideChance = 25,
             unspawnedStuff = {
                 {
-                    class = "terminator_nextbot_jerminator",
+                    class = "terminator_nextbot_fakeply",
                     spawnAlgo = "steppedRandomRadius",
+                    onSpawnedFunc = giveCamera,
                     scout = true,
                     timeout = true,
 
                 },
                 {
-                    class = "terminator_nextbot_jerminator",
+                    class = "terminator_nextbot_fakeply",
                     spawnAlgo = "steppedRandomRadiusNearby",
-                    repeats = 10
+                    onSpawnedFunc = giveCamera,
+                    repeats = 10,
 
                 },
             },
