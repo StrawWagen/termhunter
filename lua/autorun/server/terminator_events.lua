@@ -111,7 +111,7 @@ function terminator_Extras.RegisterEvent( event, name )
     local variants = event.variants
     if not istable( variants ) then ErrorNoHaltWithStack( name .. ": Invalid .variants table" ) return end
 
-    local defaultChance = event.defaultPercentChancePerMin -- var name is technically a lie....
+    local defaultChance = event.defaultPercentChancePerMin
     if not isnumber( defaultChance ) then ErrorNoHaltWithStack( name .. ": Invalid .defaultPercentChancePerMin" ) return end
 
     -- above, validate event
@@ -186,7 +186,7 @@ terminator_Extras.InitializeAllEvents()
 local aiDisabledVar = GetConVar( "ai_disabled" )
 local freebies = {}
 
-local thinkInterval = 30
+local thinkInterval = 60
 local eventRollTimerName = "terminator_eventroll"
 
 local function startEventRollTimer()
