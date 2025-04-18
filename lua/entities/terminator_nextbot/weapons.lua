@@ -459,23 +459,26 @@ end
     Arg1: 
     Ret1: bool | Can do primary attack
 --]]------------------------------------
-function ENT:CanWeaponPrimaryAttack()
-    local dontImmiediatelyFire = self.terminator_DontImmiediatelyFire or 0
-    if self:IsFists() then
+function ENT:CanWeaponPrimaryAttack( myTbl )
+    myTbl = myTbl or entMeta.GetTable( myTbl )
+
+    local dontImmiediatelyFire = myTbl.terminator_DontImmiediatelyFire or 0
+    if myTbl.IsFists( self, myTbl ) then
         dontImmiediatelyFire = dontImmiediatelyFire - 0.1
 
     end
-    if dontImmiediatelyFire > CurTime() and not ( self:IsReallyAngry() and self:Health() <= self:GetMaxHealth() * 0.25 ) then
+    if dontImmiediatelyFire > CurTime() and not ( myTbl.IsReallyAngry( self ) and entMeta.Health( self ) <= entMeta.GetMaxHealth( self ) * 0.25 ) then
         return false
 
     end
 
-    local wep = self:GetActiveLuaWeapon() or self:GetActiveWeapon()
+    local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
     if not IsValid( wep ) then return false end
 
-    if self.IsReloadingWeapon then return false end
+    if myTbl.IsReloadingWeapon then return false end
 
-    if wep.terminator_NeedsEnemy and not IsValid( self:GetEnemy() ) then return false end
+    local wepsTbl = entMeta.GetTable( wep )
+    if wepsTbl.terminator_NeedsEnemy and not IsValid( myTbl.GetEnemy( self ) ) then return false end
 
     if wep:GetMaxClip1() > 0 and wep:Clip1() <= 0 then return false end
 
@@ -483,7 +486,7 @@ function ENT:CanWeaponPrimaryAttack()
 
     -- xpcall because we need to pass self
     local successful = ProtectedCall( function() -- no MORE ERRORS!
-        local nextShoot = self:AssumeWeaponNextShootTime() or 0
+        local nextShoot = myTbl.AssumeWeaponNextShootTime( self ) or 0
 
         if not wep then canShoot = false return end
         if nextShoot > CurTime() then canShoot = false return end
@@ -492,7 +495,7 @@ function ENT:CanWeaponPrimaryAttack()
         canShoot = true
 
     end )
-    self:HateBuggyWeapon( wep, successful )
+    myTbl.HateBuggyWeapon( self, wep, successful )
     return canShoot
 
 end
@@ -504,8 +507,9 @@ end
     Ret1: 
 --]]------------------------------------
 function ENT:WeaponPrimaryAttack()
+    local myTbl = entMeta.GetTable( self )
     local wep = self:GetActiveLuaWeapon() or self:GetWeapon()
-    if self:CanWeaponPrimaryAttack() ~= true then return end
+    if myTbl.CanWeaponPrimaryAttack( self, myTbl ) ~= true then return end
 
     local data = self.m_WeaponData.Primary
 
@@ -800,7 +804,7 @@ end
 --]]------------------------------------
 function ENT:IsMeleeWeapon( wep )
     local myTbl = entMeta.GetTable( self )
-    if myTbl.IsFists( self ) then return true end
+    if myTbl.IsFists( self, myTbl ) then return true end
 
     wep = wep or self:GetActiveWeapon()
     if not IsValid( wep ) then return false end

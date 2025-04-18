@@ -696,6 +696,9 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
         end
 
     elseif isNextbotOrNpcEnt( ent ) then
+        disp = D_HT
+        theirDisp = D_HT
+
         local memories = {}
         if myTbl.awarenessMemory then
             memories = myTbl.awarenessMemory
