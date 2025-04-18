@@ -631,20 +631,20 @@ end
 
 function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
     if notEnemyCache[ent] then return end
-    local disp, priority, theirdisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl, true )
+    local disp, priority, theirDisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl, true )
     myTbl.Term_SetEntityRelationship( self, ent, disp, priority )
     timer.Simple( 0, function()
         if not IsValid( ent ) then return end
         if not IsValid( self ) then return end
-        --print( ent, "has relation with", self, theirdisp )
+        --print( ent, "has relation with", self, theirDisp )
 
         if entsTbl.TerminatorNextBot then
-            myTbl.Term_SetEntityRelationship( self, theirdisp, nil )
+            myTbl.Term_SetEntityRelationship( self, theirDisp, nil )
             return
 
         end
         if ent.AddEntityRelationship then
-            ent:AddEntityRelationship( self, theirdisp, 0 )
+            ent:AddEntityRelationship( self, theirDisp, 0 )
 
         end
 
@@ -658,35 +658,41 @@ function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
 end
 
 function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
-    local disp = D_HT
-    local theirdisp = D_HT
+    local disp
+    local theirDisp
     local priority = 1
 
     local hardCodedRelation = myTbl.term_HardCodedRelations[entMeta.GetClass( ent )]
     if hardCodedRelation then
         disp = hardCodedRelation[1] or disp
-        theirdisp = hardCodedRelation[2] or theirdisp
+        theirDisp = hardCodedRelation[2] or theirDisp
         priority = hardCodedRelation[3] or priority
-        return disp, priority, theirdisp
+        return disp, priority, theirDisp
 
     end
 
     if entsTbl.isTerminatorHunterChummy then
         if pals( self, ent ) then
             disp = D_LI
-            theirdisp = D_LI
+            theirDisp = D_LI
 
         else
             disp = D_HT
-            theirdisp = D_HT
+            theirDisp = D_HT
 
         end
 
     elseif playersCache[ent] then
+        disp = D_HT
+        theirDisp = D_HT
+
         priority = 1000
         if isFirst then
-            myTbl.OnFirstRelationWithPlayer( self, ent, disp, priority, theirdisp )
+            local newDisp = myTbl.OnFirstRelationWithPlayer( self, ent, disp, priority, theirDisp )
+            if newDisp then
+                disp = newDisp
 
+            end
         end
 
     elseif isNextbotOrNpcEnt( ent ) then
@@ -707,15 +713,20 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
             priority = priority + 100
 
         end
-        if entsTbl.Health then -- seagulls
-            local hp = entsTbl.Health( ent )
-            if hp < hp / 100 then
-                theirdisp = D_FR
+        if ent:Health() then -- seagulls
+            local theirHp = entMeta.Health( ent )
+            local ourHp = entMeta.Health( self )
+            if theirHp < ourHp / 100 then
+                theirDisp = D_FR
 
             end
         end
+    else
+        disp = D_HT
+        theirDisp = D_HT
+
     end
-    return disp, priority, theirdisp
+    return disp, priority, theirDisp
 
 end
 
@@ -746,6 +757,25 @@ function ENT:SetupRelationships( myTbl )
     end )
 end
 
+function ENT:IsManiacTerm()
+    if self.neverManiac then return end
+
+    local maniacHunter = self.alwaysManiac
+    if isfunction( maniacHunter ) then -- script infighting
+        maniacHunter = maniacHunter( self )
+        if maniacHunter then
+            self.alwaysManiac = maniacHunter -- condition was met, save result!
+
+        end
+    end
+    if not maniacHunter and not blockRandomInfighting:GetBool() then -- random infighting
+        maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- infighting funny
+
+    end
+    return maniacHunter
+
+end
+
 function ENT:MakeFeud( enemy )
     if not IsValid( enemy ) then return end
     if enemy == self then return end
@@ -758,20 +788,8 @@ function ENT:MakeFeud( enemy )
 
     if pals( self, enemy ) then
         if blockAllInfighting:GetBool() then return end
-
-        local maniacHunter = self.alwaysManiac -- script infighting
-        if isfunction( maniacHunter ) then
-            maniacHunter = maniacHunter( self )
-            if maniacHunter then
-                self.alwaysManiac = maniacHunter -- condition was met, save result!
-
-            end
-        end
-        if not self.neverManiac and not maniacHunter and not blockRandomInfighting:GetBool() then -- random infighting
-            maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- infighting always gets a good laugh
-
-        end
-        if not maniacHunter then return end -- this npc isnt a manaic, dont break the pal relation!
+        local maniacFight = self:IsManiacTerm() or ( enemy.TerminatorNextBot and enemy:IsManiacTerm() )
+        if not maniacFight then return end
 
     end
 
