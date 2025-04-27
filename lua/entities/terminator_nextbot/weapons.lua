@@ -460,7 +460,7 @@ end
     Ret1: bool | Can do primary attack
 --]]------------------------------------
 function ENT:CanWeaponPrimaryAttack( myTbl )
-    myTbl = myTbl or entMeta.GetTable( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
 
     local dontImmiediatelyFire = myTbl.terminator_DontImmiediatelyFire or 0
     if myTbl.IsFists( self, myTbl ) then
