@@ -164,8 +164,8 @@ end
 
 -- do motion, anything super computationally expensive on this coroutine
 function ENT:BehaviourMotionCoroutine( myTbl )
-    myTbl.StuckCheck( self )
-    myTbl.walkArea( self )
+    myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
+    myTbl.WalkArea( self, myTbl ) -- mark nearby areas as walked, used for searching new unwalked areas
 
     -- Calling task callbacks
     myTbl.RunTask( self, "BehaveUpdateMotion" )

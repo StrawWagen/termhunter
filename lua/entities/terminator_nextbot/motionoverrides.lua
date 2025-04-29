@@ -196,27 +196,27 @@ end
 --]]------------------------------------
 local vertOffs = Vector( 0,0,5 )
 
-function ENT:StuckCheck()
-    if self:DisabledThinking() then return end
-    if CurTime() >= self.m_StuckTime then
+function ENT:StuckCheck( myTbl )
+    if myTbl.DisabledThinking( self ) then return end
+    if CurTime() >= myTbl.m_StuckTime then
         local added = math_Rand( 0.15, 0.50 )
-        self.m_StuckTime = CurTime() + added
+        myTbl.m_StuckTime = CurTime() + added
 
-        local loco = self.loco
-        local myPos = self:GetPos()
+        local loco = myTbl.loco
+        local myPos = entMeta.GetPos( self )
         local moving
 
-        if self.m_StuckPos ~= myPos then
-            self.m_StuckPos = myPos
-            self.m_StuckTime2 = 0
+        if myTbl.m_StuckPos ~= myPos then
+            myTbl.m_StuckPos = myPos
+            myTbl.m_StuckTime2 = 0
             moving = true
 
-            if self.m_Stuck then
+            if myTbl.m_Stuck then
                 self:OnUnStuck()
             end
         end
 
-        local b1, b2 = self:GetSafeCollisionBounds()
+        local b1, b2 = myTbl.GetSafeCollisionBounds( self )
 
         local sizeIncrease = 0
         local checkOrigin = myPos
@@ -228,11 +228,11 @@ function ENT:StuckCheck()
             checkOrigin = checkOrigin + vertOffs
 
         end
-        if self.isUnstucking then
+        if myTbl.isUnstucking then
             sizeIncrease = sizeIncrease + 1
 
         end
-        if self:GetCurrentSpeed() < 5 then
+        if myTbl.GetCurrentSpeed( self ) < 5 then
             sizeIncrease = sizeIncrease + 2
 
         end
@@ -261,34 +261,34 @@ function ENT:StuckCheck()
         -- push thing out the way!
         local hitEnt = tr.Entity
         if IsValid( hitEnt ) then
-            self:PhysicallyPushEnt( hitEnt, 15000 )
+            myTbl.PhysicallyPushEnt( self, hitEnt, 15000 )
         end
 
         local hit = TraceHit( tr )
         if hit then
             -- fix bot getting stuck running up stairs ( by not running up stairs.. )
             local mul = 1.1
-            local oldWalk = self.forcedShouldWalk or 0
-            self.forcedShouldWalk = math.max( oldWalk + added * mul, CurTime() + added * mul )
+            local oldWalk = myTbl.forcedShouldWalk or 0
+            myTbl.forcedShouldWalk = math.max( oldWalk + added * mul, CurTime() + added * mul )
 
-            local overrideCr = ( self.overrideCrouch or 0 ) + 0.3
+            local overrideCr = ( myTbl.overrideCrouch or 0 ) + 0.3
             overrideCr = math.Clamp( overrideCr, 0, CurTime() + 3 )
-            self.overrideCrouch = math.max( CurTime() + -1, overrideCr )
+            myTbl.overrideCrouch = math.max( CurTime() + -1, overrideCr )
 
         end
 
-        if not moving and not self.m_Stuck then
+        if not moving and not myTbl.m_Stuck then
             if hit then
-                self.m_StuckTime2 = self.m_StuckTime2 + math_Rand( 0.5, 0.75 )
+                myTbl.m_StuckTime2 = myTbl.m_StuckTime2 + math_Rand( 0.5, 0.75 )
 
-                if self.m_StuckTime2 >= 1 then -- changed from 5 to 1
+                if myTbl.m_StuckTime2 >= 1 then -- changed from 5 to 1
                     self:OnStuck()
                     --print( "onstuck" )
 
                 end
             else
-                self.lastNotStuckPos = myPos
-                self.m_StuckTime2 = 0
+                myTbl.lastNotStuckPos = myPos
+                myTbl.m_StuckTime2 = 0
             end
         else
             if not hit then
@@ -3175,6 +3175,11 @@ function ENT:SetupMotionType( myTbl ) -- override this to allow some npcs to mor
 
 end
 
+local defaultHeight = 72
+local defaultViewOffsetNudge = 8
+local defaultCrouchHeight = 43
+local defaultCrouchViewOffsetNudge = 11
+
 function ENT:InitializeCollisionBounds( mdlScale )
     mdlScale = mdlScale or self:GetModelScale()
 
@@ -3201,4 +3206,16 @@ function ENT:InitializeCollisionBounds( mdlScale )
         self.CrouchCollisionBounds = { Vector( mins.x, mins.y, mins.z ) * mdlScale, Vector( maxs.x, maxs.y, maxs.z ) * mdlScale } -- i LOVE VECTORS!!!!!
 
     end
+
+    -- proper view offsets for GetShootPos
+    local maxsZ = self.CollisionBounds[2].z * mdlScale
+    local viewOffsetFromMaxs = ( maxsZ / defaultHeight ) * defaultViewOffsetNudge
+    local viewOffset = math.Round( maxsZ + -viewOffsetFromMaxs )
+    self.ViewOffset = Vector( 0, 0, viewOffset )
+
+    local maxsZCrouch = self.CrouchCollisionBounds[2].z * mdlScale
+    local crouchViewOffsetFromMaxs = ( maxsZCrouch / defaultCrouchHeight ) * defaultCrouchViewOffsetNudge
+    local crouchViewOffset = math.Round( maxsZCrouch + -crouchViewOffsetFromMaxs )
+    self.CrouchViewOffset = Vector( 0, 0, crouchViewOffset )
+
 end

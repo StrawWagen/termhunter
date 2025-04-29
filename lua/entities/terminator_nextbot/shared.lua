@@ -2430,39 +2430,46 @@ end
 local offset25z = Vector( 0, 0, 25 )
 
 -- very useful for searching, going places the bot hasn't been to yet
-function ENT:walkArea()
-    local walkedArea = self:GetCurrentNavArea()
+function ENT:WalkArea( myTbl )
+    local walkedArea = myTbl:GetCurrentNavArea( self )
     if not IsValid( walkedArea ) then return end
 
-    if not self:areaIsReachable( walkedArea ) and self.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
-        if self.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
-            local ourClass = self:GetClass()
+    if not myTbl.areaIsReachable( self, walkedArea ) and myTbl.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
+        if myTbl.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
+            local ourClass = myTbl:GetClass()
             terminator_Extras.unreachableAreasForClasses[ ourClass ] = {}
 
             for _, ent in ipairs( ents.FindByClass( ourClass ) ) do
-                if ent == self then continue end -- self gets a special case
+                if ent == myTbl then continue end -- self gets a special case
 
                 ent.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
                 ent.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
 
             end
         end
-        self.unreachableAreas = {} -- fodder enemies get this too, they break off from the global unreachable table
-        self.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
+        myTbl.unreachableAreas = {} -- fodder enemies get this too, they break off from the global unreachable table
+        myTbl.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
 
     end
 
-    if not self.walkedAreas then return end -- set as nil to disable this, for fodder enemies, etc
+    if not myTbl.walkedAreas then return end -- set as nil to disable this, for fodder enemies, etc
 
-    local nextFloodMark = self.nextFloodMarkWalkable or 0
+    local nextFloodMark = myTbl.nextFloodMarkWalkable or 0
 
-    if nextFloodMark > CurTime() then return end
-    self.nextFloodMarkWalkable = CurTime() + math.Rand( 1, 1.5 )
+    local cur = CurTime()
+
+    if nextFloodMark > cur then return end
+    local add = math.Rand( 1, 1.5 )
+    if myTbl.IsFodder then
+        add = add * math.Rand( 2, 3 )
+
+    end
+    myTbl.nextFloodMarkWalkable = cur + add
 
     local scoreData = {}
-    scoreData.currentWalked = self.walkedAreas
+    scoreData.currentWalked = myTbl.walkedAreas
     scoreData.InitialArea = walkedArea
-    scoreData.checkOrigin = self:GetShootPos()
+    scoreData.checkOrigin = myTbl.GetShootPos( self )
     scoreData.self = self
     local dist = 750
 
@@ -2485,7 +2492,7 @@ function ENT:walkArea()
 
     end
 
-    local _ = self:findValidNavResult( scoreData, self:GetPos(), dist, scoreFunction )
+    local _ = myTbl.findValidNavResult( self, scoreData, self:GetPos(), dist, scoreFunction )
 
 end
 
