@@ -2436,7 +2436,7 @@ function ENT:WalkArea( myTbl )
 
     if not myTbl.areaIsReachable( self, walkedArea ) and myTbl.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
         if myTbl.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
-            local ourClass = myTbl:GetClass()
+            local ourClass = entMeta.GetClass( self )
             terminator_Extras.unreachableAreasForClasses[ ourClass ] = {}
 
             for _, ent in ipairs( ents.FindByClass( ourClass ) ) do

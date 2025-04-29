@@ -791,9 +791,13 @@ function ENT:MakeFeud( enemy )
 
     if pals( self, enemy ) then
         if blockAllInfighting:GetBool() then return end
-        local maniacFight = self:IsManiacTerm() or ( enemy.TerminatorNextBot and enemy:IsManiacTerm() )
+        local imManiac = self:IsManiacTerm()
+        local maniacFight = imManiac or ( enemy.IsManiacTerm and enemy:IsManiacTerm() )
         if not maniacFight then return end
+        if imManiac then
+            self.isTerminatorHunterChummy = self.isTerminatorHunterChummy .. "_manaic_" .. tostring( self:GetCreationID() )
 
+        end
     end
 
     local isPly = playersCache[enemy]
