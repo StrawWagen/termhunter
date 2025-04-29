@@ -380,9 +380,9 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
         end
     else
         -- if an ent has killed terminators
-        -- we do more thurough checks on it!
+        -- we do more thorough checks on it!
         -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-        if not ( isPly or isNextbotEntClass( ent, class ) or isNpcEntClass( ent, class ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then return false end
+        if not ( isPly or isNextbotEntClass( ent, class ) or isNpcEntClass( ent, class ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) or pals( self, ent ) then return false end
         krangledKiller = true
 
     end
@@ -639,19 +639,12 @@ function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
         --print( ent, "has relation with", self, theirDisp )
 
         if entsTbl.TerminatorNextBot then
-            myTbl.Term_SetEntityRelationship( self, theirDisp, nil )
+            myTbl.Term_SetEntityRelationship( self, ent, theirDisp, nil )
             return
 
         end
         if ent.AddEntityRelationship then
             ent:AddEntityRelationship( self, theirDisp, 0 )
-
-        end
-
-        -- stupid hack
-        if entsTbl.IsVJBaseSNPC == true then
-            if not IsValid( ent ) or not IsValid( self ) or not istable( entsTbl.CurrentPossibleEnemies ) then return end
-            entsTbl.CurrentPossibleEnemies[#entsTbl.CurrentPossibleEnemies + 1] = self
 
         end
     end )

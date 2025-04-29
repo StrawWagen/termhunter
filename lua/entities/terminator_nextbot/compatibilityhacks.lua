@@ -280,6 +280,14 @@ if SERVER then
     function ENT:ClearSchedule()
     end
 
+    function ENT:GetHeadDirection()
+        local aimVec = self:GetAimVector()
+        aimVec.z = 0
+        aimVec:Normalize()
+        return aimVec
+
+    end
+
     function ENT:StopMoving()
     end
 
