@@ -9,3 +9,5 @@ Limited but functional support for custom, non-player shaped enemies, would not 
 
 
 See [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=2944078031) page for more info, check [Nextbot Zambies](https://github.com/StrawWagen/nextbot_zambies) and [Jerma985 Nextbot](https://github.com/StrawWagen/the_jerminator) for examples of NPCs based off this  
+
+This project is a highly modified, optimized version of [this nextbot base](https://github.com/ShadowBonnieRUS/GMOD-SB_Advanced_Nextbots_Base)
