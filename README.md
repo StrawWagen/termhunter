@@ -1,7 +1,7 @@
 # termhunter
 Experimental Nextbot + Base.  
 Allows for very complicated custom behaviour.  
-For basing NPCs off this, it doesn't support custom animations that well, it expects player animations by default, but there is limited support for other methods.  
+For basing NPCs off this, it doesn't support custom animations that well, it expects player animations by default, but there is limited support for other methods. ( see nextbot zambies below )
 
 Best for creating code-driven AI agents that relentlessly pursue their enemies, crouching, jumping, attacking obstacles.  
 Supports optimized custom weights on pathfinding, good if you want a bot to avoid a dangerous area, avoid an obvious entrance to a room, etc.  
