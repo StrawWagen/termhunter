@@ -2688,14 +2688,25 @@ hook.Add( "PlayerDeath", "terminator_unmark_killers", function( plyDied, _, atta
     end
 end )
 
+local function resetPlysKillerStatus( ply )
+    ply.terminator_CantConvinceImFriendly = nil
+    ply.terminator_IsLethalInMelee = nil
+    ply.terminator_endFirstWatch = nil
+
+    ply.isTerminatorHunterKiller = nil
+    timer.Remove( "terminator_undokillerstatus_" .. ply:GetCreationID() )
+
+end
+
 hook.Add( "PostCleanupMap", "terminator_clear_playerstatuses", function()
     for _, ply in ipairs( player.GetAll() ) do
-        ply.terminator_CantConvinceImFriendly = nil
-        ply.terminator_IsLethalInMelee = nil
-        ply.terminator_endFirstWatch = nil
+        resetPlysKillerStatus( ply )
 
-        ply.isTerminatorHunterKiller = nil
-        timer.Remove( "terminator_undokillerstatus_" .. ply:GetCreationID() )
+    end
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "terminator_clear_playerstatuses", function()
+    for _, ply in player.Iterator() do
+        resetPlysKillerStatus( ply )
 
     end
 end )
