@@ -1,5 +1,5 @@
 
-local jermaSpawnSet = {
+local termSpawnSet = {
     name = "terminator_wraith", -- unique name
     prettyName = "Wraith Terminators",
     description = "Lots of cloaking Terminators",
@@ -28,4 +28,4 @@ local jermaSpawnSet = {
     }
 }
 
-table.insert( GLEE_SPAWNSETS, jermaSpawnSet )
+table.insert( GLEE_SPAWNSETS, termSpawnSet )
