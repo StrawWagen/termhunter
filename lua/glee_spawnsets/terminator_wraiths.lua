@@ -2,7 +2,7 @@
 local  terminatorSpawnSet = {
     name = "terminator_wraith", -- unique name
     prettyName = "Terminator Wraiths",
-    description = "Tons of cloaking terminators.",
+    description = "Tons of cloaking terminators, are you up for a real challenge?",
     difficultyPerMin = "default", -- difficulty per minute
     waveInterval = "default", -- time between spawn waves
     diffBumpWhenWaveKilled = "default", -- when there's <= 1 hunter left, the difficulty is permanently bumped by this amount
@@ -22,7 +22,7 @@ local  terminatorSpawnSet = {
             spawnType = "hunter",
             difficultyCost = { 5, 10 },
             countClass = "terminator_nextbot_wraith",
-            minCount = { 2 },
+            minCount = { 3 },
             postSpawnedFuncs = nil,
         },
     }
