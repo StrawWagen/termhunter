@@ -91,6 +91,10 @@ end
 
 -- process the threads every tick if we can
 function ENT:Think()
+
+    -- why go through so much effort properly waterfall down this table?
+    -- BECAUSE 10X PERF GAINS!
+    -- always pass this beautiful table, else reckon the fps-draining scourge of the _index call....
     local myTbl = entMeta.GetTable( self )
 
     local threads = myTbl.BehaviourThreads
@@ -129,6 +133,7 @@ function ENT:Think()
                 threads[index] = nil
                 ErrorNoHaltWithStack( result )
                 break
+
             elseif result == "wait" then
                 break
 
@@ -186,6 +191,7 @@ function ENT:ChildrenCleanupHack( myTbl )
     -- one added every tick!
     -- no wonder it was lagging so much....
     -- SetParent is used 6 times in this repo and it's all related to weapons!
+    -- i stubbed SetParent and couldn't find the bug, it's probably with the engine!
     -- if you have any insight into this bug, please let me know.
 
     local newTbl = {}
