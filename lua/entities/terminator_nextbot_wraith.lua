@@ -72,15 +72,15 @@ end
 function ENT:DoHiding( hide )
     local oldHide = not self:IsSolid()
     if hide == oldHide then return end
-    local nextSwap = self.terminator_NextHidingSwap or 0
+    local nextSwap = self.wraithTerm_NextHidingSwap or 0
     if nextSwap > CurTime() then return end
 
     if hide then
         self:SetCollisionGroup( COLLISION_GROUP_DEBRIS )
         self:SetSolidMask( MASK_NPCSOLID_BRUSHONLY )
         self:AddFlags( FL_NOTARGET )
-        self:EmitSound( "ambient/levels/citadel/pod_open1.wav", 100, math.random( 110, 120 ) )
-        self.terminator_NextHidingSwap = CurTime() + math.Rand( 0.25, 0.75 )
+        self:EmitSound( "ambient/levels/citadel/pod_open1.wav", 74, math.random( 115, 125 ) )
+        self.wraithTerm_NextHidingSwap = CurTime() + math.Rand( 0.25, 0.75 )
 
         self:CloakedMatFlicker()
         self:RemoveAllDecals()
@@ -90,28 +90,26 @@ function ENT:DoHiding( hide )
         table.Add( toApply, self:GetChildren() )
         for _, ent in pairs( toApply ) do
             if not IsValid( ent ) then continue end
-
             local entsParent = ent:GetParent()
             if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
-
             ent:DrawShadow( false )
             ent:SetNotSolid( true )
 
         end
     else
-        self:EmitSound( "ambient/levels/citadel/pod_close1.wav", 100, math.random( 125, 130 ) )
-        self.terminator_NextHidingSwap = CurTime() + math.Rand( 2.5, 3.5 )
+        self:EmitSound( "ambient/levels/citadel/pod_close1.wav", 74, math.random( 115, 125 ) )
+        self.wraithTerm_NextHidingSwap = CurTime() + math.Rand( 2.5, 3.5 )
         self:CloakedMatFlicker()
-
-        timer.Simple( 0.35, function()
+        timer.Simple( 0.25, function()
             if not IsValid( self ) then return end
-
-            self.wraithTerm_NextAttack = CurTime() + 0.10
-            self:EmitSound( "buttons/combine_button5.wav", 140, 125 )
+            self.wraithTerm_NextAttack = CurTime() + 0.25
+            self:EmitSound( "buttons/combine_button_locked.wav", 76, 50 )
             self:SetCollisionGroup( COLLISION_GROUP_NPC )
             self:SetSolidMask( MASK_NPCSOLID )
             self:RemoveFlags( FL_NOTARGET )
+
             self.FootstepClomping = true
+
             self:OnStuck()
 
             local toApply = { self }
@@ -120,8 +118,7 @@ function ENT:DoHiding( hide )
                 if not IsValid( ent ) then continue end
                 local entsParent = ent:GetParent()
                 if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
-
-                ent:DrawShadow( false )
+                ent:DrawShadow( true )
                 ent:SetMaterial( "" )
                 ent:SetNotSolid( false )
 
