@@ -1,5 +1,6 @@
 AddCSLuaFile()
 
+
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator Wraith"
@@ -16,21 +17,12 @@ if CLIENT then
     language.Add( "terminator_nextbot_wraith", ENT.PrintName )
     return
 end
-ENT.WalkSpeed = 75
-ENT.MoveSpeed = 300
-ENT.RunSpeed = 500
-ENT.AccelerationSpeed = 1200
-ENT.JumpHeight = 70 * 1.6
-ENT.FistDamageMul = 1
-ENT.ThrowingForceMul = 5
-ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_GOOD
-ENT.SpawnHealth = 610
-ENT.HealthRegen = 1
-ENT.HealthRegenInterval = 0.3
 
-ENT.duelEnemyTimeoutMul = 5
+-- cleaned :steamhappy:
+ENT.FistDamageMul = 1.565
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_VERY_GOOD
 
--- copied from jerma, :) 
+-- copied from jerma modified & cleaned up a bit :) 
 function ENT:CloakedMatFlicker()
     local toApply = { self }
     table.Add( toApply, self:GetChildren() )
@@ -43,7 +35,7 @@ function ENT:CloakedMatFlicker()
             ent:SetMaterial( "effects/combineshield/comshieldwall3" )
         end
     end
-    timer.Simple( math.Rand( 0.25, 0.75 ), function()
+    timer.Simple( math.Rand( 0.65, 0.75 ), function()
         if not IsValid( self ) then return end
         if self:IsSolid() then return end
         toApply = { self }
@@ -60,21 +52,6 @@ function ENT:CloakedMatFlicker()
     end )
 end
 
-function ENT:PostTookDamage( dmg ) -- no one hit kills!
-    local damage = dmg:GetDamage()
-    local myHealth = self:Health()
-    if damage > myHealth and myHealth >= 25 and damage ~= math.huge then
-        dmg:SetDamage( myHealth + -5 )
-    end
-end
-
-function ENT:CanWeaponPrimaryAttack()
-    if not self:IsSolid() then return false end
-    local nextAttack = self.terminator_NextAttack or 0
-    if nextAttack > CurTime() then return end
-    return BaseClass.CanWeaponPrimaryAttack( self )
-end
-
 function ENT:DoHiding( hide )
     local oldHide = not self:IsSolid()
     if hide == oldHide then return end
@@ -85,7 +62,7 @@ function ENT:DoHiding( hide )
         self:SetCollisionGroup( COLLISION_GROUP_DEBRIS )
         self:SetSolidMask( MASK_NPCSOLID_BRUSHONLY )
         self:AddFlags( FL_NOTARGET )
-        self:EmitSound( "ambient/levels/citadel/pod_open1.wav", 74, math.random( 96, 97 ) )
+        self:EmitSound( "ambient/levels/citadel/pod_open1.wav", 100, math.random( 110, 120 ) )
         self.terminator_NextHidingSwap = CurTime() + math.Rand( 0.25, 0.75 )
 
         self:CloakedMatFlicker()
@@ -102,19 +79,17 @@ function ENT:DoHiding( hide )
             ent:SetNotSolid( true )
         end
     else
-        self:EmitSound( "ambient/levels/citadel/pod_close1.wav", 74, math.random( 94, 91 ) )
+        self:EmitSound( "ambient/levels/citadel/pod_close1.wav", 100, math.random( 125, 130 ) )
         self.terminator_NextHidingSwap = CurTime() + math.Rand( 2.5, 3.5 )
         self:CloakedMatFlicker()
-        timer.Simple( 0.25, function()
+        timer.Simple( 0.35, function()
             if not IsValid( self ) then return end
-            self.terminator_NextAttack = CurTime() + 0.25
-            self:EmitSound( "buttons/combine_button_locked.wav", 76, 50 )
+            self.terminator_NextAttack = CurTime() + 0.10
+            self:EmitSound( "buttons/combine_button5.wav", 140, 125 )
             self:SetCollisionGroup( COLLISION_GROUP_NPC )
             self:SetSolidMask( MASK_NPCSOLID )
             self:RemoveFlags( FL_NOTARGET )
-
             self.FootstepClomping = true
-
             self:OnStuck()
 
             local toApply = { self }
@@ -123,7 +98,7 @@ function ENT:DoHiding( hide )
                 if not IsValid( ent ) then continue end
                 local entsParent = ent:GetParent()
                 if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
-                ent:DrawShadow( true )
+                ent:DrawShadow( false )
                 ent:SetMaterial( "" )
                 ent:SetNotSolid( false )
             end
@@ -134,13 +109,13 @@ end
 function ENT:AdditionalThink()
     local speedSqr = self:GetCurrentSpeedSqr()
     local enem = self:GetEnemy()
-    local doHide = IsValid( enem ) or speedSqr > 50^2
+    local doHide = IsValid( enem ) or speedSqr > 80^2
     local enemDist = self.DistToEnemy
-    if doHide and speedSqr < 25^2 then
+    if doHide and speedSqr < 85^1 then
         doHide = false
-    elseif doHide and IsValid( enem ) and enemDist < 250 then
+    elseif doHide and IsValid( enem ) and enemDist < 120 then
         doHide = false
-        self:Anger( 5 )
+        self:ReallyAnger( 90 ) -- ANGRY
     end
 
     self:DoHiding( doHide )
