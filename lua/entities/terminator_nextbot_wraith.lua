@@ -6,6 +6,7 @@ DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator Wraith"
 ENT.Author = "Broadcloth0"
 ENT.Spawnable = true
+
 list.Set( "NPC", "terminator_nextbot_wraith", {
     Name = "Terminator Wraith",
     Class = "terminator_nextbot_wraith",
@@ -28,7 +29,7 @@ ENT.SpawnHealth = terminator_Extras.healthDefault * 0.5
 
 function ENT:CanWeaponPrimaryAttack()
     if not self:IsSolid() then return false end
-    local nextAttack = self.terminator_NextAttack or 0
+    local nextAttack = self.wraithTerm_NextAttack or 0
     if nextAttack > CurTime() then return end
     return BaseClass.CanWeaponPrimaryAttack( self )
 
@@ -105,7 +106,7 @@ function ENT:DoHiding( hide )
         timer.Simple( 0.35, function()
             if not IsValid( self ) then return end
 
-            self.terminator_NextAttack = CurTime() + 0.10
+            self.wraithTerm_NextAttack = CurTime() + 0.10
             self:EmitSound( "buttons/combine_button5.wav", 140, 125 )
             self:SetCollisionGroup( COLLISION_GROUP_NPC )
             self:SetSolidMask( MASK_NPCSOLID )
