@@ -131,7 +131,7 @@ function ENT:Think()
             local noErrors, result = coroutine_resume( thread, self, myTbl )
             if noErrors == false then
                 threads[index] = nil
-                ErrorNoHaltWithStack( result )
+                ErrorNoHaltWithStack( self, result )
                 break
 
             elseif result == "wait" then
