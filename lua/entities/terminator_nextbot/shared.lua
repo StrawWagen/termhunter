@@ -3492,7 +3492,7 @@ function ENT:DoDefaultTasks()
                     end
                 end
                 local nextCache = data.nextCache or 0
-                if nextCache < CurTime() then
+                if nextCache < CurTime() then -- heavy staggered checks
                     local myPos = self:GetPos()
                     local currentNav = navmesh.GetNearestNavArea( myPos, false, 50, false, false, -2 ) -- pretty tight criteria
                     local size = 80
@@ -3503,8 +3503,8 @@ function ENT:DoDefaultTasks()
 
                     local noNav = myTbl.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
                     local doAddCount = 1
-                    -- go faster
-                    if noNav then
+
+                    if noNav then -- more likely to be stuck!
                         size = size / 8
                         doAddCount = doAddCount * 4
                         if not terminator_Extras.IsLivePatching then
@@ -3553,7 +3553,7 @@ function ENT:DoDefaultTasks()
 
                     local underDisplacement = data.maybeUnderCount > 6
 
-                    if #data.historicPositions > size then
+                    if #data.historicPositions > size then -- we built up a stack of historic positions, use them to determine if we're stuck!
                         if data.historicPositions[size + 1] then
                             table.remove( data.historicPositions, size + 1 )
                             table.remove( data.historicPositions, size + 1 )
@@ -3586,6 +3586,7 @@ function ENT:DoDefaultTasks()
 
                             end
                         end
+                        -- instant unstuck check if we're REALLY off the navmesh
                         if noNav and not self:PathIsValid() and not stuck and not navmesh.GetNearestNavArea( myPos, false, 200, false, false, -2 ) then
                             stuck = true
 
@@ -3594,9 +3595,6 @@ function ENT:DoDefaultTasks()
 
                     if stuck or sortaStuck or underDisplacement or overrideStuck then -- i have been in the same EXACT spot for S I Z E seconds
                         self:ReallyAnger( 60 )
-                        --print( self:GetCreationID(), "damnitfoundmeasstuck ", stuck, sortaStuck, underDisplacement, overrideStuck )
-                        --PrintTable( data.historicNavs )
-                        --debugoverlay.Cross( myPos, 100, 100, color_white, true )
 
                         myTbl.overrideVeryStuck = nil
                         local distToEnemy = 0
@@ -3613,21 +3611,22 @@ function ENT:DoDefaultTasks()
                         local myShootPos = self:GetShootPos()
                         local maxs = Vector( 1000, 1000, 1000 )
                         local bestDist = math.huge
-                        for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do
+                        for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do -- try and find a good freedomPos
                             if area == nearestNavArea then continue end
                             yieldIfWeCan()
                             if not IsValid( area ) then continue end
 
-                            local aresCenter = area:GetCenter()
-                            if aresCenter:Distance( enemyPos ) < distToEnemy then continue end
-                            local distToMe = aresCenter:Distance( myPos )
+                            local areasCenter = area:GetCenter()
 
-                            if not freedomPos then
-                                freedomPos = aresCenter
+                            if areasCenter:Distance( enemyPos ) < distToEnemy then continue end -- dont unstuck us closer to the enemy
+                            local distToMe = areasCenter:Distance( myPos )
 
-                            elseif distToMe < bestDist and area:IsVisible( myShootPos ) then
+                            if not freedomPos then -- always pick some area
+                                freedomPos = areasCenter
+
+                            elseif distToMe < bestDist and area:IsVisible( myShootPos ) then -- perfect candidate, pick this one!
                                 bestDist = distToMe
-                                freedomPos = aresCenter
+                                freedomPos = areasCenter
 
                             end
                         end
@@ -3639,17 +3638,18 @@ function ENT:DoDefaultTasks()
                         local extremeStuck = underDisplacement or not freedomPos
                         local canGotoEscape = data.nextUnstuckGotoEscape < CurTime() and data.extremeUnstucking < CurTime()
 
+                        -- teleports us to the unstuck position if we dont see an enemy and we've tried walking there
                         if not myTbl.IsSeeEnemy and extremeUnstucking:GetBool() and ( extremeStuck or not canGotoEscape ) then
                             data.extremeUnstucking = 0
                             data.freedomGotoPosSimple = nil
                             data.oldNavArea = nil
-                            if freedomPos then
+                            if freedomPos then -- teleport us there
                                 self:SetPosNoTeleport( freedomPos )
                                 self:InvalidatePath( "i was hard unstucked! bailing path." )
                                 myTbl.loco:SetVelocity( vec_zero )
                                 myTbl.loco:ClearStuck()
 
-                            elseif GAMEMODE.getValidHunterPos then
+                            elseif GAMEMODE.getValidHunterPos then -- GLEE specific fallback
                                 freedomPos = GAMEMODE:getValidHunterPos()
 
                                 if freedomPos then
@@ -3660,12 +3660,15 @@ function ENT:DoDefaultTasks()
                                     myTbl.loco:ClearStuck()
 
                                 end
-                            elseif not self:PathIsValid() and not myTbl.ReallyStuckNeverRemove then -- only remove if its not pathing!
+                            -- only remove if its not pathing!
+                            -- set ReallyStuckNeverRemove in a bot if you never want it to be removed
+                            elseif not self:PathIsValid() and not myTbl.ReallyStuckNeverRemove then
                                 SafeRemoveEntity( self )
 
                             end
+                        -- walk to the freedomPos instead
                         elseif data.extremeUnstucking < CurTime() then
-                            if not freedomPos then
+                            if not freedomPos then -- fallback
                                 local offset = VectorRand()
                                 offset = offset * Vector( 1, 1, 0.5 ) -- flatten the vec
                                 offset:Normalize()
@@ -3674,14 +3677,14 @@ function ENT:DoDefaultTasks()
 
                             end
 
-                            data.nextUnstuckGotoEscape = CurTime() + 60 -- if the gotopos finishes, but we're still stuck, do the teleporting
+                            data.nextUnstuckGotoEscape = CurTime() + 80 -- if the walk to freedomPos finishes, but we're still stuck, do the teleporting
                             data.freedomGotoPosSimple = freedomPos
+                            data.extremeUnstucking = CurTime() + 10 -- try and walk to the freedomPos for this long
                             data.oldNavArea = currentNav
                             data.nextCache = CurTime() + 5
 
-                            data.extremeUnstucking = CurTime() + 10
-                            self:KillAllTasksWith( "movement" )
-                            self:StartTask2( "movement_wait", { time = 10 }, "gotta let the reallystuck handler do its thing" )
+                            self:KillAllTasksWith( "movement" ) -- jump us out of any infinite loops
+                            self:StartTask2( "movement_wait", { time = 11 }, "gotta let the reallystuck handler do its thing" )
 
                         end
 
