@@ -43,7 +43,7 @@ terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     if not startPos then return end
     if not endPos then return end
 
-    local filterTbl = {}
+    local filterTbl = filter or {}
     local collisiongroup = nil
 
     if IsValid( filter ) then
@@ -79,6 +79,7 @@ local nookDirections = {
     Vector( 0, -1, 0 ),
     Vector( 0, 0, 1 ),
     Vector( 0, 0, -1 ),
+
 }
 
 -- returns SMALL numbers in open areas
@@ -155,4 +156,5 @@ terminator_Extras.posIsUnderDisplacement = function( pos )
 
     -- we are DEFINITely under one
     return true, nil, firstTraceResult
+
 end

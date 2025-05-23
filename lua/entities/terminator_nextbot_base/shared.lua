@@ -127,6 +127,9 @@ end
 function ENT:GetShootPos()
 	return self:LocalToWorld(self:IsCrouching() and self.CrouchViewOffset or self.ViewOffset)
 end
+function ENT:GetCrouchingShootPos()
+	return self:LocalToWorld(self.CrouchViewOffset)
+end
 
 --[[------------------------------------
 	Name: NEXTBOT:IsCrouching

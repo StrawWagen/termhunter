@@ -233,9 +233,9 @@ function ENT:SetupWeapon( wep )
     self:EmitSound( "Flesh.Strain", 80, 160, 0.8 )
 
     local oldFire = self.terminator_DontImmiediatelyFire or 0
-    self.terminator_DontImmiediatelyFire = math.max( CurTime() + math.Rand( 0.75, 1.25 ), oldFire )
-    self.terminator_FiringIsAllowed = nil
-    self.terminator_LastFiringIsAllowed = 0
+    self.terminator_DontImmiediatelyFire = math.max( CurTime() + math.Rand( 0.75, 1.25 ), oldFire ) -- pretend we have to get our hands around the new weapon
+    self.terminator_FiringIsAllowed = nil -- disable ShootingTimer
+    self.terminator_LastFiringIsAllowed = 0 -- ditto
     self:NextWeapSearch( 0 )
 
     self.term_hasWeapon = true
@@ -462,8 +462,8 @@ end
 function ENT:CanWeaponPrimaryAttack( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
-    local dontImmiediatelyFire = myTbl.terminator_DontImmiediatelyFire or 0
-    if myTbl.IsFists( self, myTbl ) then
+    local dontImmiediatelyFire = myTbl.terminator_DontImmiediatelyFire or 0 -- blocks firing right after weapon switching
+    if myTbl.IsFists( self, myTbl ) then -- fire earlier if we were pushed into using melee
         dontImmiediatelyFire = dontImmiediatelyFire - 0.1
 
     end
@@ -496,6 +496,7 @@ function ENT:CanWeaponPrimaryAttack( myTbl )
 
     end )
     myTbl.HateBuggyWeapon( self, wep, successful )
+
     return canShoot
 
 end
@@ -1378,10 +1379,10 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
         local goneTarget = not IsValid( target )
         if goneTarget or target:Health() <= 0 then
             if goneTarget or ( not target.term_DamageDealtTimes or target.term_DamageDealtTimes <= 1 ) then
-                attacker:RunTask( "OnInstantKillEnemy" )
+                attacker:RunTask( "OnInstantKillEnemy", target ) -- target can be nil
 
             else
-                attacker:RunTask( "OnKillEnemy" )
+                attacker:RunTask( "OnKillEnemy", target )
 
             end
             target.term_DamageDealtTimes = nil

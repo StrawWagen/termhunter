@@ -154,10 +154,10 @@ function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
 end
 
 function ImmuneCheck( self, dmg )
+    if self:IsImmuneToDmg( dmg ) then return true end
+
     local immuneMask = self.term_DMG_ImmunityMask
     if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
-
-    if self:IsImmuneToDmg( dmg ) then return true end
 
 end
 
