@@ -69,6 +69,8 @@ end
 
 local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks?" )
 
+local debugUsePrint = CreateConVar( "term_debuguse", 0, FCVAR_NONE, "Print task lisk on use?" )
+
 local vec_zero = Vector( 0 )
 local vectorUp = Vector( 0, 0, 1 )
 local vecFiftyZ = Vector( 0, 0, 50 )
@@ -2196,7 +2198,7 @@ end
 
 function ENT:Use( user )
     if not user:IsPlayer() then return end
-    if isCheats() ~= true then return end
+    if debugUsePrint:GetBool() ~= true then return end
 
     if ( self.nextCheatUse or 0 ) > CurTime() then return end
     self.nextCheatUse = CurTime() + 1
