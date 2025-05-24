@@ -20,7 +20,7 @@ function ENT:GetTrueCurrentNavArea()
     local nextTrueAreaCache = self.nextTrueAreaCache or 0
     if nextTrueAreaCache < CurTime() then
         self.nextTrueAreaCache = CurTime() + 0.08
-        area = terminator_Extras.getNearestNavFloor( self:GetPos() )
+        local area = terminator_Extras.getNearestNavFloor( self:GetPos() )
         self.cachedTrueArea = area
         return area
 
@@ -437,8 +437,6 @@ local function badConnectionCheck( connectionsId, dist )
 
 end
 
---TODO: dynamically check if a NAV_TRANSIENT areas are supported by terrain, then cache the results 
---local function isCachedTraversable( area )
 
 local jumpHeightCached
 local stepHeightCached
@@ -454,6 +452,9 @@ local navMeta = FindMetaTable( "CNavArea" )
 local ladMeta = FindMetaTable( "CNavLadder" )
 local vecMeta = FindMetaTable( "Vector" )
 
+local GetID = navMeta.GetID
+local LaddGetID = ladMeta.GetID
+
 function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     if not IsValidCost( fromArea ) then return 0 end
 
@@ -463,7 +464,7 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     end
 
-    local toAreasId = navMeta.GetID( toArea )
+    local toAreasId = GetID( toArea )
     local dist
     local laddering
 
@@ -481,7 +482,7 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
         dist = vecMeta.Distance( navMeta.GetCenter( fromArea ), navMeta.GetCenter( toArea ) )
     end
 
-    dist = badConnectionCheck( getConnId( navMeta.GetID( fromArea ), toAreasId ), dist )
+    dist = badConnectionCheck( getConnId( GetID( fromArea ), toAreasId ), dist )
 
     local costSoFar = navMeta.GetCostSoFar( fromArea ) or 0
 
@@ -646,7 +647,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         self.PathEndPos = endpos
 
         local before = SysTime()
-        self:SetupPath( endpos )
+        self:SetupPath( endpos, endArea.area )
         local after = SysTime()
 
         local cost = ( after - before )
@@ -706,8 +707,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     -- find areas around the path's end that we can't reach
     -- this prevents super obnoxous stutters on maps with tens of thousands of navareas
     local scoreFunction = function( scoreData, area1, area2 )
-        local score = scoreData.decreasingScores[area1:GetID()] or 10000
-        local droppedDown = scoreData.droppedDownAreas[area1:GetID()]
+        local score = scoreData.decreasingScores[GetID( area1 )] or 10000
+        local droppedDown = scoreData.droppedDownAreas[GetID( area1 )]
         local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
 
         -- uhhh we got back to our own area....
@@ -725,7 +726,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
         elseif dropToArea > self.loco:GetMaxJumpHeight() or droppedDown then
             score = 1
-            scoreData.droppedDownAreas[area2:GetID()] = true
+            scoreData.droppedDownAreas[GetID( area2 )] = true
 
         else
             score = score + -1
@@ -734,7 +735,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         end
 
         --debugoverlay.Text( area2:GetCenter(), tostring( score ), 8 )
-        scoreData.decreasingScores[area2:GetID()] = score
+        scoreData.decreasingScores[GetID( area2 )] = score
 
         return score
 
@@ -789,7 +790,7 @@ end
         `generator` - Custom cost generator
     Ret1: any | PathFollower object if created succesfully, otherwise false
 --]]------------------------------------
-function ENT:SetupPath( pos, options )
+function ENT:SetupPath( pos, endArea )
     self:InvalidatePath( "i started a new path" )
 
     jumpHeightCached = self.loco:GetMaxJumpHeight()
@@ -828,15 +829,14 @@ function ENT:SetupPath( pos, options )
 
     end
 
-    options = options or {}
-    options.mindist = options.mindist or self.PathMinLookAheadDistance
-    options.tolerance = options.tolerance or self.PathGoalTolerance
-
-    if not options.generator then
-        options.generator = function( area, from, ladder, elevator, len )
+    local options = {
+        mindist = self.PathMinLookAheadDistance,
+        tolerance = self.PathGoalTolerance,
+        scoreKeeper = function( area, from, ladder, elevator, len )
             return self:NavMeshPathCostGenerator( self:GetPath(), area, from, ladder, elevator, len )
-        end
-    end
+
+        end,
+    }
 
     local path = Path( "Follow" )
     self.m_Path = path
@@ -847,7 +847,7 @@ function ENT:SetupPath( pos, options )
     self.m_PathOptions = options
     self.m_PathPos = pos
 
-    local computed = self:ComputePath( pos, options.generator )
+    local computed = self:ComputePath( pos, endArea, options.scoreKeeper )
 
     pathAreasAdditionalCost = nil
     jumpHeightCached = nil
@@ -863,12 +863,12 @@ function ENT:SetupPath( pos, options )
         -- this stuck edge case usually happens when the bot ends up in some orphan part of the navmesh with no way out, eg bottom of an elevator shaft
         local old = self.term_ConsecutivePathFailures or 0
         if old > 25 then
-            self.overrideVeryStuck = true
+            self.overrideVeryStuck = true -- alert the reallystuck_handler
 
         elseif old >= 5 then
             local currNav = self:GetCurrentNavArea()
             if not IsValid( currNav ) or self:AreaIsOrphan( currNav, true ) then
-                self.overrideVeryStuck = true
+                self.overrideVeryStuck = true -- alert the reallystuck_handler early!
 
             end
         end
@@ -887,10 +887,228 @@ function ENT:SetupPath( pos, options )
 
 end
 
---[[
-local function heuristic_cost_estimate( start, goal )
-    return start:GetCenter():Distance( goal:GetCenter() )
+local ladderOffset = 800000
 
+local function AreaOrLadderGetID( areaOrLadder )
+    if not areaOrLadder then return end
+    if areaOrLadder.GetTop then
+        -- never seen a navmesh with 800k areas
+        return LaddGetID( areaOrLadder ) + ladderOffset
+
+    else
+        return GetID( areaOrLadder )
+
+    end
+end
+
+local function getNavAreaOrLadderById( areaOrLadderID )
+    local area = navmesh.GetNavAreaByID( areaOrLadderID )
+    if area then
+        return area
+
+    end
+    local ladder = navmesh.GetNavLadderByID( areaOrLadderID + -ladderOffset )
+    if ladder then
+        return ladder
+
+    end
+end
+
+local function AreaOrLadderGetCenter( areaOrLadder )
+    if not areaOrLadder then return end
+    if areaOrLadder.GetTop then
+        return ( ladMeta.GetTop( areaOrLadder ) + ladMeta.GetBottom( areaOrLadder ) ) / 2
+
+    else
+        return navMeta.GetCenter( areaOrLadder )
+
+    end
+end
+
+local table_Add = table.Add
+
+local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
+    local adjacents = {}
+    if not areaOrLadder then return adjacents end
+    if areaOrLadder.GetTop then -- is ladder
+        if blockLadders then return end
+        table_Add( adjacents, ladMeta.GetBottomArea( areaOrLadder ) )
+        table_Add( adjacents, ladMeta.GetTopForwardArea( areaOrLadder ) )
+        table_Add( adjacents, ladMeta.GetTopBehindArea( areaOrLadder ) )
+        table_Add( adjacents, ladMeta.GetTopRightArea( areaOrLadder ) )
+        table_Add( adjacents, ladMeta.GetTopLeftArea( areaOrLadder ) )
+
+    else
+        if blockLadders then
+            adjacents = navMeta.GetAdjacentAreas( areaOrLadder )
+
+        else
+            adjacents = table_Add( navMeta.GetAdjacentAreas( areaOrLadder ), navMeta.GetLadders( areaOrLadder ) )
+
+        end
+
+    end
+    return adjacents
+
+end
+
+local table_IsEmpty = table.IsEmpty
+local inf = math.huge
+local ipairs = ipairs
+local isnumber = isnumber
+local table_remove = table.remove
+local table_insert = table.insert
+local table_Random = table.Random
+
+-- iterative function that finds connected area with the best score
+-- basically a* but for finding a goal somewhere, instead of finding a path to a goal
+-- areas with highest return from scorefunc are selected
+-- areas that return 0 score from scorefunc are ignored
+-- returns the best scoring area if it's further than dist or no other options exist
+-- traverses, but never returns, navladders
+
+-- returns "vec, best area's center", "area, best area", "bool, if this escaped the radius", "table of all areas explored"
+function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMin )
+    local pos = nil
+    local res = nil
+    local cur = nil
+    local blockRadiusEnd = data.blockRadiusEnd
+    if isvector( start ) then -- parse it!
+        pos = start
+        res = terminator_Extras.getNearestPosOnNav( pos )
+        cur = res.area
+
+    elseif start and start.IsValid and start:IsValid() then
+        pos = AreaOrLadderGetCenter( start )
+        cur = start
+
+    end
+    if not IsValid( cur ) then return nil, NULL, nil, nil end
+
+    local curId = AreaOrLadderGetID( cur )
+    local blockLadders = not self.CanUseLadders
+
+    noMoreOptionsMin = noMoreOptionsMin or 8
+
+    local opened = { [curId] = true }
+    local closed = {}
+    local openedSequential = {}
+    local closedSequential = {}
+    local distances = { [curId] = AreaOrLadderGetCenter( cur ):Distance( pos ) }
+    local scores = { [curId] = 1 }
+    local opCount = 0
+    local isLadder = {}
+
+    if cur.GetTop then
+        isLadder[curId] = true
+
+    end
+
+    while not table_IsEmpty( opened ) do
+        local bestScore = 0
+        local bestArea = nil
+
+        for _, currOpenedId in ipairs( openedSequential ) do
+            local myScore = scores[currOpenedId]
+
+            if isnumber( myScore ) and myScore > bestScore then
+                bestScore = myScore
+                bestArea = currOpenedId
+
+            end
+        end
+        if not bestArea then
+            local _
+            _, bestArea = table_Random( opened )
+
+        end
+
+        opCount = opCount + 1
+        if ( opCount % 15 ) == 0 then
+            yieldIfWeCan()
+
+        end
+
+        local areaId = bestArea
+        opened[areaId] = nil
+        closed[areaId] = true
+        -- table.removebyvalue fucking crashes the session
+        for key, value in ipairs( openedSequential ) do
+            if value == areaId then
+                table_remove( openedSequential, key )
+                break
+            end
+        end
+        closedSequential[#closedSequential + 1] = areaId
+
+        local area = getNavAreaOrLadderById( areaId )
+        local myDist = distances[areaId]
+        local noMoreOptions = #openedSequential == 1 and #closedSequential >= noMoreOptionsMin
+
+        if noMoreOptions or opCount >= 600 or bestScore == inf then
+            local _, bestClosedAreaId = table_Random( closed )
+            local bestClosedScore = 0
+
+            for _, currClosedId in ipairs( closedSequential ) do
+                local currClosedScore = scores[currClosedId]
+
+                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and isLadder[ currClosedId ] ~= true then
+                    bestClosedScore = currClosedScore
+                    bestClosedAreaId = currClosedId
+
+                end
+                if bestClosedScore == inf then
+                    break
+
+                end
+            end
+            local bestClosedArea = navmesh.GetNavAreaByID( bestClosedAreaId )
+            if not bestClosedArea then return nil, NULL, nil, nil end -- edge case, huh??? if this happens
+
+            -- ran out of perf/options/found best area
+            return navMeta.GetCenter( bestClosedArea ), bestClosedArea, nil, closedSequential
+
+        elseif not blockRadiusEnd and myDist > radius and area and not isLadder[areaId] then
+            -- found an area that escaped the radius, blockable by blockRadiusEnd
+            return navMeta.GetCenter( area ), area, true, closedSequential
+
+        end
+
+        local adjacents = AreaOrLadderGetAdjacentAreas( area, blockLadders )
+
+        for _, adjArea in ipairs( adjacents ) do
+            local adjID = AreaOrLadderGetID( adjArea )
+
+            if not closed[adjID] then
+
+                local theScore = 0
+                if area.GetTop or adjArea.GetTop then
+                    -- just let the algorithm pass through this
+                    theScore = scores[areaId]
+
+                else
+                    theScore = scoreFunc( data, area, adjArea )
+
+                end
+                if theScore <= 0 then continue end
+
+                local adjDist = AreaOrLadderGetCenter( area ):Distance( AreaOrLadderGetCenter( adjArea ) )
+                local distance = myDist + adjDist
+
+                distances[adjID] = distance
+                scores[adjID] = theScore
+                opened[adjID] = true
+
+                if adjArea.GetTop then
+                    isLadder[adjID] = true
+
+                end
+
+                table_insert( openedSequential, adjID )
+
+            end
+        end
+    end
 end
 
 -- using CNavAreas as table keys doesn't work, we use IDs
@@ -907,31 +1125,37 @@ function reconstruct_path( cameFrom, current )
 
 end
 
-local function Astar( start, goal )
-    if not IsValid( start ) or not IsValid( goal ) then return false end
-    if start == goal then return true end
+local function heuristic_cost_estimate( start, goal )
+    return start:GetCenter():Distance( goal:GetCenter() )
 
-    start:ClearSearchLists()
+end
 
-    start:AddToOpenList()
+local function Astar( start, goal, scoreKeeper )
+    if not IsValid( start ) or not IsValid( goal ) then return false end -- FAIL
+    if start == goal then return true end -- already there
+
+    navMeta.ClearSearchLists( start )
+    navMeta.AddToOpenList( start )
 
     local cameFrom = {}
 
-    start:SetCostSoFar( 0 )
+    navMeta.SetCostSoFar( start, 0 )
 
-    start:SetTotalCost( heuristic_cost_estimate( start, goal ) )
-    start:UpdateOnOpenList()
+    navMeta.SetTotalCost( start, heuristic_cost_estimate( start, goal ) )
+    navMeta.UpdateOnOpenList( start )
 
-    while not start:IsOpenListEmpty() do
-        local current = start:PopOpenList() -- Remove the area with lowest cost in the open list and return it
-        if ( current == goal ) then
+    while not navMeta.IsOpenListEmpty( start ) do
+        local current = navMeta.PopOpenList( start ) -- Remove the area with lowest cost in the open list and return it
+
+        if current == goal then -- got there
             return reconstruct_path( cameFrom, current )
+
         end
 
-        current:AddToClosedList()
+        navMeta.AddToClosedList( current )
 
-        for _, neighbor in pairs( current:GetAdjacentAreas() ) do
-            local newCostSoFar = current:GetCostSoFar() + heuristic_cost_estimate( current, neighbor )
+        for _, neighbor in pairs( navMeta.GetAdjacentAreas( current ) ) do
+            local newCostSoFar = navMeta.GetCostSoFar( current ) + heuristic_cost_estimate( current, neighbor )
 
             if neighbor:IsUnderwater() then -- Add your own area filters or whatever here
                 continue
@@ -963,7 +1187,12 @@ local function Astar( start, goal )
     return false
 end
 
---]]
+function AstarVector( path, self, goal, goalArea, scoreKeeper )
+    local startArea = self:GetTrueCurrentNavArea()
+    local areaCorridor = Astar( startArea, goalArea, scoreKeeper )
+
+    return Astar( startArea, goalArea, scoreKeeper )
+end
 
 --[[------------------------------------
     Name: NEXTBOT:ComputePath
@@ -972,10 +1201,12 @@ end
     Arg2: (optional) function | generator | Custom cost generator for A* algorithm
     Ret1: bool | Path generated succesfully
 --]]------------------------------------
-function ENT:ComputePath( pos, generator )
+function ENT:ComputePath( pos, scoreKeeper )
     local path = self:GetPath()
 
-    if path:Compute( self, pos, generator ) then
+    if AstarVector( path, self, goal, goalArea, scoreKeeper ) then
+
+    if path:Compute( self, pos, scoreKeeper ) then
         local ang = self:GetAngles()
         -- path update makes bot look forward on the path
         path:Update( self )
