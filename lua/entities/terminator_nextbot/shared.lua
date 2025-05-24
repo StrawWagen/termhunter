@@ -2203,7 +2203,13 @@ function ENT:Use( user )
     self.nextCheatUse = CurTime() + 1
 
     self.taskHistory = self.taskHistory or {}
-    PrintTable( self.m_ActiveTasks )
+    local fourSpaces = "    "
+    print( "activetasks", self )
+    for taskName, _ in pairs( self.m_ActiveTasks ) do
+        print( fourSpaces .. taskName )
+
+    end
+    print( "taskhistory" )
     PrintTable( self.taskHistory )
     print( "lastShootType", self.lastShootingType )
     print( "lastPathKillReason", self.lastPathInvalidateReason )
