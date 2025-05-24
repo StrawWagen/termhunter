@@ -1111,7 +1111,8 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     end
 end
 
--- using CNavAreas as table keys doesn't work, we use IDs
+
+-- return "path" of navareas that get us where we're going
 function reconstruct_path( cameFrom, current )
     local total_path = { current }
 
@@ -1154,8 +1155,8 @@ local function Astar( start, goal, scoreKeeper )
 
         navMeta.AddToClosedList( current )
 
-        for _, neighbor in pairs( navMeta.GetAdjacentAreas( current ) ) do
-            local newCostSoFar = navMeta.GetCostSoFar( current ) + heuristic_cost_estimate( current, neighbor )
+        for _, neighbor in pairs( navMeta.GetAdjacentAreaDistances( current ) ) do
+            local newCostSoFar = scoreKeeper( neighbor, current,  )
 
             if neighbor:IsUnderwater() then -- Add your own area filters or whatever here
                 continue
