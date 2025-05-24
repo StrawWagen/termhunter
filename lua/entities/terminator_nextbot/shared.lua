@@ -67,7 +67,7 @@ local function isCheats()
 
 end
 
-local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks?" )
+local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks? Also enables a task history dump on bot +use." )
 
 local vec_zero = Vector( 0 )
 local vectorUp = Vector( 0, 0, 1 )
@@ -2176,16 +2176,15 @@ end
 -- do this so we can get data about current tasks easily
 function ENT:StartTask2( Task, Data, Reason )
     yieldIfWeCan()
-    if debugPrintTasks:GetBool() then
-        print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
-
-    end
     local Data2 = Data or {}
     Data2.taskStartTime = CurTime()
     self:StartTask( Task, Data2 )
 
-    if isCheats() ~= true then return end
     -- additional debugging tool
+    if not debugPrintTasks:GetBool() then return end
+
+    print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
+
     self.taskHistory = self.taskHistory or {}
 
     table.insert( self.taskHistory, SysTime() .. " " .. Task .. " " .. Reason )
@@ -2196,18 +2195,24 @@ end
 
 function ENT:Use( user )
     if not user:IsPlayer() then return end
-    if isCheats() ~= true then return end
+
+    -- only dump task history when the task debugger is true
+    if not debugPrintTasks:GetBool() then return end
 
     if ( self.nextCheatUse or 0 ) > CurTime() then return end
     self.nextCheatUse = CurTime() + 1
 
     self.taskHistory = self.taskHistory or {}
-    print( "aabb", self:GetPhysicsObject():GetAABB() )
-    print( "collisionbounds", self:GetCollisionBounds() )
-    PrintTable( self.m_ActiveTasks )
+    local fourSpaces = "    "
+    print( "activetasks", self )
+    for taskName, _ in pairs( self.m_ActiveTasks ) do
+        print( fourSpaces .. taskName )
+
+    end
+    print( "taskhistory" )
     PrintTable( self.taskHistory )
-    print( self.lastShootingType )
-    print( self.lastPathInvalidateReason )
+    print( "lastShootType", self.lastShootingType )
+    print( "lastPathKillReason", self.lastPathInvalidateReason )
 
 end
 
