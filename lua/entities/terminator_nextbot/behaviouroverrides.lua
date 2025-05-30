@@ -14,6 +14,7 @@ local SysTime = SysTime
 local IsValid = IsValid
 local math = math
 local pairs = pairs
+local CurTime = CurTime
 
 function ENT:BehaveUpdate( interval )
     local myTbl = entMeta.GetTable( self )
@@ -89,20 +90,39 @@ function ENT:BehaveUpdate( interval )
 
 end
 
+local costThisTick = 0
+local lastTick = CurTime()
+local probablyLagging = 60 -- shared path yield budget every bot gets. mitigates freezes from multiple bots pathing at once.
+local budgetEveryoneGets = 2 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
+if game.IsDedicated() then
+    budgetEveryoneGets = 4
+
+end
+
 -- process the threads every tick if we can
 function ENT:Think()
 
+    local cur = CurTime()
+
     -- why go through so much effort properly waterfall down this table?
-    -- BECAUSE 10X PERF GAINS!
+    -- BECAUSE ~10X PERF GAINS!
     -- always pass this beautiful table, else reckon the fps-draining scourge of the _index call....
     local myTbl = entMeta.GetTable( self )
 
     local threads = myTbl.BehaviourThreads
     if not threads then
-        entMeta.NextThink( self, CurTime() + 0.02 )
+        entMeta.NextThink( self, cur + 0.02 )
         return true
 
     end
+
+    if lastTick ~= cur then
+        costThisTick = 0
+        lastTick = cur
+
+    end
+
+    local dueling
 
     local enem = myTbl.GetEnemy( self )
     local thresh = myTbl.CoroutineThresh
@@ -115,6 +135,7 @@ function ENT:Think()
         local distHalfBoost = math.max( myTbl.DuelEnemyDist * 3, 1500 )
         if distToEnem <= distFullBoost and myTbl.IsPlyNoIndex( enem ) then
             thresh = thresh * myTbl.ThreshMulIfDueling
+            dueling = true
 
         elseif distToEnem <= distHalfBoost then
             thresh = thresh * myTbl.ThreshMulIfClose
@@ -125,17 +146,27 @@ function ENT:Think()
     local doneSomething
     for index, thread in pairs( threads ) do
         local oldTime = SysTime()
+        local myCostThisTick = 0
 
         while SysTime() - oldTime < thresh do
             doneSomething = true
             local noErrors, result = coroutine_resume( thread, self, myTbl )
             if noErrors == false then
                 threads[index] = nil
-                ErrorNoHaltWithStack( self, result )
+                local stack = debug.traceback( thread )
+                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\n", result .. "\n", stack )
                 break
 
             elseif result == "wait" then
                 break
+
+            elseif result == "pathing" then
+                if not dueling and myCostThisTick >= budgetEveryoneGets and costThisTick > probablyLagging then -- hack to stop groups of bots from nuking session perf
+                    break
+
+                end
+                myCostThisTick = myCostThisTick + 1
+                costThisTick = costThisTick + 1
 
             elseif result == "done" then
                 threads[index] = nil

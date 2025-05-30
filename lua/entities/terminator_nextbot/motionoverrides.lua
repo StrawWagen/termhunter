@@ -1544,7 +1544,7 @@ terminator_Extras.term_InterruptedSpeedToAimAtProps = 100^2
 --]]------------------------------------
 function ENT:MoveAlongPath( lookAtGoal, myTbl )
     myTbl = myTbl or self:GetTable()
-    local path = self:GetPath()
+    local path = myTbl.GetPath( self )
     --local drawingPath
 
     if self.DrawPath:GetBool() and cheats:GetBool() == true then
@@ -1552,9 +1552,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         --drawingPath = true
 
     end
-    local isFodder = self.IsFodder
+    local isFodder = myTbl.IsFodder
     local myPos = self:GetPos()
-    local myArea = self:GetTrueCurrentNavArea()
+    local myArea = myTbl.GetTrueCurrentNavArea( self )
     local iAmOnGround = myTbl.loco:IsOnGround()
     local iAmSwimming = myTbl.IsSwimming( self, myTbl )
     local _, aheadSegment = self:GetNextPathArea( myArea ) -- top of the jump
@@ -1650,9 +1650,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         local _, _, seePos = self:ClearOrBreakable( myPos + vec_up15, obstacleAvoid + vec_up15 )
         local _, _, seeGoal = self:ClearOrBreakable( myPos + vec_up15, obstacleTarget + vec_up15 )
 
-        if not seePos or seeGoal then
-            --debugoverlay.Line( myPos + vec_up15, obstacleAvoid + vec_up15, 0.5, color_white, true )
-            --debugoverlay.Line( myPos + vec_up15, obstacleTarget + vec_up15, 0.5, color_green, true )
+        if not ( seePos or seeGoal ) then
+            --debugoverlay.Line( myPos + vec_up15, obstacleAvoid + vec_up15, 5, color_white, true )
+            --debugoverlay.Line( myPos + vec_up15, obstacleTarget + vec_up15, 5, color_green, true )
             self:InvalidatePath( "obstacle avoid 2" )
             return
 
@@ -1671,14 +1671,14 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
         local distToPos = self:NearestPoint( goingTo ):DistToSqr( goingTo )
         local atAvoidPos = not seeGoal and distToPos < 1
-        if seeGoal then
+        if seeGoal then -- see goal, obstacle avoid is working so we should stop sooner
             myTbl.m_PathObstacleAvoidTimeout = myTbl.m_PathObstacleAvoidTimeout + -0.2
 
         end
 
         local timeout = myTbl.m_PathObstacleAvoidTimeout < cur
 
-        if timeout or atAvoidPos then
+        if timeout or atAvoidPos then -- got to avoid pos, new path since we're probably off the old one
             if myTbl.m_PathObstacleRebuild then
                 self:InvalidatePath( "obstacle avoid 3" )
                 return
@@ -2136,7 +2136,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             end
 
             -- detect when bot falls down and we need to repath
-            local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegment.pos.z ), myTbl.loco:GetMaxJumpHeight() * 1.5 )
+            local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegment.area:GetClosestPointOnArea( myPos ).z ), myTbl.loco:GetMaxJumpHeight() * 1.5 )
             local changeToSegment = math.abs( myPos.z - currSegment.pos.z )
 
             if changeToSegment > maxHeightChange * 1.25 then
@@ -2176,7 +2176,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local range = self:GetRangeTo( self:GetPathPos() )
     local valid = path:IsValid()
 
-    if ( not valid and range <= myTbl.m_PathOptions.tolerance ) or range < myTbl.PathGoalToleranceFinal then
+    if ( not valid and range <= path:GetMinLookAheadDistance() ) or range < myTbl.PathGoalToleranceFinal then
         self:InvalidatePath( "i reached the end of my path!" )
         return true -- reached end
 

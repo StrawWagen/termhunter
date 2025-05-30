@@ -1,6 +1,7 @@
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
 local IsValid = IsValid
+local entMeta = FindMetaTable( "Entity" )
 
 local function yieldIfWeCan( reason )
     if not coroutine_running() then return end
@@ -307,21 +308,14 @@ hook.Add( "PostCleanupMap", "terminator_clear_connectionflags", function()
     lastSuperBadFlags = {}
 end )
 
-
--- flanking!
-local hunterIsFlanking
-local flankingDest
-local pathAreasAdditionalCost
-local isReallyAngry = nil
-local tooFarToFlank = 4000^2
-
 function ENT:AddAreasToAvoid( areas, mul )
-    pathAreasAdditionalCost = pathAreasAdditionalCost or {}
+    local myTbl = entMeta.GetTable( self )
+    myTbl.pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost or {}
     for _, avoid in ipairs( areas ) do
         -- lagspike if we try to flank around area that contains the destination
-        if avoid and IsValid( avoid ) and ( avoid ~= flankingDest ) then
-            local oldMul = pathAreasAdditionalCost[ avoid:GetID() ] or 0
-            pathAreasAdditionalCost[ avoid:GetID() ] = oldMul + mul
+        if avoid and IsValid( avoid ) and ( avoid ~= myTbl.flankingDest ) then
+            local oldMul = myTbl.pathAreasAdditionalCost[ avoid:GetID() ] or 0
+            myTbl.pathAreasAdditionalCost[ avoid:GetID() ] = oldMul + mul
             --debugoverlay.Cross( avoid:GetCenter(), 10, 10, color_white, true )
 
         end
@@ -329,48 +323,46 @@ function ENT:AddAreasToAvoid( areas, mul )
 end
 
 function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius )
-    if not isvector( destination ) then return false end
+    if not isvector( destination ) then return false, "flank_nodestvec" end
 
-    local myPos = self:GetPos()
+    if not IsValid( areaToFlankAround ) then return false, "flank_noareaaround" end
 
-    if destination:DistToSqr( myPos ) < tooFarToFlank and IsValid( areaToFlankAround ) then
+    self.flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
+    if not self.flankingDest then return false, "flank_nodestarea" end
 
-        flankingDest = terminator_Extras.getNearestPosOnNav( destination ).area
-        if not flankingDest then return false end
+    self.hunterIsFlanking = true
+    self.flankingIsReallyAngry = self:IsReallyAngry()
 
-        hunterIsFlanking = true
-        isReallyAngry = self:IsReallyAngry()
-
-        if flankAvoidRadius then
-            self:flankAroundArea( areaToFlankAround, flankAvoidRadius )
-
-        else
-            self:flankAroundCorridorBetween( myPos, areaToFlankAround:GetCenter() )
-
-        end
-        if IsValid( self:GetEnemy() ) then
-            self:FlankAroundEasyEntraceToThing( areaToFlankAround:GetCenter(), self:GetEnemy() )
-
-        end
-
-        local result1, result2 = self:SetupPathShell( destination )
-
-        self:endFlankPath()
-
-        return result1, result2
+    if flankAvoidRadius then
+        self:flankAroundArea( areaToFlankAround, flankAvoidRadius )
 
     else
-        return self:SetupPathShell( destination )
+        self:flankAroundCorridorBetween( self:GetPos(), areaToFlankAround:GetCenter() )
 
     end
+    if IsValid( self:GetEnemy() ) then
+        self:FlankAroundEasyEntraceToThing( areaToFlankAround:GetCenter(), self:GetEnemy() )
+
+    end
+
+    --print( self:GetCreationID(), "flanking" )
+    local result1, result2 = self:SetupPathShell( destination )
+
+    self.hunterIsFlanking = nil
+    self.flankingIsReallyAngry = nil
+
+    return result1, result2
+
 end
+
+local FLANK_DEFAULT_COST = 10
 
 function ENT:flankAroundArea( bubbleArea, bubbleRadius )
     bubbleRadius = math.Clamp( bubbleRadius, 0, 3000 )
     local bubbleCenter = bubbleArea:GetCenter()
 
     local areas = navmesh.Find( bubbleCenter, bubbleRadius, self.JumpHeight, self.JumpHeight )
-    self:AddAreasToAvoid( areas, 25 )
+    self:AddAreasToAvoid( areas, FLANK_DEFAULT_COST )
 
 end
 
@@ -382,7 +374,7 @@ function ENT:flankAroundCorridorBetween( bubbleStart, bubbleDestination )
     local bubbleCenter = bubbleStart + offset
 
     local firstBubbleAreas = navmesh.Find( bubbleCenter, bubbleRadius, self.JumpHeight, self.JumpHeight )
-    self:AddAreasToAvoid( firstBubbleAreas, 25 )
+    self:AddAreasToAvoid( firstBubbleAreas, FLANK_DEFAULT_COST )
 
 end
 
@@ -411,16 +403,7 @@ function ENT:FlankAroundEasyEntraceToThing( bubbleStart, thing )
         end
     end
 
-    self:AddAreasToAvoid( secondBubbleAreasClipped, 50 )
-end
-
-function ENT:endFlankPath()
-    self.flankBubbleCenter = nil
-    self.flankBubbleSizeSqr = nil
-    flankingZRewardBegin = nil
-    hunterIsFlanking = nil
-    isReallyAngry = nil
-
+    self:AddAreasToAvoid( secondBubbleAreasClipped, FLANK_DEFAULT_COST * 2 )
 end
 
 local function badConnectionCheck( connectionsId, dist )
@@ -438,13 +421,7 @@ local function badConnectionCheck( connectionsId, dist )
 end
 
 
-local jumpHeightCached
-local stepHeightCached
-local deathHeightCached
-local canLadderCached
-local maxExtentCached
-local currExtent
-
+local navmesh = navmesh
 local IsValidCost = IsValid
 local band = bit.band
 
@@ -455,41 +432,30 @@ local vecMeta = FindMetaTable( "Vector" )
 local GetID = navMeta.GetID
 local LaddGetID = ladMeta.GetID
 
-function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
-    if not IsValidCost( fromArea ) then return 0 end
+-- scoreKeeper
 
-    if maxExtentCached then
-        currExtent = currExtent + 1
-        if currExtent > maxExtentCached then return -1 end
-
-    end
-
+function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist )
     local toAreasId = GetID( toArea )
-    local dist
+    local cost = connDist
     local laddering
 
     if ladder and IsValidCost( ladder ) then
-        if not canLadderCached then return -1 end
+        if not myTbl.CanUseLadders then return -1 end
 
         laddering = true
         -- ladders are kinda dumb
         -- avoid if we can
-        dist = ladMeta.GetLength( ladder ) * 2
-        dist = dist + 400
-    elseif len > 0 then
-        dist = len
-    else
-        dist = vecMeta.Distance( navMeta.GetCenter( fromArea ), navMeta.GetCenter( toArea ) )
+        cost = ladMeta.GetLength( ladder ) * 2
+        cost = cost + 400
     end
 
-    dist = badConnectionCheck( getConnId( GetID( fromArea ), toAreasId ), dist )
+    cost = badConnectionCheck( getConnId( GetID( fromArea ), toAreasId ), cost )
 
-    local costSoFar = navMeta.GetCostSoFar( fromArea ) or 0
+    if laddering then return cost end
 
-    if laddering then return costSoFar + dist end
-
-    if pathAreasAdditionalCost[ toAreasId ] then
-        dist = dist * pathAreasAdditionalCost[ toAreasId ]
+    local additionalCost = myTbl.pathAreasAdditionalCost[ toAreasId ]
+    if additionalCost then
+        cost = cost * additionalCost
         --debugoverlay.Cross( toArea:GetCenter(), 10, 10, color_white, true )
 
     end
@@ -499,22 +465,24 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
 
     if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not self:transientAreaPathable( toArea, toAreasId ) then return false end
 
+    local hunterIsFlanking = myTbl.hunterIsFlanking
+
     if band( attributes, NAV_MESH_CROUCH ) ~= 0 then
         crouching = true
         if hunterIsFlanking then
             -- vents?
-            dist = dist * 0.5
+            cost = cost * 0.5
         else
             -- its cool when they crouch so dont punish it much
-            dist = dist * 1.1
+            cost = cost * 1.1
         end
     end
 
     if band( attributes, NAV_MESH_OBSTACLE_TOP ) ~= 0 then
         if navMeta.HasAttributes( fromArea, NAV_MESH_OBSTACLE_TOP ) then
-            dist = dist * 4
+            cost = cost * 4
         else
-            dist = dist * 1.5 -- these usually look goofy
+            cost = cost * 1.5 -- these usually look goofy
         end
     end
 
@@ -524,30 +492,30 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     if sizeX < 26 or sizeY < 26 then
         -- generator often makes small 1x1 areas with this attribute, on very complex terrain
         if band( attributes, NAV_MESH_NO_MERGE ) ~= 0 then
-            dist = dist * 4
+            cost = cost * 4
         else
-            dist = dist * 1.25
+            cost = cost * 1.25
         end
     end
     if sizeX > 151 and sizeY > 151 and not hunterIsFlanking then --- mmm very simple terrain
-        dist = dist * 0.75
+        cost = cost * 0.75
+
     elseif sizeX > 76 and sizeY > 76 then -- this makes us prefer paths thru simple terrain, it's cheaper!
-        dist = dist * 0.9
+        cost = cost * 0.9
+
     end
 
     if band( attributes, NAV_MESH_AVOID ) ~= 0 then
-        dist = dist * 20
+        cost = cost * 20
     end
 
     if navMeta.IsUnderwater( toArea ) then
-        dist = dist * 2
+        cost = cost * 2
     end
 
-    local cost = dist + costSoFar
-
     local deltaZ = navMeta.ComputeAdjacentConnectionHeightChange( fromArea, toArea )
-    local stepHeight = stepHeightCached
-    local jumpHeight = jumpHeightCached
+    local stepHeight = myTbl.loco:GetStepHeight()
+    local jumpHeight = myTbl.loco:GetJumpHeight()
     if deltaZ >= stepHeight then
         if deltaZ >= jumpHeight then return -1 end
         if deltaZ > stepHeight * 4 then
@@ -579,13 +547,13 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
             cost = cost * 10
 
         end
-    elseif not isReallyAngry and deltaZ <= -deathHeightCached then
+    elseif not flankingIsReallyAngry and deltaZ <= -myTbl.loco:GetDeathDropHeight() then
         cost = cost * 50000
 
-    elseif not isReallyAngry and deltaZ <= -jumpHeight then
+    elseif not flankingIsReallyAngry and deltaZ <= -jumpHeight then
         cost = cost * 2.5
 
-    elseif not isReallyAngry and deltaZ <= -stepHeight * 3 then
+    elseif not flankingIsReallyAngry and deltaZ <= -stepHeight * 3 then
         if hunterIsFlanking then
             cost = cost * 1.5
 
@@ -606,95 +574,9 @@ function ENT:NavMeshPathCostGenerator( _, toArea, fromArea, ladder, _, len )
     return cost
 end
 
--- do this so we can store extra stuff about new paths
-function ENT:SetupPathShell( endpos, isUnstuck )
-    if not endpos then ErrorNoHaltWithStack( "no endpos" ) return nil, "error1" end
-    -- block path spamming
-    -- exceptions for unstucker paths, they're VIP
-    if not isUnstuck and not self:nextNewPathIsGood() then return nil, "blocked1" end
-    self.nextNewPath = CurTime() + math.Rand( 0.05, 0.1 )
+function ENT:FloodMarkAsUnreachable( startArea )
 
-    if not isvector( endpos ) then return nil, "blocked2" end
-    if self.isUnstucking and not isUnstuck then return nil, "blocked3" end
-
-    self.term_ExpensivePath = nil
-    local endArea = terminator_Extras.getNearestPosOnNav( endpos )
-
-    local reachable = self:areaIsReachable( endArea.area )
-    if not reachable then
-        -- make sure we dont get super duper stuck
-        if self.isUnstucking and isUnstuck then
-            self.overrideVeryStuck = true
-
-        end
-        return nil, "blocked4"
-
-    end
-
-    yieldIfWeCan()
-
-    -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
-    -- prevents paths to really small collections of navareas that don't connect back to the bot. ( and the lagspikes that come from those! )
-    local pathDestinationIsAnOrphan, encounteredABlockedArea = self:AreaIsOrphan( endArea.area )
-
-    yieldIfWeCan()
-
-    -- not an orphan, proceed as normal!
-    if pathDestinationIsAnOrphan ~= true then
-        -- save path start info for the HunterIsStuck
-        self.LastMovementStart = CurTime()
-        self.LastMovementStartPos = self:GetPos()
-        self.PathEndPos = endpos
-
-        local before = SysTime()
-        self:SetupPath( endpos, endArea.area )
-        local after = SysTime()
-
-        local cost = ( after - before )
-        if cost > 0.03 then
-            self.term_ExpensivePath = true
-
-        end
-
-        -- good path, escape here
-        if self:primaryPathIsValid() then
-            self.setupPath2NoNavs = nil
-            self.nextNewPath = CurTime() + cost * 8
-
-            return nil, "blocked5 ( the good ending )"
-
-        -- no path! something failed
-        else
-            local setupPath2NoNavs = self.setupPath2NoNavs or 0
-            -- aha, im not on the navmesh! that's why!
-            if not navmesh.GetNearestNavArea( self:GetPos(), false, 45, false, false, -2 ) and self:IsOnGround() then
-                self.setupPath2NoNavs = setupPath2NoNavs + 1
-
-            end
-            if setupPath2NoNavs > 5 then
-                self.setupPath2NoNavs = nil
-                self.overrideVeryStuck = true
-
-            end
-        end
-    end
-
-    yieldIfWeCan()
-
-    -- only get to here if the path failed
-
-    -- first blocked area check, got it from the orphan checker? probably a locked door, store that for the door bashing stuff
-    if encounteredABlockedArea then
-        self.encounteredABlockedAreaWhenPathing = true
-
-    end
-
-    if not IsValid( endArea.area ) then return end -- outdated....
-
-    if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
-    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 25 then return end -- if endpos is off the navmesh then dont create false unreachable flags
-
-    --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
+    if terminator_Extras.IsLivePatching then return end
 
     local scoreData = {}
     local invalidUnreachable
@@ -740,14 +622,14 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         return score
 
     end
-    self:findValidNavResult( scoreData, endArea.area:GetCenter(), 2000, scoreFunction )
+    self:findValidNavResult( scoreData, startArea, 2000, scoreFunction )
 
     yieldIfWeCan()
 
     -- ok remember the areas as unreachable so we dont go through this again
     -- unless there was a locked door!
     if not wasABlockedArea then
-        self:rememberAsUnreachable( endArea.area )
+        self:rememberAsUnreachable( startArea )
 
         -- stop after marking the path dest, IF the unreachable finder was invalid!
         if not invalidUnreachable then
@@ -757,6 +639,104 @@ function ENT:SetupPathShell( endpos, isUnstuck )
             end
         end
     end
+end
+
+-- do this so we can store extra stuff about new paths
+function ENT:SetupPathShell( endpos, isUnstuck )
+    if not endpos then ErrorNoHaltWithStack( "no endpos" ) return nil, "error1" end
+    -- block path spamming
+    -- exceptions for unstucker paths, they're VIP
+    if not isUnstuck and not self:nextNewPathIsGood() then return nil, "blocked1" end
+    self.nextNewPath = CurTime() + math.Rand( 0.05, 0.1 )
+
+    if not isvector( endpos ) then return nil, "blocked2" end
+    if self.isUnstucking and not isUnstuck then return nil, "blocked3" end
+
+    self.term_ExpensivePath = nil
+    local endArea = terminator_Extras.getNearestPosOnNav( endpos )
+
+    local reachable = self:areaIsReachable( endArea.area )
+    if not reachable then
+        -- make sure we dont get super duper stuck
+        if self.isUnstucking and isUnstuck then
+            self.overrideVeryStuck = true
+
+        end
+        return nil, "blocked4"
+
+    end
+
+    yieldIfWeCan()
+
+    -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
+    -- prevents paths to really small collections of navareas that don't connect back to the bot. ( and the lagspikes that come from those! )
+    local pathDestinationIsAnOrphan, encounteredABlockedArea = self:AreaIsOrphan( endArea.area )
+
+    yieldIfWeCan()
+
+    -- not an orphan, proceed as normal!
+    if pathDestinationIsAnOrphan ~= true then
+        -- save path start info for the HunterIsStuck
+        self.LastMovementStart = CurTime()
+        self.LastMovementStartPos = self:GetPos()
+        self.PathEndPos = endpos
+
+        local before = SysTime()
+        local computed, wasGood = self:SetupPath( endpos, endArea.area )
+        local after = SysTime()
+
+        local cost = ( after - before )
+        if cost > 1 then
+            self.term_ExpensivePath = true
+
+        end
+
+        -- good path, escape here
+        if computed or self:PathIsValid() then
+            self.setupPath2NoNavs = nil
+            self.nextNewPath = CurTime() + math.Clamp( cost * 4, 0.1, 1 )
+
+            if not wasGood then
+                self:FloodMarkAsUnreachable( endArea.area )
+
+            end
+
+            return nil, "blocked5 ( the good ending )"
+
+        -- no path! something failed
+        else
+            local setupPath2NoNavs = self.setupPath2NoNavs or 0
+            -- aha, im not on the navmesh! that's why!
+            if not navmesh.GetNearestNavArea( self:GetPos(), false, 45, false, false, -2 ) and self:IsOnGround() then
+                self.setupPath2NoNavs = setupPath2NoNavs + 1
+
+            end
+            if setupPath2NoNavs > 4 then
+                self.setupPath2NoNavs = nil
+                self.overrideVeryStuck = true
+
+            end
+        end
+    end
+
+    yieldIfWeCan()
+
+    -- only get to here if the path failed
+
+    -- first blocked area check, got it from the orphan checker? probably a locked door, store that for the door bashing stuff
+    if encounteredABlockedArea then
+        self.encounteredABlockedAreaWhenPathing = true
+
+    end
+
+    if not IsValid( endArea.area ) then return end -- outdated....
+
+    if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
+    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 25 then return end -- if endpos is off the navmesh then dont create false unreachable flags
+
+    --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
+
+    self:FloodMarkAsUnreachable( endArea.area )
 
     -- we got stuck while in the middle of an unstuck!
     if self.isUnstucking and isUnstuck then
@@ -773,117 +753,6 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     end
 
     return true, failString
-
-end
-
--- stub
-function ENT:AdditionalAvoidAreas()
-end
-
---[[------------------------------------
-    Name: NEXTBOT:SetupPath
-    Desc: Creates new PathFollower object and computes path to goal. Invalidates old path.
-    Arg1: Vector | pos | Goal position.
-    Arg2: (optional) table | options | Table with options:
-        `mindist` - SetMinLookAheadDistance
-        `tolerance` - SetGoalTolerance
-        `generator` - Custom cost generator
-    Ret1: any | PathFollower object if created succesfully, otherwise false
---]]------------------------------------
-function ENT:SetupPath( pos, endArea )
-    self:InvalidatePath( "i started a new path" )
-
-    jumpHeightCached = self.loco:GetMaxJumpHeight()
-    stepHeightCached = self.loco:GetStepHeight()
-    deathHeightCached = self.loco:GetDeathDropHeight()
-    canLadderCached = self.CanUseLadders
-    maxExtentCached = self.MaxPathingIterations -- set this to like 5000 if you dont care about a specific bot having perfect paths
-    currExtent = 0
-
-    if not self.IsFodder then -- fodder npcs usually dont live long enough for this to matter.
-        -- areas that we took damage in
-        self:AddAreasToAvoid( self.hazardousAreas, 10 )
-
-    end
-
-    local adjusted = self:AdditionalAvoidAreas( pathAreasAdditionalCost )
-    if istable( adjusted ) then
-        pathAreasAdditionalCost = adjusted
-
-    end
-
-    pathAreasAdditionalCost = pathAreasAdditionalCost or {}
-
-    if self.awarenessDamaging then
-        local damagingAreas = self:DamagingAreas()
-        local avoidStrength = 100
-        -- blinded by rage
-        if self:IsReallyAngry() then
-            avoidStrength = 5
-
-        elseif self:IsAngry() then
-            avoidStrength = 50
-
-        end
-        self:AddAreasToAvoid( damagingAreas, avoidStrength )
-
-    end
-
-    local options = {
-        mindist = self.PathMinLookAheadDistance,
-        tolerance = self.PathGoalTolerance,
-        scoreKeeper = function( area, from, ladder, elevator, len )
-            return self:NavMeshPathCostGenerator( self:GetPath(), area, from, ladder, elevator, len )
-
-        end,
-    }
-
-    local path = Path( "Follow" )
-    self.m_Path = path
-
-    path:SetMinLookAheadDistance( options.mindist )
-    path:SetGoalTolerance( options.tolerance )
-
-    self.m_PathOptions = options
-    self.m_PathPos = pos
-
-    local computed = self:ComputePath( pos, endArea, options.scoreKeeper )
-
-    pathAreasAdditionalCost = nil
-    jumpHeightCached = nil
-    stepHeightCached = nil
-    deathHeightCached = nil
-    canLadderCached = nil
-    maxExtentCached = nil
-    currExtent = nil
-
-    if not computed then
-        self:InvalidatePath( "i failed to build a path" )
-
-        -- this stuck edge case usually happens when the bot ends up in some orphan part of the navmesh with no way out, eg bottom of an elevator shaft
-        local old = self.term_ConsecutivePathFailures or 0
-        if old > 25 then
-            self.overrideVeryStuck = true -- alert the reallystuck_handler
-
-        elseif old >= 5 then
-            local currNav = self:GetCurrentNavArea()
-            if not IsValid( currNav ) or self:AreaIsOrphan( currNav, true ) then
-                self.overrideVeryStuck = true -- alert the reallystuck_handler early!
-
-            end
-        end
-
-        if self:IsOnGround() then
-            self.term_ConsecutivePathFailures = old + 1
-
-        end
-        return false
-
-    end
-
-    self.term_ConsecutivePathFailures = 0
-
-    return path
 
 end
 
@@ -926,17 +795,48 @@ local function AreaOrLadderGetCenter( areaOrLadder )
 end
 
 local table_Add = table.Add
+local table_IsEmpty = table.IsEmpty
+local inf = math.huge
+local ipairs = ipairs
+local isnumber = isnumber
+local table_remove = table.remove
+local table_insert = table.insert
+local table_Random = table.Random
+
+local function removeFrom( idToRemove, seqTbl, maskTbl )
+    maskTbl[idToRemove] = nil
+    for i = 1, #seqTbl do
+        if seqTbl[i] == idToRemove then
+            table_remove( seqTbl, i )
+            return true -- removed
+
+        end
+    end
+    return false -- not removed
+
+end
+
+local function addTo( idToAdd, seqTbl, maskTbl )
+    if not maskTbl[idToAdd] then
+        seqTbl[#seqTbl + 1] = idToAdd
+        maskTbl[idToAdd] = true
+        return true
+
+    end
+    return false -- not added, already there
+
+end
 
 local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
     local adjacents = {}
     if not areaOrLadder then return adjacents end
     if areaOrLadder.GetTop then -- is ladder
         if blockLadders then return end
-        table_Add( adjacents, ladMeta.GetBottomArea( areaOrLadder ) )
-        table_Add( adjacents, ladMeta.GetTopForwardArea( areaOrLadder ) )
-        table_Add( adjacents, ladMeta.GetTopBehindArea( areaOrLadder ) )
-        table_Add( adjacents, ladMeta.GetTopRightArea( areaOrLadder ) )
-        table_Add( adjacents, ladMeta.GetTopLeftArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetBottomArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopForwardArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopBehindArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopRightArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopLeftArea( areaOrLadder ) )
 
     else
         if blockLadders then
@@ -951,14 +851,6 @@ local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
     return adjacents
 
 end
-
-local table_IsEmpty = table.IsEmpty
-local inf = math.huge
-local ipairs = ipairs
-local isnumber = isnumber
-local table_remove = table.remove
-local table_insert = table.insert
-local table_Random = table.Random
 
 -- iterative function that finds connected area with the best score
 -- basically a* but for finding a goal somewhere, instead of finding a path to a goal
@@ -991,8 +883,8 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     noMoreOptionsMin = noMoreOptionsMin or 8
 
     local opened = { [curId] = true }
+    local openedSequential = { curId }
     local closed = {}
-    local openedSequential = {}
     local closedSequential = {}
     local distances = { [curId] = AreaOrLadderGetCenter( cur ):Distance( pos ) }
     local scores = { [curId] = 1 }
@@ -1030,16 +922,8 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
         end
 
         local areaId = bestArea
-        opened[areaId] = nil
-        closed[areaId] = true
-        -- table.removebyvalue fucking crashes the session
-        for key, value in ipairs( openedSequential ) do
-            if value == areaId then
-                table_remove( openedSequential, key )
-                break
-            end
-        end
-        closedSequential[#closedSequential + 1] = areaId
+        removeFrom( areaId, openedSequential, opened )
+        addTo( areaId, closedSequential, closed )
 
         local area = getNavAreaOrLadderById( areaId )
         local myDist = distances[areaId]
@@ -1097,126 +981,427 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
                 distances[adjID] = distance
                 scores[adjID] = theScore
-                opened[adjID] = true
+                addTo( adjID, openedSequential, opened )
 
                 if adjArea.GetTop then
                     isLadder[adjID] = true
 
                 end
-
-                table_insert( openedSequential, adjID )
-
             end
         end
     end
 end
 
 
--- return "path" of navareas that get us where we're going
-function reconstruct_path( cameFrom, current )
-    local total_path = { current }
+-- try to replicate default path:Compute behaviour
+local function adjacentAreasSkippingLadders( area )
+    local areaDatas = navMeta.GetAdjacentAreaDistances( area )
 
-    current = current:GetID()
-    while cameFrom[ current ] do
-        current = cameFrom[ current ]
-        table.insert( total_path, navmesh.GetNavAreaByID( current ) )
+    local ladders = navMeta.GetLadders( area )
+    if #ladders > 0 then
+        local areasCenter = navMeta.GetCenter( area )
+        local already = { [GetID( area )] = true }
+        for _, areaData in ipairs( areaDatas ) do
+            already[GetID( areaData.area )] = true
+
+        end
+        for _, ladder in ipairs( ladders ) do
+            local ladderAdjacents = AreaOrLadderGetAdjacentAreas( ladder )
+            for _, ladderAdj in ipairs( ladderAdjacents ) do
+                local ladderAdjID = GetID( ladderAdj )
+                if not already[ladderAdjID] then
+                    local adjacentsData = {
+                        area = ladderAdj,
+                        dist = vecMeta.Distance( navMeta.GetCenter( ladderAdj ), areasCenter ), -- simple distance, can change later if its a problem
+                        ladder = ladder,
+                        --dir shouldnt need this
+                    }
+                    table_insert( areaDatas, adjacentsData )
+                    already[ladderAdjID] = true
+
+                end
+            end
+        end
+    end
+
+    return areaDatas
+end
+
+-- return "path" of navareas that get us where we're going
+local function reconstruct_path( cameFrom, goalArea )
+    local total_path = { goalArea }
+    local noCircles = {}
+
+    local count = 0
+    local currId = GetID( goalArea )
+    while cameFrom[currId] do
+        count = count + 1
+        if count % 10 == 9 then
+            coroutine_yield( "pathing" )
+
+        end
+        local current = cameFrom[currId]
+        currId = current.id
+
+        if noCircles[currId] then return false end -- rare, happened when navmesh was being actively edited
+        noCircles[currId] = true
+
+        table_insert( total_path, 1, current.area )
 
     end
     return total_path
 
 end
 
-local function heuristic_cost_estimate( start, goal )
-    return start:GetCenter():Distance( goal:GetCenter() )
+local function areaDistToPos( start, goalPos )
+    return vecMeta.Distance( navMeta.GetCenter( start ), goalPos )
 
 end
 
-local function Astar( start, goal, scoreKeeper )
-    if not IsValid( start ) or not IsValid( goal ) then return false end -- FAIL
-    if start == goal then return true end -- already there
+local newUnreachableClass
+local newUnreachables = 0
 
-    navMeta.ClearSearchLists( start )
-    navMeta.AddToOpenList( start )
+-- actually finds the paths, on coroutine
+-- theoretically possible to use this without a term, but you will need to supply a scoreKeeper, see ENT:NavMeshPathCostGenerator
 
+-- returns... | area, final goal | table, area corridor | bool, if we got there | string, debug status
+
+function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKeeper )
+    if not IsValid( startArea ) or not IsValid( goalArea ) then return nil, nil, false, "fail1" end -- FAIL
+    if startArea == goalArea then return goalArea, { startArea, goalArea }, true, "succeed3" end -- already there
+
+    myTbl = myTbl or {} -- handle non-object astar calls in the future?
+
+    local lastNewUnreachables = newUnreachables
+    local maxPathingIterations = myTbl.MaxPathingIterations
+    local fodder = myTbl.IsFodder
+    local currExtent = 0
+
+    local startAreasId = GetID( startArea )
+    local opened = { [startAreasId] = true }
+    local openedSequential = { startAreasId }
+    local closed = {}
+    local closedSequential = {}
     local cameFrom = {}
+    local costsSoFar = { [startAreasId] = 0 }
+    local costsToEnd = { [startAreasId] = areaDistToPos( startArea, goal ) }
 
-    navMeta.SetCostSoFar( start, 0 )
+    while #openedSequential > 0 do
+        if fodder and lastNewUnreachables ~= newUnreachables then -- fodder enems share unreachable areas, so check if a buddy marked this as unreachable
+            lastNewUnreachables = newUnreachables
+            if newUnreachableClass == entMeta.GetClass( me ) and not myTbl.areaIsReachable( me, goalArea ) then
+                return goalArea, nil, false, "fail3"
 
-    navMeta.SetTotalCost( start, heuristic_cost_estimate( start, goal ) )
-    navMeta.UpdateOnOpenList( start )
+            end
+        end
+        coroutine_yield( "pathing" ) -- so corotine manager knows we're pathing
 
-    while not navMeta.IsOpenListEmpty( start ) do
-        local current = navMeta.PopOpenList( start ) -- Remove the area with lowest cost in the open list and return it
+        local smallestCost = inf
+        local bestId
+        for _, id in ipairs( openedSequential ) do
+            local cost = costsSoFar[id] + costsToEnd[id]
+            if cost < smallestCost then
+                smallestCost = cost
+                bestId = id
 
-        if current == goal then -- got there
-            return reconstruct_path( cameFrom, current )
+            end
+        end
+        local costSoFar = costsSoFar[bestId]
+        removeFrom( bestId, openedSequential, opened )
+        addTo( bestId, closedSequential, closed )
+
+        local bestArea = navmesh.GetNavAreaByID( bestId )
+        if not IsValid( bestArea ) then -- we are in a coroutine, this can happen
+            continue
 
         end
 
-        navMeta.AddToClosedList( current )
+        --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( smallestCost ) ), 1, color_white, true )
 
-        for _, neighbor in pairs( navMeta.GetAdjacentAreaDistances( current ) ) do
-            local newCostSoFar = scoreKeeper( neighbor, current,  )
+        if maxPathingIterations and currExtent > maxPathingIterations then -- all out :(
+            local smallestCompromiseCost = inf
+            local bestCompromiseId
+            for _, id in ipairs( opened ) do
+                if not costsSoFar[id] then continue end
+                local cost = costsSoFar[id] + costsToEnd[id]
+                if cost < smallestCompromiseCost then
+                    smallestCompromiseCost = cost
+                    bestCompromiseId = id
 
-            if neighbor:IsUnderwater() then -- Add your own area filters or whatever here
+                end
+            end
+            if bestCompromiseId then
+                local bestCompromiseArea = navmesh.GetNavAreaByID( bestCompromiseId )
+                local areaCorridor = reconstruct_path( cameFrom, bestCompromiseArea )
+                if not areaCorridor then
+                    return bestCompromiseArea, nil, false, "fail4"
+
+                end
+                return bestCompromiseArea, areaCorridor, false, "succeed2"
+
+            else
+                return nil, false, "fail5"
+
+            end
+        elseif bestArea == goalArea then
+            return goalArea, reconstruct_path( cameFrom, goalArea ), true, "succeed1"
+
+        end
+
+
+        local adjacentDatas = adjacentAreasSkippingLadders( bestArea )
+
+        for _, neighborDat in ipairs( adjacentDatas ) do
+            currExtent = currExtent + 1
+            if fodder and currExtent % 4 == 3 then
+                coroutine_yield( "pathing" )
+
+            end
+            local neighbor = neighborDat.area
+            if not IsValid( neighbor ) then continue end -- can happen when navmesh is being edited
+
+            local neighborsId = GetID( neighbor )
+            -- NavMeshPathCostGenerator
+            local neighborsCost = scoreKeeper( neighbor, bestArea, neighborDat.ladder, neighborDat.dist )
+
+            local neighborsCostSoFar = costSoFar + neighborsCost
+
+            if neighborsCost <= -1 then -- cant go this way
+                addTo( neighborsId, closedSequential, closed ) -- mark as closed
+                costsSoFar[neighborsId] = neighborsCostSoFar * 100
                 continue
+
             end
 
-            if ( ( neighbor:IsOpen() || neighbor:IsClosed() ) && neighbor:GetCostSoFar() <= newCostSoFar ) then
+            local staleRetrace = ( opened[neighborsId] or closed[neighborsId] ) and ( not costsSoFar[neighborsId] or costsSoFar[neighborsId] <= neighborsCostSoFar )
+
+            if staleRetrace then
                 continue
+
             else
-                neighbor:SetCostSoFar( newCostSoFar );
-                neighbor:SetTotalCost( newCostSoFar + heuristic_cost_estimate( neighbor, goal ) )
+                costsSoFar[neighborsId] = neighborsCostSoFar
+                costsToEnd[neighborsId] = areaDistToPos( neighbor, goal )
 
-                if ( neighbor:IsClosed() ) then
+                removeFrom( neighborsId, closedSequential, closed )
+                addTo( neighborsId, openedSequential, opened )
 
-                    neighbor:RemoveFromClosedList()
-                end
+                cameFrom[ neighborsId ] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
 
-                if ( neighbor:IsOpen() ) then
-                    -- This area is already on the open list, update its position in the list to keep costs sorted
-                    neighbor:UpdateOnOpenList()
-                else
-                    neighbor:AddToOpenList()
-                end
-
-                cameFrom[ neighbor:GetID() ] = current:GetID()
             end
         end
     end
+    return goalArea, nil, false, "fail6"
 
-    return false
 end
 
-function AstarVector( path, self, goal, goalArea, scoreKeeper )
-    local startArea = self:GetTrueCurrentNavArea()
-    local areaCorridor = Astar( startArea, goalArea, scoreKeeper )
+local Astar = terminator_Extras.Astar
 
-    return Astar( startArea, goalArea, scoreKeeper )
+hook.Add( "term_updateunreachableareas", "term_nouseless_fodderpaths", function( classUpdated )
+    newUnreachables = newUnreachables + 1
+    newUnreachableClass = classUpdated
+
+end )
+
+local allowedDeviations
+local areaCorridorNexts -- used to force the path:Compute to use a specific path
+
+-- generatorHack is a hack to allow us to use default path structure with a custom generator
+-- used to force the path:Compute to use a specific path, since we can't build a Path() manually
+local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- unthinkable HACK!!!
+    local areaId
+    local fromNext
+
+    if fromArea then
+        fromNext = areaCorridorNexts[ GetID( fromArea ) ]
+        if not fromNext then -- not on the path
+            allowedDeviations = allowedDeviations + -1 -- allow some deviations
+            if allowedDeviations <= 0 then
+                return -1 -- not in corridor, dont use this area
+
+            else
+                return 100 -- low priority
+
+            end
+        end
+    else
+        return 1 -- start of path
+
+    end
+
+    if area then
+        areaId = GetID( area )
+        local areaMask = areaCorridorNexts[ areaId ]
+        if not areaMask then
+            return 10000000000 -- not in corridor, try this last
+
+        end
+    end
+
+    if fromNext == true then -- special area
+        return 1
+
+    elseif fromNext == areaId then -- keep going
+        return 1
+
+    end
+
+    return -1 -- not the correct path
+
+end
+
+local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
+    local startArea = me:GetCurrentNavArea()
+    local newGoalArea, areaCorridor, wasGood, _debugMsg = Astar( me, myTbl, startArea, goal, goalArea, scoreKeeper )
+
+    if not areaCorridor then
+        path:Invalidate() -- a* failed to find a good path, or even a compromise path
+        return nil, false, "noCorridor"
+
+    end
+
+    if not IsValid( startArea ) or not IsValid( newGoalArea ) then -- outdated!
+        path:Invalidate() -- outdated, happens when the navmesh is being edited
+        return nil, false, "invalidEnds"
+
+    end
+
+    goal = navMeta.GetClosestPointOnArea( newGoalArea, goal ) -- make sure the goal lines up
+
+    local corridorIds = {}
+    for _, area in ipairs( areaCorridor ) do
+        if not IsValid( area ) then continue end
+        table_insert( corridorIds, GetID( area ) )
+
+    end
+
+    --local last = areaCorridor[1]:GetCenter() --debugging
+
+    -- terrible hack, we make a corridor with astar, then run a path:Compute inside that corridor
+    -- all this since building a Path() manually seemed to not be possible
+    -- the things that must be done for coroutined pathfinding... 
+    areaCorridorNexts = { [GetID( newGoalArea )] = true, [GetID( startArea )] = corridorIds[1] }
+    for i, currId in ipairs( corridorIds ) do
+        local nextOne = corridorIds[i + 1]
+        if nextOne then
+            areaCorridorNexts[ currId ] = nextOne -- force the compute to take the correct path
+
+        else
+            areaCorridorNexts[ currId ] = true
+
+        end
+
+        --local thisCenter = navMeta.GetCenter( getNavAreaOrLadderById( currId ) )
+        --debugoverlay.Line( last, thisCenter, 10, color_white, true )
+        --last = thisCenter
+
+    end
+
+    allowedDeviations = 250
+
+    local computed = path:Compute( me, goal, generatorHack )
+    areaCorridorNexts = nil
+    allowedDeviations = nil
+
+    if not path:IsValid() then -- :(
+        return nil, false, "noCompute"
+
+    end
+
+    return computed, wasGood, "allGood"
+end
+
+-- stub
+function ENT:AdditionalAvoidAreas()
 end
 
 --[[------------------------------------
-    Name: NEXTBOT:ComputePath
-    Desc: (INTERNAL) Computes path to goal.
+    Name: NEXTBOT:SetupPath
+    Desc: Creates new PathFollower object and computes path to goal. Invalidates old path.
     Arg1: Vector | pos | Goal position.
-    Arg2: (optional) function | generator | Custom cost generator for A* algorithm
-    Ret1: bool | Path generated succesfully
+    Arg2: (optional) table | options | Table with options:
+        `mindist` - SetMinLookAheadDistance
+        `tolerance` - SetGoalTolerance
+        `generator` - Custom cost generator
+    Ret1: any | PathFollower object if created succesfully, otherwise false
 --]]------------------------------------
-function ENT:ComputePath( pos, scoreKeeper )
-    local path = self:GetPath()
+function ENT:SetupPath( pos, endArea )
+    local myTbl = entMeta.GetTable( self )
+    myTbl.InvalidatePath( self, "i started a new path" )
 
-    if AstarVector( path, self, goal, goalArea, scoreKeeper ) then
+    myTbl.pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost or {}
 
-    if path:Compute( self, pos, scoreKeeper ) then
-        local ang = self:GetAngles()
-        -- path update makes bot look forward on the path
-        path:Update( self )
-        self:SetAngles( ang )
+    if not myTbl.IsFodder then -- fodder npcs usually dont live long enough for this to matter.
+        -- areas that we took damage in
+        myTbl.AddAreasToAvoid( self, myTbl.hazardousAreas, FLANK_DEFAULT_COST / 2 )
 
-        return path:IsValid()
     end
 
-    return false
+    local adjusted = myTbl.AdditionalAvoidAreas( self, myTbl.pathAreasAdditionalCost )
+    if istable( adjusted ) then
+        myTbl.pathAreasAdditionalCost = adjusted
+
+    end
+
+    if myTbl.awarenessDamaging then
+        local damagingAreas = self:DamagingAreas()
+        local avoidStrength = 50
+        -- blinded by rage
+        if self:IsReallyAngry() then
+            avoidStrength = 2
+
+        elseif self:IsAngry() then
+            avoidStrength = 25
+
+        end
+        self:AddAreasToAvoid( damagingAreas, avoidStrength )
+
+    end
+
+    local function scoreKeeper( area, from, ladder, connDist )
+        return myTbl.NavMeshPathCostGenerator( self, myTbl, area, from, ladder, connDist )
+
+    end
+
+    local path = Path( "Follow" )
+    myTbl.m_Path = path
+
+    path:SetMinLookAheadDistance( myTbl.PathMinLookAheadDistance )
+    path:SetGoalTolerance( myTbl.PathGoalTolerance )
+
+    myTbl.m_PathPos = pos
+
+    local computed, wasGood, _status = AstarCompute( path, self, myTbl, pos, endArea, scoreKeeper )
+    --print( self:GetCreationID(), "AstarCompute", computed, wasGood, _status )
+
+    myTbl.pathAreasAdditionalCost = nil
+
+    if not path:IsValid() then
+        self:InvalidatePath( "i failed to build a path" )
+
+        -- this stuck edge case usually happens when the bot ends up in some orphan part of the navmesh with no way out, eg bottom of an elevator shaft
+        local old = myTbl.term_ConsecutivePathFailures or 0
+        if old > 25 then
+            myTbl.overrideVeryStuck = true -- alert the reallystuck_handler
+
+        elseif old >= 5 then
+            local currNav = self:GetCurrentNavArea()
+            if not IsValid( currNav ) or self:AreaIsOrphan( currNav, true ) then
+                myTbl.overrideVeryStuck = true -- alert the reallystuck_handler early!
+
+            end
+        end
+
+        if self:IsOnGround() then
+            myTbl.term_ConsecutivePathFailures = old + 1
+
+        end
+        return false
+
+    end
+
+    myTbl.term_ConsecutivePathFailures = 0
+
+    return computed, wasGood
 
 end
 
