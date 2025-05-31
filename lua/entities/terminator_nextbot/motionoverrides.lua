@@ -2136,7 +2136,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             end
 
             -- detect when bot falls down and we need to repath
-            local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegment.area:GetClosestPointOnArea( myPos ).z ), myTbl.loco:GetMaxJumpHeight() * 1.5 )
+            local aheadSegPos = IsValid( aheadSegment.area ) and aheadSegment.area:GetClosestPointOnArea( myPos ) or aheadSegment.pos
+            local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegPos ), myTbl.loco:GetMaxJumpHeight() * 1.5 )
             local changeToSegment = math.abs( myPos.z - currSegment.pos.z )
 
             if changeToSegment > maxHeightChange * 1.25 then

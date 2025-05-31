@@ -3278,7 +3278,7 @@ function ENT:DoDefaultTasks()
                 data.nextUnstuckGotoEscape = 0
                 data.freedomGotoPosSimple = nil
             end,
-            BehaveUpdateMotion = function( self, data )
+            BehaveUpdatePriority = function( self, data )
                 local myTbl = data.myTbl
                 if data.freedomGotoPosSimple and data.extremeUnstucking > CurTime() then -- try and unstuck without teleporting!
                     local dist = self:GetPos():Distance2D( data.freedomGotoPosSimple )
