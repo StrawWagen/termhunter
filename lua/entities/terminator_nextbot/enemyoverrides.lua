@@ -147,6 +147,17 @@ function ENT:enemyBearingToMeAbs()
 
 end
 
+function ENT:enemyPitchToMeAbs()
+    local enemy = self:GetEnemy()
+    if not IsValid( enemy ) then return 0 end
+    local myPos = self:GetPos()
+    local enemyPos = enemy:GetPos()
+    local enemyAngle = enemy:EyeAngles()
+
+    return math.abs( terminator_Extras.PitchToPos( myPos, enemyAngle, enemyPos, enemyAngle ) )
+
+end
+
 do
     local matrixMeta = FindMetaTable( "VMatrix" )
 

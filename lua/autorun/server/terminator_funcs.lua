@@ -57,11 +57,23 @@ terminator_Extras.dirToPos = function( startPos, endPos )
 
 end
 
+local rad2deg = 180 / math.pi
+-- these methods are from e2 core functions, good stuff
+
 terminator_Extras.BearingToPos = function( pos1, ang1, pos2, ang2 )
     local localPos = WorldToLocal( pos1, ang1, pos2, ang2 )
-    local bearing = 180 / math.pi * math.atan2( localPos.y, localPos.x )
+    local bearing = rad2deg * math.atan2( localPos.y, localPos.x )
 
     return bearing
+
+end
+
+terminator_Extras.PitchToPos = function( pos1, ang1, pos2, ang2 )
+    local localPos = WorldToLocal( pos1, ang1, pos2, ang2 )
+
+    local len = localPos:Length()
+    if len < 0 then return 0 end
+    return rad2deg * math.asin(localPos.z / len)
 
 end
 
