@@ -3114,7 +3114,7 @@ function ENT:DoDefaultTasks()
 
                 if IsValid( newEnemy ) then
                     local newEnemysTbl = entMeta.GetTable( newEnemy )
-                    local newEnemsHealth = entMeta.Health( newEnemy ) 
+                    local newEnemsHealth = entMeta.Health( newEnemy )
                     local enemyPos = entMeta.GetPos( newEnemy )
                     local enemIsPlayer = entMeta.GetClass( newEnemy ) == "player"
                     local theirCar = enemIsPlayer and newEnemy:GetVehicle()

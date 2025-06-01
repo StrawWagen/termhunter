@@ -301,6 +301,11 @@ if SERVER then
 
     end
 
+    function ENT:M9K_GetShootPos()
+        return self:GetShootPos()
+
+    end
+
 else -- CLIENT
     function ENT:ShouldDrawLocalPlayer() -- for when you dont want to double-draw stuff
         return true

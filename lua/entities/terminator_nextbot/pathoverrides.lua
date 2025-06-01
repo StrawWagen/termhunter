@@ -463,7 +463,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
     local attributes = navMeta.GetAttributes( toArea )
     local crouching
 
-    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not self:transientAreaPathable( toArea, toAreasId ) then return false end
+    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not self:transientAreaPathable( toArea, toAreasId ) then return -1 end
 
     local hunterIsFlanking = myTbl.hunterIsFlanking
 
