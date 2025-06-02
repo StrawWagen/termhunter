@@ -81,6 +81,7 @@ local distToSqr = vecMeta.DistToSqr
 local CurTime = CurTime
 local IsValid = IsValid
 local table_insert = table.insert
+local table_Random = table.Random
 
 --utility functions begin
 
