@@ -1,9 +1,6 @@
 function ENT:BehaveStart()
     self:SetupCollisionBounds()
 
-    self:SetupTaskList( self.m_TaskList )
-    self:SetupTasks()
-
 end
 
 local entMeta = FindMetaTable( "Entity" )

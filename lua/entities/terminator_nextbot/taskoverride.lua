@@ -1,3 +1,4 @@
+local entMeta = FindMetaTable( "Entity" )
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
 local function yieldIfWeCan( reason )
@@ -115,4 +116,118 @@ function ENT:StartTask( task, data )
 
     self:RunCurrentTask( task, "OnStart" )
 
+end
+
+
+--[[------------------------------------
+    Name: NEXTBOT:DoCustomTasks
+    Desc: stub for entities based on this
+    passes terminator tasks, so you can add new functionality/ai and just copy over the base reallystuckhandler, enemy finder, etc
+    Arg1: table | defaultTasks | Base terminator tasks
+    Ret1: table | defaultTasks | 
+--]]------------------------------------
+function ENT:DoCustomTasks( _defaultTasks )
+end
+
+--[[
+DoCustomTasks example!, 
+function ENT:DoCustomTasks( defaultTasks )
+    self.TaskList = {
+        ["shooting_handler"] = defaultTasks["shooting_handler"],
+        ["awareness_handler"] = defaultTasks["awareness_handler"],
+        ["enemy_handler"] = defaultTasks["enemy_handler"],
+        ["inform_handler"] = defaultTasks["inform_handler"],
+        ["reallystuck_handler"] = defaultTasks["reallystuck_handler"],
+        ["movement_wait"] = defaultTasks["movement_wait"],
+        ["playercontrol_handler"] = defaultTasks["playercontrol_handler"],
+        ["movement_mycustomtask"] = {
+            OnStart = function( self, data )
+                -- start doing something
+            end,
+            OnEnd = function( self, data )
+                -- stop doing something
+            end,
+            BehaveUpdateMotion = function( self, data )
+                -- do something in the motion coroutine
+            end,
+        },
+    }
+end
+--]]
+
+
+--[[------------------------------------
+    Name: NEXTBOT:SetupClassTask
+    Desc: stub, Simple way to add class-specific task behaviour
+    NOT FOR ADDING MOVEMENT CHANGES!!!
+    this is just a simple background task for overriding death behaviour, etc
+    see zambie god crab for example
+    Arg1: table | task | raw task table
+    Ret1:
+--]]------------------------------------
+function ENT:SetupClassTask( _myTbl, _myClassTask ) -- _ just here to make the linter happy
+end
+
+ENT.HasClassTask = false -- set this to true if you're using SetupClassTask
+
+--[[
+SetupClassTask example!,
+function ENT:SetupClassTask( myClassTask )
+    myClassTask.EnemyFound = function( self, data )
+        -- do something on enemy found
+    end
+    myClassTask.EnemyLost = function( self, data )
+        -- do something else on enemy lost
+    end
+    myClassTask.OnKilled = function( self, data )
+        -- do something on death
+    end
+    return myClassTask
+
+end
+--]]
+
+-- handles adding class task, donot touch!
+function ENT:DoClassTask( myTbl )
+    if not myTbl.HasClassTask then return end
+    local classTask = {}
+    myTbl.SetupClassTask( self, myTbl, classTask )
+
+    if table.Count( classTask ) == 0 then
+        return
+    end
+
+    classTask.StartsOnInitialize = true
+
+    local className = entMeta.GetClass( self ) .. "_handler"
+    self.TaskList[className] = classTask
+
+end
+
+
+--[[------------------------------------
+    Name: ENT:SetupTasks
+    Desc: Sets up all tasks for the entity.
+    add .StartsOnInitialize = true to task tbl to make it start on spawn.
+    Override at your own risk.
+    Ret1:
+--]]------------------------------------
+function ENT:SetupTasks( myTbl )
+    myTbl.DoDefaultTasks( self )
+
+    myTbl.DoCustomTasks( self, myTbl.TaskList )
+    myTbl.DoClassTask( self, myTbl )
+
+    local taskListStatic = myTbl.m_TaskList
+    for k,v in pairs( myTbl.TaskList ) do
+        taskListStatic[k] = v
+
+    end
+
+    for taskName, taskDat in pairs( self.TaskList ) do
+        if taskDat.StartsOnInitialize then
+            self:StartTask( taskName )
+
+        end
+    end
 end

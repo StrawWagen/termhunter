@@ -224,7 +224,7 @@ function ENT:OnTakeDamage( Damage )
 
     if self:PostTookDamage( Damage ) then return true end
 
-    if Damage:GetDamage() >= 1 and self:Health() <= 0 then -- HACK!
+    if Damage:GetDamage() >= 1 and self:Health() <= 0 and ( not self.Term_DyingUntil or self.Term_DyingUntil < CurTime() ) then -- HACK!
         SafeRemoveEntityDelayed( self, 1 )
 
     end
@@ -547,8 +547,8 @@ function ENT:HandleFlinching( dmg, hitGroup )
 
 end
 
-function ENT:HandleWeaponOnDeath( wep, dmg ) -- drop our weapons!
-    if dmg:IsDamageType( DMG_DISSOLVE ) then
+function ENT:HandleWeaponOnDeath( wep, dissolving ) -- drop our weapons!
+    if dissolving then
         self:DissolveEntity( wep )
         timer.Simple( 0, function()
             if not IsValid( self ) then return end
@@ -575,9 +575,75 @@ end
 function ENT:AdditionalOnKilled( _dmg ) -- stub! for your convenience
 end
 
+function ENT:HandleDeathAnim( _dmg ) -- stub!
+end
+
 function ENT:OnKilled( dmg )
     if self.term_Dead then ErrorNoHaltWithStack( "tried to die twice" ) return end
     self.term_Dead = true
+
+    local attacker = dmg:GetAttacker()
+    local inflictor = dmg:GetInflictor()
+    local damageType = dmg:GetDamageType()
+    local damagePos = dmg:GetDamagePosition()
+    local damageForce = dmg:GetDamageForce()
+
+    self:AdditionalOnKilled( dmg )
+    local deathAniming
+
+    if self.Term_DeathAnim then
+        local deathAnimDat = self.Term_DeathAnim
+        local deathAct = deathAnimDat.act
+        if deathAct and not ( isnumber( deathAct ) and deathAct <= 0 ) then
+            local deathSeq
+            if isstring( deathAct ) then
+                deathSeq = self:LookupSequence( deathAct )
+                deathAct = deathSeq
+
+            else
+                deathSeq = self:SelectWeightedSequence( deathAct )
+
+            end
+            deathAniming = true
+
+            local startFunc = deathAnimDat.startFunc
+            if startFunc then
+                startFunc( self )
+
+            end
+
+            self:RunTask( "OnStartDying", dmg )
+
+            local rate = deathAnimDat.rate or 1
+            self:StopMoving()
+            self:DoGesture( deathAct, rate, true )
+
+            local duration = self:SequenceDuration( deathSeq ) / rate
+            self.Term_DyingUntil = CurTime() + duration
+            timer.Simple( duration, function()
+                if not IsValid( self ) then return end
+
+                local finishFunc = deathAnimDat.finishFunc
+                if finishFunc then
+                    finishFunc( self )
+
+                end
+
+                -- doesn't pass dmg object because there's just 1 global damage object
+                self:FinishDying( attacker, inflictor, nil, damageType, damagePos, damageForce )
+
+            end )
+        end
+    end
+
+    if deathAniming then return end
+    self:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damageForce )
+
+end
+
+function ENT:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damageForce )
+
+    local dissolving = bit.band( damageType, DMG_DISSOLVE ) ~= 0
 
     timer.Simple( 10, function() -- HACK
         if not IsValid( self ) then return end
@@ -588,8 +654,6 @@ function ENT:OnKilled( dmg )
 
     end )
 
-    self:AdditionalOnKilled( dmg )
-
     local wep = self:GetActiveWeapon()
     local weps = { wep }
 
@@ -597,7 +661,7 @@ function ENT:OnKilled( dmg )
     table.Add( weps, holsteredWeaps )
     for _, currWep in pairs( weps ) do
         if not IsValid( currWep ) then continue end
-        self:HandleWeaponOnDeath( currWep, dmg )
+        self:HandleWeaponOnDeath( currWep, dissolving )
 
     end
 
@@ -609,22 +673,38 @@ function ENT:OnKilled( dmg )
 
     local ragdoll
 
-    local preventRagdoll, blockRemove = self:RunTask( "PreventBecomeRagdollOnKilled", dmg )
+    if dmg then
+        local preventRagdoll, blockRemove = self:RunTask( "PreventBecomeRagdollOnKilled", dmg )
 
-    if not preventRagdoll then
-        if dmg:IsDamageType( DMG_DISSOLVE ) then
-            self:DissolveEntity()
-            self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
-            hook.Run( "OnTerminatorKilledDissolve", self, dmg:GetAttacker(), dmg:GetInflictor() )
+        if not preventRagdoll then
+            if dissolving then
+                self:DissolveEntity()
+                self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
+                hook.Run( "OnTerminatorKilledDissolve", self, dmg )
 
-        else
-            hook.Run( "OnTerminatorKilledRagdoll", self, dmg:GetAttacker(), dmg:GetInflictor() )
+            else
+                hook.Run( "OnTerminatorKilledRagdoll", self, dmg )
+
+            end
+
+            ragdoll = self:BecomeRagdoll( dmg )
+
+        elseif not blockRemove then
+            SafeRemoveEntityDelayed( self, 5 )
 
         end
-        ragdoll = self:BecomeRagdoll( dmg )
+    else
+        inflictor = IsValid( inflictor ) and inflictor or attacker
 
-    elseif not blockRemove then
-        SafeRemoveEntityDelayed( self, 5 )
+        hook.Run( "OnTerminatorKilledScripted", self, attacker, inflictor, damageType, damagePos, damageForce )
+
+        local fauxDamage = DamageInfo()
+        fauxDamage:SetAttacker( attacker )
+        fauxDamage:SetInflictor( inflictor )
+        fauxDamage:SetDamageType( damageType )
+        fauxDamage:SetDamagePosition( damagePos )
+        fauxDamage:SetDamageForce( damageForce )
+        ragdoll = self:BecomeRagdoll( fauxDamage )
 
     end
 
@@ -641,8 +721,8 @@ function ENT:OnKilled( dmg )
     end
 
     -- do these last just in case something below here errors
-    self:RunTask( "OnKilled", dmg, ragdoll )
-    hook.Run( "OnNPCKilled", self, dmg:GetAttacker(), dmg:GetInflictor() )
+    hook.Run( "OnNPCKilled", self, attacker, inflictor )
+    self:RunTask( "OnKilled", attacker, inflictor, ragdoll )
 
 end
 

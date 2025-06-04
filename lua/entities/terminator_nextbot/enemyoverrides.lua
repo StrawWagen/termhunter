@@ -766,17 +766,19 @@ end
 
 function ENT:IsManiacTerm()
     if self.neverManiac then return end
+    if self.term_BecameManiac then return true end
 
     local maniacHunter = self.alwaysManiac
     if isfunction( maniacHunter ) then -- script infighting
         maniacHunter = maniacHunter( self )
-        if maniacHunter then
-            self.alwaysManiac = maniacHunter -- condition was met, save result!
-
-        end
     end
-    if not maniacHunter and not blockRandomInfighting:GetBool() then -- random infighting
-        maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- infighting funny
+    if not maniacHunter and not blockRandomInfighting:GetBool() and ( not terminator_Extras.nextManaiacNPC or terminator_Extras.nextManaiacNPC < CurTime() ) then
+        terminator_Extras.nextManaiacNPC = CurTime() + math.Rand( 60, 60 * 4 ) -- not too often pls
+        maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- random infighting funny
+
+    end
+    if maniacHunter then
+        self.term_BecameManiac = maniacHunter -- condition was met, save result!
 
     end
     return maniacHunter

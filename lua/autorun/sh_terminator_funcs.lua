@@ -4,6 +4,7 @@ AddCSLuaFile()
 terminator_Extras = terminator_Extras or {}
 
 terminator_Extras.healthDefault = 900 -- shared, for GLEE
+terminator_Extras.MDLSCALE_LARGE = 1.2
 
 terminator_Extras.PosCanSee = function( startPos, endPos, mask )
     if not startPos then return end
@@ -157,4 +158,19 @@ terminator_Extras.posIsUnderDisplacement = function( pos )
     -- we are DEFINITely under one
     return true, nil, firstTraceResult
 
+end
+
+function terminator_Extras.copyMatsOver( from, to )
+    for ind = 0, #from:GetMaterials() do
+        local mat = from:GetSubMaterial( ind )
+        if mat and mat ~= "" then
+            to:SetSubMaterial( ind, mat )
+
+        end
+    end
+    local myMat = from:GetMaterial()
+    if myMat and myMat ~= "" then
+        to:SetMaterial( myMat )
+
+    end
 end

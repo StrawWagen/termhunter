@@ -1,6 +1,6 @@
 AddCSLuaFile()
 
-ENT.Base = "terminator_nextbot_soldier_base"
+ENT.Base = "terminator_nextbot_base"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator"
 ENT.Author = "StrawWagen"
@@ -17,6 +17,8 @@ include( "sharedextras.lua" )
 -- these need to be shared
 include( "compatibilityhacks.lua" )
 
+ENT.isTerminatorHunterBased = true -- used to see if ent is an actual terminator
+
 if CLIENT then
     language.Add( "terminator_nextbot", ENT.PrintName )
 
@@ -27,6 +29,8 @@ if CLIENT then
         self:AdditionalClientInitialize()
 
     end
+
+    include( "cl_ragdolldeaths.lua" )
 
     return
 
@@ -49,6 +53,8 @@ elseif SERVER then
     include( "overcharging.lua" )
     -- sounds, used by supercop
     include( "spokenlines.lua" )
+
+    AddCSLuaFile( "cl_ragdolldeaths.lua" )
 
 end
 
@@ -84,17 +90,6 @@ local table_insert = table.insert
 local table_Random = table.Random
 
 --utility functions begin
-
-local function PickRealVec( toPick )
-    -- ipairs breaks if nothing is stored in any index, thanks ipairs!!!!!
-    for index = 1, table.maxn( toPick ) do
-        local picked = toPick[ index ]
-        if isvector( picked ) then
-            return picked
-
-        end
-    end
-end
 
 local function hasReasonableHealth( ent )
     local entsHp = entMeta.Health( ent )
@@ -610,7 +605,7 @@ do
 
         end
 
-        local surroundings = {} 
+        local surroundings = {}
         for _, ent in ipairs( rawSurroundings ) do
             if not notInterestingCache[ent] then
                 table.insert( surroundings, ent )
@@ -2526,6 +2521,13 @@ hook.Add( "terminator_nextbot_noterms_exist", "terminator_clear_playerstatuses",
     end
 end )
 
+function ENT:SetupDefaultCapabilities()
+    BaseClass.SetupDefaultCapabilities(self)
+
+    self:CapabilitiesAdd(CAP_MOVE_JUMP)
+end
+
+
 
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 ENT.ARNOLD_MODEL = ARNOLD_MODEL
@@ -2677,7 +2679,7 @@ function ENT:DoHardcodedRelations()
     }
 end
 
-function ENT:AdditionalThink( _myTbl )
+function ENT:AdditionalThink( _myTbl ) -- THINK stub, inside coroutine! for your convenience
 end
 
 function ENT:TermThink( myTbl ) -- inside coroutine :)
@@ -2735,11 +2737,6 @@ function ENT:TermThink( myTbl ) -- inside coroutine :)
     --]]
 end
 
--- stub for entities based on this
--- passes terminator tasks, so you can copy over the base reallystuckhandler, etc
-function ENT:DoCustomTasks( _baseTasks ) -- old tasks
-end
-
 function ENT:AdditionalInitialize( _myTbl )
 end
 
@@ -2755,8 +2752,6 @@ function ENT:Initialize()
 
     myTbl.terminator_DontImmiediatelyFire = CurTime()
     myTbl.CreateShootingTimer( self )
-
-    myTbl.isTerminatorHunterBased = true -- used to see if ent is an actual terminator
 
     myTbl.DoNotDuplicate = true -- TODO; somehow fix the loco being nuked when duped
 
@@ -2814,9 +2809,7 @@ function ENT:Initialize()
     myTbl.WeaponSpread = 0
 
     -- end lil config
-
-    myTbl.DoDefaultTasks( self )
-    myTbl.DoCustomTasks( self, myTbl.TaskList )
+    myTbl.SetupTasks( self, myTbl )
 
     -- for stuff based on this
     myTbl.AdditionalInitialize( self, myTbl )
@@ -2885,6 +2878,7 @@ end
 function ENT:DoDefaultTasks()
     self.TaskList = {
         ["shooting_handler"] = {
+            StartsOnInitialize = true,
             OnStart = function( self, data )
             end,
             BehaveUpdatePriority = function( self, data, interval )
@@ -2988,6 +2982,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         ["enemy_handler"] = {
+            StartsOnInitialize = true,
             OnStart = function( self, data )
                 data.UpdateEnemies = CurTime()
                 data.HasEnemy = false
@@ -3261,6 +3256,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         ["awareness_handler"] = {
+            StartsOnInitialize = true,
             BehaveUpdatePriority = function( self, data, interval )
                 local myTbl = data.myTbl
                 local nextAware = myTbl.term_NextAwareness or 0
@@ -3270,6 +3266,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         ["reallystuck_handler"] = { -- it's really stuck!!!!!!!
+            StartsOnInitialize = true,
             OnStart = function( self, data )
                 data.historicPositions = {}
                 data.historicNavs = {}
@@ -3508,6 +3505,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         ["movement_handler"] = {
+            StartsOnInitialize = true,
             BehaveUpdateMotion = function( self, data, interval )
                 if not self:nextNewPathIsGood() then
                     self:TaskComplete( "movement_handler" )
@@ -4374,7 +4372,15 @@ function ENT:DoDefaultTasks()
 
                 --print( "Search!" .. data.searchWant .. " " .. data.searchRadius )
                 local toPick = { data.searchCenter, self.EnemyLastPosOffsetted, self:GetPos() }
-                local pickedSearchCenter = PickRealVec( toPick )
+                local pickedSearchCenter
+                for index = 1, table.Count( toPick ) do
+                    local picked = toPick[ index ]
+                    if isvector( picked ) then
+                        pickedSearchCenter = picked
+                        break
+
+                    end
+                end
                 local needsToDoANearbySearch = data.searchCenter and not data.searchedNearCenter and data.searchWant > 0
 
                 -- focus search on where a "hint" was, or first operation, focus our search on where the code says we should be
@@ -7942,6 +7948,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         ["inform_handler"] = {
+            StartsOnInitialize = true,
             OnStart = function( self, data )
                 data.Inform = function( enemy, pos, senderPos )
                     for _, ent in ipairs( self:GetNearbyAllies() ) do
@@ -8019,6 +8026,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         ["playercontrol_handler"] = {
+            StartsOnInitialize = true,
             StopControlByPlayer = function( self, data, ply )
                 self:StartTask2( "enemy_handler", nil, "begin" )
                 self:StartTask2( "movement_handler", nil, "begin" )
@@ -8026,16 +8034,4 @@ function ENT:DoDefaultTasks()
             end,
         },
     }
-end
-
-function ENT:SetupTasks()
-    BaseClass.SetupTasks( self )
-
-    self:StartTask( "enemy_handler" )
-    self:StartTask( "shooting_handler" )
-    self:StartTask( "playercontrol_handler" )
-    self:StartTask( "awareness_handler" )
-    self:StartTask( "reallystuck_handler" )
-    self:StartTask( "inform_handler" )
-
 end

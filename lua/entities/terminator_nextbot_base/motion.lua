@@ -579,7 +579,6 @@ end
 	Ret1: 
 --]]------------------------------------
 function ENT:PhysicsObjectCollide(data)
-	local phys = data.PhysObject
 end
 
 --[[------------------------------------
@@ -590,7 +589,7 @@ end
 --]]------------------------------------
 function ENT:OnContact(ent)
 	local trace = self:GetTouchTrace()
-	
+
 	if trace.Hit then
 		self:OnTouch(ent,trace)
 	end

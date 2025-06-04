@@ -6,7 +6,7 @@ local coroutine_running = coroutine.running
 
 local Vector = Vector
 
-local MDLSCALE_LARGE = 1.2
+local MDLSCALE_LARGE = terminator_Extras.MDLSCALE_LARGE
 local gapJumpHull = Vector( 5, 5, 5 )
 local down = Vector( 0, 0, -1 )
 local vector_up = Vector( 0, 0, 1 )
@@ -1463,11 +1463,16 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
         local dist2d = subtFlattened:Length2D()
         local dist2dMaxed = math.Clamp( dist2d, 0, myTbl.RunSpeed )
 
-        local dirProportional = dir * math.Clamp( myTbl.RunSpeed * 0.8, myTbl.RunSpeed / 5, dist2dMaxed + 50 )
+        local desiredSpeed = myTbl.RunSpeed * 0.8 -- bit less than run speed
+        local minSpeed = myTbl.WalkSpeed / 5 -- we have to get to the goal, never 0
+        local maxSpeed = dist2dMaxed + 50 -- always have some extra speed here too, so we dont just stop short
+        local desiredVel = dir * math.Clamp( desiredSpeed, minSpeed, maxSpeed )
+
+        local accelSpeed = myTbl.loco:GetAcceleration() * 0.8
 
 
-        myVel.x = dirProportional.x
-        myVel.y = dirProportional.y
+        myVel.x = math.Approach( myVel.x, desiredVel.x, accelSpeed )
+        myVel.y = math.Approach( myVel.y, desiredVel.y, accelSpeed )
         -- only touch z of vel if goal is below us!
         if dir.z < -0.75 then
             myVel.z = math.Clamp( myVel.z, -math.huge, myVel.z * 0.9 )
@@ -2108,9 +2113,25 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
     end
 
+    if inAirNoDestination == true then -- Just in the air, with no goal, no worries, probably falling to our death
+        if closeToGoal then
+            doingJump = true
+
+        end
+
+        -- dampen sideways vel when in air
+        local myVel = myTbl.loco:GetVelocity()
+        local newVel = myVel * 1
+        newVel.x = newVel.x * 0.9
+        newVel.y = newVel.y * 0.9
+
+        myTbl.loco:SetVelocity( newVel )
+
+    end
+
     coroutine_yield()
 
-    if doPathUpdate then
+    if doPathUpdate then -- we're making progress!
         local distAhead = myPos:DistToSqr( currSegment.pos )
 
         -- blegh
@@ -2149,24 +2170,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         end
     end
 
-    if inAirNoDestination == true then
-        if closeToGoal then
-            doingJump = true
-
-        end
-
-        -- dampen sideways vel when in air
-        local myVel = myTbl.loco:GetVelocity()
-        local newVel = myVel * 1
-        newVel.x = newVel.x * 0.9
-        newVel.y = newVel.y * 0.9
-
-        myTbl.loco:SetVelocity( newVel )
-
-    end
-
     local oldPathSegment = myTbl.oldWasClosePathSegment
-    if oldPathSegment ~= aheadSegment then
+    if oldPathSegment ~= aheadSegment then -- moved along path, reset this
         myTbl.oldWasClosePathSegment = aheadSegment
         myTbl.beenCloseToTheBottomOfTheJump = nil
 
@@ -2559,7 +2564,7 @@ function ENT:ExitLadder( exit, recalculate )
     local clearResult = util.TraceHull( findHighestClearPos )
 
     self:SetPosNoTeleport( clearResult.HitPos )
-    self.loco:SetVelocity( vector_up )
+    self.loco:SetVelocity( vector_up ) -- dont fall
 
     -- finally, set our vel towards the ladder exit
     local ladderExitVel = ( pos - clearResult.HitPos ):GetNormalized()
@@ -2633,11 +2638,27 @@ function ENT:Jump( height, fakeJump )
     self:RunTask( "OnJump", height )
     self:UpdateGravity()
 
+    local jumpStartAct, isAnim = self:TranslateActivity( ACT_MP_JUMP_START )
+    if not isAnim then return end
+
+    self:DoGesture( jumpStartAct )
+
+end
+
+--[[------------------------------------
+	Name: NEXTBOT:IsFalling
+	Desc: Aaah, we're falling!
+	Arg1: 
+	Ret1: bool | Bot is faling
+--]]------------------------------------
+function ENT:IsFalling( myTbl )
+    return myTbl.m_Falling or false
+
 end
 
 local airSoundPath = "ambient/wind/wind_rooftop1.wav"
 
-local function StartFallingSound( falling )
+local function StartFalling( falling )
     local timerName = "terminator_falling_manage_sound_" .. falling:GetCreationID()
     falling:StopSound( airSoundPath )
     timer.Remove( timerName )
@@ -2650,6 +2671,7 @@ local function StartFallingSound( falling )
     airSound:PlayEx( 1, 150 )
 
     falling.terminator_playingFallingSound = true
+    falling.m_Falling = true
 
     falling:CallOnRemove( "terminator_stopwhooshsound", function() falling:StopSound( airSoundPath ) end )
 
@@ -2658,6 +2680,7 @@ local function StartFallingSound( falling )
         if not IsValid( falling ) then return end
         falling:StopSound( airSoundPath )
         falling.terminator_playingFallingSound = nil
+        falling.m_Falling = true
 
     end
 
@@ -2735,7 +2758,7 @@ function ENT:HandleInAir( myTbl )
     local fallHeight = myTbl.FallHeight( self )
 
     if fallHeight > 200 and myTbl.ReallyHeavy and not myTbl.IsSilentStepping( self ) and not myTbl.terminator_playingFallingSound then
-        StartFallingSound( self )
+        StartFalling( self )
 
     end
 
@@ -2858,6 +2881,9 @@ function ENT:UpdateGravity( myTbl )
 
 end
 
+function ENT:AdditionalOnLandOnGround( _ent ) -- stub!
+end
+
 local vecDown = Vector( 0, 0, -1 )
 
 --[[------------------------------------
@@ -2903,9 +2929,10 @@ function ENT:OnLandOnGround( ent )
         self:FallIntoTheVoid()
 
     elseif fallHeight >= 50 then
-        local layer = self:AddGesture( self:TranslateActivity( ACT_LAND ) )
+        self:DoGesture( self:TranslateActivity( ACT_LAND ) )
 
         if fallHeight >= 500 then
+            self:MakeFootstepSound( 1 )
             if not self:IsSilentStepping() and self.MetallicMoveSounds then
                 util.ScreenShake( self:GetPos(), 16, 20, 0.4, 3000 )
                 self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 100, 60, 1, CHAN_STATIC )
@@ -2927,8 +2954,6 @@ function ENT:OnLandOnGround( ent )
                 self:EmitSound( "physics/metal/metal_computer_impact_bullet2.wav", 84, 40, 0.6, CHAN_STATIC )
 
             end
-            self:SetLayerPlaybackRate( layer, 0.2 )
-            self:SetLayerWeight( layer, 100 )
             killScale = 40
             killBoxScale = 1.5
 
@@ -2940,7 +2965,6 @@ function ENT:OnLandOnGround( ent )
                 self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 80, 40, 0.3, CHAN_STATIC )
 
             end
-            self:SetLayerPlaybackRate( layer, 1 )
             killScale = 20
             killBoxScale = 0.8
 
@@ -2960,10 +2984,12 @@ function ENT:OnLandOnGround( ent )
         maxs = maxs * killBoxScale
         mins = mins * killBoxScale
 
+        local damage = killScale * 5
+
+        local dealt = {}
         local toKill = ents.FindAlongRay( myPos, myPos + vecDown * killScale, mins, maxs )
         for _, entToKill in ipairs( toKill ) do
             if entToKill == self then continue end
-            local damage = killScale * 5
 
             if ent.huntersglee_breakablenails and damage < 250 then continue end
 
@@ -2976,11 +3002,18 @@ function ENT:OnLandOnGround( ent )
             dmg:SetDamagePosition( myPos )
             entToKill:TakeDamageInfo( dmg )
 
+            table.insert( dealt, entToKill )
+
         end
+
+        self:RunTask( "DealtGoobmaDamage", damage, fallHeight, dealt )
+
         -- useful! keeping it!
         --debugoverlay.Box( myPos + vecDown * killScale, mins, maxs, 1, color_white )
 
     end
+
+    self:AdditionalOnLandOnGround( ent )
 
     self.jumpingPeak = nil
     self:RunTask( "OnLandOnGround", ent )
@@ -3009,21 +3042,28 @@ end
 
 
 function ENT:LethalFallDamage()
-    if self.ReallyStrong and not self:IsSilentStepping() then
+    if self:IsSilentStepping() then return end
+    if self.MetallicMoveSounds then
         self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 150, 60, 1, CHAN_STATIC )
         self:EmitSound( "physics/metal/metal_computer_impact_bullet2.wav", 150, 30, 1, CHAN_STATIC )
+
+    end
+    if self.ReallyHeavy then
         util.ScreenShake( self:GetPos(), 16, 20, 0.4, 3000 )
         util.ScreenShake( self:GetPos(), 1, 20, 2, 8000 )
 
+    end
+
+    if self.TakesFallDamage then
         for _ = 1, 3 do
             self:EmitSound( table.Random( self.Chunks ), 100, math.random( 115, 120 ), 1, CHAN_STATIC )
             self:EmitSound( table.Random( self.Whaps ), 75, math.random( 115, 120 ), 1, CHAN_STATIC )
 
         end
-    end
-
-    if self.TakesFallDamage then
         self:TakeDamage( math.huge )
+
+    else
+        self:MakeFootstepSound( 1 )
 
     end
 end
@@ -3130,8 +3170,13 @@ function ENT:TranslateActivity( act )
 
     end
 
-    return translated or myTbl.IdleActivity
+    if translated then
+        return translated
 
+    else
+        return myTbl.IdleActivity, false
+
+    end
 end
 
 --[[------------------------------------
@@ -3153,7 +3198,7 @@ function ENT:SetupMotionType( myTbl ) -- override this to allow some npcs to mor
     elseif moving then
         local speed = myTbl.GetCurrentSpeed( self )
         local runCheck
-        if myTbl.term_AnimsWithIdealSpeed then -- override here
+        if myTbl.term_AnimsWithIdealSpeed then -- makes anims not use the current speed, but the goal/ideal speed
             local runSpeed = myTbl.RunSpeed
             local moveSpeed = myTbl.MoveSpeed
             runCheck = moveSpeed + ( runSpeed - moveSpeed )

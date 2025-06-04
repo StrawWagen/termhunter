@@ -203,18 +203,7 @@ function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
 
 end
 
-function ENT:Term_SpeakSentence( sentenceIn, conditionFunc )
-    if conditionFunc then
-        table.insert( self.StuffToSay, { sent = sentenceIn, conditionFunc = conditionFunc } )
-
-    else
-        if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
-        if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
-        table.insert( self.StuffToSay, { sent = sentenceIn } )
-
-    end
-end
-
+-- puts line on a table of other lines that bot sifts through, will never overwrite existing lines.
 function ENT:Term_SpeakSound( pathIn, conditionFunc )
     if conditionFunc then
         table.insert( self.StuffToSay, { path = pathIn, conditionFunc = conditionFunc } )
@@ -223,6 +212,18 @@ function ENT:Term_SpeakSound( pathIn, conditionFunc )
         if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
         if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
         table.insert( self.StuffToSay, { path = pathIn } )
+
+    end
+end
+
+function ENT:Term_SpeakSentence( sentenceIn, conditionFunc )
+    if conditionFunc then
+        table.insert( self.StuffToSay, { sent = sentenceIn, conditionFunc = conditionFunc } )
+
+    else
+        if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
+        if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
+        table.insert( self.StuffToSay, { sent = sentenceIn } )
 
     end
 end
