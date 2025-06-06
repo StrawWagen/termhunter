@@ -6394,8 +6394,18 @@ function ENT:DoDefaultTasks()
                     data.NextRandPathAtt = 0
 
                 end
+                data.marchingOnDamagedNumber = 1
+            end,
+            OnDamaged = function( self, data, dmg )
+                data.marchingOnDamagedNumber = data.marchingOnDamagedNumber + dmg:GetDamage()
+
             end,
             BehaveUpdateMotion = function( self, data )
+                local onDamagedMarcher = data.marchingOnDamagedNumber
+                if onDamagedMarcher > 1 then
+                    data.marchingOnDamagedNumber = onDamagedMarcher / 2
+
+                end
                 local enemy = self:GetEnemy()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or self.EnemyLastPosOffsetted
                 local myPos = self:GetPos()
@@ -6545,6 +6555,7 @@ function ENT:DoDefaultTasks()
 
                     -- ranged weap
                     if not waterFight and newPathIsGood and ( wepIsUseful or canCover ) and self:IsRangedWeapon( wep ) and IsValid( myNavArea ) then
+                        print( self, "newpath" )
                         data.minNewPathTime = CurTime() + 0.3
                         pathAttemptTime = 3
                         local adjAreas = myNavArea:GetAdjacentAreas()
@@ -6620,6 +6631,7 @@ function ENT:DoDefaultTasks()
                         data.minNewPathTime = CurTime() + 0.05
 
                         local enemVel = enemy:GetVelocity()
+                        local enemSpeed = enemVel:Length()
                         enemVel.z = enemVel.z * 0.15
                         local velProduct = math.Clamp( enemVel:Length() * 1.4, 0, self.DistToEnemy * 0.8 )
                         local offset = enemVel:GetNormalized() * velProduct
@@ -6678,29 +6690,53 @@ function ENT:DoDefaultTasks()
                             return
 
                         -- super close to enemy, use gotopossimple
-                        elseif reallyCloseToEnemy and ( not self.LastShootBlocker or self.LastShootBlocker == enemy ) and enemyPos then
+                        elseif reallyCloseToEnemy and ( not IsValid( self.LastShootBlocker ) or self.LastShootBlocker == enemy ) and enemyPos then
                             if self:primaryPathIsValid() then
                                 self:InvalidatePath( "im close enough to go to enemy's pos simple" )
 
                             end
-                            -- default, just run up to enemy
-                            local gotoPos = enemyPos
+                            local maxOffsetFromEnem = math.min( onDamagedMarcher, range / 2 )
+                            local lostHealth = self:getLostHealth()
+                            local gotoPos
                             local angy = self:IsAngry()
-                            -- if we mad though, predict where they will go, and surprise them
-                            if angy and ( ( enemy.Health and enemy:Health() > 200 ) or self:EnemyIsLethalInMelee( enemy ) ) then
-                                local flat = enemy:GetAimVector()
+                            local duelType
+                            -- try and go behind
+                            if angy and onDamagedMarcher > 1 and enemSpeed <= 100 and ( ( enemy.Health and enemy:Health() > 500 ) or self:EnemyIsLethalInMelee( enemy ) ) then
+                                local flat = terminator_Extras.dirToPos( myPos, enemyPos )
                                 flat.z = 0
                                 flat:Normalize()
-                                gotoPos = enemyPos + -flat * ( range / 2 )
+                                gotoPos = enemyPos + flat * maxOffsetFromEnem
+                                duelType = 1
 
+                            -- if we're mad and enemy is not moving, go for the head
+                            elseif angy and self.DistToEnemy < 200 and enemSpeed <= 50 then
+                                gotoPos = self:EntShootPos( enemy )
+                                duelType = 2
+
+                            -- we mad and they're moving, predict where they will go, and surprise them
                             elseif angy then
                                 gotoPos = whereToInterceptTr.HitPos
+                                duelType = 3
+
+                            -- if we lost a bit of health, back up a bit and strafe to the side
+                            elseif lostHealth > 5 then
+                                local flat = self:GetAimVector()
+                                flat.z = 0
+                                flat:Normalize()
+                                gotoPos = enemyPos + -flat * maxOffsetFromEnem
+                                gotoPos = gotoPos + VectorRand() * onDamagedMarcher
+                                duelType = 4
+
+                            -- default, just run up to enemy
+                            else
+                                gotoPos = enemyPos
+                                duelType = 5
 
                             end
 
-                            gotoPos = gotoPos + VectorRand() * 15
-
                             --debugoverlay.Cross( gotoPos, 10, 1, Color( 255,255,0 ) )
+                            --print( self, duelType )
+
                             data.myTbl.GotoPosSimple( self, data.myTbl, gotoPos, 10 )
                             if self.DistToEnemy < 100 then
                                 self:crouchToGetCloserTo( self:EntShootPos( enemy ) )
