@@ -2432,6 +2432,8 @@ function ENT:EnemyIsLethalInMelee( enemy )
     enemy = enemy or self:GetEnemy()
     if not IsValid( enemy ) then return end
 
+    if enemy.IsEldritch then return true end
+
     local isLethalInMelee = enemy.terminator_IsLethalInMelee
     local isLethal = ( isLethalInMelee and isLethalInMelee >= 2 ) or self:EnemyIsUnkillable( enemy )
 
@@ -3028,10 +3030,13 @@ function ENT:DoDefaultTasks()
 
                     myTbl.FindEnemies( self, myTbl )
 
-                    local priorityEnemy = myTbl.FindPriorityEnemy( self, myTbl )
+                    local potentialNewEnemy = myTbl.FindPriorityEnemy( self, myTbl )
+                    local validPotentialNew = IsValid( potentialNewEnemy )
+                    local toPotentialNew
+
                     local pickedPlayer
 
-                    if not fodder and not IsValid( priorityEnemy ) and not myTbl.IgnoringPlayers( self ) then -- cheap infinite view distance
+                    if not fodder and not validPotentialNew and not myTbl.IgnoringPlayers( self ) then -- cheap infinite view distance
                         -- only run this code if no enemies, go thru player table one-by-one and check los to see if they can be enemy
                         local allPlayers = player.GetAll()
                         -- check only one ply per run
@@ -3045,6 +3050,9 @@ function ENT:DoDefaultTasks()
                             data.playerCheckIndex = new
 
                         end
+                    elseif validPotentialNew then
+                        toPotentialNew = vecMeta.Distance( myPos, entMeta.GetPos( potentialNewEnemy ) )
+
                     end
                     if IsValid( pickedPlayer ) then
                         local isLinkedPlayer = pickedPlayer == myTbl.linkedPlayer
@@ -3058,7 +3066,7 @@ function ENT:DoDefaultTasks()
                                 myTbl.UpdateEnemyMemory( self, pickedPlayer, entMeta.GetPos( pickedPlayer ) )
 
                             elseif canSee then -- they are obscured by a prop
-                                myTbl.RegisterForcedEnemyCheckPos( self, newEnemy )
+                                myTbl.RegisterForcedEnemyCheckPos( self, pickedPlayer )
 
                             elseif isLinkedPlayer and alive then -- GLEE HACK
                                 myTbl.SaveSoundHint( self, entMeta.GetPos( pickedPlayer ), true )
@@ -3067,35 +3075,53 @@ function ENT:DoDefaultTasks()
                         end
                     end
 
+                    local decentOldEnemy = IsValid( potentialNewEnemy ) and IsValid( prevEnemy ) and potentialNewEnemy ~= prevEnemy and entMeta.Health( prevEnemy ) > 0
+                    local friction
+
                     -- conditional friction for switching enemies.
                     -- fixes bot jumping between two enemies that get obscured as it paths, and doing a little dance
-                    if
-                        IsValid( priorityEnemy ) and
-                        IsValid( prevEnemy ) and
-                        myTbl.IsSeeEnemy and
-                        entMeta.Health( prevEnemy ) > 0 and -- old enemy needs to be alive...
-                        prevEnemy ~= priorityEnemy and
-                        (
-                            data.blockSwitchingEnemies > 0 or
-                            ( myTbl.NothingOrBreakableBetweenEnemy and not myTbl.ClearOrBreakable( self, myShoot, myTbl.EntShootPos( self, priorityEnemy ) ) ) -- dont switch from visible to obscured
-                        ) and
-                        vecMeta.Distance( myPos, entMeta.GetPos( priorityEnemy ) ) > myTbl.CloseEnemyDistance -- enemy needs to be far away, otherwise just switch now
 
-                    then -- that mess above tells us dont swap yet
+                    if decentOldEnemy and myTbl.PrefersVehicleEnemies then -- .PrefersVehicleEnemies, always stick to enemies in vehicles, good for big boss npcs
+                        local oldInVehicle = myTbl.EnemiesVehicle
+                        local newEnemyInVehicle = entMeta.GetClass( potentialNewEnemy ) == "player" and IsValid( potentialNewEnemy:GetVehicle() )
+                        if oldInVehicle and not newEnemyInVehicle and myTbl.DistToEnemy < ( toPotentialNew + -3000 ) then -- block switching away from vehicle enemy until they get really far away from the new enemy
+                            friction = true
+                            data.blockSwitchingEnemies = 80 -- REALLY STICK ON THIS ENEMY!
+
+                        end
+                    end
+                    if decentOldEnemy and not friction then
+                        if not myTbl.IsSeeEnemy then -- cant see old enemy, switch now!
+                            friction = false
+
+                        else -- stick to the old enemy for a second, unless they're more obscured than the old one!
+                            local stillGoodFrictionCount = data.blockSwitchingEnemies > 0
+                            local moreObscured = ( myTbl.NothingOrBreakableBetweenEnemy and not myTbl.ClearOrBreakable( self, myShoot, myTbl.EntShootPos( self, potentialNewEnemy ) ) )
+                            friction = stillGoodFrictionCount and not moreObscured
+
+                        end
+                    end
+
+                    if friction and toPotentialNew < myTbl.CloseEnemyDistance then -- new enemy is too far, dont switch
+                        friction = true
+
+                    end
+
+                    if friction then
                         local removed = 1
                         if not myTbl.NothingOrBreakableBetweenEnemy then -- our current enemy is crap
                             removed = removed + 4
 
                         end
-                        if vecMeta.Distance( myPos, entMeta.GetPos( priorityEnemy ) ) < myTbl.DuelEnemyDist then -- new enemy is too close
+                        if vecMeta.Distance( myPos, entMeta.GetPos( potentialNewEnemy ) ) < myTbl.DuelEnemyDist then -- new enemy is too close
                             removed = removed * 4
 
                         end
                         data.blockSwitchingEnemies = math.max( data.blockSwitchingEnemies - removed, 0 )
-                        priorityEnemy = prevEnemy
+                        potentialNewEnemy = prevEnemy
 
-                    elseif IsValid( priorityEnemy ) then -- no friction blocking us, new enemy!
-                        newEnemy = priorityEnemy
+                    elseif IsValid( potentialNewEnemy ) then -- no friction blocking us, new enemy!
+                        newEnemy = potentialNewEnemy
 
                     elseif myTbl.forcedCheckPositions and table.Count( myTbl.forcedCheckPositions ) >= 1 then -- nuke these
                         for positionKey, position in pairs( myTbl.forcedCheckPositions ) do

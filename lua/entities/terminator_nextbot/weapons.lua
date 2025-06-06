@@ -49,7 +49,7 @@ local function boring( ent )
 end
 
 function ENT:GetWeapon( myTbl )
-    myTbl = myTbl or self:GetTable()
+    myTbl = myTbl or entMeta.GetTable( self )
     return self:GetActiveLuaWeapon( myTbl ) or self:GetActiveWeapon()
 
 end
@@ -61,7 +61,7 @@ end
     Ret1: Weapon | Active weapon.
 --]]------------------------------------
 function ENT:GetActiveLuaWeapon( myTbl )
-    myTbl = myTbl or self:GetTable()
+    myTbl = myTbl or entMeta.GetTable( self )
     return myTbl.m_ActualWeapon or NULL
 
 end
@@ -73,7 +73,7 @@ end
     Ret1: bool | Has weapon or not
 --]]------------------------------------
 function ENT:HasWeapon( myTbl )
-    myTbl = myTbl or self:GetTable()
+    myTbl = myTbl or entMeta.GetTable( self )
     return myTbl.term_hasWeapon
 
 end
@@ -133,25 +133,27 @@ function ENT:SetupWeapon( wep )
 
     if not IsValid( wep ) or wep == self:GetActiveWeapon() then return end
 
-    local wepsClass = wep:GetClass()
+    local wepsClass = entMeta.GetClass( wep )
     -- Cannot hold engine weapons
     if not wep:IsScripted() and not EngineAnalogs[ wepsClass ] then return end
 
-    if self:IsHolsteredWeap( wep ) then
-        self:UnHolsterWeap( wep )
+    local myTbl = entMeta.GetTable( self )
+
+    if myTbl.IsHolsteredWeap( self, wep ) then
+        myTbl.UnHolsterWeap( self, wep )
         self:EmitSound( "common/wpn_hudoff.wav", 80, 100, 0.8, CHAN_STATIC )
 
     end
 
     -- Clear old weapon
-    if self:HasWeapon() then
-        self:DropWeapon( false )
+    if myTbl.HasWeapon( self, myTbl ) then
+        myTbl.DropWeapon( self, false )
 
     end
 
-    self.terminator_NeedsAWeaponNow = nil
-    local successful = ProtectedCall( function() self:OnWeaponEquip( wep ) end )
-    self:HateBuggyWeapon( wep, successful )
+    myTbl.terminator_NeedsAWeaponNow = nil
+    local successful = ProtectedCall( function() myTbl.OnWeaponEquip( self, wep ) end )
+    myTbl.HateBuggyWeapon( self, wep, successful )
 
     self:SetActiveWeapon( wep )
 
@@ -185,24 +187,24 @@ function ENT:SetupWeapon( wep )
         wep:DeleteOnRemove( actwep )
         actwep:DeleteOnRemove( wep )
 
-        self.m_ActualWeapon = actwep
+        myTbl.m_ActualWeapon = actwep
 
     elseif wep.NPC_Initialize then
         wep:NPC_Initialize()
-        self.m_ActualWeapon = wep
+        myTbl.m_ActualWeapon = wep
 
     else
-        self.m_ActualWeapon = wep
+        myTbl.m_ActualWeapon = wep
 
     end
 
     -- do this before set hold type to work well with ANP base
     wep:SetOwner( self )
 
-    local actwep = self:GetActiveLuaWeapon()
+    local actwep = myTbl.GetActiveLuaWeapon( self, myTbl )
     actwep:SetWeaponHoldType( wep:GetHoldType() )
 
-    self:ReloadWeaponData()
+    self:ReloadWeaponData() -- old artifact, dont really use this system much anymore
 
     -- Actually setup weapon. Very similar to engine code.
 
@@ -220,25 +222,25 @@ function ENT:SetupWeapon( wep )
 
     wep:SetTransmitWithParent( true )
 
-    self:DoWeaponHacks( wep )
+    myTbl.DoWeaponHacks( self, wep )
 
     successful = ProtectedCall( function() actwep:OwnerChanged() end )
-    self:HateBuggyWeapon( wep, successful )
+    myTbl.HateBuggyWeapon( self, wep, successful )
     successful = ProtectedCall( function() actwep:Equip( self ) end )
-    self:HateBuggyWeapon( wep, successful )
+    myTbl.HateBuggyWeapon( self, wep, successful )
     successful = ProtectedCall( function() actwep:Deploy( self ) end )
-    self:HateBuggyWeapon( wep, successful )
+    myTbl.HateBuggyWeapon( self, wep, successful )
 
     -- 'equip' sound
     self:EmitSound( "Flesh.Strain", 80, 160, 0.8 )
 
-    local oldFire = self.terminator_DontImmiediatelyFire or 0
-    self.terminator_DontImmiediatelyFire = math.max( CurTime() + math.Rand( 0.75, 1.25 ), oldFire ) -- pretend we have to get our hands around the new weapon
-    self.terminator_FiringIsAllowed = nil -- disable ShootingTimer
-    self.terminator_LastFiringIsAllowed = 0 -- ditto
-    self:NextWeapSearch( 0 )
+    local oldFire = myTbl.terminator_DontImmiediatelyFire or 0
+    myTbl.terminator_DontImmiediatelyFire = math.max( CurTime() + math.Rand( 0.75, 1.25 ), oldFire ) -- pretend we have to get our hands around the new weapon
+    myTbl.terminator_FiringIsAllowed = nil -- disable ShootingTimer
+    myTbl.terminator_LastFiringIsAllowed = 0 -- ditto
+    myTbl.NextWeapSearch( self, 0 )
 
-    self.term_hasWeapon = true
+    myTbl.term_hasWeapon = true
     wep:CallOnRemove( "term_unset_hasweapon", function()
         local currWep = self:GetActiveWeapon()
         local validWep = IsValid( currWep )
@@ -246,8 +248,15 @@ function ENT:SetupWeapon( wep )
             return
 
         end
-        self.term_hasWeapon = nil
-        self.m_ActualWeapon = nil
+        myTbl.term_hasWeapon = nil
+        myTbl.m_ActualWeapon = nil
+
+    end )
+
+    myTbl.UpdateIsFists( self, myTbl )
+    timer.Simple( 0, function()
+        if not IsValid( self ) then return end
+        myTbl.UpdateIsFists( self, myTbl )
 
     end )
 
@@ -283,23 +292,24 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
     end
 
-
     if not IsValid( wep ) then return end
 
 
+    local myTbl = entMeta.GetTable( self )
     self:SetActiveWeapon( NULL )
 
-    if wep:GetClass() == self.TERM_FISTS then
+    if entMeta.GetClass( wep ) == myTbl.TERM_FISTS then
         wep:RemoveCallOnRemove( "term_unset_hasweapon" )
-        self.m_ActualWeapon = nil
-        self.term_hasWeapon = nil
+        myTbl.m_ActualWeapon = nil
+        myTbl.term_hasWeapon = nil
         SafeRemoveEntity( wep )
+        myTbl.UpdateIsFists( self, myTbl )
         return
 
     end
 
-    local actwep = self:GetActiveLuaWeapon()
-    local velocity = self:GetEyeAngles():Forward() * 10
+    local actwep = myTbl.GetActiveLuaWeapon( self, myTbl )
+    local velocity = myTbl.GetEyeAngles( self ):Forward() * 10
 
 
     -- Unparenting weapon. Very similar to engine code.
@@ -312,8 +322,8 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     wep:SetOwner( nil )
     wep.Owner = nil
 
-    if self.m_ActualWeapon and self.m_ActualWeapon == wep then
-        self.m_ActualWeapon = nil
+    if myTbl.m_ActualWeapon and myTbl.m_ActualWeapon == wep then
+        myTbl.m_ActualWeapon = nil
 
     end
 
@@ -334,9 +344,9 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
     if IsValid( actwep ) then
         local successful = ProtectedCall( function() actwep:OwnerChanged() end )
-        self:HateBuggyWeapon( wep, successful )
+        myTbl.HateBuggyWeapon( self, wep, successful )
         successful = ProtectedCall( function() actwep:OnDrop() end )
-        self:HateBuggyWeapon( wep, successful )
+        myTbl.HateBuggyWeapon( self, wep, successful )
 
         -- Restoring engine weapon from lua analog
         if wep ~= actwep then
@@ -370,11 +380,11 @@ function ENT:DropWeapon( noHolster, droppingOverride )
         end
     end
 
-    local successful = ProtectedCall( function() self:OnWeaponDrop( wep ) end )
-    self:HateBuggyWeapon( wep, successful )
+    local successful = ProtectedCall( function() myTbl.OnWeaponDrop( self, wep ) end )
+    myTbl.HateBuggyWeapon( self, wep, successful )
 
-    wep:SetPos( self:GetShootPos() )
-    wep:SetAngles( self:GetEyeAngles() )
+    wep:SetPos( myTbl.GetShootPos( self ) )
+    wep:SetAngles( myTbl.GetEyeAngles( self ) )
 
     local phys = wep:GetPhysicsObject()
     if IsValid( phys ) then
@@ -386,16 +396,16 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
     end
 
-    if noHolster ~= true and self:CanHolsterWeap( wep ) then -- holster wep if we can, and it's not crappy!
-        self:HolsterWeap( wep )
+    if noHolster ~= true and myTbl.CanHolsterWeap( self, wep ) then -- holster wep if we can, and it's not crappy!
+        myTbl.HolsterWeap( self, wep )
 
     else
         hook.Run( "term_dropweapon", self, wep )
 
     end
 
-    self.terminator_NextWeaponPickup = CurTime() + math.Rand( 1, 2 )
-    self.term_hasWeapon = nil
+    myTbl.terminator_NextWeaponPickup = CurTime() + math.Rand( 1, 2 )
+    myTbl.term_hasWeapon = nil
     wep:RemoveCallOnRemove( "term_unset_hasweapon" )
 
     return wep
@@ -422,7 +432,7 @@ function ENT:ReloadWeaponData()
 end
 
 function ENT:AssumeWeaponNextShootTime()
-    local myTbl = self:GetTable()
+    local myTbl = entMeta.GetTable( self )
     local wep = myTbl.GetWeapon( self, myTbl )
     local wepData = myTbl.m_WeaponData
 
@@ -833,13 +843,21 @@ function ENT:IsRangedWeapon( wep )
 end
 
 function ENT:IsFists( myTbl )
-    myTbl = myTbl or self:GetTable()
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    return myTbl.term_IsFists or false
+
+end
+
+function ENT:UpdateIsFists( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+    myTbl.term_IsFists = nil
 
     local wep = myTbl.GetWeapon( self, myTbl )
     if not IsValid( wep ) then return end
-    if entMeta.GetClass( wep ) == myTbl.TERM_FISTS then return true end
+    if entMeta.GetClass( wep ) ~= myTbl.TERM_FISTS then return end
 
-    return nil
+    myTbl.term_IsFists = true
 
 end
 
@@ -1088,7 +1106,7 @@ end
 
 -- used everywhere to find weapons
 function ENT:canGetWeapon()
-    local myTbl = self:GetTable()
+    local myTbl = entMeta.GetTable( self )
 
     local armed = not myTbl.IsFists( self )
     local nextSearch = myTbl.nextWeapSearch or 0
@@ -1240,7 +1258,7 @@ function ENT:FindWeapon( myTbl )
 
         if notAWeaponCache[ potentialWeap ] then continue end
 
-        local wepsTbl = potentialWeap:GetTable()
+        local wepsTbl = entMeta.GetTable( potentialWeap )
         if not CanPickupWeapon( self, potentialWeap, false, myTbl, wepsTbl ) then continue end
 
         local wepWeight = myTbl.GetWeightOfWeapon( self, potentialWeap )
@@ -1406,11 +1424,24 @@ do
         Ret1: Vector | Aim direction.
     --]]------------------------------------
     function ENT:GetAimVector( myTbl )
-        myTbl = myTbl or self:GetTable()
+        myTbl = myTbl or entMeta.GetTable( self )
         local eyeAng = myTbl.GetEyeAngles( self )
         local dir = angMeta.Forward( eyeAng )
 
+        if myTbl.IsFists( self, myTbl ) then
+            -- fists, no spread
+            return dir
+
+        end
+
         if myTbl.HasWeapon( self, myTbl ) then
+
+            local active = myTbl.GetActiveLuaWeapon( self, myTbl )
+            local activeTbl = entMeta.GetTable( active )
+
+            local range = myTbl.GetWeaponRange( self, myTbl, active, activeTbl )
+            if range and range < 150 then return dir end -- skip the calcs, melee weapon
+
             local prof = myTbl.GetCurrentWeaponProficiency( self ) + 0.95
             local deg = 0 + ( 0.35 / prof )
 
@@ -1419,9 +1450,6 @@ do
                 deg = ( velLeng / 10 ) / prof
 
             end
-
-            local active = myTbl.GetActiveLuaWeapon( self, myTbl )
-            local activeTbl = active:GetTable()
 
             if activeTbl.NPC_CustomSpread then
                 deg = myTbl.WeaponSpread * ( activeTbl.NPC_CustomSpread / prof )

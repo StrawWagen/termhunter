@@ -2400,7 +2400,11 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 aboveUsJumpHeight = zToPos
                 pos = pos + dir * simpleJumpMinHeight
                 simpleClearPos = pos
+                if myTbl.IsReallyAngry( self ) then -- we're really angry, not gonna get it perfect!
+                    aboveUsJumpHeight = aboveUsJumpHeight + self.loco:GetJumpHeight() * math.Rand( 0.1, 0.2 )
+                    pos = pos + dir * 50
 
+                end
             end
         end
 

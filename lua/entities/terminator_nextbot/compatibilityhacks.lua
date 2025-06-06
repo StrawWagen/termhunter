@@ -1,5 +1,7 @@
 AddCSLuaFile()
 
+local entMeta = FindMetaTable( "Entity" )
+
 -- hacky fixes for comaptibility with other common addons
 
 -- had some weapon base problems that made this necessary iirc
@@ -34,6 +36,12 @@ if SERVER then
         end )
     end
 
+    function ENT:CheckRelationship( otherEnt )
+        return self:GetRelationship( otherEnt )
+
+    end
+
+    -- zbase
     function ENT:ZBaseUpdateRelationships()
         return
 
@@ -74,7 +82,7 @@ function ENT:GetViewModel()
 end
 
 function ENT:Alive()
-    return self:Health() > 0
+    return entMeta.Health( self ) > 0
 
 end
 
@@ -82,7 +90,7 @@ function ENT:LagCompensation()
 end
 
 function ENT:UniqueID()
-    return self:GetCreationID()
+    return entMeta.GetCreationID( self )
 
 end
 
@@ -303,6 +311,16 @@ if SERVER then
 
     function ENT:M9K_GetShootPos()
         return self:GetShootPos()
+
+    end
+
+    function ENT:GetMoveVelocity()
+        return self.loco:GetVelocity()
+
+    end
+
+    function ENT:HasEnemyMemory( potEnemy )
+        return self.m_EnemiesMemory[potEnemy] ~= nil
 
     end
 
