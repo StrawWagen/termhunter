@@ -6555,7 +6555,6 @@ function ENT:DoDefaultTasks()
 
                     -- ranged weap
                     if not waterFight and newPathIsGood and ( wepIsUseful or canCover ) and self:IsRangedWeapon( wep ) and IsValid( myNavArea ) then
-                        print( self, "newpath" )
                         data.minNewPathTime = CurTime() + 0.3
                         pathAttemptTime = 3
                         local adjAreas = myNavArea:GetAdjacentAreas()
