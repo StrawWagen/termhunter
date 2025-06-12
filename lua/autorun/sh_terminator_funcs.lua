@@ -6,21 +6,33 @@ terminator_Extras = terminator_Extras or {}
 terminator_Extras.healthDefault = 900 -- shared, for GLEE
 terminator_Extras.MDLSCALE_LARGE = 1.2
 
+local entMeta = FindMetaTable( "Entity" )
+
+local IsValid = IsValid
+local table_insert = table.insert
+local bit_bor = bit.bor
+local math_abs = math.abs
+
+-- not localizing trace funcs
+
+local posCanSeeTrData = {}
+
 terminator_Extras.PosCanSee = function( startPos, endPos, mask )
     if not startPos then return end
     if not endPos then return end
 
     mask = mask or terminator_Extras.LineOfSightMask
 
-    local trData = {
-        start = startPos,
-        endpos = endPos,
-        mask = mask,
-    }
-    local trace = util.TraceLine( trData )
+    posCanSeeTrData.start = startPos
+    posCanSeeTrData.endpos = endPos
+    posCanSeeTrData.mask = mask
+
+    local trace = util.TraceLine( posCanSeeTrData )
     return not trace.Hit, trace
 
 end
+
+local posCanSeeHullTrData = {}
 
 terminator_Extras.PosCanSeeHull = function( startPos, endPos, mask, hull )
     if not startPos then return end
@@ -28,14 +40,13 @@ terminator_Extras.PosCanSeeHull = function( startPos, endPos, mask, hull )
 
     mask = mask or terminator_Extras.LineOfSightMask
 
-    local trData = {
-        start = startPos,
-        endpos = endPos,
-        mask = mask,
-        mins = -hull,
-        maxs = hull,
-    }
-    local trace = util.TraceHull( trData )
+    posCanSeeHullTrData.start = startPos
+    posCanSeeHullTrData.endpos = endPos
+    posCanSeeHullTrData.mask = mask
+    posCanSeeHullTrData.mins = -hull
+    posCanSeeHullTrData.maxs = hull
+
+    local trace = util.TraceHull( posCanSeeHullTrData )
     return not trace.Hit, trace
 
 end
@@ -48,15 +59,15 @@ terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     local collisiongroup = nil
 
     if IsValid( filter ) then
-        filterTbl = filter:GetChildren()
-        table.insert( filterTbl, filter )
+        filterTbl = entMeta.GetChildren( filter )
+        table_insert( filterTbl, filter )
 
-        collisiongroup = filter:GetCollisionGroup()
+        collisiongroup = entMeta.GetCollisionGroup( filter )
 
     end
 
     if not mask then
-        mask = bit.bor( CONTENTS_SOLID, CONTENTS_HITBOX )
+        mask = bit_bor( CONTENTS_SOLID, CONTENTS_HITBOX )
 
     end
 
@@ -89,16 +100,14 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     local directions = overrideDirections or nookDirections
     distance = distance or 800
 
+    local traceData = {
+        mask = MASK_SOLID_BRUSHONLY,
+        start = pos,
+    }
     local facesBlocked = 0
     local hits = {}
     for _, direction in ipairs( directions ) do
-        local traceData = {
-            start = pos,
-            endpos = pos + direction * distance,
-            mask = MASK_SOLID_BRUSHONLY,
-
-        }
-
+        traceData.endpos = pos + direction * distance
         local trace = util.TraceLine( traceData )
 
         local fraction
@@ -116,7 +125,7 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
         hits[fraction] = trace -- lol if this is 
 
         local isNookScore = fraction - 1 -- so facesblocked is higher when this is in small spaces
-        facesBlocked = facesBlocked + math.abs( isNookScore )
+        facesBlocked = facesBlocked + math_abs( isNookScore )
 
     end
 

@@ -186,6 +186,8 @@ function ENT:GetHolsterData( wep )
 
 end
 
+local vec_zero = Vector( 0, 0, 0 )
+
 function ENT:HolsterWeap( wep )
     local canHolster, holsterDat, toEvict = self:CanHolsterWeap( wep )
     if not canHolster then return end
@@ -200,8 +202,8 @@ function ENT:HolsterWeap( wep )
 
     self:SetActiveWeapon( NULL )
 
-    wep:SetOwner( nil )
-    wep:SetVelocity( vector_origin )
+    wep:SetOwner( NULL )
+    wep:SetVelocity( vec_zero )
     wep:RemoveSolidFlags( FSOLID_TRIGGER )
     wep:RemoveEffects( EF_ITEM_BLINK )
     wep:PhysicsDestroy()

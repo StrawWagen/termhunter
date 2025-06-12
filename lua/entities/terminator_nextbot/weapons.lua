@@ -319,7 +319,7 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     wep:RemoveSolidFlags( FSOLID_NOT_SOLID )
     wep:CollisionRulesChanged()
 
-    wep:SetOwner( nil )
+    wep:SetOwner( NULL )
     wep.Owner = nil
 
     if myTbl.m_ActualWeapon and myTbl.m_ActualWeapon == wep then
@@ -431,20 +431,23 @@ function ENT:ReloadWeaponData()
     }
 end
 
-function ENT:AssumeWeaponNextShootTime()
-    local myTbl = entMeta.GetTable( self )
-    local wep = myTbl.GetWeapon( self, myTbl )
-    local wepData = myTbl.m_WeaponData
+function ENT:AssumeWeaponNextShootTime( myTbl, wep, wepsTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+    wep = wep or myTbl.GetWeapon( self, myTbl )
+    wepsTbl = wepsTbl or entMeta.GetTable( wep )
 
-    if isnumber( wep.NPC_NextPrimaryFireT ) then -- vj BASE
-        return wep.NPC_NextPrimaryFireT
+    local wepData = myTbl.m_WeaponData
+    local nextPrimary = wep:GetNextPrimaryFire()
+
+    if isnumber( wepsTbl.NPC_NextPrimaryFireT ) then -- vj BASE
+        return wepsTbl.NPC_NextPrimaryFireT
 
     elseif wep and wepData.Primary.NextShootTime and wepData.Primary.NextShootTime ~= 0 then
         return wepData.Primary.NextShootTime
 
-    elseif wep.GetNextPrimaryFire and not ( wep.terminator_FiredBefore and wep:GetNextPrimaryFire() == 0 ) then
-        if wep.Primary.Automatic ~= true and wep.terminator_IsBurst then
-            local nextFire = wep:GetNextPrimaryFire()
+    elseif nextPrimary and not ( wepsTbl.terminator_FiredBefore and nextPrimary == 0 ) then
+        if wepsTbl.Primary.Automatic ~= true and myTbl.Term_GetDamageTrackerOf( self, wep ).isBurst then
+            local nextFire = nextPrimary
             if myTbl.IsAngry( self ) then
                 nextFire = nextFire + math.Rand( 0.5, 1 )
 
@@ -455,11 +458,12 @@ function ENT:AssumeWeaponNextShootTime()
             return nextFire
 
         end
-        return wep:GetNextPrimaryFire()
+        return nextPrimary
 
     end
 
-    return wep.term_LastFire + 1
+    local lastFire = wepsTbl.term_LastFire or 0
+    return lastFire + 1
 
 end
 
@@ -469,7 +473,7 @@ end
     Arg1: 
     Ret1: bool | Can do primary attack
 --]]------------------------------------
-function ENT:CanWeaponPrimaryAttack( myTbl )
+function ENT:CanWeaponPrimaryAttack( myTbl, wep, wepsTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
     local dontImmiediatelyFire = myTbl.terminator_DontImmiediatelyFire or 0 -- blocks firing right after weapon switching
@@ -482,25 +486,25 @@ function ENT:CanWeaponPrimaryAttack( myTbl )
 
     end
 
-    local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
-    if not IsValid( wep ) then return false end
-
     if myTbl.IsReloadingWeapon then return false end
 
-    local wepsTbl = entMeta.GetTable( wep )
+    wep = wep or myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
+    if not IsValid( wep ) then return false end
+
+    wepsTbl = wepsTbl or entMeta.GetTable( wep )
     if wepsTbl.terminator_NeedsEnemy and not IsValid( myTbl.GetEnemy( self ) ) then return false end
 
-    if wep:GetMaxClip1() > 0 and wep:Clip1() <= 0 then return false end
+    if wep:GetMaxClip1() > 0 and wep:Clip1() <= 0 then return false end -- needs reload
 
     local canShoot = nil
 
     -- xpcall because we need to pass self
     local successful = ProtectedCall( function() -- no MORE ERRORS!
-        local nextShoot = myTbl.AssumeWeaponNextShootTime( self ) or 0
+        local nextShoot = myTbl.AssumeWeaponNextShootTime( self, myTbl, wep, wepsTbl ) or 0
 
         if not wep then canShoot = false return end
         if nextShoot > CurTime() then canShoot = false return end
-        if wep.CanPrimaryAttack and not wep:CanPrimaryAttack() then canShoot = false return end
+        if wepsTbl.CanPrimaryAttack and not wepsTbl.CanPrimaryAttack( wep ) then canShoot = false return end
 
         canShoot = true
 
@@ -519,8 +523,9 @@ end
 --]]------------------------------------
 function ENT:WeaponPrimaryAttack()
     local myTbl = entMeta.GetTable( self )
-    local wep = self:GetActiveLuaWeapon() or self:GetWeapon()
-    if myTbl.CanWeaponPrimaryAttack( self, myTbl ) ~= true then return end
+    local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
+    local wepsTbl = entMeta.GetTable( wep )
+    if myTbl.CanWeaponPrimaryAttack( self, myTbl, wep, wepsTbl ) ~= true then return end
 
     local data = self.m_WeaponData.Primary
 
@@ -570,8 +575,8 @@ function ENT:WeaponPrimaryAttack()
     end )
     if not self:HateBuggyWeapon( wep, successful ) then
         self:DoRangeGesture()
-        wep.term_LastFire = CurTime()
-        wep.terminator_FiredBefore = true
+        wepsTbl.term_LastFire = CurTime()
+        wepsTbl.terminator_FiredBefore = true
         self:RunTask( "OnAttack" )
 
     end
@@ -951,66 +956,6 @@ local function weapDamage( wep )
 
 end
 
-function ENT:GetWeaponRange( myTbl, wep, wepTable )
-    myTbl = myTbl or entMeta.GetTable( self )
-
-    if not myTbl.GetActiveLuaWeapon then ErrorNoHaltWithStack() end -- you did it wrong
-
-    wep = wep or myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
-    if not IsValid( wep ) then return math.huge end -- our eyes have infinite range
-
-    wepTable = wepTable or entMeta.GetTable( wep )
-
-    if wepTable.ArcCW then return wepTable.Range * 52 end -- HACK
-    if isnumber( wepTable.Range ) then return wepTable.Range end
-    if isnumber( wepTable.MeleeWeaponDistance ) then return wepTable.MeleeWeaponDistance end
-    if isnumber( wepTable.HitRange ) then return wepTable.HitRange end
-
-    local shotgun = string.find( entMeta.GetClass( wep ), "shotgun" )
-    local spread = weapSpread( wep )
-
-    local range
-
-    if spread then
-        local bulletCount = weapBulletCount( wep )
-        local damage = weapDamage( wep )
-
-        if damage > 500 then -- likely admin gun
-            return math.huge
-
-        end
-
-        local num = spread + ( bulletCount / 1000 )
-        if num > 0.05 then
-            return 500
-
-        end
-        range = math.abs( num - 0.05 )
-        range = range * 2000 -- make num big
-        range = range ^ 2.05 -- this works p good
-        range = range + 500 -- cut off the really spready stuff
-
-        if shotgun then
-            range = math.min( range, 800 )
-
-        end
-
-        wepTable.Range = range -- sorry for caching this with generic name, oh not sorry actually
-        return range
-
-    end
-
-    if shotgun then
-        range = 800
-        wepTable.Range = range -- still not sorry :(
-        return range
-
-    end
-
-    return math.huge
-
-end
-
 --[[------------------------------------
     Name: NEXTBOT:SetupEyeAngles
     Desc: (INTERNAL) Aiming bot to desired direction.
@@ -1306,36 +1251,113 @@ function ENT:FindWeapon( myTbl )
 
 end
 
-local function getTrackedDamage( me, wepOrClass )
-    if IsValid( wepOrClass ) then
-        local tracked = wepOrClass.terminator_TrackedDamageDealt or 0
-        if me.trackedDamagingClasses and me.trackedDamagingClasses[ wepOrClass:GetClass() ] then
-            tracked = tracked + me.trackedDamagingClasses[ wepOrClass:GetClass() ]
-
-        end
-        return tracked or 0
-
-    elseif wepOrClass then
-        if not me.trackedDamagingClasses then
-            me.trackedDamagingClasses = {}
-
-        end
-        return me.trackedDamagingClasses[wepOrClass] or 0
+local function getDamageTrackerOf( me, wepOrClass )
+    local trackers = me.term_WeaponDamageTrackers
+    if not trackers then
+        trackers = {}
+        me.term_WeaponDamageTrackers = trackers
 
     end
-end
-ENT.Term_GetTrackedDamage = getTrackedDamage
+    local realWep = IsValid( wepOrClass )
+    local class = realWep and entMeta.GetClass( wepOrClass ) or wepOrClass
+    if not isstring( class ) then return end
 
-local function setTrackedDamage( me, wepOrClass, new )
-    if IsValid( wepOrClass ) then
-        wepOrClass.terminator_TrackedDamageDealt = new
+    local tracker = trackers[ class ]
+    if not tracker then
+        -- tolerance for weapons
+        local bonusAttackAttempts = 30
+        local tolerance = 4
+        if realWep and weapSpread( wepOrClass ) then
+            -- weapon that has spread!?!!? (real bullets!)
+            -- or we've done damage with it sometime in the past
+            bonusAttackAttempts = 60
+            tolerance = 8
 
-    elseif wepOrClass and me.trackedDamagingClasses then
-        if not me.trackedDamagingClasses then
-            me.trackedDamagingClasses = {}
+        elseif me:IsMeleeWeapon() then
+            -- be much less forgiving with melee weaps!
+            bonusAttackAttempts = 10
+            tolerance = 1
 
         end
-        me.trackedDamagingClasses[wepOrClass] = new
+
+        tracker = {
+            noLeading = false,
+            reallyLikesThisOne = false,
+            hasEvenDoneDamage = false,
+            isBurst = false,
+
+            bonusAttackAttempts = bonusAttackAttempts,
+            tolerance = tolerance,
+
+            dmg = 0,
+            dmgWhileStanding = 0,
+            dmgWhileCrouching = 0,
+
+            attackAttempts = 0,
+            attackAttemptsWhileStanding = 0,
+            attackAttemptsWhileCrouching = 0,
+
+            spreadHardMissCount = 0,
+            smallestDamageInterval = 120,
+            lastDamageTime = 0,
+            maxDistEverDamagedWith = 0,
+
+        }
+        trackers[ class ] = tracker
+
+    end
+    return tracker
+
+end
+
+ENT.Term_GetDamageTrackerOf = getDamageTrackerOf
+
+local function getTrackedDamage( me, wepOrClass )
+    local dmgTracker = getDamageTrackerOf( me, wepOrClass )
+    if not dmgTracker then return end
+
+    return dmgTracker.dmg, dmgTracker
+
+end
+
+ENT.Term_GetTrackedDamage = getTrackedDamage
+
+local function addTrackedDamage( me, wepOrClass, add )
+    local dmgTracker = getDamageTrackerOf( me, wepOrClass )
+    if not dmgTracker then return end
+
+    dmgTracker.dmg = dmgTracker.dmg + add
+
+    if not dmgTracker.hasEvenDoneDamage then
+        dmgTracker.hasEvenDoneDamage = true
+        dmgTracker.bonusAttackAttempts = dmgTracker.bonusAttackAttempts + 40
+        dmgTracker.tolerance = dmgTracker.tolerance + 6
+
+    end
+
+    local currDamageInterval = CurTime() - dmgTracker.lastDamageTime
+    if currDamageInterval < dmgTracker.smallestDamageInterval then
+        dmgTracker.smallestDamageInterval = currDamageInterval
+
+    end
+    dmgTracker.lastDamageTime = CurTime()
+
+    -- find burst firing weapons, ones that never fire in quick succession and do lots of damage
+    if not dmgTracker.isBurst and dmgTracker.dmg > 200 and dmgTracker.attackAttempts > 20 and add > 40 and dmgTracker.smallestDamageInterval > 1 then
+        dmgTracker.isBurst = true
+
+    end
+
+    if me:IsCrouching() then
+        dmgTracker.dmgWhileCrouching = dmgTracker.dmgWhileCrouching + add
+
+    else
+        dmgTracker.dmgWhileStanding = dmgTracker.dmgWhileStanding + add
+
+    end
+
+    if not dmgTracker.reallyLikesThisOne and add > 1000 then
+        dmgTracker.reallyLikesThisOne = true
 
     end
 end
@@ -1357,6 +1379,8 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
 
     end
 
+    if attacker:IsFists() then return end -- fists always work
+
     -- allow thrown crowbar + derivatives to actually get judged
     local inflictor = dmg:GetInflictor()
     local toJudgeWepOrClass = inflictor.terminator_Judger_WepClassToCredit
@@ -1364,19 +1388,15 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
         toJudgeWepOrClass = attacker:GetActiveWeapon()
 
     end
-    local trackedDamageDealt = getTrackedDamage( attacker, toJudgeWepOrClass )
+    local trackedDamage, dmgTracker = getTrackedDamage( attacker, toJudgeWepOrClass )
 
-    if not trackedDamageDealt then return end
+    if not trackedDamage then return end
 
     local dmgDealt = dmg:GetDamage()
 
     -- dont give up on burst firing weaps!
     if dmgDealt > 80 then
-        dmgDealt = dmgDealt * 8
-        if IsValid( toJudgeWepOrClass ) then
-            toJudgeWepOrClass.terminator_IsBurst = true
-
-        end
+        dmgDealt = dmgDealt * 4
 
     elseif dmgDealt > 40 then
         dmgDealt = dmgDealt * 2
@@ -1388,7 +1408,12 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
 
     end
 
-    setTrackedDamage( attacker, toJudgeWepOrClass, trackedDamageDealt + dmgDealt )
+    addTrackedDamage( attacker, toJudgeWepOrClass, dmgDealt )
+
+    if IsValid( toJudgeWepOrClass ) and dmg:GetInflictor() == toJudgeWepOrClass then -- only do this if the inflictor IS the weapon
+        dmgTracker.maxDistEverDamagedWith = math.max( attacker.DistToEnemy, dmgTracker.maxDistEverDamagedWith )
+
+    end
 
     timer.Simple( 0, function()
         if not IsValid( attacker ) then return end
@@ -1468,29 +1493,19 @@ do
 
             end
 
-            local nextOverrideWalk = myTbl.term_nextMissingAlotWalk or 0
+            if myTbl.terminator_FiringIsAllowed then
+                local dmgTracker = getDamageTrackerOf( self, active )
 
-            local degToOverrideWalk = 10
-            if activeTbl.terminator_NoLeading then
-                degToOverrideWalk = degToOverrideWalk / 2
-
-            end
-
-            if myTbl.IsSeeEnemy and deg > degToOverrideWalk and myTbl.terminator_FiringIsAllowed and not myTbl.inSeriousDanger( self ) and nextOverrideWalk < CurTime() then
-                myTbl.term_nextMissingAlotWalk = CurTime() + 5
-                if myTbl.IsAngry( self ) then
-                    local activeNotLua = myTbl.GetActiveWeapon( self )
-                    local trackedDmg = getTrackedDamage( self, activeNotLua )
-                    if not myTbl.IsCrouching( self ) and trackedDmg > 100 and activeNotLua.terminator_ReallyLikesThisOne then
-                        myTbl.term_nextMissingAlotWalk = 0
-                        myTbl.overrideCrouch = CurTime() + 1
-
-                    end
-                else-- walk if we miss with a boring weapon 
-                    myTbl.forcedShouldWalk = CurTime() + 1 -- walk if we miss alot
+                local degToOverrideWalk = 10
+                if dmgTracker.noLeading then
+                    degToOverrideWalk = degToOverrideWalk / 2
 
                 end
 
+                if myTbl.IsSeeEnemy and deg > degToOverrideWalk then
+                    dmgTracker.spreadHardMissCount = dmgTracker.spreadHardMissCount + 1
+
+                end
             end
 
             deg = deg / 180
@@ -1507,86 +1522,100 @@ local dropWeps = CreateConVar( "termhunter_dropuselessweapons", 1, FCVAR_NONE, "
 
 -- is a weapon not being useful?
 
-function ENT:JudgeWeapon( enemy )
+function ENT:JudgeWeapon( myWeapon )
     if self:IsFists() then return end
-    if not dropWeps:GetBool() then return end
-    if not self.NothingOrBreakableBetweenEnemy then return end
+    if not dropWeps:GetBool() then return end -- can disable this
+    if not self.NothingOrBreakableBetweenEnemy then return end -- only judge when perfect visiblity
 
-    local myWeapon = self:GetActiveWeapon()
     local activeLua = self:GetActiveLuaWeapon()
     if not IsValid( myWeapon ) then return end
-    if myWeapon.terminator_IgnoreWeaponUtility or ( activeLua and activeLua.terminator_IgnoreWeaponUtility ) then return end
+
+    if myWeapon.terminator_IgnoreWeaponUtility or ( activeLua and activeLua.terminator_IgnoreWeaponUtility ) then return end -- disabled for this weapon
     local weapsWeightToMe = self:GetWeightOfWeapon( myWeapon )
 
-    local trackedAttackAttempts = myWeapon.terminator_TrackedAttackAttempts or 0
-    myWeapon.terminator_TrackedAttackAttempts = trackedAttackAttempts + 1
+    local dmgTracker = getDamageTrackerOf( self, myWeapon ) -- get our memory of this weapon
+
+    local attackAttempts = dmgTracker.attackAttempts
+    local damageDealt = dmgTracker.dmg
+    local noLeading = dmgTracker.noLeading
+
+    dmgTracker.attackAttempts = attackAttempts + 1
+    if self:IsCrouching() then
+        dmgTracker.attackAttemptsWhileCrouching = dmgTracker.attackAttemptsWhileCrouching + 1
+
+    else
+        dmgTracker.attackAttemptsWhileStanding = dmgTracker.attackAttemptsWhileStanding + 1
+
+    end
 
     local myWepsClass = myWeapon:GetClass()
-    local trackedDamageDealt = getTrackedDamage( self, myWeapon ) or 0
 
-    local hasEvenDoneDamage = nil
-    if trackedDamageDealt > 0 then
-        hasEvenDoneDamage = true
+    local bonusAttackAttempts = dmgTracker.bonusAttackAttempts
+    local tolerance = dmgTracker.tolerance
 
-    end
+    local offsettedAttackAttempts = attackAttempts + -bonusAttackAttempts
+    local giveUpOnWeap
+    local giveUpReason
 
-    -- tolerance for weapons
-    local bonusAttackAttempts = 30
-    local tolerance = 4
-    if weapSpread( activeLua ) or hasEvenDoneDamage then
-        -- weapon that has spread!?!!? (real bullets!)
-        -- or we've done damage with it sometime in the past
-        bonusAttackAttempts = 60
-        tolerance = 8
-
-    elseif self:IsMeleeWeapon( myWeapon ) then
-        -- be much less forgiving with melee weaps!
-        bonusAttackAttempts = 10
-        tolerance = 1
-
-    end
-
-    local offsettedAttackAttempts = trackedAttackAttempts + -bonusAttackAttempts
-    local giveUpOnWeap = nil
-
-    if offsettedAttackAttempts > bonusAttackAttempts and not hasEvenDoneDamage then
+    if offsettedAttackAttempts > bonusAttackAttempts and not dmgTracker.hasEvenDoneDamage then
         giveUpOnWeap = true
+        giveUpReason = "never did any damage"
 
-    elseif ( offsettedAttackAttempts / 2 ) > trackedDamageDealt and not myWeapon.terminator_NoLeading then
+    elseif ( offsettedAttackAttempts / 2 ) > damageDealt and not noLeading then
         -- see if this helps!
-        myWeapon.terminator_NoLeading = true
+        dmgTracker.noLeading = true
 
-    elseif ( offsettedAttackAttempts / tolerance ) > trackedDamageDealt then
-        terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.5 )
+    elseif ( offsettedAttackAttempts / tolerance ) > damageDealt then
+        terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.1 )
         local weightToMe = self:GetWeightOfWeapon( myWeapon )
 
-        local noHealthChangeCount = enemy.term_NoHealthChangeCount or 0
-        local unkillableEnem = noHealthChangeCount >= 100
-        if unkillableEnem then
-            if weightToMe < -10 then
-                giveUpOnWeap = true
-
-            end
-        elseif weightToMe <= 2 and not hasEvenDoneDamage then
+        if weightToMe <= 2 and not dmgTracker.hasEvenDoneDamage then
             giveUpOnWeap = true
+            giveUpReason = "didnt even do any damage"
 
         elseif weightToMe <= -2 then
             giveUpOnWeap = true
+            giveUpReason = "didnt do enough damage"
 
         end
     end
     if giveUpOnWeap then
-        print( "Terminator spits in the face of a useless weapon\n" .. myWepsClass .. "\nphTOOEY!" )
+        print( "Terminator spits in the face of a useless weapon\n" .. myWepsClass .. "\nbecause it; " .. giveUpReason .. "\nphTOOEY!" )
         self:Anger( 5 )
         myWeapon.terminatorCrappyWeapon = true
         self:DropWeapon( true )
+        terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.5 )
 
     end
-    if not myWeapon.terminator_ReallyLikesThisOne and trackedDamageDealt > math.max( trackedAttackAttempts * 25, 250 ) then
+    if not dmgTracker.reallyLikesThisOne and damageDealt > math.max( attackAttempts * 25, 250 ) then
         -- i like this one!
-        myWeapon.terminator_ReallyLikesThisOne = true
+        dmgTracker.reallyLikesThisOne = true
         print( "Terminator finds deep satisfaction in using\n" .. myWepsClass )
-        terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + 15 )
+        terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + 30 )
+
+    end
+end
+
+function ENT:TryAndUseWeaponRight( wep, dmgTracker )
+    local ready = dmgTracker.hasEvenDoneDamage or dmgTracker.attackAttempts > dmgTracker.bonusAttackAttempts
+    if not ready then return end -- wait until weapon has been used a bit
+
+    if self:enemyBearingToMeAbs() < 8 and self:IsReallyAngry() then return end
+    if self:inSeriousDanger() then return end -- AAAAH
+
+    local standingDmg = dmgTracker.dmgWhileStanding
+    local crouchingDmg = dmgTracker.dmgWhileCrouching
+
+    local standingAttempts = dmgTracker.attackAttemptsWhileStanding
+    local crouchingAttempts = dmgTracker.attackAttemptsWhileCrouching
+
+    local damagePerStandAttempt = standingDmg / standingAttempts
+    local damagePerCrouchAttempt = crouchingDmg / crouchingAttempts
+
+    local shouldCrouchToUse = ( damagePerCrouchAttempt > damagePerStandAttempt ) or ( ( crouchingDmg <= 100 or dmgTracker.spreadHardMissCount > 25 ) and crouchingAttempts <= dmgTracker.bonusAttackAttempts )
+
+    if shouldCrouchToUse and self:primaryPathIsValid() then
+        self.overrideCrouch = CurTime() + 0.25
 
     end
 end
@@ -1599,5 +1628,73 @@ function ENT:WeaponIsPlacable( wep )
     if not wep.termPlace_PlacingFunc then return end
 
     return true
+
+end
+
+
+
+function ENT:GetWeaponRange( myTbl, wep, wepTable )
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    if not myTbl.GetActiveLuaWeapon then ErrorNoHaltWithStack() end -- you did it wrong
+
+    wep = wep or myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
+    if not IsValid( wep ) then return math.huge end -- our eyes have infinite range
+
+    wepTable = wepTable or entMeta.GetTable( wep )
+
+    local dmgTracker = getDamageTrackerOf( self, wep )
+    if dmgTracker and dmgTracker.attackAttempts > 20 and dmgTracker.dmg > 250 then
+        return dmgTracker.maxDistEverDamagedWith + 250 -- certified cannot deal damage further than this
+
+    end
+
+    if wepTable.ArcCW then return wepTable.Range * 52 end -- HACK
+    if isnumber( wepTable.Range ) then return wepTable.Range end -- generic
+    if wepTable.IsMeleeWeapon and isnumber( wepTable.MeleeWeaponDistance ) then return wepTable.MeleeWeaponDistance end -- vj
+    if isnumber( wepTable.HitRange ) then return wepTable.HitRange end
+
+    local shotgun = string.find( entMeta.GetClass( wep ), "shotgun" )
+    local spread = weapSpread( wep )
+
+    local range
+
+    if spread then
+        local bulletCount = weapBulletCount( wep )
+        local damage = weapDamage( wep )
+
+        if damage > 500 then -- likely admin gun
+            return math.huge
+
+        end
+
+        local num = spread + ( bulletCount / 1000 )
+        if num > 0.05 then
+            return 500
+
+        end
+        range = math.abs( num - 0.05 )
+        range = range * 2000 -- make num big
+        range = range ^ 2.05 -- this works p good
+        range = range + 500 -- cut off the really spready stuff
+
+        if shotgun then
+            range = math.min( range, 800 )
+
+        end
+
+        wepTable.Range = range -- sorry for caching this with generic name, oh not sorry actually
+        return range
+
+    end
+
+    if shotgun then
+        range = 800
+        wepTable.Range = range -- still not sorry :(
+        return range
+
+    end
+
+    return math.huge
 
 end

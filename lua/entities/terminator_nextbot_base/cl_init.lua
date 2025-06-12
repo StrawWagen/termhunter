@@ -1,5 +1,7 @@
 include("shared.lua")
 
+local entMeta = FindMetaTable("Entity")
+
 --[[------------------------------------
 	NEXTBOT:Initialize
 	Initialize our bot
@@ -15,12 +17,10 @@ end
 
 --[[------------------------------------
 	NEXTBOT:Draw
-	Drawing our bot and run Draw task
+	Draw bot, more optimized than base nextbot DrawModel
 --]]------------------------------------
 function ENT:Draw()
-	self:DrawModel()
-
-	self:RunTask("Draw")
+	entMeta.DrawModel( self )
 end
 
 -- Handles Player Control methods

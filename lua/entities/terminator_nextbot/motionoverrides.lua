@@ -31,7 +31,7 @@ local function TrFilterNoSelf( me )
 end
 
 function ENT:GetSafeCollisionBounds() -- collision bounds that can be messed with safely
-    local mins, maxs = self:GetCollisionBounds()
+    local mins, maxs = entMeta.GetCollisionBounds( self )
     local b1 = Vector( mins.x, mins.y, mins.z )
     local b2 = Vector( maxs.x, maxs.y, maxs.z )
     return b1, b2
@@ -105,9 +105,9 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
     local hitEnt = traceResult.Entity
     if traceResult.MatType == MAT_GLASS and ( skipDistCheck or traceResult.HitPos:DistToSqr( traceStruct.endpos ) < 55^2 ) then -- got to the end or its glass
         if IsValid( hitEnt ) then
-            local class = hitEnt:GetClass()
+            local class = entMeta.GetClass( hitEnt )
             local isSurf = class == "func_breakable_surf"
-            local hasHealth = isnumber( hitEnt:Health() ) and hitEnt:Health() < 2000
+            local hasHealth = isnumber( entMeta.Health( hitEnt ) ) and entMeta.Health( hitEnt ) < 2000
 
             local hpOrBreakableSurf = isSurf or hasHealth
 
@@ -123,18 +123,19 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
             return nil
 
         end
-    elseif IsValid( hitEnt ) then -- didnt hit close to end or hit glass
-        local class = hitEnt:GetClass()
-        local isDoor = string.find( class, "door" ) and hitEnt:IsSolid()
-        local enemy = self:GetEnemy()
+    elseif IsValid( hitEnt ) then -- didnt hit close to end, or hit glass
+        local myTbl = entMeta.GetTable( self )
+        local class = entMeta.GetClass( hitEnt )
+        local isDoor = string.find( class, "door" ) and entMeta.IsSolid( hitEnt )
+        local enemy = myTbl.GetEnemy( self )
         if hitEnt == enemy then
             return true
 
-        elseif self:memorizedAsBreakable( self:GetTable(), hitEnt ) or hitEnt:IsNPC() or hitEnt:IsPlayer() or isDoor then
+        elseif myTbl.memorizedAsBreakable( self, myTbl, hitEnt ) or hitEnt:IsNPC() or hitEnt:IsPlayer() or isDoor then
             if isDoor and class == "prop_door_rotating" and not terminator_Extras.CanBashDoor( hitEnt ) then
                 return nil
 
-            elseif hitEnt.isTerminatorHunterChummy == self.isTerminatorHunterChummy then
+            elseif hitEnt.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
                 return nil
 
             else
@@ -145,7 +146,7 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
             return true
 
         else
-            local obj = hitEnt:GetPhysicsObject()
+            local obj = entMeta.GetPhysicsObject( hitEnt )
             if obj and IsValid( obj ) and obj:IsMoveable() and obj:IsMotionEnabled() and obj:GetMass() <= 100 then
                 return true
 
@@ -1215,16 +1216,16 @@ end
 -- return 0 when no blocker
 -- returns 1 when its blocked but it can jump over
 -- returns 2 when there's an obstacle that can't be jumped over, bot should respond by stepping back
-function ENT:GetJumpBlockState( dir, goal )
+function ENT:GetJumpBlockState( myTbl, dir, goal )
 
-    local enemy = self:GetEnemy()
-    local pos = self:GetPos() + vec_up15
-    local b1,b2 = self:BoundsAdjusted( scalar )
-    local step = self.loco:GetStepHeight() * scalar
+    local enemy = myTbl.GetEnemy( self )
+    local b1,b2 = myTbl.BoundsAdjusted( self, scalar )
+    local step = myTbl.loco:GetStepHeight() * scalar
+    local pos = entMeta.GetPos( self ) + vec_up15
+    local cgroup = entMeta.GetCollisionGroup( self )
     local mask = self:GetSolidMask()
-    local cgroup = self:GetCollisionGroup()
 
-    local distToTrace = ( pos - goal ):Length2D()
+    local distToTrace = vecMeta.Length2D( pos - goal )
     distToTrace = math.Clamp( distToTrace, 32, 64 )
 
     local defEndPos = pos + dir * distToTrace
@@ -1298,7 +1299,7 @@ function ENT:GetJumpBlockState( dir, goal )
         }
         local vertResult
 
-        local maxjump = self.JumpHeight * 2
+        local maxjump = myTbl.JumpHeight * 2
 
         local height = 0
 
@@ -1320,7 +1321,7 @@ function ENT:GetJumpBlockState( dir, goal )
             vertConfig.start = newStartPos
 
             -- ceiling, we cant jump up here
-            if vertResult.Hit and not self:hitBreakable( vertConfig, vertResult ) then
+            if vertResult.Hit and not myTbl.hitBreakable( self, vertConfig, vertResult ) then
                 --local color = Color( 255, 255, 255, 25 )
                 --if vertResult.Hit then color = Color( 255,0,0, 25 ) end
                 --debugoverlay.Box( vertResult.HitPos, vertConfig.mins, vertConfig.maxs, 4, color )
@@ -1332,7 +1333,7 @@ function ENT:GetJumpBlockState( dir, goal )
 
             dirResult = util.TraceHull( dirConfig )
 
-            local hitThingWeCanBreak = self:hitBreakable( dirConfig, dirResult )
+            local hitThingWeCanBreak = myTbl.hitBreakable( self, dirConfig, dirResult )
 
             -- final check!
             goalWithOverriddenZ.z = math.max( dirConfig.start.z, goal.z + 30 )
@@ -1875,7 +1876,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             dir.z = 0
             dir:Normalize()
 
-            local jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( dir, aheadSegment.pos )
+            local jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( myTbl, dir, aheadSegment.pos )
 
             myTbl.moveAlongPathJumpingHeight = jumpingHeight or myTbl.moveAlongPathJumpingHeight
 
@@ -2417,7 +2418,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 return
 
             end
-            local jumpstate, jumpingHeight, jumpBlockClearPos = myTbl.GetJumpBlockState( self, dir, pos, false )
+            local jumpstate, jumpingHeight, jumpBlockClearPos = myTbl.GetJumpBlockState( self, myTbl, dir, pos, false )
             local goalBasedJump = jumpstate ~= 2 and aboveUs
             local readyToJump = not myTbl.nextPathJump or myTbl.nextPathJump < CurTime()
             --print( jumpstate, jumpingHeight )
@@ -2740,7 +2741,7 @@ function ENT:HandleInAir( myTbl )
         local goal = myTbl.term_LastApproachPos or myTbl.EnemyLastPos
         local heightDiffToGoal = goal.z - myPos.z
         if heightDiffToGoal > 0 then
-            local jumpstate, jumpingHeight = myTbl.GetJumpBlockState( self, terminator_Extras.dirToPos( myPos, goal ), goal ) ~= 0
+            local jumpstate, jumpingHeight = myTbl.GetJumpBlockState( self, myTbl, terminator_Extras.dirToPos( myPos, goal ), goal ) ~= 0
             if jumpstate == 1 then
                 myTbl.Jump( self, jumpingHeight, true )
                 myTbl.RunTask( self, "OnJumpOutOfWater", height )

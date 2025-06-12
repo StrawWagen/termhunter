@@ -8,6 +8,8 @@ ENT.RenderGroup = RENDERGROUP_OPAQUE
 ENT.AutomaticFrameAdvance = true
 ENT.Spawnable = false
 
+local entMeta = FindMetaTable("Entity")
+
 ENT.TerminatorNextBot = true
 
 -- Offset of view while controling bot
@@ -125,7 +127,7 @@ end
 	Ret1: Vector | Eye position.
 --]]------------------------------------
 function ENT:GetShootPos()
-	return self:LocalToWorld(self:IsCrouching() and self.CrouchViewOffset or self.ViewOffset)
+	return entMeta.LocalToWorld(self, self:IsCrouching() and self.CrouchViewOffset or self.ViewOffset)
 end
 function ENT:GetCrouchingShootPos()
 	return self:LocalToWorld(self.CrouchViewOffset)
@@ -141,11 +143,3 @@ function ENT:IsCrouching()
 	return self:GetCrouching()
 end
 ENT.Crouching = ENT.IsCrouching
-
---[[------------------------------------
-	NEXTBOT:Think
-	Calling think tasks callbacks
---]]------------------------------------
-function ENT:Think()
-	self:RunTask("Think")
-end

@@ -1,8 +1,23 @@
 
+local navMeta = FindMetaTable( "CNavArea" )
+local GetCorner = navMeta.GetCorner
+
+local table = table
+local navmesh = navmesh
+local bit = bit
+
 local math = math
+local math_min = math.min
+local math_max = math.max
+local math_abs = math.abs
+local math_Round = math.Round
+
+local util_IsInWorld = util.IsInWorld
+local IsValid = IsValid
+local Vector = Vector
 
 
-local dedicatedRate = 0.001
+local dedicatedRate = 0.002
 local otherwiseRate = 0.005
 
 local debuggingVar = CreateConVar( "terminator_areapatching_debugging", 0, FCVAR_NONE, "Enable areapatcher debug prints/visualizers." )
@@ -55,6 +70,12 @@ local function debugPrint( ... )
 
 end
 
+local function filterFunc( hit )
+    if hit:IsWorld() then return true end
+    return nil
+
+end
+
 local posIsUnderDisplacement
 
 local gridSize
@@ -85,6 +106,12 @@ local finalAreaCheckMaxs
 local gridOffset
 local oldGenCenter
 
+local directionOffsets
+local initialResult
+local trStrucIntitial
+
+local tempVectors
+
 local function updateGridSize( newSize )
     gridSize = newSize
 
@@ -95,7 +122,7 @@ local function updateGridSize( newSize )
 
     trMins = Vector( -gridSmaller, -gridSmaller, -1 )
     trMaxs = Vector( gridSmaller, gridSmaller, 1 )
-    local collideXY = math.max( 15, gridSize * 0.65 )
+    local collideXY = math_max( 15, gridSize * 0.65 )
     collideTrMins = Vector( -collideXY, -collideXY, -1 )
     collideTrMaxs = Vector( collideXY, collideXY, collideXY )
 
@@ -111,20 +138,61 @@ local function updateGridSize( newSize )
     finalAreaCheckMins = Vector( -halfGrid, -halfGrid, -55 )
     finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 55 )
 
+    directionOffsets = {
+        [0] = Vector( 0, gridSize, 0 ),    -- north
+        [1] = Vector( gridSize, 0, 0 ),    -- east
+        [2] = Vector( 0, -gridSize, 0 ),   -- south
+        [3] = Vector( -gridSize, 0, 0 )    -- west
+
+    }
+
+    initialResult = {} -- just do this optimisation for the initial trace, it does most of the hard work
+    trStrucIntitial = {
+        mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
+        filter = function( hit ) filterFunc( hit ) end,
+        mins = trMins,
+        maxs = trMaxs,
+        output = initialResult,
+
+    }
+
+    tempVectors = {}
+
     posIsUnderDisplacement = terminator_Extras.posIsUnderDisplacement
+
+end
+
+-- this kind of optimisation is sort of ok since there's just 1 area patcher coroutine
+local function tempVector( id, x, y, z )
+    local temp = tempVectors[id]
+    if not temp then
+        temp = Vector( x or 0, y or 0, z or 0 )
+        tempVectors[id] = temp
+        return temp
+
+    end
+    if x then
+        temp.x = x
+
+    end
+    if y then
+        temp.y = y
+
+    end
+    if z then
+        temp.z = z
+
+    end
+    return temp
 
 end
 
 local function findOrthogonalUnmergedNeighborsInDir( data, dir, vecsToPlace )
     local neighbors = {}
-    local directionOffsets = {
-        [0] = Vector( 0, gridSize, 0 ),    -- north
-        [1] = Vector( gridSize, 0, 0 ),    -- east
-        [2] = Vector( 0, -gridSize, 0 ),   -- south
-        [3] = Vector( -gridSize, 0, 0 )    -- west
-    }
+
     local offset = directionOffsets[dir]
     if not offset then return neighbors end
+
     for key, vec in pairs( vecsToPlace ) do
         if key ~= data.key then
             local isNeighbor = false
@@ -133,13 +201,16 @@ local function findOrthogonalUnmergedNeighborsInDir( data, dir, vecsToPlace )
                 local withinXBounds = ( data.corner1.x < vec.corner2.x ) and ( data.corner2.x > vec.corner1.x )
                 local goodY = vec.corner1.y == data.corner1.y + offset.y
                 isNeighbor = withinXBounds and goodY
+
             elseif dir == 1 or dir == 3 then -- east/west (x-axis)
                 local withinYBounds = ( data.corner1.y < vec.corner2.y ) and ( data.corner2.y > vec.corner1.y )
                 local goodX = vec.corner1.x == data.corner1.x + offset.x
                 isNeighbor = withinYBounds and goodX
+
             end
             if isNeighbor then
                 table.insert( neighbors, vec )
+
             end
         end
     end
@@ -159,19 +230,19 @@ local function getCornersIfMerged( toMergeSet )
     local minZ, maxZ = math.huge, -math.huge
 
     for _, tbl in ipairs( toMergeSet ) do
-        minX = math.min( minX, tbl.corner1.x, tbl.corner2.x )
-        maxX = math.max( maxX, tbl.corner1.x, tbl.corner2.x )
-        minY = math.min( minY, tbl.corner1.y, tbl.corner2.y )
-        maxY = math.max( maxY, tbl.corner1.y, tbl.corner2.y )
+        minX = math_min( minX, tbl.corner1.x, tbl.corner2.x )
+        maxX = math_max( maxX, tbl.corner1.x, tbl.corner2.x )
+        minY = math_min( minY, tbl.corner1.y, tbl.corner2.y )
+        maxY = math_max( maxY, tbl.corner1.y, tbl.corner2.y )
 
-        local newMinZ = math.min( tbl.corner1.z, tbl.corner2.z )
-        local newMaxZ = math.max( tbl.corner1.z, tbl.corner2.z )
+        local newMinZ = math_min( tbl.corner1.z, tbl.corner2.z )
+        local newMaxZ = math_max( tbl.corner1.z, tbl.corner2.z )
 
-        if doneOne and math.abs( newMinZ - minZ ) > maxMergeDiff then
+        if doneOne and math_abs( newMinZ - minZ ) > maxMergeDiff then
             invalid = true
 
         end
-        if doneOne and math.abs( newMaxZ - maxZ ) > maxMergeDiff then
+        if doneOne and math_abs( newMaxZ - maxZ ) > maxMergeDiff then
             invalid = true
 
         end
@@ -187,8 +258,8 @@ local function getCornersIfMerged( toMergeSet )
 
         doneOne = true
 
-        minZ = math.min( minZ, newMinZ )
-        maxZ = math.max( maxZ, newMaxZ )
+        minZ = math_min( minZ, newMinZ )
+        maxZ = math_max( maxZ, newMaxZ )
 
     end
 
@@ -209,14 +280,14 @@ local function mergeWithNeighbors( data, vecsToPlace )
 
 
         local center1 = ( data.corner1 + data.corner2 ) / 2
-        local center2 = ( Vector( minX, minY, minZ ) + Vector( maxX, maxY, maxZ ) ) / 2
+        local center2 = ( tempVector( "mergeneighbors1", minX, minY, minZ ) + tempVector( "mergeneighbors2", maxX, maxY, maxZ ) ) / 2
         local sameX = center1.x == center2.x
         local sameY = center1.y == center2.y
 
-        local startSizeX = math.abs( data.corner1.x - data.corner2.x )
-        local nextSizeX = math.abs( minX - maxX )
-        local startSizeY = math.abs( data.corner1.y - data.corner2.y )
-        local nextSizeY = math.abs( minY - maxY )
+        local startSizeX = math_abs( data.corner1.x - data.corner2.x )
+        local nextSizeX = math_abs( minX - maxX )
+        local startSizeY = math_abs( data.corner1.y - data.corner2.y )
+        local nextSizeY = math_abs( minY - maxY )
 
         local sameXSize = startSizeX == nextSizeX
         local sameYSize = startSizeY == nextSizeY
@@ -246,28 +317,28 @@ end
 local roundDec = 2
 
 local function navGetBounds( area )
-    return area:GetCorner( 0 ), area:GetCorner( 2 )
+    return GetCorner( area, 0 ), GetCorner( area, 2 )
 
 end
 
 local function vecAsKey( vec )
-    return math.Round( vec.x, roundDec ) .. math.Round( vec.y, roundDec ) .. math.Round( vec.z, roundDec )
+    return math_Round( vec.x, roundDec ) .. math_Round( vec.y, roundDec ) .. math_Round( vec.z, roundDec )
 
 end
 
 local function VectorMin( v1, v2 )
     return Vector(
-        math.min( v1.x, v2.x ),
-        math.min( v1.y, v2.y ),
-        math.min( v1.z, v2.z )
+        math_min( v1.x, v2.x ),
+        math_min( v1.y, v2.y ),
+        math_min( v1.z, v2.z )
     )
 end
 
 local function VectorMax( v1, v2 )
     return Vector(
-        math.max( v1.x, v2.x ),
-        math.max( v1.y, v2.y ),
-        math.max( v1.z, v2.z )
+        math_max( v1.x, v2.x ),
+        math_max( v1.y, v2.y ),
+        math_max( v1.z, v2.z )
     )
 end
 
@@ -276,15 +347,15 @@ local up = Vector( 0, 0, 1 )
 local red = Color( 255, 0, 0 )
 
 local function SnapToGrid( vec )
-    vec.x = ( math.Round( vec.x / gridSize ) * gridSize ) + gridOffset
-    vec.y = ( math.Round( vec.y / gridSize ) * gridSize ) + gridOffset
-    vec.z = ( math.Round( vec.z / gridSize ) * gridSize ) + gridOffset
+    vec.x = ( math_Round( vec.x / gridSize ) * gridSize ) + gridOffset
+    vec.y = ( math_Round( vec.y / gridSize ) * gridSize ) + gridOffset
+    vec.z = ( math_Round( vec.z / gridSize ) * gridSize ) + gridOffset
 
 end
 local function GetSnappedToGrid( vec )
-    local x = ( math.Round( vec.x / gridSize ) * gridSize ) + gridOffset
-    local y = ( math.Round( vec.y / gridSize ) * gridSize ) + gridOffset
-    local z = ( math.Round( vec.z / gridSize ) * gridSize ) + gridOffset
+    local x = ( math_Round( vec.x / gridSize ) * gridSize ) + gridOffset
+    local y = ( math_Round( vec.y / gridSize ) * gridSize ) + gridOffset
+    local z = ( math_Round( vec.z / gridSize ) * gridSize ) + gridOffset
     return Vector( x, y, z )
 
 end
@@ -315,53 +386,21 @@ local regionsQueue = {}
 local isPatching = false
 hook.Remove( "Think", "PatchThinkHook" )
 
-local function filterFunc( hit )
-    if hit:IsWorld() then return true end
-    return nil
-
-    --[[ dead prop support idea
-    local class = hit:GetClass()
-    local isDoor = string.find( class, "door" ) and hit:IsSolid()
-    if hit:IsNPC() or hit:IsPlayer() or isDoor then
-        if isDoor and class == "prop_door_rotating" and not terminator_Extras.CanBashDoor( hit ) then
-            return true
-
-        else
-            return nil
-
-        end
-    elseif hit.GetDriver then
-        return nil
-
-    end
-    local obj = hit:GetPhysicsObject()
-    if not obj:IsMotionEnabled() then return true end
-    if not obj:IsMoveable() then return true end
-    --]]
-end
-
 local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
     local voxelsKey = vecAsKey( voxel )
-    if not util.IsInWorld( voxel ) then
+    if not util_IsInWorld( voxel ) then
         solidVoxels[voxelsKey] = true
         closedVoxels[voxelsKey] = true
         return
 
     end
 
-    local bottomOfBounds = Vector( voxel.x, voxel.y, math.min( voxel.z, mins.z + -gridSize ) )
-    local trStruc = {
-        start = voxel,
-        endpos = bottomOfBounds,
-        mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
-        filter = filterFunc,
-        mins = trMins,
-        maxs = trMaxs,
+    local bottomOfBounds = tempVector( "processvoxelboundbottom", voxel.x, voxel.y, math_min( voxel.z, mins.z + -gridSize ) )
+    trStrucIntitial.start = voxel
+    trStrucIntitial.endpos = bottomOfBounds
 
-    }
-
-    local result = util.TraceHull( trStruc )
-    if result.StartSolid then
+    util.TraceHull( trStrucIntitial )
+    if initialResult.StartSolid then
         solidVoxels[voxelsKey] = true
         closedVoxels[voxelsKey] = true
         return
@@ -381,31 +420,31 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     end
 
-    local hitPos = result.HitPos
+    local hitPos = initialResult.HitPos
     local snapped = GetSnappedToGrid( hitPos )
 
     local line = { start = voxel, endpos = hitPos }
     local dist = line.start:Distance( line.endpos )
     local voxelsToToss = math.floor( dist / gridSize )
-    if voxelsToToss >= 1 then
+    if voxelsToToss >= 1 then -- skip voxels early if floor trace passed through them no issue
         if debugging then
             debugoverlay.Line( voxel, line.endpos, 10, red, true )
 
         end
         for ind = 1, voxelsToToss do
-            local toToss = Vector( voxel.x, voxel.y, voxel.z + -( ind * gridSize ) )
+            local toToss = tempVector( "processvoxeltossing", voxel.x, voxel.y, voxel.z + -( ind * gridSize ) )
             closedVoxels[vecAsKey( toToss )] = true
 
         end
     end
-    if not result.Hit then return end
+    if not initialResult.Hit then return end
     closedVoxels[vecAsKey( voxel )] = true
 
-    if result.HitTexture == "TOOLS/TOOLSNODRAW" then return end -- dont place outside of maps
-    if result.HitSky then return end -- dont place on skybox, probably an "endless" pit
+    if initialResult.HitTexture == "TOOLS/TOOLSNODRAW" then return end -- dont place outside of maps
+    if initialResult.HitSky then return end -- dont place on skybox, probably an "endless" pit
 
     -- slope check
-    if result.HitNormal:Dot( up ) < 0.5 then return end
+    if initialResult.HitNormal:Dot( up ) < 0.5 then return end
 
 
     local trStrucFindFloor = {
@@ -422,7 +461,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     local trStrucCollide = {
         start = hitPos + upCrouch,
-        endpos = hitPos + upCrouch + Vector( 0, 0, 1 ),
+        endpos = hitPos + upCrouch + up,
         mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
         filter = filterFunc,
         mins = collideTrMins,
@@ -467,11 +506,13 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
 end
 
+local coroutine_yield = coroutine.yield
+
 -- Coroutine function to handle patching regions one-by-one
 local function patchCoroutine()
     while #regionsQueue > 0 do
         terminator_Extras.IsLivePatching = true
-        coroutine.yield()
+        coroutine_yield()
 
         -- Retrieve the next region from the queue
         local region = table.remove( regionsQueue, 1 )
@@ -514,10 +555,10 @@ local function patchCoroutine()
 
         for z = 0, sizeInZ / gridSize do -- z first
             z = z * gridSize
-            coroutine.yield()
+            coroutine_yield()
             for x = 0, sizeInX / gridSize do
                 x = x * gridSize
-                coroutine.yield()
+                coroutine_yield()
                 for y = 0, sizeInY / gridSize do
                     y = y * gridSize
                     local voxel = Vector( smallest.x + x, smallest.y + y, smallest.z + z )
@@ -533,7 +574,7 @@ local function patchCoroutine()
             local currVoxel = table.remove( openVoxelsSeq )
             if closedVoxels[vecAsKey( currVoxel )] then continue end
 
-            coroutine.yield()
+            coroutine_yield()
             -- Placeholder for voxel processing
             processVoxel( currVoxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
 
@@ -547,10 +588,10 @@ local function patchCoroutine()
 
             local merged = true
             while merged do
-                coroutine.yield()
+                coroutine_yield()
                 merged = nil
                 for _, data in pairs( vecsToPlace ) do
-                    coroutine.yield()
+                    coroutine_yield()
                     if mergeWithNeighbors( data, vecsToPlace ) then
                         merged = true
                         break
@@ -564,7 +605,7 @@ local function patchCoroutine()
             local justNewAreas = {}
             local justNewAreasSeq = {}
             for _, data in pairs( vecsToPlace ) do
-                coroutine.yield()
+                coroutine_yield()
                 local newArea = navmesh.CreateNavArea( data.corner1, data.corner2 )
                 table.insert( justNewAreasSeq, newArea )
                 justNewAreas[newArea] = true
@@ -576,23 +617,23 @@ local function patchCoroutine()
             end
 
             debugPrint( "Connecting placed areas..." )
-            coroutine.yield( "wait" )
+            coroutine_yield( "wait" )
 
-            local additionalSize = math.max( gridSize, 25 )
+            local additionalSize = math_max( gridSize, 25 )
             local additional = Vector( additionalSize, additionalSize, additionalSize )
 
             for _, data in pairs( vecsToPlace ) do
-                coroutine.yield()
+                coroutine_yield()
                 local upOff = upCrouch / 2
                 local newArea = data.newArea
                 local mins, maxs = navGetBounds( newArea )
                 for _, otherArea in ipairs( navmesh.FindInBox( mins + -additional, maxs + additional ) ) do
                     local trivialDist -- defaults to 5 in following navpatcher 
                     if not justNewAreas[otherArea] then
-                        trivialDist = math.max( 25, gridSize ) -- not a new area, allow long connections!
+                        trivialDist = math_max( 25, gridSize ) -- not a new area, allow long connections!
 
                     end
-                    coroutine.yield()
+                    coroutine_yield()
                     local connectable1 = terminator_Extras.AreasAreConnectable( newArea, otherArea, upOff, trivialDist )
                     local connectable2 = terminator_Extras.AreasAreConnectable( otherArea, newArea, upOff, trivialDist )
                     if connectable1 then
@@ -607,11 +648,11 @@ local function patchCoroutine()
             end
 
             debugPrint( "Merging placed areas..." )
-            coroutine.yield( "wait" )
+            coroutine_yield( "wait" )
 
             merged = true
             while merged do
-                coroutine.yield()
+                coroutine_yield()
                 merged = nil
                 for _, area in ipairs( justNewAreasSeq ) do
                     if not IsValid( area ) then continue end
@@ -619,7 +660,7 @@ local function patchCoroutine()
                         merged, _, mergedArea = terminator_Extras.navmeshAttemptMerge( area, neighbor )
                         if merged then
                             table.insert( justNewAreasSeq, mergedArea )
-                            coroutine.yield( "wait" )
+                            coroutine_yield( "wait" )
                             break
 
                         end
@@ -658,7 +699,7 @@ local function patchCoroutine()
             end
         end
         terminator_Extras.IsLivePatching = nil
-        coroutine.yield( "waitlong" )
+        coroutine_yield( "waitlong" )
 
         local areaCreatedCount = #validatedAreas
         hook.Run( "terminator_areapatcher_doneapatch", validatedAreas, areaCreatedCount )
@@ -668,10 +709,13 @@ local function patchCoroutine()
     -- All regions have been processed; clean up the hook
     isPatching = false
     debugPrint( "All regions have been patched." )
-    coroutine.yield( "done" )
+    coroutine_yield( "done" )
 
 end
 
+
+local coroutine_resume = coroutine.resume
+local coroutine_status = coroutine.status
 
 local thread
 local nextThink = 0
@@ -691,15 +735,15 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
         if not isPatching then hook.Remove( "Think", "PatchThinkHook" ) return end
         if nextThink > CurTime() then return end
 
-        if not thread or coroutine.status( thread ) == "dead" then
+        if not thread or coroutine_status( thread ) == "dead" then
             thread = coroutine.create( patchCoroutine )
 
         end
         if thread then
             local oldTime = SysTime()
-            while math.abs( oldTime - SysTime() ) < areaPatchingRate do
+            while math_abs( oldTime - SysTime() ) < areaPatchingRate do
                 inCoroutine = true
-                local noErrors, result = coroutine.resume( thread )
+                local noErrors, result = coroutine_resume( thread )
                 inCoroutine = nil
                 if noErrors == false then -- errored
                     thread = nil

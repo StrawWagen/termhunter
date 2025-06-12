@@ -281,7 +281,7 @@ function ENT:SetupActivity()
 		act = self:TranslateActivity(act)
 	end
 	
-	if act and curact!=act then
+	if act and curact != act then
 		self:StartActivity(act)
 	end
 end

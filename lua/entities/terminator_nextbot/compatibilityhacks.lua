@@ -1,8 +1,8 @@
 AddCSLuaFile()
 
-local entMeta = FindMetaTable( "Entity" )
-
 -- hacky fixes for comaptibility with other common addons
+
+local entMeta = FindMetaTable( "Entity" )
 
 -- had some weapon base problems that made this necessary iirc
 function ENT:Classify()
@@ -134,12 +134,12 @@ function ENT:KeyPressed( KEY )
 
             end
         else
-            return math.random( 1,100 ) < 3
+            return math.random( 1, 100 ) < 25
 
         end
 
     elseif KEY == IN_SPEED then
-        return self:canDoRun() and localizedVel:LengthSqr() >= self.MoveSpeed^2
+        return self:canDoRun() and localizedVel:LengthSqr() >= ( self.MoveSpeed + 50 ) ^ 2
 
     elseif KEY == IN_WALK then
         return self:shouldDoWalk()
@@ -182,6 +182,30 @@ function ENT:Armor()
 end
 function ENT:GetMaxArmor()
     return 0
+
+end
+
+local cmd
+
+local function createFakeCMD()
+    cmd = {}
+    cmd.GetMouseX = function() return 0 end
+    cmd.GetMouseY = function() return 0 end
+    cmd.GetButtons = function() return 0 end
+    cmd.GetForwardMove = function() return 0 end
+    cmd.GetSideMove = function() return 0 end
+    cmd.GetUpMove = function() return 0 end
+    cmd.GetViewAngles = function() return angle_zero end
+    cmd.CommandNumber = function() return math.Round( CurTime() ) end
+    cmd.TickCount = function() return engine.TickCount() end
+
+end
+
+function ENT:GetCurrentCommand()
+    if not cmd then
+        createFakeCMD()
+    end
+    return cmd
 
 end
 

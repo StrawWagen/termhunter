@@ -1,26 +1,44 @@
 
 -- navmesh optimizer merging code
 
+local navMeta = FindMetaTable( "CNavArea" )
+local GetCenter = navMeta.GetCenter
+local GetCorner = navMeta.GetCorner
+local GetSizeX = navMeta.GetSizeX
+local GetSizeY = navMeta.GetSizeY
+local IsConnected = navMeta.IsConnected
+local GetAttributes = navMeta.GetAttributes
+local GetAdjacentAreas = navMeta.GetAdjacentAreas
+local GetIncomingConnections = navMeta.GetIncomingConnections
+local GetClosestPointOnArea = navMeta.GetClosestPointOnArea
+
+local vecMeta = FindMetaTable( "Vector" )
+local DistToSqr = vecMeta.DistToSqr
+
+local IsValid = IsValid
+local table = table
+local bit_band = bit.band
+
 terminator_Extras = terminator_Extras or {}
 
 local cornerIndexes = { 0,1,2,3 }
 local fiveSqared = 5^2
 
 local function navSurfaceArea( navArea )
-    local area = navArea:GetSizeX() * navArea:GetSizeY()
+    local area = GetSizeX( navArea ) * GetSizeY( navArea )
     return area
 
 end
 
 local function connectionData( currArea, otherArea )
-    local currCenter = currArea:GetCenter()
+    local currCenter = GetCenter( currArea )
 
-    local nearestInitial = otherArea:GetClosestPointOnArea( currCenter )
-    local nearestFinal   = currArea:GetClosestPointOnArea( nearestInitial )
+    local nearestInitial = GetClosestPointOnArea( otherArea, currCenter )
+    local nearestFinal   = GetClosestPointOnArea( currArea, nearestInitial )
     local height = -( nearestFinal.z - nearestInitial.z )
 
     nearestFinal.z = nearestInitial.z
-    local distTo   = nearestInitial:DistToSqr( nearestFinal )
+    local distTo   = DistToSqr( nearestInitial, nearestFinal )
 
     return distTo, height
 
@@ -33,9 +51,9 @@ local function navAreaGetCloseCorners( pos, areaToCheck )
     local closeCorners = {}
 
     for _, biggestCornerIndex in ipairs( cornerIndexes ) do
-        local biggestAreaCorner = areaToCheck:GetCorner( biggestCornerIndex )
+        local biggestAreaCorner = GetCorner( areaToCheck, biggestCornerIndex )
 
-        if pos:DistToSqr( biggestAreaCorner ) < fiveSqared then
+        if DistToSqr( pos, biggestAreaCorner ) < fiveSqared then
             toReturn = true
             table.insert( closeCorners, biggestAreaCorner )
 
@@ -46,38 +64,50 @@ local function navAreaGetCloseCorners( pos, areaToCheck )
 
 end
 
+local function hasAttributeFast( attributes, attribute )
+    if not attributes then return false end
+    if not attribute then return false end
+
+    local has = bit_band( attributes, attribute ) > 0
+    return has
+
+end
+
 function terminator_Extras.navAreasCanMerge( start, next )
 
-    if not ( start and next ) then return false, 0, NULL end
+    if not ( start and next ) then return false, 0, NULL end -- outdated
+
+    local startA = GetAttributes( start )
+    local nextA = GetAttributes( next )
 
     --SUPER fast
-    local isStairs = start:HasAttributes( NAV_MESH_STAIRS ) or next:HasAttributes( NAV_MESH_STAIRS )
+    local isStairs = hasAttributeFast( startA, NAV_MESH_STAIRS ) or hasAttributeFast( nextA, NAV_MESH_STAIRS )
     local probablyBreakingStairs
     if isStairs then
         -- DONT MESS WITH STAIRS!
         probablyBreakingStairs = true
         -- ok these are coplanar, and they're both stairs... i'll let this slide....
-        if start:IsCoplanar( next ) and start:HasAttributes( NAV_MESH_STAIRS ) and next:HasAttributes( NAV_MESH_STAIRS ) then
+        if start:IsCoplanar( next ) and hasAttributeFast( startA, NAV_MESH_STAIRS ) and hasAttributeFast( nextA, NAV_MESH_STAIRS ) then
             probablyBreakingStairs = nil
 
         end
     end
 
-    local noMerge = start:HasAttributes( NAV_MESH_NO_MERGE ) or next:HasAttributes( NAV_MESH_NO_MERGE ) -- probably has this for a reason huh... 
-    local doingAnObstacle = start:HasAttributes( NAV_MESH_OBSTACLE_TOP ) and next:HasAttributes( NAV_MESH_OBSTACLE_TOP )
+    local noMerge = hasAttributeFast( startA, NAV_MESH_NO_MERGE ) or hasAttributeFast( nextA, NAV_MESH_NO_MERGE ) -- probably has this for a reason huh... 
+    local doingAnObstacle = hasAttributeFast( startA, NAV_MESH_OBSTACLE_TOP ) and hasAttributeFast( nextA, NAV_MESH_OBSTACLE_TOP )
     local noMergeAndNotObstacle = noMerge and not doingAnObstacle
 
-    local transient = start:HasAttributes( NAV_MESH_TRANSIENT ) or next:HasAttributes( NAV_MESH_TRANSIENT )
+    local transient = hasAttributeFast( startA, NAV_MESH_TRANSIENT ) or hasAttributeFast( nextA, NAV_MESH_TRANSIENT )
 
-    local startCrouch = start:HasAttributes( NAV_MESH_CROUCH )
-    local nextCrouch = next:HasAttributes( NAV_MESH_CROUCH )
+    local startCrouch = hasAttributeFast( startA, NAV_MESH_CROUCH )
+    local nextCrouch = hasAttributeFast( nextA, NAV_MESH_CROUCH )
     local leavingCrouch = startCrouch and not nextCrouch
     local enteringCrouch = nextCrouch and not startCrouch
 
     local probablyBreakingCrouch = leavingCrouch or enteringCrouch -- don't make a little bit of crouch area way too big
 
-    local startBlock = start:HasAttributes( NAV_MESH_NAV_BLOCKER )
-    local nextBlock = next:HasAttributes( NAV_MESH_NAV_BLOCKER )
+    local startBlock = hasAttributeFast( startA, NAV_MESH_NAV_BLOCKER )
+    local nextBlock = hasAttributeFast( nextA, NAV_MESH_NAV_BLOCKER )
     local leavingBlock = startBlock and not nextBlock
     local enteringBlock = nextBlock and not startBlock
 
@@ -98,8 +128,8 @@ function terminator_Extras.navAreasCanMerge( start, next )
 
 
     --fast
-    local center1 = start:GetCenter()
-    local center2 = next:GetCenter()
+    local center1 = GetCenter( start )
+    local center2 = GetCenter( next )
     local sameX = center1.x == center2.x
     local sameY = center1.y == center2.y
 
@@ -107,10 +137,10 @@ function terminator_Extras.navAreasCanMerge( start, next )
     if not sameSomething then return false, 0, NULL end --if we can, throw these away as early as possible
 
     -- fast
-    local startSizeX = start:GetSizeX()
-    local nextSizeX = next:GetSizeX()
-    local startSizeY = start:GetSizeY()
-    local nextSizeY = next:GetSizeY()
+    local startSizeX = GetSizeX( start )
+    local nextSizeX = GetSizeX( next )
+    local startSizeY = GetSizeY( start )
+    local nextSizeY = GetSizeY( next )
 
     local sameXSize = startSizeX == nextSizeX
     local sameYSize = startSizeY == nextSizeY
@@ -158,11 +188,11 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
     if canMerge ~= true then return false, 0, NULL end
 
     --sloooow
-    local connectionsFromStart = start:GetAdjacentAreas()
-    local connectionsFromNext = next:GetAdjacentAreas()
+    local connectionsFromStart = GetAdjacentAreas( start )
+    local connectionsFromNext = GetAdjacentAreas( next )
 
-    local connectionsToStart = start:GetIncomingConnections()
-    local connectionsToNext = next:GetIncomingConnections()
+    local connectionsToStart = GetIncomingConnections( start )
+    local connectionsToNext = GetIncomingConnections( next )
 
     local connectionsFrom       = table.Add( connectionsFromStart, connectionsFromNext )
     local oneWayConnectionsTo   = table.Add( connectionsToStart, connectionsToNext )
@@ -173,7 +203,7 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
         if not IsValid( next ) then continue end
         if not IsValid( twoWayArea ) then continue end
 
-        if ( start:IsConnected( twoWayArea ) or next:IsConnected( twoWayArea ) ) or ( twoWayArea:IsConnected( start ) or twoWayArea:IsConnected( next ) ) then
+        if ( IsConnected( start, twoWayArea ) or IsConnected( next, twoWayArea ) ) or ( IsConnected( twoWayArea, start ) or IsConnected( twoWayArea, next ) ) then
             table.insert( twoWayConnections, #twoWayConnections + 1, twoWayArea )
             connectionsFrom[ key ] = nil
         end
@@ -199,7 +229,7 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
         local newOffendingCorners = {}
 
         for _, startCornerIndex in ipairs( cornerIndexes ) do
-            local currStartCorner = start:GetCorner( startCornerIndex )
+            local currStartCorner = GetCorner( start, startCornerIndex )
 
             sameCornerAsBiggestArea, newOffendingCorners = navAreaGetCloseCorners( currStartCorner, biggestArea )
 
@@ -235,8 +265,8 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
     end
 
     -- north westy
-    local NWCorner1 = start:GetCorner( 0 )
-    local NWCorner2 = next:GetCorner( 0 )
+    local NWCorner1 = GetCorner( start, 0 )
+    local NWCorner2 = GetCorner( next, 0 )
 
     local NWCorner = NWCorner1
     if NWCorner2.y < NWCorner.y then
@@ -249,8 +279,8 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
     end
 
     -- find most north easty corner
-    local NECorner1 = start:GetCorner( 1 )
-    local NECorner2 = next:GetCorner( 1 )
+    local NECorner1 = GetCorner( start, 1 )
+    local NECorner2 = GetCorner( next, 1 )
 
     local NECorner = NECorner1
     if NECorner2.y < NECorner.y then
@@ -263,8 +293,8 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
     end
 
     -- find most south westy corner
-    local SWCorner1 = start:GetCorner( 3 )
-    local SWCorner2 = next:GetCorner( 3 )
+    local SWCorner1 = GetCorner( start, 3 )
+    local SWCorner2 = GetCorner( next, 3 )
 
     local SWCorner = SWCorner1
     if SWCorner2.y > SWCorner.y then
@@ -277,8 +307,8 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
     end
 
     -- find most south easty corner
-    local SECorner1 = start:GetCorner( 2 )
-    local SECorner2 = next:GetCorner( 2 )
+    local SECorner1 = GetCorner( start, 2 )
+    local SECorner2 = GetCorner( next, 2 )
 
     local SECorner = SECorner1
     if SECorner2.y > SECorner.y then
@@ -290,9 +320,12 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
         SECorner.z = SECorner2.z
     end
 
-    local obstacle = start:HasAttributes( NAV_MESH_OBSTACLE_TOP ) or next:HasAttributes( NAV_MESH_OBSTACLE_TOP )
-    local crouch = start:HasAttributes( NAV_MESH_CROUCH ) or next:HasAttributes( NAV_MESH_CROUCH )
-    local stairs = start:HasAttributes( NAV_MESH_STAIRS ) or next:HasAttributes( NAV_MESH_STAIRS )
+    local startA = GetAttributes( start )
+    local nextA = GetAttributes( next )
+
+    local obstacle = hasAttributeFast( startA, NAV_MESH_OBSTACLE_TOP ) or hasAttributeFast( nextA, NAV_MESH_OBSTACLE_TOP )
+    local crouch = hasAttributeFast( startA, NAV_MESH_CROUCH ) or hasAttributeFast( nextA, NAV_MESH_CROUCH )
+    local stairs = hasAttributeFast( startA, NAV_MESH_STAIRS ) or hasAttributeFast( nextA, NAV_MESH_STAIRS )
 
     local newArea = navmesh.CreateNavArea( NECorner, SWCorner )
     if not IsValid( newArea ) then return false, 0, NULL end -- this failed, dont delete the old areas

@@ -4,6 +4,8 @@ local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 local isnumber = isnumber
 local CurTime = CurTime
 
+local entMeta = FindMetaTable( "Entity" )
+
 ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG
 
 --cool dmage system stuff
@@ -389,45 +391,54 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
     end
 
-    ProtectedCall( function() self:RunTask( "OnDamaged", dmg ) end )
+    local myTbl = entMeta.GetTable( self )
+
+    ProtectedCall( function() myTbl.RunTask( self, "OnDamaged", dmg ) end )
 
     local cur = CurTime()
-    local nextNoticeDamage = self.term_NextNoticeDamage or 0
+    local nextNoticeDamage = myTbl.term_NextNoticeDamage or 0
     if nextNoticeDamage > cur then return end
 
     local add = math.Clamp( dmg:GetDamage(), 0, 250 ) / 250
-    self.term_NextNoticeDamage = cur + add
+    myTbl.term_NextNoticeDamage = cur + add
 
     local parent = validAttacker and attacker:GetParent() or nil
 
      -- on fire damage is from fire parented to us, ignore that for feuding and looking at damage
     if validAttacker and attacker ~= self and not ( IsValid( parent ) and parent == self ) then
-        self:MakeFeud( attacker )
+        myTbl.MakeFeud( self, attacker )
 
-        local dmgSourcePos = self:getBestPos( attacker )
+        local dmgSourcePos = myTbl.getBestPos( self, attacker )
 
-        -- update enemy stuff!
-        if dmg:IsBulletDamage() and terminator_Extras.PosCanSee( self:GetShootPos(), dmgSourcePos ) and dmgSourcePos:Distance( attacker:GetPos() ) < 350 then
-            self:UpdateEnemyMemory( attacker, attacker:GetPos() )
+        local _, toAttackerPri = myTbl.TERM_GetRelationship( self, myTbl, attacker )
+        local currEnemy = myTbl.GetEnemy( self )
+        local currEnemyPri = 0
+        if IsValid( currEnemy ) then
+            _, currEnemyPri = myTbl.TERM_GetRelationship( self, myTbl, currEnemy )
+
+        end
+        -- look at attacker if they are more important than current enemy
+        if dmg:IsBulletDamage() and toAttackerPri > currEnemyPri + 1 and terminator_Extras.PosCanSee( myTbl.GetShootPos( self ), dmgSourcePos ) and dmgSourcePos:Distance( attacker:GetPos() ) < 350 then
+            myTbl.UpdateEnemyMemory( self, attacker, attacker:GetPos() )
 
         end
 
         local time = math.Rand( 1, 1.5 )
-        if self:IsAngry() then
+        if myTbl.IsAngry( self ) then -- blinded by rage
             time = time * 0.5
 
         end
-        if self.AimSpeed < 200 then
-            time = time + ( 200 - self.AimSpeed ) / 100
+        if myTbl.AimSpeed < 200 then -- look longer if we aim slow
+            time = time + ( 200 - myTbl.AimSpeed ) / 100
 
         end
 
-        if attacker ~= self:GetEnemy() then
-            self.TookDamagePos = dmgSourcePos
+        if attacker ~= currEnemy then -- look at it
+            myTbl.TookDamagePos = dmgSourcePos
             timer.Simple( time, function()
                 if not IsValid( self ) then return end
-                if self.TookDamagePos ~= dmgSourcePos then return end
-                self.TookDamagePos = nil
+                if myTbl.TookDamagePos ~= dmgSourcePos then return end
+                myTbl.TookDamagePos = nil
 
             end )
         end
