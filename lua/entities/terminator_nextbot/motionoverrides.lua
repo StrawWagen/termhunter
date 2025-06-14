@@ -5,6 +5,7 @@ local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
 
 local Vector = Vector
+local table_insert = table.insert
 
 local MDLSCALE_LARGE = terminator_Extras.MDLSCALE_LARGE
 local gapJumpHull = Vector( 5, 5, 5 )
