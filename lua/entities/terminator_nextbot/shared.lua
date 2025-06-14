@@ -1160,8 +1160,8 @@ function ENT:BehaviourThink( myTbl )
     if myTbl.IsControlledByPlayer( self ) then return end
     if myTbl.DisableBehaviour( self, myTbl ) then return end
 
-    local filter = self:GetChildren()
-    filter[#filter + 1] = self
+    local filter = { self, myTbl.GetEnemy( self ) }
+    table.Add( filter, entMeta.GetChildren( self ) )
 
     yieldIfWeCan()
     local pos = myTbl.GetShootPos( self )
@@ -1328,9 +1328,6 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
 
         local wepRange = myTbl.GetWeaponRange( self, myTbl )
 
-        local filter = self:GetChildren()
-        filter[#filter + 1] = self
-        filter[#filter + 1] = enemy
         local blockAttack = nil
         -- witness me hack for glee
         if validEnemy and enemy.AttackConfirmed then

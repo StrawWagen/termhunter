@@ -51,16 +51,35 @@ terminator_Extras.PosCanSeeHull = function( startPos, endPos, mask, hull )
 
 end
 
+local cachedFilters
+
 terminator_Extras.PosCanSeeComplex = function( startPos, endPos, filter, mask )
     if not startPos then return end
     if not endPos then return end
 
-    local filterTbl = filter or {}
+    local filterTbl = filter
     local collisiongroup = nil
 
     if IsValid( filter ) then
-        filterTbl = entMeta.GetChildren( filter )
-        table_insert( filterTbl, filter )
+        if not cachedFilters then
+            cachedFilters = {}
+            timer.Simple( 1, function()
+                cachedFilters = nil -- don't stick around
+
+            end )
+        end
+
+        filterTbl = cachedFilters[filter]
+
+        if not filterTbl then
+            filterTbl = { filter }
+            for _, child in ipairs( entMeta.GetChildren( filter ) ) do
+                table_insert( filterTbl, child )
+
+            end
+            cachedFilters[filter] = filterTbl
+
+        end
 
         collisiongroup = entMeta.GetCollisionGroup( filter )
 

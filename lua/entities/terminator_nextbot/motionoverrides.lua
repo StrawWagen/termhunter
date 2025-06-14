@@ -22,9 +22,26 @@ local CurTime = CurTime
 local math = math
 local math_Rand = math.Rand
 
+local cachedFilters = nil
+
 local function TrFilterNoSelf( me )
-    local filterTbl = me:GetChildren()
-    table.insert( filterTbl, me )
+    if not cachedFilters then
+        cachedFilters = {}
+        timer.Simple( 1, function()
+            cachedFilters = nil
+
+        end )
+    end
+    local filterTbl = cachedFilters[me]
+    if not filterTbl then
+        filterTbl = { me }
+        for _, child in ipairs( entMeta.GetChildren( me ) ) do
+            table_insert( filterTbl, child )
+
+        end
+        cachedFilters[me] = filterTbl
+
+    end
 
     return filterTbl
 
@@ -261,8 +278,9 @@ function ENT:StuckCheck( myTbl )
 
         -- push thing out the way!
         local hitEnt = tr.Entity
-        if IsValid( hitEnt ) then
+        if hitEnt and IsValid( hitEnt ) then
             myTbl.PhysicallyPushEnt( self, hitEnt, 15000 )
+
         end
 
         local hit = TraceHit( tr )
@@ -308,12 +326,15 @@ local function TryStuck( self, endPos, t, tr )
 
     if not tr.Hit then
         -- simple check to see if we're going through something to get there
-        local centerOffset = self:OBBCenter()
+        local centerOffset = entMeta.OBBCenter( self )
         local traceStruct = {
-            start = self:GetPos() + centerOffset,
+            start = entMeta.GetPos( self ) + centerOffset,
             endpos = endPos + centerOffset,
             mask = MASK_SOLID,
             filter = TrFilterNoSelf( self ),
+            mins = t.mins * 0.5,
+            maxs = t.maxs * 0.5,
+
         }
         local traceRes = util.TraceHull( traceStruct )
 
@@ -331,6 +352,7 @@ local function TryStuck( self, endPos, t, tr )
     end
 
     return false
+
 end
 
 --[[------------------------------------
@@ -338,15 +360,17 @@ end
     Trying teleport if we stuck
 --]]------------------------------------
 function ENT:OnStuck()
-    self.m_Stuck = true
-    self:InvalidatePath( "onstuck" )
+    local myTbl = entMeta.GetTable( self )
 
-    self:RunTask( "OnStuck" )
+    myTbl.m_Stuck = true
+    myTbl.InvalidatePath( self, "onstuck" )
 
-    if IsValid( self.terminatorStucker ) then return end
+    myTbl.RunTask( self, "OnStuck" )
 
-    local pos = self:GetPos()
-    local b1, b2 = self:GetSafeCollisionBounds()
+    if IsValid( myTbl.terminatorStucker ) then return end
+
+    local pos = entMeta.GetPos( self )
+    local b1, b2 = myTbl.GetSafeCollisionBounds( self )
 
     b1.x = b1.x - 4
     b1.y = b1.y - 4
@@ -356,7 +380,7 @@ function ENT:OnStuck()
     local tr = {}
     local t = {
         mask = self:GetSolidMask(),
-        collisongroup = self:GetCollisionGroup(),
+        collisongroup = entMeta.GetCollisionGroup( self ),
         output = tr,
         filter = TrFilterNoSelf( self ),
         mins = b1,
@@ -381,6 +405,7 @@ function ENT:OnStuck()
                 if TryStuck( self, pos + Vector( -x, y, -z ),   t, tr ) then return end
                 if TryStuck( self, pos + Vector( x, -y, -z ),   t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, -y, -z ),  t, tr ) then return end
+
             end
         end
     end
@@ -397,6 +422,7 @@ function ENT:GetFootstepSoundTime()
     end
 
     return time
+
 end
 
 --[[------------------------------------
@@ -915,7 +941,7 @@ function ENT:BoundsAdjusted( hullSizeMul, assumeCrouch )
     b2.y = b2.y * hullSizeMul
 
     local zSquash = 0.35
-    if self:IsCrouching() or assumeCrouch then
+    if assumeCrouch or self:IsCrouching() then
         zSquash = zSquash * 0.5
 
     end

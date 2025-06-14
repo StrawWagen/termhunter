@@ -34,7 +34,6 @@ function ENT:BehaveUpdate( interval )
     myTbl.SetupSpeed( self )
     myTbl.SetupMotionType( self, myTbl )
     myTbl.ProcessFootsteps( self )
-    myTbl.ChildrenCleanupHack( self, myTbl ) -- for some reason bots slowly accumulate themself in their _children table?????
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z
 
     if not disable then
@@ -92,7 +91,7 @@ local lastTick = CurTime()
 local probablyLagging = 60 -- shared path yield budget every bot gets. mitigates freezes from multiple bots pathing at once.
 local budgetEveryoneGets = 2 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
 if game.IsDedicated() then
-    budgetEveryoneGets = 4
+    budgetEveryoneGets = 3
 
 end
 
@@ -204,33 +203,5 @@ function ENT:BehaviourMotionCoroutine( myTbl )
     myTbl.RunTask( self, "BehaveUpdateMotion" )
 
     coroutine_yield( "done" )
-
-end
-
--- wtf is this bug?????
-function ENT:ChildrenCleanupHack( myTbl )
-    local nextCleanup = myTbl.term_NextChildrenCleanup or 0
-    if nextCleanup > CurTime() then return end
-    myTbl.term_NextChildrenCleanup = CurTime() + 5
-
-    local _children = myTbl._children
-    if not _children then return end
-    -- there were 87544!!!! copies of itself in _children when i left it spawned for 12+ minutes?!?!?!
-    -- one added every tick!
-    -- no wonder it was lagging so much....
-    -- SetParent is used 6 times in this repo and it's all related to weapons!
-    -- i stubbed SetParent and couldn't find the bug, it's probably with the engine!
-    -- if you have any insight into this bug, please let me know.
-
-    local newTbl = {}
-
-    for _, child in pairs( _children ) do
-        if child ~= self then
-            newTbl[#newTbl + 1] = child
-
-        end
-    end
-
-    myTbl._children = newTbl
 
 end
