@@ -399,7 +399,9 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
     local nextNoticeDamage = myTbl.term_NextNoticeDamage or 0
     if nextNoticeDamage > cur then return end
 
-    local add = math.Clamp( dmg:GetDamage(), 0, 250 ) / 250
+    local damage = dmg:GetDamage()
+
+    local add = math.Clamp( damage, 0, 250 ) / 250
     myTbl.term_NextNoticeDamage = cur + add
 
     local parent = validAttacker and attacker:GetParent() or nil
@@ -418,12 +420,14 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
         end
         -- look at attacker if they are more important than current enemy
-        if dmg:IsBulletDamage() and toAttackerPri > currEnemyPri + 1 and terminator_Extras.PosCanSee( myTbl.GetShootPos( self ), dmgSourcePos ) and dmgSourcePos:Distance( attacker:GetPos() ) < 350 then
+        local updateEnemy = self:GetRangeTo( attacker ) < myTbl.CloseEnemyDistance
+        updateEnemy = updateEnemy or ( dmg:IsBulletDamage() and toAttackerPri > currEnemyPri + 1 and terminator_Extras.PosCanSee( myTbl.GetShootPos( self ), dmgSourcePos ) and dmgSourcePos:Distance( attacker:GetPos() ) < 350 )
+        if updateEnemy then
             myTbl.UpdateEnemyMemory( self, attacker, attacker:GetPos() )
 
         end
 
-        local time = math.Rand( 1, 1.5 )
+        local time = math.Clamp( damage / 50, math.Rand( 0.5, 1.5 ), 3 )
         if myTbl.IsAngry( self ) then -- blinded by rage
             time = time * 0.5
 

@@ -314,7 +314,7 @@ function SWEP:HoldTypeThink()
     if doFistsTime > CurTime() then
         holdType = "fist"
 
-    elseif owner:IsReallyAngry() then
+    elseif owner:IsReallyAngry() and not owner.AlwaysAngry then
         holdType = "fist"
 
     elseif IsValid( enemy ) and enemy.isTerminatorHunterKiller then

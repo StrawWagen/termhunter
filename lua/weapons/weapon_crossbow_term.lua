@@ -85,8 +85,8 @@ function SWEP:FireBolt()
     
     self:GetOwner():EmitSound(Sound("Weapon_Crossbow.Single"))
     
-    self:SetNextPrimaryFire(CurTime()+1.5)
-    self:SetNextSecondaryFire(CurTime()+1.5)
+    self:SetNextPrimaryFire(CurTime()+2)
+    self:SetNextSecondaryFire(CurTime()+2)
     
     self:DoLoadEffect()
 end

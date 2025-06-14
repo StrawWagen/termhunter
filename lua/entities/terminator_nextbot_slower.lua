@@ -2,9 +2,9 @@ AddCSLuaFile()
 
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
-ENT.PrintName = "Terminator"
+ENT.PrintName = "Terminator Hard"
 list.Set( "NPC", "terminator_nextbot_slower", {
-    Name = "Terminator Hard",
+    Name = ENT.PrintName,
     Class = "terminator_nextbot_slower",
     Category = "Terminator Nextbot",
     Weapons = { "weapon_terminatorfists_term" },

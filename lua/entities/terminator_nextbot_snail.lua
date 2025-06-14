@@ -4,7 +4,7 @@ ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator"
 list.Set( "NPC", "terminator_nextbot_snail", {
-    Name = "Terminator",
+    Name = ENT.PrintName,
     Class = "terminator_nextbot_snail",
     Category = "Terminator Nextbot",
     Weapons = { "weapon_terminatorfists_term" },

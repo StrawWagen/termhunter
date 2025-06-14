@@ -1587,7 +1587,7 @@ function ENT:JudgeWeapon( myWeapon )
         terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.5 )
 
     end
-    if not dmgTracker.reallyLikesThisOne and damageDealt > math.max( attackAttempts * 25, 250 ) then
+    if not dmgTracker.reallyLikesThisOne and damageDealt > math.max( attackAttempts * 50, 500 ) then
         -- i like this one!
         dmgTracker.reallyLikesThisOne = true
         print( "Terminator finds deep satisfaction in using\n" .. myWepsClass )

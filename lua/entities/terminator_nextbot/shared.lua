@@ -2,11 +2,12 @@ AddCSLuaFile()
 
 ENT.Base = "terminator_nextbot_base"
 DEFINE_BASECLASS( ENT.Base )
-ENT.PrintName = "Terminator"
+ENT.PrintName = "Terminator Overcharged"
 ENT.Author = "StrawWagen"
+ENT.Purpose = "Run from this thing! OH GOD IT'S GOT A GUN!"
 
 list.Set( "NPC", "terminator_nextbot", {
-    Name = "Terminator Overcharged",
+    Name = ENT.PrintName,
     Class = "terminator_nextbot",
     Category = "Terminator Nextbot",
     Weapons = { "weapon_terminatorfists_term" },
@@ -2655,7 +2656,7 @@ ENT.WalkSpeed = 130
 ENT.MoveSpeed = 300
 ENT.RunSpeed = 550 -- bit faster than players... in a straight line
 ENT.AccelerationSpeed = 3000
-ENT.DeathDropHeight = 2000 --not afraid of heights
+ENT.DeathDropHeight = 2000 -- not afraid of heights
 ENT.LastEnemySpotTime = 0
 ENT.InformRadius = 20000
 ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if the enemy is unreachable or lethal in melee
@@ -2675,7 +2676,7 @@ ENT.FistDamageMul = 4
 ENT.ThrowingForceMul = 1000 -- speed we throw crowbars, this is the overcharged one so it's 1k
 
 ENT.duelEnemyTimeoutMul = 1
-ENT.CloseEnemyDistance = 50 -- bot ignores enemy priority if enemy is this close
+ENT.CloseEnemyDistance = 75 -- bot ignores enemy priority if enemy is this close
 
 ENT.AutoUpdateFOV = true
 
@@ -2857,8 +2858,12 @@ function ENT:Initialize()
 
     myTbl.InitializeLagCompensation( self )
 
-    timer.Simple( 0.1, function()
+    timer.Simple( 0, function()
         if not IsValid( self ) then return end
+        if myTbl.NPCTable then -- make name in killfeed ALWAYS printname
+            myTbl.NPCTable.Name = myTbl.PrintName
+
+        end
         if navmesh.GetNavAreaCount() <= 0 then
             local myCreator = self:GetCreator()
             if not IsValid( myCreator ) and CPPI then

@@ -8,7 +8,7 @@ ENT.Author = "Broadcloth0"
 ENT.Spawnable = false
 
 list.Set( "NPC", "terminator_nextbot_wraith", {
-    Name = "Terminator Wraith",
+    Name = ENT.PrintName,
     Class = "terminator_nextbot_wraith",
     Category = "Terminator Nextbot",
     Weapons = { "weapon_terminatorfists_term" },
