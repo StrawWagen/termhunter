@@ -2,7 +2,7 @@ AddCSLuaFile()
 
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
-ENT.PrintName = "Terminator Doppleganger"
+ENT.PrintName = "Terminator Doppelganger"
 list.Set( "NPC", "terminator_nextbot_snail_disguised", {
     Name = ENT.PrintName,
     Class = "terminator_nextbot_snail_disguised",
