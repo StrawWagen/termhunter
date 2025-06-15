@@ -2,7 +2,7 @@ AddCSLuaFile()
 
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
-ENT.PrintName = "Terminator Doppelganger"
+ENT.PrintName = "Terminator Doppleganger"
 list.Set( "NPC", "terminator_nextbot_snail_disguised", {
     Name = ENT.PrintName,
     Class = "terminator_nextbot_snail_disguised",
@@ -15,14 +15,14 @@ if CLIENT then
 
 end
 
-local isADoppleGanger
+local isADoppelGanger
 
-local function checkIfThereIsADoppleganger()
+local function checkIfThereIsADoppelganger()
     if #ents.FindByClass( "terminator_nextbot_snail_disguised" ) > 0 then
-        isADoppleGanger = true
+        isADoppelGanger = true
 
     else
-        isADoppleGanger = false
+        isADoppelGanger = false
 
     end
 end
@@ -98,9 +98,9 @@ end
 ENT.Term_StepSoundTimeMul = 0.8
 
 function ENT:AdditionalClientInitialize()
-    timer.Simple( 0, checkIfThereIsADoppleganger )
-    self:CallOnRemove( "checkiftheresdoppleganger", function()
-        timer.Simple( 0, checkIfThereIsADoppleganger )
+    timer.Simple( 0, checkIfThereIsADoppelganger )
+    self:CallOnRemove( "checkiftheresdoppelganger", function()
+        timer.Simple( 0, checkIfThereIsADoppelganger )
 
     end )
 end
@@ -226,7 +226,7 @@ local function paintNameAndHealth( toPaint )
 end
 
 hook.Add( "HUDPaint", "terminator_PaintDisguisedNameAndHealth", function()
-    if not isADoppleGanger then return end
+    if not isADoppelGanger then return end
 
     if hook.Run( "HUDDrawTargetID" ) ~= nil then return end
 
