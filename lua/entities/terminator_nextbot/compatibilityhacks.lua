@@ -348,6 +348,11 @@ if SERVER then
 
     end
 
+    function ENT:GetMovementActivity()
+        return self:GetMotionType()
+
+    end
+
 else -- CLIENT
     function ENT:ShouldDrawLocalPlayer() -- for when you dont want to double-draw stuff
         return true
