@@ -28,18 +28,27 @@ local doFollowingPatchingVar = CreateConVar( "terminator_followpatcher_enable", 
 local maxPlysToPatchVar = CreateConVar( "terminator_followpatcher_maxplayers", -1, FCVAR_ARCHIVE, "Max amount of plys to process at a time, the system always prioritizes players being actively chased. -1 for default," .. defaultMaxPlysToPatch )
 local debuggingVar = CreateConVar( "terminator_followpatcher_debug", 0, FCVAR_ARCHIVE, "Debug the following patcher." )
 
+
 local doFollowingPatching = doFollowingPatchingVar:GetBool()
 cvars.AddChangeCallback( "terminator_followpatcher_enable", function( _, _, new )
     doFollowingPatching = tobool( new )
 
 end, "updatepatching" )
 
+
 local maxPlysToPatch = maxPlysToPatchVar:GetInt()
-cvars.AddChangeCallback( "terminator_followpatcher_maxplayers", function( _, _, new )
-    maxPlysToPatch = tonumber( new )
+local function handleMaxPlysToPatch()
+    maxPlysToPatch = tonumber( maxPlysToPatchVar:GetInt() )
     if maxPlysToPatch <= -1 then maxPlysToPatch = defaultMaxPlysToPatch end
 
+end
+
+cvars.AddChangeCallback( "terminator_followpatcher_maxplayers", function()
+    handleMaxPlysToPatch()
+
 end, "updatemaxplayers" )
+handleMaxPlysToPatch()
+
 
 local debugging = debuggingVar:GetBool()
 cvars.AddChangeCallback( "terminator_followpatcher_debug", function( _, _, new )
@@ -58,6 +67,7 @@ local function lineBetween( area1, area2 )
     debugoverlay.Line( area1:GetCenter(), area2:GetCenter(), 10, Color( 255, 0, 0 ), true )
 
 end
+
 
 local upTen = Vector( 0, 0, 10 )
 
