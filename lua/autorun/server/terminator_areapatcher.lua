@@ -72,9 +72,11 @@ end
 
 local function filterFunc( hit )
     if hit:IsWorld() then return true end
-    return nil
+    return false
 
 end
+
+local red = Color( 255, 0, 0 )
 
 local posIsUnderDisplacement
 
@@ -149,7 +151,7 @@ local function updateGridSize( newSize )
     initialResult = {} -- just do this optimisation for the initial trace, it does most of the hard work
     trStrucIntitial = {
         mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
-        filter = function( hit ) filterFunc( hit ) end,
+        filter = function( hit ) return filterFunc( hit ) end,
         mins = trMins,
         maxs = trMaxs,
         output = initialResult,
@@ -344,8 +346,6 @@ end
 
 local up = Vector( 0, 0, 1 )
 
-local red = Color( 255, 0, 0 )
-
 local function SnapToGrid( vec )
     vec.x = ( math_Round( vec.x / gridSize ) * gridSize ) + gridOffset
     vec.y = ( math_Round( vec.y / gridSize ) * gridSize ) + gridOffset
@@ -401,6 +401,10 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     util.TraceHull( trStrucIntitial )
     if initialResult.StartSolid then
+        if debugging then
+            debugoverlay.Cross( voxel, 5, 10, red, true )
+
+        end
         solidVoxels[voxelsKey] = true
         closedVoxels[voxelsKey] = true
         return

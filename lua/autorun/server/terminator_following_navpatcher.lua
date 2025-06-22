@@ -143,6 +143,9 @@ local function AreasHaveAnyOverlap( area1, area2 ) -- i love chatgpt functions
 
 end
 
+terminator_Extras.AreasHaveAnyOverlap = AreasHaveAnyOverlap
+
+
 local upStanding = Vector( 0, 0, 25 )
 local upCrouch = Vector( 0, 0, 10 )
 
