@@ -622,8 +622,9 @@ function ENT:IsReallyAngry()
         self.terminator_CheckIsReallyAngry = CurTime() + 1
         local oldReallyAngryTime = reallyAngryTime
         local enemy = self:GetEnemy()
+        local validEnemy = IsValid( enemy )
 
-        if enemy and enemy.isTerminatorHunterKiller then
+        if validEnemy and enemy.isTerminatorHunterKiller then
             reallyAngryTime = reallyAngryTime + 60
 
         elseif self:Health() < ( self:GetMaxHealth() * 0.5 ) then
@@ -674,8 +675,9 @@ function ENT:IsAngry()
         self.terminator_CheckIsAngry = CurTime() + math_Rand( 0.9, 1.1 )
         local oldAngryTime = angryTime
         local enemy = self:GetEnemy()
+        local validEnemy = IsValid( enemy )
 
-        if enemy and ( enemy.isTerminatorHunterKiller or enemy.terminator_CantConvinceImFriendly ) then
+        if validEnemy and ( enemy.isTerminatorHunterKiller or enemy.terminator_CantConvinceImFriendly ) then
             self.terminator_PermanentAngry = true
 
         elseif self:Health() < ( self:GetMaxHealth() * 0.9 ) or self:IsOnFire() then
@@ -684,16 +686,16 @@ function ENT:IsAngry()
         elseif self.isUnstucking then
             angryTime = angryTime + 6
 
-        elseif self:inSeriousDanger() or self:EnemyIsUnkillable() or ( enemy and enemy.InVehicle and enemy:InVehicle() ) then
+        elseif self:inSeriousDanger() or self:EnemyIsUnkillable() or ( validEnemy and enemy.InVehicle and enemy:InVehicle() ) then
             angryTime = angryTime + math.random( 5, 15 )
 
         elseif self:getLostHealth() > 0.5 then
             angryTime = angryTime + math.random( 1, 10 )
 
-        elseif enemy and ( not self.IsSeeEnemy or self.DistToEnemy > self.MoveSpeed * 10 ) then
+        elseif validEnemy and ( not self.IsSeeEnemy or self.DistToEnemy > self.MoveSpeed * 10 ) then
             angryTime = angryTime + 1.1
 
-        elseif not IsValid( enemy ) and self:GetPath() and self:GetPath():GetLength() > 1000 then
+        elseif not validEnemy and self:GetPath() and self:GetPath():GetLength() > 1000 then
             angryTime = angryTime + 3
 
         elseif self.terminator_FellOffPath then
@@ -3289,11 +3291,11 @@ function ENT:InitializeCollisionBounds( mdlScale )
     local maxsZ = self.CollisionBounds[2].z * mdlScale
     local viewOffsetFromMaxs = ( maxsZ / defaultHeight ) * defaultViewOffsetNudge
     local viewOffset = math.Round( maxsZ + -viewOffsetFromMaxs )
-    self.ViewOffset = Vector( 0, 0, viewOffset )
+    self:SetViewOffset( Vector( 0, 0, viewOffset ) )
 
     local maxsZCrouch = self.CrouchCollisionBounds[2].z * mdlScale
     local crouchViewOffsetFromMaxs = ( maxsZCrouch / defaultCrouchHeight ) * defaultCrouchViewOffsetNudge
     local crouchViewOffset = math.Round( maxsZCrouch + -crouchViewOffsetFromMaxs )
-    self.CrouchViewOffset = Vector( 0, 0, crouchViewOffset )
+    self:SetCrouchViewOffset( Vector( 0, 0, crouchViewOffset ) )
 
 end

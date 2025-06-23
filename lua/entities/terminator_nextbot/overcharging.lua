@@ -1,5 +1,6 @@
 function ENT:Overcharge()
     self.terminator_OverCharged = true
+    self.glee_InterestingHunter = true
 
     self.WalkSpeed = math.max( self.WalkSpeed * 1.25, 130 )
     self.MoveSpeed = math.max( self.MoveSpeed * 1.25, 300 )

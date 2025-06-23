@@ -36,7 +36,7 @@ cvars.AddChangeCallback( "terminator_followpatcher_enable", function( _, _, new 
 end, "updatepatching" )
 
 
-local maxPlysToPatch = maxPlysToPatchVar:GetInt()
+local maxPlysToPatch
 local function handleMaxPlysToPatch()
     maxPlysToPatch = tonumber( maxPlysToPatchVar:GetInt() )
     if maxPlysToPatch <= -1 then maxPlysToPatch = defaultMaxPlysToPatch end
@@ -518,7 +518,7 @@ local function navPatchSelectivelyThink()
     end
 
     -- if there is still room in the table, add people not being chased
-    if #playersToPatch < 4 then
+    if #playersToPatch < maxPlysToPatch then
         for _, ply in player.Iterator() do
             local lowCount = #playersToPatch < max
             if not lowCount then

@@ -15,11 +15,13 @@ ENT.TerminatorNextBot = true
 -- Offset of view while controling bot
 ENT.ControlCameraOffset = Vector(-70,10,5)
 
+
 -- Bot's eye position relative bot position
 ENT.ViewOffset = Vector(0,0,64)
-
 -- Bot's eye position relative bot position when crouching
 ENT.CrouchViewOffset = Vector(0,0,32)
+-- THESE ARE THEN MODIFIED AND NETWORKED BY ENT:InitializeCollisionBounds
+
 
 -- Bot's view punch duration
 ENT.ViewPunchLength = 0.5
@@ -36,7 +38,7 @@ local AddNetworkVar = function(type,slot,name)
 	ENT["Set"..name] = function(self,value)
 		self["SetDT"..type](self,slot,value)
 	end
-	
+
 	ENT["Get"..name] = function(self)
 		return self["GetDT"..type](self,slot)
 	end
@@ -60,6 +62,9 @@ AddNetworkVar("Int",3,"WeaponMaxClip2")
 -- View punch data
 AddNetworkVar("Float",0,"ViewPunchTime")
 AddNetworkVar("Angle",0,"ViewPunchAngle")
+
+AddNetworkVar("Vector",0,"ViewOffset")
+AddNetworkVar("Vector",1,"CrouchViewOffset")
 
 --[[------------------------------------
 	Name: NEXTBOT:GetEyeAngles
@@ -127,10 +132,10 @@ end
 	Ret1: Vector | Eye position.
 --]]------------------------------------
 function ENT:GetShootPos()
-	return entMeta.LocalToWorld(self, self:IsCrouching() and self.CrouchViewOffset or self.ViewOffset)
+	return entMeta.LocalToWorld(self, self:IsCrouching() and self:GetCrouchViewOffset() or self:GetViewOffset())
 end
 function ENT:GetCrouchingShootPos()
-	return self:LocalToWorld(self.CrouchViewOffset)
+	return self:LocalToWorld( self:GetCrouchViewOffset() )
 end
 
 --[[------------------------------------

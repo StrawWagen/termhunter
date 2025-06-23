@@ -89,9 +89,11 @@ end
 local costThisTick = 0
 local lastTick = CurTime()
 local probablyLagging = 60 -- shared path yield budget every bot gets. mitigates freezes from multiple bots pathing at once.
-local budgetEveryoneGets = 2 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
+local budgetEveryoneGets = 1 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
+local budgetMulIfNear = 2.5
+local nearDist = 3000
 if game.IsDedicated() then
-    budgetEveryoneGets = 3
+    budgetEveryoneGets = 2
 
 end
 
@@ -119,6 +121,7 @@ function ENT:Think()
     end
 
     local dueling
+    local distToEnem = myTbl.DistToEnemy
 
     local enem = myTbl.GetEnemy( self )
     local thresh = myTbl.CoroutineThresh
@@ -126,7 +129,6 @@ function ENT:Think()
         thresh = thresh / 2
 
     elseif myTbl.ThreshMulIfDueling then
-        local distToEnem = myTbl.DistToEnemy
         local distFullBoost = math.max( myTbl.DuelEnemyDist, 500 )
         local distHalfBoost = math.max( myTbl.DuelEnemyDist * 3, 1500 )
         if distToEnem <= distFullBoost and myTbl.IsPlyNoIndex( enem ) then
@@ -157,7 +159,12 @@ function ENT:Think()
                 break
 
             elseif result == "pathing" then
-                if not dueling and myCostThisTick >= budgetEveryoneGets and costThisTick > probablyLagging then -- hack to stop groups of bots from nuking session perf
+                local budgetIGet = budgetEveryoneGets
+                if distToEnem < nearDist then
+                    budgetIGet = budgetIGet * budgetMulIfNear
+
+                end
+                if not dueling and myCostThisTick >= budgetIGet and costThisTick > probablyLagging then -- hack to stop groups of bots from nuking session perf
                     break
 
                 end

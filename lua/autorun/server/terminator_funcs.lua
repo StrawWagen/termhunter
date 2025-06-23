@@ -1,6 +1,8 @@
 
 resource.AddWorkshop( "2944078031" ) -- download pm please
 
+local plyMeta = FindMetaTable( "Player" )
+
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 local solidMask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP )
 local vec_zero = Vector( 0, 0, 0 )
@@ -81,6 +83,7 @@ local coroutine_yield = coroutine.yield
 
 terminator_Extras.posIsInterrupting = function( pos, yieldable )
     for _, ply in player.Iterator() do
+        if plyMeta.GetObserverMode( ply ) == OBS_MODE_ROAMING then continue end
         if yieldable then
             coroutine_yield()
 
