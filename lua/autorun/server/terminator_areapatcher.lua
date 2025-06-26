@@ -137,8 +137,8 @@ local function updateGridSize( newSize )
     headroomCrouch = math.floor( headroomCrouchRaw / gridSize )
     upCrouch = Vector( 0, 0, 20 )
 
-    finalAreaCheckMins = Vector( -halfGrid, -halfGrid, -55 )
-    finalAreaCheckMaxs = Vector( halfGrid, halfGrid, 55 )
+    finalAreaCheckMins = Vector( -gridSize, -gridSize, -35 )
+    finalAreaCheckMaxs = Vector( gridSize, gridSize, 35 )
 
     directionOffsets = {
         [0] = Vector( 0, gridSize, 0 ),    -- north
@@ -483,11 +483,18 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     local existingArea = navmesh.GetNearestNavArea( hitPos, false, halfGrid, false, true, -2 )
     if IsValid( existingArea ) then return end
 
-    local existingAreasUnder = navmesh.FindInBox( hitPos + finalAreaCheckMins, hitPos + finalAreaCheckMaxs )
-    if existingAreasUnder and #existingAreasUnder >= 1 then
-        for _, area in ipairs( existingAreasUnder ) do
-            if area:Contains( hitPos ) then return end
+    local existingAreas = navmesh.FindInBox( hitPos + finalAreaCheckMins, hitPos + finalAreaCheckMaxs )
+    if existingAreas and #existingAreas >= 1 then
+        for _, area in ipairs( existingAreas ) do
+            local areasNearestToHit = area:GetClosestPointOnArea( hitPos )
+            if areasNearestToHit:Distance2D( hitPos ) < gridSize * 0.5 then
+                if debugging then
+                    debugoverlay.Line( hitPos, areasNearestToHit, 10, red, true )
 
+                end
+                return -- area is too close to an existing area
+
+            end
         end
     end
 
@@ -579,9 +586,12 @@ local function patchCoroutine()
             if closedVoxels[vecAsKey( currVoxel )] then continue end
 
             coroutine_yield()
-            -- Placeholder for voxel processing
             processVoxel( currVoxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
+            --[[
+            if debugging and IsValid( Entity(1) ) and currVoxel:Distance( Entity(1):GetPos() ) < 250 then
+                coroutine_yield( "wait" )
 
+            end --]]
         end
 
         local count = table.Count( vecsToPlace )

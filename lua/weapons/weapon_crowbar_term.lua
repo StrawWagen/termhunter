@@ -189,6 +189,7 @@ local IsValid = IsValid
 hook.Add( "EntityTakeDamage", "STRAW_terminatorHunter_crowbarCorrectTheAttacker", function( target, damage )
     local inflic = damage:GetInflictor()
     if not IsValid( inflic ) then return end
+    if not IsValid( target ) then return end -- sharpness dealing damage to world
     if not inflic.isTerminatorHunterCrowbar then return end
     for _ = 1, 2 do
         target:EmitSound( "weapons/crowbar/crowbar_impact" .. math.random( 1, 2 ) .. ".wav", 80, math.random( 60,100 ), 0.75, CHAN_STATIC )
