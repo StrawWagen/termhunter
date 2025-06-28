@@ -27,11 +27,11 @@ function ENT:RunTask( event, ... )
     local k = 1
     while true do
         local currTask = m_ActiveTasksNum[k]
-        if not currTask then break end
+        if not currTask then break end -- no more tasks
 
         local task,data = currTask[1],currTask[2]
 
-        if passedTasks[task] then
+        if passedTasks[task] then -- already passed this task
             k = k + 1
 
             continue
@@ -39,8 +39,8 @@ function ENT:RunTask( event, ... )
         passedTasks[task] = true
 
         local taskReal = m_TaskList[task]
-
         if not taskReal then continue end
+
         local callback = taskReal[event]
 
         if callback then
@@ -52,14 +52,13 @@ function ENT:RunTask( event, ... )
             end
             local args = { callback( self, data, ... ) }
 
-            --local cost = math.abs( old - SysTime() )
-            --if cost > 0.5 then ErrorNoHaltWithStack( task .. "  " .. event .. "  " .. cost ) PrintTable( data ) end
-
-            if args[1] ~= nil then
+            if args[1] ~= nil then -- 
                 if args[2] ~= nil then
                     return args[1]
+
                 else
                     return unpack( args )
+
                 end
             end
 
@@ -67,7 +66,7 @@ function ENT:RunTask( event, ... )
                 local cv = m_ActiveTasksNum[k]
                 if cv == currTask then break end
 
-                k = k-1
+                k = k - 1
             end
         end
 

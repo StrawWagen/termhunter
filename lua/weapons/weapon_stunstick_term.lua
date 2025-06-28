@@ -52,8 +52,10 @@ hook.Add( "EntityTakeDamage", "STRAW_terminatorHunter_stunstickShockDamage", fun
     local inflic = damage:GetInflictor()
     if not IsValid( inflic ) then return end
     if not inflic.isTerminatorHunterStunstick then return end
+
     inflic:EmitSound( "weapons/stunstick/stunstick_fleshhit2.wav" )
-    damage:SetAttacker( inflic:GetOwner() )
+    local attacker = IsValid( inflic:GetOwner() ) and inflic:GetOwner() or inflic
+    damage:SetAttacker( attacker )
     damage:SetDamageType( DMG_SHOCK )
     damage:ScaleDamage( 10 )
     damage:SetDamage( math.Clamp( damage:GetDamage(), 0, 200 ) )

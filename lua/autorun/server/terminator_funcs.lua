@@ -1,7 +1,9 @@
 
 resource.AddWorkshop( "2944078031" ) -- download pm please
 
+local entMeta = FindMetaTable( "Entity" )
 local plyMeta = FindMetaTable( "Player" )
+local vecMeta = FindMetaTable( "Vector" )
 
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 local solidMask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP )
@@ -83,15 +85,57 @@ local coroutine_yield = coroutine.yield
 
 terminator_Extras.posIsInterrupting = function( pos, yieldable )
     for _, ply in player.Iterator() do
-        if plyMeta.GetObserverMode( ply ) == OBS_MODE_ROAMING then continue end
         if yieldable then
             coroutine_yield()
 
         end
-        local viewEnt = ply:GetViewEntity()
-        local shoot = ply:GetShootPos()
+        local viewEnt = plyMeta.GetViewEntity( ply )
+        local shoot = plyMeta.GetShootPos( ply )
         local viewPos
-        local interrupting = shoot:DistToSqr( pos ) < 1000^2
+        local interrupting = vecMeta.DistToSqr( shoot, pos ) < 1000^2
+        if IsValid( viewEnt ) and viewEnt ~= ply then
+            viewPos = viewEnt:WorldSpaceCenter()
+            interrupting = interrupting or viewPos:DistToSqr( pos ) < 1000^2
+
+        else
+            viewPos = shoot
+
+        end
+
+        if interrupting or terminator_Extras.PosCanSee( pos, viewPos ) then
+            return true, ply
+
+        end
+    end
+end
+
+local recentlyDied = {}
+local usingInterruptingAlive
+
+terminator_Extras.posIsInterruptingAlive = function( pos, yieldable )
+    if not usingInterruptingAlive then
+        hook.Add( "PlayerDeath", "terminatorhelpers_posIsInterupptingAlive", function( ply )
+            if not IsValid( ply ) then return end
+            recentlyDied[ply] = true
+            timer.Simple( 8, function() -- dont spoil it when they die
+                recentlyDied[ply] = nil
+
+            end )
+        end )
+        recentlyDied = {}
+        usingInterruptingAlive = true
+
+    end
+    for _, ply in player.Iterator() do
+        if ( entMeta.Health( ply ) <= 0 ) and not recentlyDied[ply] then continue end -- only check alive players
+        if yieldable then
+            coroutine_yield()
+
+        end
+        local viewEnt = plyMeta.GetViewEntity( ply )
+        local shoot = plyMeta.GetShootPos( ply )
+        local viewPos
+        local interrupting = vecMeta.DistToSqr( shoot, pos ) < 1000^2
         if IsValid( viewEnt ) and viewEnt ~= ply then
             viewPos = viewEnt:WorldSpaceCenter()
             interrupting = interrupting or viewPos:DistToSqr( pos ) < 1000^2
