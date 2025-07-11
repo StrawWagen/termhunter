@@ -467,6 +467,8 @@ function ENT:AssumeWeaponNextShootTime( myTbl, wep, wepsTbl )
 
 end
 
+local weapon_base = weapons.GetStored( "weapon_base" )
+
 --[[------------------------------------
     Name: NEXTBOT:CanWeaponPrimaryAttack
     Desc: Returns can bot do primary attack or not.
@@ -504,7 +506,11 @@ function ENT:CanWeaponPrimaryAttack( myTbl, wep, wepsTbl )
 
         if not wep then canShoot = false return end
         if nextShoot > CurTime() then canShoot = false return end
-        if wepsTbl.CanPrimaryAttack and not wepsTbl.CanPrimaryAttack( wep ) then canShoot = false return end
+
+        -- weapon_base CanPrimaryAttack just checks if there's ammo and sets the next fire to 0.2s in the future
+        -- doesn't actually get if nextPrimaryFire is now, only checks ammo!
+        -- so we gotta ignore it if it's weapon_base's CanPrimaryAttack
+        if wepsTbl.CanPrimaryAttack and wepsTbl.CanPrimaryAttack ~= weapon_base.CanPrimaryAttack and not wepsTbl.CanPrimaryAttack( wep ) then canShoot = false return end
 
         canShoot = true
 
