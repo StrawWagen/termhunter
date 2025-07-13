@@ -156,6 +156,13 @@ end
 local vector6000ZUp = Vector( 0, 0, 6000 )
 local vector1000ZDown = Vector( 0, 0, -1000 )
 
+-- takes pos
+-- returns definitelyUnderDisplacement, maybeUnderDisplacement, firstTraceResult
+-- ret1 is definitive, never fails
+-- ret2 had to be added because of some edge case i cant remember, i think displacements on top of displacements
+-- ret3 is if you want to do stuff with the first trace result
+-- good to do like, underDisplacement = ret1 or ret2
+
 terminator_Extras.posIsUnderDisplacement = function( pos )
     -- get the sky
     local firstTraceDat = {
