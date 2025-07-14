@@ -158,10 +158,7 @@ function ENT:Initialize()
 
 	self:AddCallback("PhysicsCollide",self.PhysicsObjectCollide)
 
-	local wep = self:GetKeyValue("additionalequipment") or self.DefaultWeapon
-	if wep then
-		self:Give(wep)
-	end
+	self:GiveDefaultWeapons()
 end
 
 --[[------------------------------------
@@ -173,15 +170,10 @@ end
 function ENT:GetFallDamage(speed)
 	return 10
 end
-
---[[------------------------------------
-	NEXTBOT:OnKilled
-	Initialize death ragdoll and call hooks
---]]------------------------------------
 function ENT:OnKilled(dmg)
 	if self:HasWeapon() then
 		local wep = self:GetActiveLuaWeapon()
-		
+
 		if !dmg:IsDamageType(DMG_DISSOLVE) then
 			if self:CanDropWeaponOnDie(wep) and wep:ShouldDropOnDie() then
 				self:DropWeapon(nil,true)

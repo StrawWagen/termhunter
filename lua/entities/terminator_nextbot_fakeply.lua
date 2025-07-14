@@ -32,14 +32,6 @@ list.Set( "NPC", "terminator_nextbot_fakeply", {
 } )
 
 if CLIENT then
-    function ENT:AdditionalClientInitialize()
-        self.PlayerColor = ColorRand()
-
-    end
-    function ENT:GetPlayerColor()
-        return self.PlayerColor
-
-    end
     language.Add( "terminator_nextbot_fakeply", ENT.PrintName )
     return
 

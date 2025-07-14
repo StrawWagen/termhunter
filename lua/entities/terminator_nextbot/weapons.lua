@@ -89,16 +89,12 @@ function ENT:Give( wepname )
 
     if not IsValid( wep ) then return end
 
-    if not wep:IsScripted() and not EngineAnalogs[wepname] then
+    isEngineAnalog = EngineAnalogs[ wepname ]
+
+    if not wep:IsScripted() and not isEngineAnalog then
         SafeRemoveEntity( wep )
 
         return NULL
-
-    end
-
-    local oldWep = self:GetWeapon()
-    if IsValid( oldWep ) then
-        SafeRemoveEntity( oldWep )
 
     end
 
@@ -106,9 +102,44 @@ function ENT:Give( wepname )
     wep:Activate()
     wep:SetPos( self:GetPos() )
 
-    return self:SetupWeapon( wep )
+    local setupResult = self:SetupWeapon( wep )
+
+    if isEngineAnalog then
+        return wep
+
+    end
+
+    return setupResult
 
 end
+
+--[[------------------------------------
+    Name: NEXTBOT:GiveDefaultWeapons
+    Desc: Gives default weapons to bot. This is used in init.lua.
+    Arg1: 
+    Ret1:
+--]]------------------------------------
+function ENT:GiveDefaultWeapons()
+    if self.DefaultSidearms and self.CanHolsterWeapons then
+        for _, sidearm in ipairs(self.DefaultSidearms) do
+            local sidearmEnt = self:Give(sidearm)
+            self:HolsterWeap(sidearmEnt)
+        end
+    end
+
+    local wep = self:GetKeyValue("additionalequipment") or self.DefaultWeapon or self.TERM_FISTS
+    if wep then
+        self:Give(wep)
+    end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:HateBuggyWeapon
+    Desc: If weapon is buggy, this function will set its weight to -100 and drop it.
+    Arg1: Weapon | wep | Weapon to check.
+    Arg2: bool | successful | Designed to take the result of a ProtectedCall, true for not buggy, false for buggy.
+    Ret1: bool | true if weapon was successfully handled hated.
+--]]------------------------------------
 
 function ENT:HateBuggyWeapon( wep, successful )
     if successful then return end
@@ -222,6 +253,7 @@ function ENT:SetupWeapon( wep )
 
     wep:SetTransmitWithParent( true )
 
+    -- setup fixes for specifc wep bases
     myTbl.DoWeaponHacks( self, wep )
 
     successful = ProtectedCall( function() actwep:OwnerChanged() end )
@@ -240,7 +272,7 @@ function ENT:SetupWeapon( wep )
     myTbl.terminator_LastFiringIsAllowed = 0 -- ditto
     myTbl.NextWeapSearch( self, 0 )
 
-    myTbl.term_hasWeapon = true
+    myTbl.term_hasWeapon = true -- _index optimisation with HasWeapon
     wep:CallOnRemove( "term_unset_hasweapon", function()
         local currWep = self:GetActiveWeapon()
         local validWep = IsValid( currWep )
@@ -253,7 +285,7 @@ function ENT:SetupWeapon( wep )
 
     end )
 
-    myTbl.UpdateIsFists( self, myTbl )
+    myTbl.UpdateIsFists( self, myTbl ) -- _Index optimisation with IsFists
     timer.Simple( 0, function()
         if not IsValid( self ) then return end
         myTbl.UpdateIsFists( self, myTbl )
@@ -1012,9 +1044,10 @@ function ENT:SetupEyeAngles()
 
 end
 
-hook.Add( "PlayerCanPickupWeapon", "TerminatorNextBot", function( ply,wep )
+hook.Add( "PlayerCanPickupWeapon", "TerminatorNextBot", function( _ply,wep )
     -- Do not allow pickup when bot carries this weapon
-    if IsValid( wep:GetOwner() ) and wep:GetOwner().TerminatorNextBot then
+    local owner = wep:GetOwner()
+    if IsValid( owner ) and owner.TerminatorNextBot then
         return false
     end
 

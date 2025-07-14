@@ -23,6 +23,7 @@ SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.worksWithoutSightline = true
 SWEP.PreOverrideClass = "weapon_frag"
+SWEP.MinForceMul = 1
 
 function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end

@@ -156,8 +156,10 @@ function ENT:KeyDown( KEY )
 
 end
 
+local defaultColor = Vector( 1, 1, 1 )
+
 function ENT:GetPlayerColor()
-    return color_white
+    return self.PlayerColorVec or defaultColor
 
 end
 

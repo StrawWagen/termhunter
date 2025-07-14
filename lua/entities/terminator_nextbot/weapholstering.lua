@@ -202,7 +202,7 @@ function ENT:HolsterWeap( wep )
 
     self:SetActiveWeapon( NULL )
 
-    wep:SetOwner( NULL )
+    wep:SetOwner( self )
     wep:SetVelocity( vec_zero )
     wep:RemoveSolidFlags( FSOLID_TRIGGER )
     wep:RemoveEffects( EF_ITEM_BLINK )

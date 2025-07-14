@@ -15,31 +15,6 @@ local EngineAnalogsReverse = {}
 for k,v in pairs(EngineAnalogs) do EngineAnalogsReverse[v] = k end
 
 --[[------------------------------------
-	Name: NEXTBOT:Give
-	Desc: Gives weapon to bot.
-	Arg1: string | wepname | Class name of weapon.
-	Ret1: Weapon | Weapon given to bot. Returns NULL if failed to give this weapon.
---]]------------------------------------
-function ENT:Give(wepname)
-	local wep = ents.Create(wepname)
-	
-	if IsValid(wep) then
-		if !wep:IsScripted() and !EngineAnalogs[wepname] then
-			wep:Remove()
-			
-			return NULL
-		end
-	
-		wep:SetPos(self:GetPos())
-		wep:SetOwner(self)
-		wep:Spawn()
-		wep:Activate()
-		
-		return self:SetupWeapon(wep)
-	end
-end
-
---[[------------------------------------
 	Name: NEXTBOT:GetActiveLuaWeapon
 	Desc: Returns current weapon entity. If active weapon is engine weapon, returns lua analog.
 	Arg1: 
@@ -503,15 +478,3 @@ function ENT:IsMeleeWeapon(wep)
 	
 	return IsValid(wep) and wep.GetCapabilities and bit.band(wep:GetCapabilities(),CAP_WEAPON_MELEE_ATTACK1)!=0 or false
 end
-
-hook.Add("PlayerCanPickupWeapon","TerminatorNextBot",function(ply,wep)
-	-- Do not allow pickup when bot carries this weapon
-	if IsValid(wep:GetOwner()) and wep:GetOwner().TerminatorNextBot then
-		return false
-	end
-	
-	-- Do not allow pickup engine weapon analogs
-	if EngineAnalogsReverse[wep:GetClass()] then
-		return false
-	end
-end)

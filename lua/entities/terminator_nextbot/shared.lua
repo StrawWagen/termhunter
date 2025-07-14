@@ -27,6 +27,7 @@ if CLIENT then
 
     function ENT:Initialize()
         BaseClass.Initialize( self )
+        self.PlayerColorVec = self.PlayerColorVec or VectorRand()
         self:AdditionalClientInitialize()
 
     end
@@ -2623,13 +2624,20 @@ local function healthFunc()
 end
 
 -- config vars
-ENT.TERM_FISTS = "weapon_terminatorfists_term"
 ENT.CoroutineThresh = 0.003 -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides
 ENT.ThreshMulIfDueling = nil -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = nil -- if we're closer than DuelEnemyDist * 2
-ENT.MaxPathingIterations = 30000 -- set this to like 5000 if you dont care about a specific bot having perfect ( read, expensive ) paths
+ENT.MaxPathingIterations = 30000 -- set this to like 30000 if you dont care about a specific bot having perfect ( read, expensive ) paths
+
+ENT.TERM_FISTS = "weapon_terminatorfists_term" -- bot's innate melee weapon it will pull out to conquer obstacles
+ENT.DefaultWeapon = nil -- weapon to spawn with, nil for fists
+ENT.DefaultSidearms = nil -- sidearms to spawn with, nil for fists
+ENT.CanHolsterWeapons = true
+
+ENT.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
 
 ENT.SpawnHealth = healthFunc
+ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG the bot is immune to
 ENT.DoMetallicDamage = true -- terminator model damage logic
 ENT.HealthRegen = nil -- health regen per interval
 ENT.HealthRegenInterval = nil -- time between health regens
@@ -2662,7 +2670,6 @@ ENT.InformRadius = 20000
 ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if the enemy is unreachable or lethal in melee
 ENT.AwarenessCheckRange = 1500 -- used by weapon searching too if wep search radius is <= this
 
-ENT.CanHolsterWeapons = true
 ENT.CanUseStuff = true
 ENT.JudgesEnemies = true -- dynamically ignore enemies if they aren't taking damage?
 ENT.IsFodder = nil -- enables optimisations that make sense on bullet fodder enemies
@@ -2831,7 +2838,6 @@ function ENT:Initialize()
     self:SetModelScale( scale, .00001 )
 
     -- "config" stuff, ONLY edit if you DONT know what you're doing!
-    myTbl.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
     myTbl.Term_FOV = fovCached
 
     myTbl.SetCurrentWeaponProficiency( self, myTbl.TERM_WEAPON_PROFICIENCY )

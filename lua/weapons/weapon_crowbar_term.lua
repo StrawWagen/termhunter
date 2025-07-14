@@ -34,6 +34,7 @@ SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.ThrowForce = 28000
 SWEP.PreOverrideClass = "weapon_crowbar"
+SWEP.MinForceMul = 0
 
 function SWEP:Initialize()
     self:SetHoldType( self.HoldType )
@@ -144,7 +145,8 @@ function SWEP:Swing()
 
         end
         if owner.ThrowingForceMul then
-            force = force * owner.ThrowingForceMul
+            local forceMul = math.Clamp( owner.ThrowingForceMul, self.MinForceMul, math.huge )
+            force = force * forceMul
 
         end
 
