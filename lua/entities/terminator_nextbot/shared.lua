@@ -1959,24 +1959,6 @@ function ENT:ControlPath2( AimMode )
 
 end
 
--- do this so we can get data about current tasks easily
-function ENT:StartTask2( Task, Data, Reason )
-    yieldIfWeCan()
-    local Data2 = Data or {}
-    Data2.taskStartTime = CurTime()
-    self:StartTask( Task, Data2 )
-
-    -- additional debugging tool
-    if not debugPrintTasks:GetBool() then return end
-
-    print( self:GetCreationID(), Task, self:GetEnemy(), Reason ) --global
-
-    self.taskHistory = self.taskHistory or {}
-
-    table.insert( self.taskHistory, SysTime() .. " " .. Task .. " " .. Reason )
-
-end
-
 -- super useful
 
 function ENT:Use( user )

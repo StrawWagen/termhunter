@@ -8,6 +8,8 @@ local function yieldIfWeCan( reason )
 
 end
 
+debugPrintTasks = GetConVar( "terminator_debug_tasks" ) -- global convar for debugging tasks, prints task names in console when they start/stop
+
 --[[------------------------------------
     Name: NEXTBOT:RunTask
     Desc: Runs active tasks callbacks with given event.
@@ -97,18 +99,22 @@ function ENT:KillAllTasksWith( withStr )
     end
 end
 
+
 --[[------------------------------------
     Name: NEXTBOT:StartTask
-    Desc: Starts new task with given data and calls 'OnStart' task callback. Does nothing if given task already started.
-    Arg1: any | task | Task name.
-    Arg2: (optional) table | data | Task data.
-    Ret1: 
+    Desc: Starts a task with given name and data.
+    Arg1: string | task | Task name.
+    Arg2: table | data | Task data.
+    Arg3: string | reason | Reason for starting task, used for debugging.
 --]]------------------------------------
-function ENT:StartTask( task, data )
+function ENT:StartTask( task, data, reason )
     if self:IsTaskActive( task ) then return end
+    yieldIfWeCan()
 
     data = data or {}
+    data.taskStartTime = CurTime()
     data.myTbl = self:GetTable()
+
     self.m_ActiveTasks[task] = data
 
     local m_ActiveTasksNum = self.m_ActiveTasksNum
@@ -119,6 +125,20 @@ function ENT:StartTask( task, data )
     m_ActiveTasksNum[ #m_ActiveTasksNum + 1 ] = { task, data }
 
     self:RunCurrentTask( task, "OnStart" )
+
+    if not reason then -- This is an essential debugging tool, Use it.
+        ErrorNoHaltWithStack( "NEXTBOT:StartTask called without reason! Task: " .. task .. "\n" )
+
+    end
+
+    -- additional debugging tool
+    if not debugPrintTasks:GetBool() then return end
+
+    print( self:GetCreationID(), task, self:GetEnemy(), reason ) --global
+
+    self.taskHistory = self.taskHistory or {}
+
+    table.insert( self.taskHistory, SysTime() .. " " .. task .. " " .. reason )
 
 end
 

@@ -67,3 +67,39 @@ ENT.Models = {
 ENT.DefaultSidearms = {
     "weapon_frag",
 }
+
+function ENT:DoCustomTasks( defaultTasks )
+    self.TaskList = {
+        ["enemy_handler"] = defaultTasks["enemy_handler"],
+        ["shooting_handler"] = defaultTasks["shooting_handler"],
+        ["awareness_handler"] = defaultTasks["awareness_handler"],
+        ["reallystuck_handler"] = defaultTasks["reallystuck_handler"],
+
+        ["inform_handler"] = defaultTasks["inform_handler"],
+        ["movement_wait"] = defaultTasks["movement_wait"],
+        ["playercontrol_handler"] = defaultTasks["playercontrol_handler"],
+
+        -- custom movement starter
+        ["movement_handler"] = {
+            StartsOnInitialize = true, -- starts on spawn
+            OnStart = function( self, data )
+                -- when this tasks starts
+                -- maybe start movement_mycustomtask?
+            end,
+        },
+
+        -- the actual CUSTOM TASK!
+        ["movement_mycustomtask"] = {
+            OnStart = function( self, data )
+                -- when this tasks starts
+            end,
+            BehaveUpdateMotion = function( self, data )
+                -- do something in the motion coroutine
+            end,
+            OnEnd = function( self, data )
+                -- when this task ends
+                -- maybe go back to movement_handler?
+            end,
+        },
+    }
+end
