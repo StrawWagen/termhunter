@@ -8,8 +8,6 @@ local function yieldIfWeCan( reason )
 
 end
 
-debugPrintTasks = GetConVar( "terminator_debug_tasks" ) -- global convar for debugging tasks, prints task names in console when they start/stop
-
 --[[------------------------------------
     Name: NEXTBOT:RunTask
     Desc: Runs active tasks callbacks with given event.
@@ -99,6 +97,7 @@ function ENT:KillAllTasksWith( withStr )
     end
 end
 
+local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks? Also enables a task history dump on bot +use." )
 
 --[[------------------------------------
     Name: NEXTBOT:StartTask
@@ -127,18 +126,47 @@ function ENT:StartTask( task, data, reason )
     self:RunCurrentTask( task, "OnStart" )
 
     if not reason then -- This is an essential debugging tool, Use it.
-        ErrorNoHaltWithStack( "NEXTBOT:StartTask called without reason! Task: " .. task .. "\n" )
+        ErrorNoHaltWithStack( "NEXTBOT:StartTask with NO reason!" .. task )
 
     end
 
     -- additional debugging tool
     if not debugPrintTasks:GetBool() then return end
+    print( self:GetCreationID(), task, self:GetEnemy(), reason ) -- global
 
-    print( self:GetCreationID(), task, self:GetEnemy(), reason ) --global
-
+    if not string.find( task, "movement_" ) then return end -- only store history of movement tasks
     self.taskHistory = self.taskHistory or {}
 
     table.insert( self.taskHistory, SysTime() .. " " .. task .. " " .. reason )
+
+end
+
+-- dump task info on +use
+-- only dump task history when the task debugger is true
+function ENT:Use( user )
+    if not user:IsPlayer() then return end
+    if not debugPrintTasks:GetBool() then return end
+
+    if ( self.nextCheatUse or 0 ) > CurTime() then return end
+    self.nextCheatUse = CurTime() + 1
+
+    local fourSpaces = "    "
+
+    self.taskHistory = self.taskHistory or {}
+    print( "taskhistory" )
+    PrintTable( self.taskHistory )
+    print( "activetasks", self )
+    for taskName, _ in pairs( self.m_ActiveTasks ) do
+        print( fourSpaces .. taskName )
+
+    end
+    print( "lastShootType", self.lastShootingType )
+    print( "lastPathKillReason", self.lastPathInvalidateReason )
+
+end
+
+function ENT:StartTask2( ... ) -- TODO: remove
+    self:StartTask( ... )
 
 end
 
@@ -273,7 +301,7 @@ function ENT:SetupTasks( myTbl )
 
     for taskName, taskDat in pairs( self.TaskList ) do
         if taskDat.StartsOnInitialize then
-            self:StartTask( taskName )
+            self:StartTask( taskName, nil, "StartsOnInitialize" )
 
         end
     end

@@ -1068,7 +1068,7 @@ function ENT:getTheWeapon( oldTask, theWep, nextTask, theDat )
     else
         -- break task to get a weap
         self:TaskComplete( oldTask )
-        self:StartTask2( "movement_getweapon", { Wep = potentialWep, nextTask = nextTask, nextTaskData = theDat }, "there's a weapon" )
+        self:StartTask( "movement_getweapon", { Wep = potentialWep, nextTask = nextTask, nextTaskData = theDat }, "there's a weapon" )
         return true
 
     end
