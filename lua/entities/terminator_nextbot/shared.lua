@@ -2916,110 +2916,6 @@ end
 
 function ENT:DoDefaultTasks()
     self.TaskList = {
-        ["shooting_handler"] = {
-            StartsOnInitialize = true,
-            OnStart = function( self, data )
-            end,
-            BehaveUpdatePriority = function( self, data, interval )
-                local myTbl = data.myTbl
-                local enemy = myTbl.GetEnemy( self )
-
-                local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or myTbl.GetActiveWeapon( self )
-                -- edge case
-                if not IsValid( wep ) then
-                    if myTbl.HasFists then
-                        self:DoFists()
-                        return
-
-                    elseif IsValid( enemy ) then
-                        myTbl.lastShootingType = "noweapon"
-                        myTbl.shootAt( self, myTbl.LastEnemyShootPos, myTbl.PreventShooting )
-                        return
-
-                    else
-                        return
-
-                    end
-                end
-
-                local forcedToLook = myTbl.Term_LookAround( self, myTbl ) -- handle looking around while pathing, with no enemy
-                if forcedToLook then return end
-
-                local doShootingPrevent = myTbl.PreventShooting
-
-                -- drop crap wep
-                if wep.terminatorCrappyWeapon == true and myTbl.HasFists then
-                    myTbl.DoFists( self )
-
-                elseif wep.Clip1 and wepMeta.Clip1( wep ) <= 0 and wepMeta.GetMaxClip1( wep ) > 0 and not myTbl.IsReloadingWeapon then
-                    myTbl.WeaponReload( self )
-
-                -- allow us to not stop shooting at the witness player, glee
-                elseif IsValid( myTbl.OverrideShootAtThing ) and entMeta.Health( myTbl.OverrideShootAtThing ) > 0 then
-                    myTbl.shootAt( self, self:EntShootPos( myTbl.OverrideShootAtThing ) )
-                    myTbl.lastShootingType = "witnessplayer"
-
-                elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
-                    local wepRange = myTbl.GetWeaponRange( self, myTbl )
-                    local seeOrWeaponDoesntCare = myTbl.IsSeeEnemy or wep.worksWithoutSightline
-                    if wep and myTbl.IsRangedWeapon( self, wep ) and seeOrWeaponDoesntCare then
-                        local shootableVolatile = myTbl.getShootableVolatile( self, enemy )
-
-                        if IsValid( shootableVolatile ) and not doShootingPrevent then
-                            myTbl.shootAt( self, myTbl.getBestPos( self, shootableVolatile ), nil )
-                            myTbl.lastShootingType = "shootvolatile"
-
-                        -- does the weapon know better than us?
-                        elseif wep.terminatorAimingFunc then
-                            if wep.worksWithoutSightline then
-                                doShootingPrevent = nil
-
-                            end
-                            myTbl.shootAt( self, wep:terminatorAimingFunc(), doShootingPrevent )
-                            myTbl.lastShootingType = "aimingfuncranged"
-
-                        else
-                            if myTbl.DistToEnemy > wepRange and not myTbl.IsReallyAngry( self ) then -- too far, dont shoot
-                                doShootingPrevent = true
-
-                            end
-                            myTbl.shootAt( self, myTbl.LastEnemyShootPos, doShootingPrevent )
-                            myTbl.lastShootingType = "normalranged"
-
-                        end
-                    --melee
-                    elseif wep and myTbl.IsMeleeWeapon( self, wep ) then
-                        local blockShoot = doShootingPrevent or true
-                        local meleeAtPos = myTbl.LastEnemyShootPos
-
-                        -- dont just swing our weap around
-                        if myTbl.DistToEnemy < wepRange * 1.5 and myTbl.IsSeeEnemy then
-                            blockShoot = nil
-                            -- fix bot looking around like an idiot when meleeing?
-                            meleeAtPos = myTbl.EntShootPos( self, enemy )
-
-                        -- fallback?
-                        elseif myTbl.DistToEnemy < wepRange * 1 then
-                            blockShoot = nil
-                            meleeAtPos = myTbl.EntShootPos( self, enemy )
-
-                        end
-
-                        myTbl.lastShootingType = "melee"
-                        myTbl.shootAt( self, meleeAtPos, blockShoot )
-
-                    end
-                else
-                    if wep.Clip1 and ( wepMeta.GetMaxClip1( wep ) > 0 ) and ( wepMeta.Clip1( wep ) < wepMeta.GetMaxClip1( wep ) / 2 ) and not myTbl.IsReloadingWeapon then
-                        myTbl.WeaponReload( self )
-
-                    end
-                end
-            end,
-            StartControlByPlayer = function( self, data, ply )
-                self:TaskFail( "shooting_handler" )
-            end,
-        },
         ["enemy_handler"] = {
             StartsOnInitialize = true,
             OnKillEnemy = function( self, data )
@@ -3328,6 +3224,110 @@ function ENT:DoDefaultTasks()
                 self:TaskFail( "enemy_handler" )
             end,
         },
+        ["shooting_handler"] = {
+            StartsOnInitialize = true,
+            OnStart = function( self, data )
+            end,
+            BehaveUpdatePriority = function( self, data, interval )
+                local myTbl = data.myTbl
+                local enemy = myTbl.GetEnemy( self )
+
+                local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or myTbl.GetActiveWeapon( self )
+                -- edge case
+                if not IsValid( wep ) then
+                    if myTbl.HasFists then
+                        self:DoFists()
+                        return
+
+                    elseif IsValid( enemy ) then
+                        myTbl.lastShootingType = "noweapon"
+                        myTbl.shootAt( self, myTbl.LastEnemyShootPos, myTbl.PreventShooting )
+                        return
+
+                    else
+                        return
+
+                    end
+                end
+
+                local forcedToLook = myTbl.Term_LookAround( self, myTbl ) -- handle looking around while pathing, with no enemy
+                if forcedToLook then return end
+
+                local doShootingPrevent = myTbl.PreventShooting
+
+                -- drop crap wep
+                if wep.terminatorCrappyWeapon == true and myTbl.HasFists then
+                    myTbl.DoFists( self )
+
+                elseif wep.Clip1 and wepMeta.Clip1( wep ) <= 0 and wepMeta.GetMaxClip1( wep ) > 0 and not myTbl.IsReloadingWeapon then
+                    myTbl.WeaponReload( self )
+
+                -- allow us to not stop shooting at the witness player, glee
+                elseif IsValid( myTbl.OverrideShootAtThing ) and entMeta.Health( myTbl.OverrideShootAtThing ) > 0 then
+                    myTbl.shootAt( self, self:EntShootPos( myTbl.OverrideShootAtThing ) )
+                    myTbl.lastShootingType = "witnessplayer"
+
+                elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
+                    local wepRange = myTbl.GetWeaponRange( self, myTbl )
+                    local seeOrWeaponDoesntCare = myTbl.IsSeeEnemy or wep.worksWithoutSightline
+                    if wep and myTbl.IsRangedWeapon( self, wep ) and seeOrWeaponDoesntCare then
+                        local shootableVolatile = myTbl.getShootableVolatile( self, enemy )
+
+                        if IsValid( shootableVolatile ) and not doShootingPrevent then
+                            myTbl.shootAt( self, myTbl.getBestPos( self, shootableVolatile ), nil )
+                            myTbl.lastShootingType = "shootvolatile"
+
+                        -- does the weapon know better than us?
+                        elseif wep.terminatorAimingFunc then
+                            if wep.worksWithoutSightline then
+                                doShootingPrevent = nil
+
+                            end
+                            myTbl.shootAt( self, wep:terminatorAimingFunc(), doShootingPrevent )
+                            myTbl.lastShootingType = "aimingfuncranged"
+
+                        else
+                            if myTbl.DistToEnemy > wepRange and not myTbl.IsReallyAngry( self ) then -- too far, dont shoot
+                                doShootingPrevent = true
+
+                            end
+                            myTbl.shootAt( self, myTbl.LastEnemyShootPos, doShootingPrevent )
+                            myTbl.lastShootingType = "normalranged"
+
+                        end
+                    --melee
+                    elseif wep and myTbl.IsMeleeWeapon( self, wep ) then
+                        local blockShoot = doShootingPrevent or true
+                        local meleeAtPos = myTbl.LastEnemyShootPos
+
+                        -- dont just swing our weap around
+                        if myTbl.DistToEnemy < wepRange * 1.5 and myTbl.IsSeeEnemy then
+                            blockShoot = nil
+                            -- fix bot looking around like an idiot when meleeing?
+                            meleeAtPos = myTbl.EntShootPos( self, enemy )
+
+                        -- fallback?
+                        elseif myTbl.DistToEnemy < wepRange * 1 then
+                            blockShoot = nil
+                            meleeAtPos = myTbl.EntShootPos( self, enemy )
+
+                        end
+
+                        myTbl.lastShootingType = "melee"
+                        myTbl.shootAt( self, meleeAtPos, blockShoot )
+
+                    end
+                else
+                    if wep.Clip1 and ( wepMeta.GetMaxClip1( wep ) > 0 ) and ( wepMeta.Clip1( wep ) < wepMeta.GetMaxClip1( wep ) / 2 ) and not myTbl.IsReloadingWeapon then
+                        myTbl.WeaponReload( self )
+
+                    end
+                end
+            end,
+            StartControlByPlayer = function( self, data, ply )
+                self:TaskFail( "shooting_handler" )
+            end,
+        },
         ["awareness_handler"] = {
             StartsOnInitialize = true,
             BehaveUpdatePriority = function( self, data, interval )
@@ -3575,6 +3575,117 @@ function ENT:DoDefaultTasks()
 
                     end
                 end
+            end,
+        },
+        ["inform_handler"] = {
+            StartsOnInitialize = true,
+            OnStart = function( self, data )
+                data.Inform = function( enemy, pos, senderPos )
+                    for _, ent in ipairs( self:GetNearbyAllies() ) do
+                        if not IsValid( ent ) then continue end
+                        ent:RunTask( "InformReceive", enemy, nil, pos, senderPos )
+
+                    end
+                end
+            end,
+            BehaveUpdatePriority = function( self, data, interval )
+                local myTbl = data.myTbl
+                local enemy = myTbl.GetEnemy( self )
+                if not IsValid( enemy ) then return end
+                if not myTbl.IsSeeEnemy then return end
+                if data.EnemyPosInform and data.EnemyPosInform > CurTime() then return end
+
+                local add
+                if myTbl.isFodder then
+                    add = math.Rand( 5, 10 )
+
+                else
+                    add = math.Rand( 2, 5 )
+
+                end
+                data.EnemyPosInform = CurTime() + add
+                data.Inform( enemy, myTbl.EntShootPos( self, enemy ), self:GetPos() )
+
+            end,
+            InformReceive = function( self, data, enemy, _enemysTbl, pos, senderpos )
+                if not senderpos or not IsValid( enemy ) then return end
+                local myTbl = data.myTbl
+
+                local realEnemy = myTbl.GetEnemy( self )
+
+                if IsValid( realEnemy ) then
+                    if realEnemy == enemy and myTbl.IsSeeEnemy then return end -- we are already attacking this guy! dont wast perf!
+
+                    local _, priorityOfCurr = myTbl.TERM_GetRelationship( self, myTbl, realEnemy )
+                    local _, priorityOfNew = myTbl.TERM_GetRelationship( self, myTbl, enemy )
+                    if priorityOfCurr > priorityOfNew then return end -- dont care about low priority enemies if we already fighting something decent
+
+                end
+
+                -- it made another terminator mad! it makes me mad!
+                myTbl.MakeFeud( self, enemy )
+
+                myTbl.EnemyLastPos = pos
+
+                myTbl.interceptPeekTowardsEnemy  = myTbl.CanSeePosition( self, enemy, myTbl, enemyTbl ) and math.random( 1, 100 ) < 75
+                myTbl.lastInterceptTime          = CurTime()
+                myTbl.lastInterceptPos           = pos
+
+                myTbl.RegisterForcedEnemyCheckPos( self, enemy )
+
+                local enemVel = enemy:GetVelocity()
+                local velLeng = enemVel:LengthSqr()
+
+                -- they arent moving, just go the opposite side of them!
+                if velLeng < 5^2 then
+                    local enemDir = -terminator_Extras.dirToPos( enemy:GetPos(), senderpos )
+                    myTbl.lastInterceptDir = enemDir
+
+                -- they moving fast in one direction!
+                elseif velLeng > 50^2 then
+                    local enemVelFlat = enemVel * Vector( 1, 1, 0 )
+                    myTbl.lastInterceptDir = ( enemVelFlat ):GetNormalized()
+
+                -- they are moving a bit, go left or right
+                else
+                    local enemDir = terminator_Extras.dirToPos( self:GetPos(), enemy:GetPos() )
+                    local upOrDown = { 1, -1 }
+                    myTbl.lastInterceptDir = enemDir:Cross( Vector( 0, 0, table.Random( upOrDown ) ) )
+
+                end
+            end,
+        },
+        ["playercontrol_handler"] = {
+            StartsOnInitialize = true,
+            StopControlByPlayer = function( self, data, ply )
+                self:StartTask2( "enemy_handler", nil, "begin" )
+                self:StartTask2( "movement_handler", nil, "begin" )
+                self:StartTask2( "shooting_handler", nil, "begin" )
+            end,
+        },
+        ["movement_wait"] = {
+            OnStart = function( self, data )
+                data.startedLooking = self.IsSeeEnemy
+                data.time = CurTime() + ( data.time or math.Rand( 0.1, 0.2 ) )
+            end,
+            BehaveUpdateMotion = function( self, data, interval )
+                if self.IsSeeEnemy and not data.startedLooking then
+                    self:EnemyAcquired( "movement_wait" )
+
+                elseif CurTime() >= data.time then
+                    self:TaskComplete( "movement_wait" )
+                    self:StartTask2( "movement_handler", nil, "all done waiting" )
+
+                end
+            end,
+        },
+        ["movement_waitforenemy"] = { -- cute helper task
+            OnStart = function( self, data )
+            end,
+            BehaveUpdateMotion = function( self, data, interval )
+                self.term_WaitingForEnemy = nil
+                self:StartTask2( "movement_handler", nil, "spotted enemy!" )
+
             end,
         },
         ["movement_handler"] = {
@@ -3976,31 +4087,6 @@ function ENT:DoDefaultTasks()
             end,
             ShouldWalk = function( self, data )
                 return self:shouldDoWalk()
-
-            end,
-        },
-        ["movement_wait"] = {
-            OnStart = function( self, data )
-                data.startedLooking = self.IsSeeEnemy
-                data.time = CurTime() + ( data.time or math.Rand( 0.1, 0.2 ) )
-            end,
-            BehaveUpdateMotion = function( self, data, interval )
-                if self.IsSeeEnemy and not data.startedLooking then
-                    self:EnemyAcquired( "movement_wait" )
-
-                elseif CurTime() >= data.time then
-                    self:TaskComplete( "movement_wait" )
-                    self:StartTask2( "movement_handler", nil, "all done waiting" )
-
-                end
-            end,
-        },
-        ["movement_waitforenemy"] = {
-            OnStart = function( self, data )
-            end,
-            BehaveUpdateMotion = function( self, data, interval )
-                self.term_WaitingForEnemy = nil
-                self:StartTask2( "movement_handler", nil, "spotted enemy!" )
 
             end,
         },
@@ -8096,92 +8182,6 @@ function ENT:DoDefaultTasks()
             end,
             ShouldWalk = function( self, data )
                 return self:shouldDoWalk()
-            end,
-        },
-        ["inform_handler"] = {
-            StartsOnInitialize = true,
-            OnStart = function( self, data )
-                data.Inform = function( enemy, pos, senderPos )
-                    for _, ent in ipairs( self:GetNearbyAllies() ) do
-                        if not IsValid( ent ) then continue end
-                        ent:RunTask( "InformReceive", enemy, nil, pos, senderPos )
-
-                    end
-                end
-            end,
-            BehaveUpdatePriority = function( self, data, interval )
-                local myTbl = data.myTbl
-                local enemy = myTbl.GetEnemy( self )
-                if not IsValid( enemy ) then return end
-                if not myTbl.IsSeeEnemy then return end
-                if data.EnemyPosInform and data.EnemyPosInform > CurTime() then return end
-
-                local add
-                if myTbl.isFodder then
-                    add = math.Rand( 5, 10 )
-
-                else
-                    add = math.Rand( 2, 5 )
-
-                end
-                data.EnemyPosInform = CurTime() + add
-                data.Inform( enemy, myTbl.EntShootPos( self, enemy ), self:GetPos() )
-
-            end,
-            InformReceive = function( self, data, enemy, _enemysTbl, pos, senderpos )
-                if not senderpos or not IsValid( enemy ) then return end
-                local myTbl = data.myTbl
-
-                local realEnemy = myTbl.GetEnemy( self )
-
-                if IsValid( realEnemy ) then
-                    if realEnemy == enemy and myTbl.IsSeeEnemy then return end -- we are already attacking this guy! dont wast perf!
-
-                    local _, priorityOfCurr = myTbl.TERM_GetRelationship( self, myTbl, realEnemy )
-                    local _, priorityOfNew = myTbl.TERM_GetRelationship( self, myTbl, enemy )
-                    if priorityOfCurr > priorityOfNew then return end -- dont care about low priority enemies if we already fighting something decent
-
-                end
-
-                -- it made another terminator mad! it makes me mad!
-                myTbl.MakeFeud( self, enemy )
-
-                myTbl.EnemyLastPos = pos
-
-                myTbl.interceptPeekTowardsEnemy  = myTbl.CanSeePosition( self, enemy, myTbl, enemyTbl ) and math.random( 1, 100 ) < 75
-                myTbl.lastInterceptTime          = CurTime()
-                myTbl.lastInterceptPos           = pos
-
-                myTbl.RegisterForcedEnemyCheckPos( self, enemy )
-
-                local enemVel = enemy:GetVelocity()
-                local velLeng = enemVel:LengthSqr()
-
-                -- they arent moving, just go the opposite side of them!
-                if velLeng < 5^2 then
-                    local enemDir = -terminator_Extras.dirToPos( enemy:GetPos(), senderpos )
-                    myTbl.lastInterceptDir = enemDir
-
-                -- they moving fast in one direction!
-                elseif velLeng > 50^2 then
-                    local enemVelFlat = enemVel * Vector( 1, 1, 0 )
-                    myTbl.lastInterceptDir = ( enemVelFlat ):GetNormalized()
-
-                -- they are moving a bit, go left or right
-                else
-                    local enemDir = terminator_Extras.dirToPos( self:GetPos(), enemy:GetPos() )
-                    local upOrDown = { 1, -1 }
-                    myTbl.lastInterceptDir = enemDir:Cross( Vector( 0, 0, table.Random( upOrDown ) ) )
-
-                end
-            end,
-        },
-        ["playercontrol_handler"] = {
-            StartsOnInitialize = true,
-            StopControlByPlayer = function( self, data, ply )
-                self:StartTask2( "enemy_handler", nil, "begin" )
-                self:StartTask2( "movement_handler", nil, "begin" )
-                self:StartTask2( "shooting_handler", nil, "begin" )
             end,
         },
     }

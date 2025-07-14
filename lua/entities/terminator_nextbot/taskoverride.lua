@@ -151,14 +151,14 @@ function ENT:DoCustomTasks( defaultTasks )
         -- these ones are less important
         -- keep inform handler, used for informing other bots about current enemy
         ["inform_handler"] = defaultTasks["inform_handler"],
-        -- generic movement task, makes bot wait a second then starts movement_handler
-        ["movement_wait"] = defaultTasks["movement_wait"],
         -- handles player controlling
         ["playercontrol_handler"] = defaultTasks["playercontrol_handler"],
+        -- generic movement task, makes bot wait a second then starts movement_handler
+        ["movement_wait"] = defaultTasks["movement_wait"],
 
         -- custom movement starter
         ["movement_handler"] = {
-            StartsOnInitialize = true, -- starts on spawn
+            StartsOnInitialize = true, -- makes this task start on spawn
             OnStart = function( self, data )
                 -- when this tasks starts
                 -- maybe start movement_mycustomtask?
