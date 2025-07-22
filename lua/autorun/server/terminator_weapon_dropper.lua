@@ -8,6 +8,7 @@ local maxWeaponsToDrop = CreateConVar( "terminator_playerdropweapons_droppedcoun
 local function setDropWeapons( ply, attacker, _ )
     if not attacker or attacker.isTerminatorHunterBased ~= true then return end
     if attacker.DontDropPrimary then return end -- they cant pick it up!
+    if not attacker.CanFindWeaponsOnTheGround then return end -- they dont want to pick up weapons
     if GAMEMODE.IsReallyHuntersGlee == true then return end -- glee does its own thing
     if not doDropWeapons:GetBool() then return end
 

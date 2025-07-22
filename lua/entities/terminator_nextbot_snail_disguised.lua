@@ -39,63 +39,7 @@ ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_GOOD
 
 ENT.duelEnemyTimeoutMul = 5
 
-local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )
-
--- copied the original function
-function ENT:MakeFootstepSound( volume, surface, mul )
-    mul = mul or 1
-    -- here is why i copied over this function
-    mul = mul * 0.85
-    local foot = self.m_FootstepFoot
-    self.m_FootstepFoot = not foot
-    self.m_FootstepTime = CurTime()
-
-    if not surface then
-        local tr = util.TraceEntity( {
-            start = self:GetPos(),
-            endpos = self:GetPos() - Vector( 0, 0, 5 ),
-            filter = self,
-            mask = self:GetSolidMask(),
-            collisiongroup = self:GetCollisionGroup(),
-        }, self )
-
-        surface = tr.SurfaceProps
-    end
-
-    if not surface then return end
-
-    surface = util.GetSurfaceData( surface )
-    if not surface then return end
-
-    local sound = foot and surface.stepRightSound or surface.stepLeftSound
-
-    if sound then
-        local pos = self:GetPos()
-
-        local filter = RecipientFilter()
-        filter:AddAllPlayers()
-
-        if not self:OnFootstep( pos, foot, sound, volume, filter ) then
-
-            local intVolume = volume or 1
-            self:EmitSound( sound, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
-
-            local clompingLvl = 80
-
-            if self:GetCurrentSpeed() < self.RunSpeed then
-                clompingLvl = 70
-
-            end
-
-            clompingLvl = clompingLvl * mul
-
-            self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, math.random( 20, 30 ) / mul, intVolume / 1.5, CHAN_STATIC )
-
-        end
-    end
-end
-
-ENT.Term_StepSoundTimeMul = 0.8
+ENT.Term_FootstepMsReductionPerUnitSpeed = 0.8
 
 function ENT:AdditionalClientInitialize()
     timer.Simple( 0, checkIfThereIsADoppelganger )

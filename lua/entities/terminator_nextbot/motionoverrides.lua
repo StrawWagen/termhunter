@@ -48,6 +48,8 @@ local function TrFilterNoSelf( me )
 
 end
 
+terminator_Extras.TrFilterNoSelf = TrFilterNoSelf
+
 function ENT:GetSafeCollisionBounds() -- collision bounds that can be messed with safely
     local mins, maxs = entMeta.GetCollisionBounds( self )
     local b1 = Vector( mins.x, mins.y, mins.z )
@@ -192,7 +194,7 @@ Arg1:
 Ret1: bool | Return true to disable.
 --]]------------------------------------
 function ENT:DisableBehaviour( myTbl )
-    return myTbl.IsPostureActive( self ) or myTbl.IsGestureActive( self, true ) or myTbl.DisabledThinking( self ) and not myTbl.IsControlledByPlayer( self ) or myTbl.RunTask( self, "DisableBehaviour" )
+    return myTbl.IsPostureActive( self ) or myTbl.IsGestureActive( self, true ) or myTbl.DisabledThinking( self ) and not myTbl.IsControlledByPlayer( self, myTbl ) or myTbl.RunTask( self, "DisableBehaviour" )
 end
 
 function ENT:PhysicallyPushEnt( ent, strength )
@@ -412,133 +414,16 @@ function ENT:OnStuck()
     end
 end
 
-function ENT:GetFootstepSoundTime()
-    local time = self.Term_BaseTimeBetweenSteps
-    local speed = self:GetCurrentSpeed()
-
-    time = time - ( speed * self.Term_StepSoundTimeMul )
-
-    if self:IsCrouching() then
-        time = time + 100
-    end
-
-    return time
-
-end
-
 --[[------------------------------------
-    Name: NEXTBOT:ProcessFootsteps
-    Desc: (INTERNAL) Called to update footstep data.
-    Arg1: 
-    Ret1: 
+    NEXTBOT:OnUnStuck
+    Handling OnUnStuck
 --]]------------------------------------
-function ENT:ProcessFootsteps()
-    if not self.loco:IsOnGround() then return end
+function ENT:OnUnStuck()
+    self.m_Stuck = false
+    self.m_StuckTime = CurTime() + 1
+    self.m_StuckTime2 = 0
 
-    local time = self.m_FootstepTime
-    local curspeed = self:GetCurrentSpeed()
-
-    if curspeed > self.WalkSpeed * 0.5 and CurTime() - time >= self:GetFootstepSoundTime() / 1000 then
-        local walk = curspeed < self.RunSpeed
-
-        local tr = util.TraceEntity( {
-            start = self:GetPos(),
-            endpos = self:GetPos() - Vector( 0, 0, 5 ),
-            filter = TrFilterNoSelf( self ),
-            mask = self:GetSolidMask(),
-            collisiongroup = self:GetCollisionGroup(),
-        }, self )
-
-        local surface = util.GetSurfaceData( tr.SurfaceProps )
-        local vol = 1
-        if surface then
-            local m = surface.material
-
-            if m == MAT_CONCRETE then
-                vol = walk and 0.8 or 1
-            elseif m == MAT_METAL then
-                vol = walk and 0.8 or 1
-            elseif m == MAT_DIRT then
-                vol = walk and 0.4 or 0.6
-            elseif m == MAT_VENT then
-                vol = 1
-            elseif m == MAT_GRATE then
-                vol = walk and 0.6 or 0.8
-            elseif m == MAT_TILE then
-                vol = walk and 0.8 or 1
-            elseif m == MAT_SLOSH then
-                vol = walk and 0.8 or 1
-            end
-
-        end
-
-        self:MakeFootstepSound( vol, tr.SurfaceProps )
-    end
-end
-
-local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )
-
-function ENT:MakeFootstepSound( volume, surface, mul )
-    mul = mul or 1
-    local foot = self.m_FootstepFoot
-    self.m_FootstepFoot = not foot
-    self.m_FootstepTime = CurTime()
-
-    if not surface then
-        local tr = util.TraceEntity( {
-            start = self:GetPos(),
-            endpos = self:GetPos() - Vector( 0, 0, 5 ),
-            filter = TrFilterNoSelf( self ),
-            mask = self:GetSolidMask(),
-            collisiongroup = self:GetCollisionGroup(),
-        }, self )
-
-        surface = tr.SurfaceProps
-    end
-
-    if not surface then return end
-
-    surface = util.GetSurfaceData( surface )
-    if not surface then return end
-
-    local theSnd = foot and surface.stepRightSound or surface.stepLeftSound
-
-    if theSnd then
-        local pos = self:GetPos()
-
-        local filter = RecipientFilter()
-        filter:AddAllPlayers()
-
-        if not self:OnFootstep( pos, foot, theSnd, volume, filter ) then
-            local intVolume = volume or 1
-            if self.FootstepClomping then
-                local clompingLvl = 86
-                if self:GetCurrentSpeed() < self.RunSpeed then
-                    clompingLvl = 76
-
-                end
-                local lvlShift = self.term_SoundLevelShift
-                if lvlShift then
-                    clompingLvl = clompingLvl + lvlShift
-
-                end
-                clompingLvl = clompingLvl * mul
-
-                local pit = math.random( 20, 30 )
-                local pitShift = self.term_SoundPitchShift
-                if pitShift then
-                    pit = pit + pitShift
-
-                end
-                pit = pit / mul
-
-                self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, pit, intVolume / 1.5, CHAN_STATIC )
-
-            end
-            self:EmitSound( theSnd, 88 * mul, 85 * mul, intVolume, CHAN_STATIC, sndFlags )
-
-        end
-    end
+    self:RunTask("OnUnStuck")
 end
 
 function ENT:isUnderWater()
@@ -551,7 +436,7 @@ end
 local vectorPositive125Z = Vector( 0,0,125 )
 
 function ENT:confinedSlope( area1, area2 )
-    if not area1 and area1:IsValid() then return end
+    if not IsValid( area1 ) then return end
     local ConfinedSlope = nil
     local HistoricArea1 = self.HistoricCSlopeArea1Id or -1
     if HistoricArea1 ~= area1:GetID() then
@@ -563,7 +448,7 @@ function ENT:confinedSlope( area1, area2 )
         --print( ConfinedSlope )
     end
 
-    if not area2 or not area2:IsValid() or area1 == area2 then return ConfinedSlope end
+    if not IsValid( area2 ) or area1 == area2 then return ConfinedSlope end
     local difference = math.abs( area1:GetCenter().z - area2:GetCenter().z )
     if difference < 5 then return end
 
@@ -579,7 +464,7 @@ function ENT:confinedSlope( area1, area2 )
 end
 
 function ENT:isConfinedSlope( area )
-    if not area then return end
+    if not IsValid( area ) then return end
     local myShootPos = self:GetShootPos()
     local areaCenterOffsetted = area:GetCenter() + vectorPositive125Z
     local endZ = math.max( myShootPos.z, areaCenterOffsetted.z )
@@ -725,45 +610,72 @@ function ENT:IsAngry()
 
 end
 
-function ENT:canDoRun()
-    local angry = self:IsAngry()
-    if not angry and self.IsSeeEnemy and self:Health() == self:GetMaxHealth() then return end
+function ENT:canRunOnPath( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
 
-    if self.forcedShouldWalk and self.forcedShouldWalk > CurTime() then return end
-    if self.isInTheMiddleOfJump then return end
-    local nearObstacleBlockRunning = self.nearObstacleBlockRunning or 0
-    if nearObstacleBlockRunning > CurTime() and not self.IsSeeEnemy then return end
-    local area = self:GetCurrentNavArea()
-    if not IsValid( area ) then return end
-    if area:HasAttributes( NAV_MESH_CLIFF ) then return end
-    if area:HasAttributes( NAV_MESH_CROUCH ) then return end
-    local nextArea = self:GetNextPathArea()
-    if self:getMaxPathCurvature( area, self.MoveSpeed ) > 0.45 then return end
-    if self:confinedSlope( area, nextArea ) == true then return end
+    if myTbl.forcedShouldWalk and myTbl.forcedShouldWalk > CurTime() then return end
+    if myTbl.isInTheMiddleOfJump then return end
+    local nearObstacleBlockRunning = myTbl.nearObstacleBlockRunning or 0
+    if nearObstacleBlockRunning > CurTime() and not myTbl.IsSeeEnemy then return end
+
+    local myArea = myTbl.GetCurrentNavArea( self, myTbl )
+    if not IsValid( myArea ) then return end
+    if myArea:HasAttributes( NAV_MESH_CLIFF ) then return end
+    if myArea:HasAttributes( NAV_MESH_CROUCH ) then return end
+    if myTbl.getMaxPathCurvature( self, myArea, myTbl.MoveSpeed ) > 0.45 then return end
+
+    local nextArea = myTbl.GetNextPathArea( self, myArea )
+    if myTbl.confinedSlope( self, myArea, nextArea ) == true then return end -- running down slopes can get us stuck in the ceiling 
     if not IsValid( nextArea ) then return true end
-    local myPos = self:GetPos()
-    if myPos:DistToSqr( nextArea:GetClosestPointOnArea( myPos ) ) > ( self.MoveSpeed * 1.25 ) ^ 2 then return true end
     if nextArea:HasAttributes( NAV_MESH_CLIFF ) then return end
     if nextArea:HasAttributes( NAV_MESH_CROUCH ) then return end
+
+    local myPos = self:GetPos()
+    if myPos:DistToSqr( nextArea:GetClosestPointOnArea( myPos ) ) > ( myTbl.MoveSpeed * 1.25 ) ^ 2 then return true end
+
     local minSizeNext = math.min( nextArea:GetSizeX(), nextArea:GetSizeY() )
     if minSizeNext < 25 then return end
+
     return true
 
 end
 
-function ENT:shouldDoWalk()
-    if self.IsSeeEnemy and self:Health() == self:GetMaxHealth() and not self:IsReallyAngry() then return true end
-    if self.forcedShouldWalk and self.forcedShouldWalk > CurTime() then return true end
+function ENT:canDoRun( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
 
-    local area = self:GetCurrentNavArea()
-    if not IsValid( area ) then return end
-    local minSize = math.min( area:GetSizeX(), area:GetSizeY() )
+    local angry = myTbl.IsAngry( self )
+    if not angry and myTbl.IsSeeEnemy and entMeta.Health( self ) == entMeta.GetMaxHealth( self ) then return end
+
+    if not myTbl.canRunOnPath( self, myTbl ) then return end
+
+    return true
+
+end
+
+function ENT:shouldDoWalkOnPath( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    if myTbl.forcedShouldWalk and myTbl.forcedShouldWalk > CurTime() then return true end
+
+    local myArea = myTbl.GetCurrentNavArea( self, myTbl )
+    if not IsValid( myArea ) then return end
+    local minSize = math.min( myArea:GetSizeX(), myArea:GetSizeY() )
     if minSize < 45 then return true end
-    local nextArea = self:GetNextPathArea()
-    if self:confinedSlope( area, nextArea ) then return true end
-    if self:getMaxPathCurvature( area, self.WalkSpeed, true ) > 0.85 then return true end
-    if not nextArea then return end
-    if not nextArea:IsValid() then return end
+    if myTbl.getMaxPathCurvature( self, myArea, myTbl.WalkSpeed, true ) > 0.85 then return true end
+
+    local nextArea = myTbl.GetNextPathArea( self )
+    if myTbl.confinedSlope( self, myArea, nextArea ) then return true end
+    if not IsValid( nextArea ) then return end
+
+    return true
+
+end
+
+function ENT:shouldDoWalk( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    if myTbl.IsSeeEnemy and entMeta.Health( self ) == entMeta.GetMaxHealth( self ) and not myTbl.IsReallyAngry( self ) then return true end
+
     return true
 
 end
@@ -828,7 +740,7 @@ function ENT:ShouldCrouch( myTbl )
     if not myTbl.CanCrouch then return false end
     if myTbl.AlwaysCrouching then return false end -- HACK, for when this bot is always crouching size
 
-    if myTbl.IsControlledByPlayer( self ) then
+    if myTbl.IsControlledByPlayer( self, myTbl ) then
         if self:ControlPlayerKeyDown( IN_DUCK ) then
             return true
         end
@@ -849,7 +761,7 @@ function ENT:ShouldCrouch( myTbl )
         end
 
         if myTbl.PathIsValid( self ) then
-            local currArea = myTbl.GetCurrentNavArea( self )
+            local currArea = myTbl.GetCurrentNavArea( self, myTbl )
             local nextArea = myTbl.GetNextPathArea( self )
 
             if IsValid( currArea ) and currArea:HasAttributes( NAV_MESH_CROUCH ) then
@@ -1582,7 +1494,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local path = myTbl.GetPath( self )
     --local drawingPath
 
-    if self.DrawPath:GetBool() and cheats:GetBool() == true then
+    if myTbl.m_JumpingToPos then return end
+
+    if myTbl.DrawPath:GetBool() and cheats:GetBool() == true then
         path:Draw()
         --drawingPath = true
 
@@ -1883,7 +1797,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local dropTypeToDealwith = droptype and closeToGoal
 
     local good = self:PathIsValid() and iAmOnGround
-    local areaSimple = self:GetCurrentNavArea() or myArea
+    local areaSimple = myTbl.GetCurrentNavArea( self, myTbl ) or myArea
 
     local myHeightToNext = aheadSegment.pos.z - myPos.z
     local jumpableHeight = myHeightToNext < myTbl.JumpHeight
@@ -2175,21 +2089,12 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         else
             myTbl.term_LastApproachPos = currSegment.pos
 
-            local ang = self:GetAngles()
-            path:Update( self )
-            -- if this doesnt run then bot always looks toward next path seg, doesn't aim at ply
-            self:SetAngles( ang )
-
-            local phys = self:GetPhysicsObject()
-            if IsValid( phys ) then
-                phys:SetAngles( angle_zero )
-
-            end
+            myTbl.DemandPathUpdates( self, myTbl )
 
             -- detect when bot falls down and we need to repath
             local aheadSegPos = IsValid( aheadSegment.area ) and aheadSegment.area:GetClosestPointOnArea( myPos ) or aheadSegment.pos
             local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegPos.z ), myTbl.loco:GetMaxJumpHeight() * 1.5 )
-            local changeToSegment = math.abs( myPos.z - currSegment.pos.z )
+            local changeToSegment = currSegment.pos.z - myPos.z
 
             if changeToSegment > maxHeightChange * 1.25 then
                 --print( "invalid", changeToSegment, maxHeightChange * 2 )
@@ -2658,7 +2563,7 @@ function ENT:Jump( height, fakeJump )
     self:SetupActivity()
 
     self:SetupCollisionBounds()
-    self:MakeFootstepSound( 1, nil, 1.05 )
+    self:MakeFootstepSound( entMeta.GetTable( self ), 1, 1.05 )
 
     if self.MetallicMoveSounds and not self:IsSilentStepping() then
         self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 80, 40, 0.6, CHAN_STATIC )
@@ -2680,10 +2585,42 @@ function ENT:Jump( height, fakeJump )
 end
 
 --[[------------------------------------
-	Name: NEXTBOT:IsFalling
-	Desc: Aaah, we're falling!
-	Arg1: 
-	Ret1: bool | Bot is faling
+    Name: NEXTBOT:JumpToPos
+    Desc: Makes bot jump to given position. Jump height depends on height difference of given position and current position.
+    Arg1: Vector | pos | Position to jump to.
+    Arg2: (optional) height | Jump height. Default is CLuaLocomotion:GetJumpHeight()
+    Ret1: 
+--]]------------------------------------
+function ENT:JumpToPos(pos,height)
+    height = height or self.loco:GetJumpHeight()
+
+    local curpos = self:GetPos()
+    local dir = pos - curpos
+    local dist = dir:Length()
+    dir:Div( dist ) -- normalize
+
+    local gravity = self.loco:GetGravity()
+
+    local maxh = math.max( pos.z, curpos.z ) + height
+    local h1 = maxh - curpos.z
+    local h2 = maxh - pos.z
+
+    local t1 = ( 2 / gravity * h1 ) ^ 0.5
+    local t2 = ( 2 / gravity * h2 ) ^ 0.5
+    local t = t1 + t2
+
+    self:Jump( height )
+    local vel = Vector( dir.x * dist / t, dir.y * dist / t, ( 2 * gravity * h1 ) ^ 0.5 ) -- calculate velocity to reach the position in time t
+    self.loco:SetVelocity( vel )
+
+    self.m_JumpingToPos = true
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:IsFalling
+    Desc: Aaah, we're falling!
+    Arg1: 
+    Ret1: bool | Bot is faling
 --]]------------------------------------
 function ENT:IsFalling( myTbl )
     return myTbl.m_Falling or false
@@ -2930,8 +2867,11 @@ function ENT:OnLandOnGround( ent )
 
     end
 
-    if self.m_Jumping then
+    local jumping = self.m_Jumping or self.m_JumpingToPos
+
+    if jumping then
         self.m_Jumping = false
+        self.m_JumpingToPos = false
         self.nextPathJump = CurTime() + 0.15
 
         -- Restoring from jump
@@ -2943,6 +2883,7 @@ function ENT:OnLandOnGround( ent )
         self:SetupCollisionBounds()
 
     end
+
 
     local myPos = self:GetPos()
     local fallHeight = self:FallHeight()
@@ -2966,7 +2907,7 @@ function ENT:OnLandOnGround( ent )
         self:DoGesture( self:TranslateActivity( ACT_LAND ) )
 
         if fallHeight >= 500 then
-            self:MakeFootstepSound( 1 )
+            self:MakeFootstepSound( entMeta.GetTable( self ), 1 )
             if not self:IsSilentStepping() and self.MetallicMoveSounds then
                 util.ScreenShake( self:GetPos(), 16, 20, 0.4, 3000 )
                 self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 100, 60, 1, CHAN_STATIC )
@@ -2981,7 +2922,7 @@ function ENT:OnLandOnGround( ent )
             killBoxScale = 4
 
         elseif fallHeight >= 250 then
-            self:MakeFootstepSound( 1 )
+            self:MakeFootstepSound( entMeta.GetTable( self ), 1 )
             if not self:IsSilentStepping() and self.MetallicMoveSounds then
                 util.ScreenShake( self:GetPos(), 4, 20, 0.1, 800 )
                 self:EmitSound( "physics/metal/metal_canister_impact_soft2.wav", 84, 90, 1, CHAN_STATIC )
@@ -2992,7 +2933,7 @@ function ENT:OnLandOnGround( ent )
             killBoxScale = 1.5
 
         else
-            self:MakeFootstepSound( 1 )
+            self:MakeFootstepSound( entMeta.GetTable( self ), 1 )
             if not self:IsSilentStepping() and self.MetallicMoveSounds then
                 util.ScreenShake( self:GetPos(), 0.5, 20, 0.1, 600 )
                 self:EmitSound( "physics/flesh/flesh_impact_hard1.wav", 80, 40, 0.3, CHAN_STATIC )
@@ -3097,7 +3038,7 @@ function ENT:LethalFallDamage()
         self:TakeDamage( math.huge )
 
     else
-        self:MakeFootstepSound( 1 )
+        self:MakeFootstepSound( entMeta.GetTable( self ), 1 )
 
     end
 end
@@ -3183,10 +3124,15 @@ ENT.IdleActivityTranslations = {
 
 function ENT:TranslateActivity( act )
     local myTbl = self:GetTable()
-    local task = myTbl.RunTask( self, "TranslateActivity", act )
-    if task then return task end
 
-    if myTbl.HasWeapon( self, myTbl ) then
+    local translated
+    local task = myTbl.RunTask( self, "TranslateActivity", act )
+    if task then
+        translated = task
+
+    end
+
+    if not translated and myTbl.HasWeapon( self, myTbl ) then
         myTbl.DontRegisterAsNpc( self )
         local newact
         local luaWep = myTbl.GetActiveLuaWeapon( self, myTbl )
@@ -3198,7 +3144,10 @@ function ENT:TranslateActivity( act )
 
         end
     end
-    local translated = myTbl.IdleActivityTranslations[act]
+    if not translated then
+        translated = myTbl.IdleActivityTranslations[act]
+
+    end
     if isfunction( translated ) then
         translated = translated( self )
 
@@ -3289,12 +3238,12 @@ function ENT:InitializeCollisionBounds( mdlScale )
 
     -- proper view offsets for GetShootPos
     local maxsZ = self.CollisionBounds[2].z * mdlScale
-    local viewOffsetFromMaxs = ( maxsZ / defaultHeight ) * defaultViewOffsetNudge
+    local viewOffsetFromMaxs = ( maxsZ / defaultHeight ) * ( defaultViewOffsetNudge * mdlScale )
     local viewOffset = math.Round( maxsZ + -viewOffsetFromMaxs )
     self:SetViewOffset( Vector( 0, 0, viewOffset ) )
 
     local maxsZCrouch = self.CrouchCollisionBounds[2].z * mdlScale
-    local crouchViewOffsetFromMaxs = ( maxsZCrouch / defaultCrouchHeight ) * defaultCrouchViewOffsetNudge
+    local crouchViewOffsetFromMaxs = ( maxsZCrouch / defaultCrouchHeight ) * ( defaultCrouchViewOffsetNudge * mdlScale )
     local crouchViewOffset = math.Round( maxsZCrouch + -crouchViewOffsetFromMaxs )
     self:SetCrouchViewOffset( Vector( 0, 0, crouchViewOffset ) )
 

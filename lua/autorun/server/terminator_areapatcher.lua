@@ -20,7 +20,7 @@ local Vector = Vector
 local dedicatedRate = 0.002
 local otherwiseRate = 0.005
 
-local debuggingVar = CreateConVar( "terminator_areapatching_debugging", 0, FCVAR_NONE, "Enable areapatcher debug prints/visualizers." )
+local debuggingVar = CreateConVar( "terminator_areapatching_debugging", 0, FCVAR_NONE, "Enable areapatcher debug-prints/visualizers." )
 local doAreaPatchingVar = CreateConVar( "terminator_areapatching_enable", 1, FCVAR_ARCHIVE, "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned." )
 local areaPatchingRateVar = CreateConVar( "terminator_areapatching_rate", -1, FCVAR_ARCHIVE, "Max fraction of a second the area patcher can run at, -1 for default \"" .. otherwiseRate .. "\"", -1, 1 )
 
@@ -66,7 +66,7 @@ end, "updatepatching" )
 
 local function debugPrint( ... )
     if not debugging then return end
-    print( ... )
+    permaPrint( ... )
 
 end
 

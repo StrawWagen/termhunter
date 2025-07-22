@@ -32,20 +32,12 @@ list.Set( "NPC", "terminator_nextbot_fakeply", {
 } )
 
 if CLIENT then
-    function ENT:AdditionalClientInitialize()
-        self.PlayerColor = ColorRand()
-
-    end
-    function ENT:GetPlayerColor()
-        return self.PlayerColor
-
-    end
     language.Add( "terminator_nextbot_fakeply", ENT.PrintName )
     return
 
 end
 
-ENT.CoroutineThresh = 0.0002
+ENT.CoroutineThresh = 0.000002
 ENT.MaxPathingIterations = 2500
 ENT.ThreshMulIfDueling = 3 -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
@@ -78,6 +70,7 @@ ENT.isTerminatorHunterChummy = "paparazzi"
 ENT.MetallicMoveSounds = false
 ENT.ReallyStrong = false
 ENT.HasFists = false
+ENT.FootstepClomping = false
 
 -- a table is getting in here, maybe this fixes it?
 local finalModels = {}
@@ -90,43 +83,6 @@ for _, model in pairs( models ) do
 end
 
 ENT.Models = finalModels
-
--- copied the original function
-function ENT:MakeFootstepSound(volume,surface)
-    local foot = self.m_FootstepFoot
-    self.m_FootstepFoot = !foot
-    self.m_FootstepTime = CurTime()
-
-    if !surface then
-        local tr = util.TraceEntity({
-            start = self:GetPos(),
-            endpos = self:GetPos()-Vector(0,0,5),
-            filter = self,
-            mask = self:GetSolidMask(),
-            collisiongroup = self:GetCollisionGroup(),
-        },self)
-
-        surface = tr.SurfaceProps
-    end
-
-    if !surface then return end
-
-    local surface = util.GetSurfaceData(surface)
-    if !surface then return end
-
-    local sound = foot and surface.stepRightSound or surface.stepLeftSound
-
-    if sound then
-        local pos = self:GetPos()
-
-        local filter = RecipientFilter()
-        filter:AddPAS(pos)
-
-        if !self:OnFootstep(pos,foot,sound,volume,filter) then
-            self:EmitSound(sound,75,100,volume,CHAN_BODY)
-        end
-    end
-end
 
 function ENT:GetAimVector()
     local dir = self:GetEyeAngles():Forward()

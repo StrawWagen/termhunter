@@ -6,9 +6,21 @@ local CurTime = CurTime
 
 local entMeta = FindMetaTable( "Entity" )
 
-ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG
+function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
+end
 
---cool dmage system stuff
+function ImmuneCheck( self, dmg )
+    if self:IsImmuneToDmg( dmg ) then return true end
+
+    local immuneMask = self.term_DMG_ImmunityMask
+    if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
+
+end
+
+--[[------------------------------------
+    THIS MANAGES THE BODYGROUP DAMAGE
+    it's very hardcoded, some of the oldest code in the repo
+--]]------------------------------------
 ENT.BGrpHealth = {}
 ENT.OldBGrpSteps = {}
 ENT.MedCal = 4
@@ -131,12 +143,12 @@ local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent ) -- on mu
     end
 end
 
-local function MedCalRics( self )
+local function MedCalRics( self ) -- medium caliber ricochet sound
     self:EmitSound( table.Random( self.Rics ), 75, math.random( 92, 100 ), 1, CHAN_AUTO )
 
 end
 
-local function MedDamage( self, Damage )
+local function MedDamage( self, Damage ) -- medium damage sound
     self:EmitSound( table.Random( self.Hits ), 85, math.random( 105, 110 ), 1, CHAN_AUTO )
 
     if Damage:IsBulletDamage() then
@@ -145,34 +157,35 @@ local function MedDamage( self, Damage )
     end
 end
 
-function ENT:CatDamage() -- cataSTROPIC DAMAGE
+function ENT:CatDamage() -- cataSTROPIC DAMAGE sound
     self:EmitSound( table.Random( self.Creaks ), 85, 150, 1, CHAN_AUTO )
     self:EmitSound( table.Random( self.Hits ), 85, 80, 1, CHAN_AUTO )
 
 end
 
-
-function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
-end
-
-function ImmuneCheck( self, dmg )
-    if self:IsImmuneToDmg( dmg ) then return true end
-
-    local immuneMask = self.term_DMG_ImmunityMask
-    if immuneMask and bit.band( dmg:GetDamageType(), immuneMask ) ~= 0 then dmg:ScaleDamage( 0 ) return true end
-
-end
-
+--[[------------------------------------
+    END hardcoded bodygroup damage
+    Below hooks into it, but it handles damage for everything
+--]]------------------------------------
 
 -- dmg with bodygroup data ( bullets )
 local function OnDamaged( damaged, Hitgroup, Damage )
-
+    -- we only handle bullet damage here, other damage is handled in OnTakeDamage
     if not Damage:IsBulletDamage() then return end
+
+    -- only handle terminator damage
     if not damaged.isTerminatorHunterBased then return end
+
+    -- simple support for enemies that are immune to damagetypes
     if ImmuneCheck( damaged, Damage ) then return true end
+
+    -- main damage hook, can return true inside to block damage
     if damaged:PostTookDamage( Damage ) then return true end
+
+    -- damage hook with hitgroup data
     if damaged:PostTookBulletDamage( Damage, Hitgroup ) then return true end
 
+    -- metal skeleton damage resist and sounds
     if damaged.DoMetallicDamage then
         local ToBGs
         local BgDamage
@@ -209,6 +222,7 @@ local function OnDamaged( damaged, Hitgroup, Damage )
         end
     end
 
+    -- ouch
     damaged:HandleFlinching( Damage, Hitgroup )
 
 end
@@ -220,17 +234,22 @@ hook.Add( "ScaleNPCDamage", "term_straw_terminator_damage", function( ... ) OnDa
 function ENT:OnTakeDamage( Damage )
     self.lastDamagedTime = CurTime()
 
-    if Damage:IsDamageType( DMG_BULLET ) then return end -- handled ABOVE!
+    -- bullet damage is handled above since that hook has bodygroup data
+    if Damage:IsBulletDamage() then return end
 
+    -- simple support for enemies that are immune to damagetypes
     if ImmuneCheck( self, Damage ) then return true end
 
+    -- main damage hook, can return true inside to block damage
     if self:PostTookDamage( Damage ) then return true end
 
+    -- horrible evil immortal zombie torso bug
     if Damage:GetDamage() >= 1 and self:Health() <= 0 and ( not self.Term_DyingUntil or self.Term_DyingUntil < CurTime() ) then -- HACK!
         SafeRemoveEntityDelayed( self, 1 )
 
     end
 
+    -- metal skeleton damage resist and sounds
     if self.DoMetallicDamage then
         local attacker = Damage:GetAttacker()
         local BgDamage
@@ -240,8 +259,12 @@ function ENT:OnTakeDamage( Damage )
         if IsValid( attacker ) then
             local class = attacker:GetClass()
 
+            -- instakilling doors!
+            -- kill their damage and try to get the hell out of their way
             if class == "func_door_rotating" or class == "func_door" then
-                Damage:ScaleDamage( 0 )
+                local newDmg = math.Clamp( Damage:GetDamage(), 0, 25 )
+                Damage:SetDamage( newDmg )
+                self:ReallyAnger( 10 )
                 self.overrideMiniStuck = true
 
             end
@@ -296,7 +319,8 @@ function ENT:OnTakeDamage( Damage )
             self:CatDamage()
             self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
 
-        elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or ( Damage:IsDamageType( DMG_DIRECT ) and ( IsValid( attacker ) and string.find( attacker:GetClass(), "fire" ) ) ) then -- fire damage!
+        -- fire damage, needs to support vfire...
+        elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or ( Damage:IsDamageType( DMG_DIRECT ) and ( IsValid( attacker ) and string.find( attacker:GetClass(), "fire" ) ) ) then
             Damage:ScaleDamage( 0.05 ) -- dont ignore instakill damage, eg, lava
 
             BgDamage = 1
@@ -315,10 +339,11 @@ function ENT:OnTakeDamage( Damage )
             table.remove( ToBGs, math.random( 0, 6 ) )
             table.remove( ToBGs, math.random( 0, 6 ) )
 
+        -- sharp melee
         elseif Damage:IsDamageType( DMG_SLASH ) then
             local DamageDamage = Damage:GetDamage()
 
-            BgDamage = DamageDamage / 1.5 -- takes chunks out of us 
+            BgDamage = DamageDamage / 1.5 -- takes chunks out of us
             SilentBgDmg = DamageDamage < 40
             Damage:ScaleDamage( 0.15 ) -- but our skeleton is tough!
 
@@ -350,9 +375,11 @@ function ENT:OnTakeDamage( Damage )
             BodyGroupDamage( self, ToBGs, BgDamage, Damage, SilentBgDmg )
 
         end
-    elseif Damage:IsDamageType( DMG_DISSOLVE ) then -- NOT metallic damage, but handling a combine ball!
+    -- combine balls on non-metallic skeletons
+    elseif Damage:IsDamageType( DMG_DISSOLVE ) then
         local potentialBall = Damage:GetInflictor()
         if string.find( potentialBall:GetClass(), "ball" ) then -- this is definitely a ball!
+            -- remove balls if they deal than 1000 damage
             local ballHealth = potentialBall.term_Ballhealth or 1000
             local healthTaken = self:Health()
             ballHealth = ballHealth - healthTaken
@@ -372,26 +399,53 @@ function ENT:OnTakeDamage( Damage )
         end
     end
 
+    -- ouch
     self:HandleFlinching( Damage, 0 )
 
 end
 
-function ENT:PostTookBulletDamage( _dmg, _hitGroup ) -- ver of postTookDamage, with hitgroup data
+--[[------------------------------------
+    Name: NEXTBOT:PostTookBulletDamage
+    Desc: Called after taking bullet damage, provides hitgroup data.
+    Arg1: DamageInfo | _dmg | Damage info.
+    Arg2: number | _hitGroup | Hitgroup of the damage.
+    Ret1: any | blockDamage | If this isn't nil, damage is blocked.
+--]]------------------------------------
+function ENT:PostTookBulletDamage( _dmg, _hitGroup )
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:PostTookDamage
+    Desc: Called after taking ANY damage, provides damage info.
+    Arg1: DamageInfo | _dmg | Damage info.
+    Ret1: any | blockDamage | If this isn't nil, damage is blocked.
+--]]------------------------------------
 local MEMORY_VOLATILE = 8
 local MEMORY_DAMAGING = 64
-
-function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
+function ENT:PostTookDamage( dmg )
+    local myTbl = entMeta.GetTable( self )
 
     local attacker = dmg:GetAttacker()
     local validAttacker = IsValid( attacker )
     if validAttacker then
-        attacker.term_NoHealthChangeCount = nil -- stop ignoring whatever attacked us!
+        -- reset enemy judging
+        -- they attacked us so they're an enemy we should engage!
+        attacker.term_NoHealthChangeCount = nil
 
     end
 
-    local myTbl = entMeta.GetTable( self )
+    local friendlyFireMul = myTbl.FriendlyFireMul
+    if friendlyFireMul and friendlyFireMul ~= 1 then
+        local attackerDisp = myTbl.TERM_GetRelationship( self, myTbl, attacker )
+        if attackerDisp == D_LI then -- buddies with attacker, scale the damage down
+            dmg:ScaleDamage( friendlyFireMul )
+
+        end
+        if dmg:GetDamage() <= 0 then
+            return true -- no damage, no need to do anything else
+
+        end
+    end
 
     ProtectedCall( function() myTbl.RunTask( self, "OnDamaged", dmg ) end )
 
@@ -412,7 +466,9 @@ function ENT:PostTookDamage( dmg ) -- always called when it takes damage!
 
         local dmgSourcePos = myTbl.getBestPos( self, attacker )
 
-        local _, toAttackerPri = myTbl.TERM_GetRelationship( self, myTbl, attacker )
+        local toAttackerDisp, toAttackerPri = myTbl.TERM_GetRelationship( self, myTbl, attacker )
+        if toAttackerDisp == D_LI then return end -- dont look at friends
+
         local currEnemy = myTbl.GetEnemy( self )
         local currEnemyPri = 0
         if IsValid( currEnemy ) then
@@ -593,6 +649,11 @@ end
 function ENT:HandleDeathAnim( _dmg ) -- stub!
 end
 
+
+--[[------------------------------------
+	NEXTBOT:OnKilled
+	Initialize death ragdoll and call hooks
+--]]------------------------------------
 function ENT:OnKilled( dmg )
     if self.term_Dead then ErrorNoHaltWithStack( "tried to die twice" ) return end
     self.term_Dead = true
@@ -606,19 +667,12 @@ function ENT:OnKilled( dmg )
     self:AdditionalOnKilled( dmg )
     local deathAniming
 
-    if self.Term_DeathAnim then
-        local deathAnimDat = self.Term_DeathAnim
+    local extraDeathAnim = self:RunTask( "GetDeathAnim", dmg )
+
+    if self.Term_DeathAnim or extraDeathAnim then
+        local deathAnimDat = self.Term_DeathAnim or extraDeathAnim
         local deathAct = deathAnimDat.act
         if deathAct and not ( isnumber( deathAct ) and deathAct <= 0 ) then
-            local deathSeq
-            if isstring( deathAct ) then
-                deathSeq = self:LookupSequence( deathAct )
-                deathAct = deathSeq
-
-            else
-                deathSeq = self:SelectWeightedSequence( deathAct )
-
-            end
             deathAniming = true
 
             local startFunc = deathAnimDat.startFunc
@@ -657,6 +711,15 @@ function ENT:OnKilled( dmg )
 end
 
 function ENT:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damageForce )
+
+    if not IsValid( attacker ) then
+        attacker = game.GetWorld()
+
+    end
+    if not IsValid( inflictor ) then
+        inflictor = game.GetWorld()
+
+    end
 
     local dissolving = bit.band( damageType, DMG_DISSOLVE ) ~= 0
 
@@ -734,10 +797,12 @@ function ENT:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damag
         child:SetNoDraw( true )
 
     end
+    self:SetNoDraw( true )
 
     -- do these last just in case something below here errors
     hook.Run( "OnNPCKilled", self, attacker, inflictor )
     self:RunTask( "OnKilled", attacker, inflictor, ragdoll )
+    self:RunTask( "OnKilledDmg", dmg )
 
 end
 

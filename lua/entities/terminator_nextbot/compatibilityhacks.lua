@@ -156,8 +156,10 @@ function ENT:KeyDown( KEY )
 
 end
 
+local defaultColor = Vector( 1, 1, 1 )
+
 function ENT:GetPlayerColor()
-    return color_white
+    return self.PlayerColorVec or defaultColor
 
 end
 
@@ -321,6 +323,12 @@ if SERVER then
     end
 
     function ENT:StopMoving()
+        self.loco:SetVelocity( Vector( 0, 0, 0 ) )
+
+        if not self:HasTask( "movement_wait" ) then return end
+        self:KillAllTasksWith( "movement" )
+        self:StartTask( "movement_wait", { time = 1 }, "StopMoving was called!" )
+
     end
 
     function ENT:GetUserGroup()

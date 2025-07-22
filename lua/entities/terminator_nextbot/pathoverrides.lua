@@ -175,7 +175,9 @@ function ENT:primaryPathInvalidOrOutdated( destination )
     if not self:nextNewPathIsGood() then return end
     local path = self:GetPath()
     local valid = self:primaryPathIsValid( path )
-    return not valid or ( valid and self:CanDoNewPath( destination ) )
+    local invalidAndReady = not valid and ( destination and self:GetRangeTo( destination ) > 5 )
+    local validAndNeedsUpdate = valid and self:CanDoNewPath( destination )
+    return invalidAndReady or validAndNeedsUpdate
 
 end
 
@@ -322,6 +324,14 @@ function ENT:AddAreasToAvoid( areas, mul )
     end
 end
 
+--[[---------------------
+    Name: NEXTBOT:SetupFlankingPath
+    Desc: Sets up a flanking path around an area, to flank the enemy.
+    Arg1: destination - Vector, where to flank to.
+    Arg2: areaToFlankAround - CNavArea, the area to flank around.
+    Arg3: flankAvoidRadius - supply this arg to steer bot around bubble of num's size around areaToFlankAround. Otherwise bot will try and avoid dynamic bubble between dest and areaToFlankAround.
+    Returns: SetupPathShell result1, SetupPathShell result2
+]]
 function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius )
     if not isvector( destination ) then return false, "flank_nodestvec" end
 
@@ -345,7 +355,6 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
 
     end
 
-    --print( self:GetCreationID(), "flanking" )
     local result1, result2 = self:SetupPathShell( destination )
 
     self.hunterIsFlanking = nil
@@ -577,11 +586,12 @@ end
 function ENT:FloodMarkAsUnreachable( startArea )
 
     if terminator_Extras.IsLivePatching then return end
+    local myTbl = entMeta.GetTable( self )
 
     local scoreData = {}
     local invalidUnreachable
     local wasABlockedArea = false
-    scoreData.myArea = self:GetCurrentNavArea()
+    scoreData.myArea = myTbl.GetCurrentNavArea( self, myTbl )
     scoreData.decreasingScores = {}
     scoreData.droppedDownAreas = {}
     scoreData.areasToUnreachable = {}
@@ -606,7 +616,7 @@ function ENT:FloodMarkAsUnreachable( startArea )
             wasABlockedArea = true
             score = 0
 
-        elseif dropToArea > self.loco:GetMaxJumpHeight() or droppedDown then
+        elseif dropToArea > myTbl.loco:GetMaxJumpHeight() or droppedDown then
             score = 1
             scoreData.droppedDownAreas[GetID( area2 )] = true
 
@@ -641,7 +651,6 @@ function ENT:FloodMarkAsUnreachable( startArea )
     end
 end
 
--- do this so we can store extra stuff about new paths
 function ENT:SetupPathShell( endpos, isUnstuck )
     if not endpos then ErrorNoHaltWithStack( "no endpos" ) return nil, "error1" end
     -- block path spamming
@@ -758,6 +767,7 @@ end
 
 local ladderOffset = 800000
 
+-- helper func for findValidNavResult
 local function AreaOrLadderGetID( areaOrLadder )
     if not areaOrLadder then return end
     if areaOrLadder.GetTop then
@@ -770,6 +780,7 @@ local function AreaOrLadderGetID( areaOrLadder )
     end
 end
 
+-- helper func for findValidNavResult
 local function getNavAreaOrLadderById( areaOrLadderID )
     local area = navmesh.GetNavAreaByID( areaOrLadderID )
     if area then
@@ -783,6 +794,7 @@ local function getNavAreaOrLadderById( areaOrLadderID )
     end
 end
 
+-- helper func for findValidNavResult
 local function AreaOrLadderGetCenter( areaOrLadder )
     if not areaOrLadder then return end
     if areaOrLadder.GetTop then
@@ -803,6 +815,7 @@ local table_remove = table.remove
 local table_insert = table.insert
 local table_Random = table.Random
 
+-- helper func for findValidNavResult
 local function removeFrom( idToRemove, seqTbl, maskTbl )
     maskTbl[idToRemove] = nil
     for i = 1, #seqTbl do
@@ -816,6 +829,7 @@ local function removeFrom( idToRemove, seqTbl, maskTbl )
 
 end
 
+-- helper func for findValidNavResult
 local function addTo( idToAdd, seqTbl, maskTbl )
     if not maskTbl[idToAdd] then
         seqTbl[#seqTbl + 1] = idToAdd
@@ -827,6 +841,7 @@ local function addTo( idToAdd, seqTbl, maskTbl )
 
 end
 
+-- helper func for findValidNavResult
 local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
     local adjacents = {}
     if not areaOrLadder then return adjacents end
@@ -852,29 +867,39 @@ local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
 
 end
 
--- iterative function that finds connected area with the best score
--- basically a* but for finding a goal somewhere, instead of finding a path to a goal
--- areas with highest return from scorefunc are selected
--- areas that return 0 score from scorefunc are ignored
--- returns the best scoring area if it's further than dist or no other options exist
--- traverses, but never returns, navladders
-
--- returns "vec, best area's center", "area, best area", "bool, if this escaped the radius", "table of all areas explored"
+--[[------------------------------------
+    Name: findValidNavResult
+    Desc: Iterative function that finds the connected area with the best score.
+        This is essentially A* but for finding a goal somewhere, instead of finding a path to a goal.
+        Areas with the highest return from the score function are selected.
+        Areas that return a score of 0 or less from the score function are ignored.
+        Areas that return a score of inf immediately end the search.
+    Arg1: table | data | Data table for the search.
+    Arg2: any | start | Starting position or area.
+    Arg3: number | radius | Maximum search radius.
+    Arg4: function | scoreFunc | Function to evaluate the score of an area.
+    Arg5: (optional) number | noMoreOptionsMin | Minimum number of closed areas before stopping.
+    Ret1: Vector | Best area's center.
+    Ret2: CNavArea | Best area.
+    Ret3: bool | If this escaped the radius.
+    Ret4: table | Table of all areas explored.
+--]]------------------------------------
 function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMin )
     local pos = nil
     local res = nil
     local cur = nil
-    local blockRadiusEnd = data.blockRadiusEnd
+    local blockRadiusEnd = data.blockRadiusEnd -- by default, this func tries to find a way to escape the radius, set this to true if you're finding a cover pos or something
     if isvector( start ) then -- parse it!
         pos = start
         res = terminator_Extras.getNearestPosOnNav( pos )
         cur = res.area
 
-    elseif start and start.IsValid and start:IsValid() then
+    elseif IsValid( start ) then
         pos = AreaOrLadderGetCenter( start )
         cur = start
 
     end
+    -- start is invalid or off the navmesh
     if not IsValid( cur ) then return nil, NULL, nil, nil end
 
     local curId = AreaOrLadderGetID( cur )
@@ -947,7 +972,8 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
                 end
             end
             local bestClosedArea = navmesh.GetNavAreaByID( bestClosedAreaId )
-            if not bestClosedArea then return nil, NULL, nil, nil end -- edge case, huh??? if this happens
+            -- edge case, huh??? if this happens
+            if not bestClosedArea then return nil, NULL, nil, nil end
 
             -- ran out of perf/options/found best area
             return navMeta.GetCenter( bestClosedArea ), bestClosedArea, nil, closedSequential
@@ -1384,7 +1410,7 @@ function ENT:SetupPath( pos, endArea )
             myTbl.overrideVeryStuck = true -- alert the reallystuck_handler
 
         elseif old >= 5 then
-            local currNav = self:GetCurrentNavArea()
+            local currNav = myTbl.GetCurrentNavArea( self, myTbl )
             if not IsValid( currNav ) or self:AreaIsOrphan( currNav, true ) then
                 myTbl.overrideVeryStuck = true -- alert the reallystuck_handler early!
 

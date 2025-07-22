@@ -80,9 +80,9 @@ local vector_back = Vector( 0, -1, 0 )
 local vector_leftSide = Vector( 0, 0, 1 )
 local vector_localUp = Vector( 1, 0, 0 )
 
-local sidearmOffset = vector_leftSide * 8
-sidearmOffset = sidearmOffset + -vector_back * 3
-sidearmOffset = sidearmOffset + -vector_localUp * 6
+local sidearmOffset = vector_leftSide * 8.8 -- to the left, towards the side of bot
+sidearmOffset = sidearmOffset + -vector_back * 2.5 -- forwards a bit
+sidearmOffset = sidearmOffset + -vector_localUp * 5 -- down
 
 local offsetsForSlots = {
     [ HOLSTER_BACK ] = { pos = ( vector_back * 3.5 ) + ( vector_localUp * 8 ), angOffset = Angle( 0, 7, 0 ) },
@@ -202,7 +202,7 @@ function ENT:HolsterWeap( wep )
 
     self:SetActiveWeapon( NULL )
 
-    wep:SetOwner( NULL )
+    wep:SetOwner( self )
     wep:SetVelocity( vec_zero )
     wep:RemoveSolidFlags( FSOLID_TRIGGER )
     wep:RemoveEffects( EF_ITEM_BLINK )

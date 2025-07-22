@@ -1,4 +1,8 @@
 
+local entMeta = FindMetaTable("Entity")
+local plyMeta = FindMetaTable("Player")
+local IsValid = IsValid
+
 local function GetControlledBot(ply)
 	local bot = ply:GetDrivingEntity()
 	
@@ -13,15 +17,17 @@ end
 	Arg1: 
 	Ret1: bool | Is bot controlled by player or not
 --]]------------------------------------
-function ENT:IsControlledByPlayer()
-	local ply = self:GetControlPlayer()
-	if !IsValid(ply) then return false end
-	
-	if ply:GetDrivingEntity()!=self then
+function ENT:IsControlledByPlayer( myTbl )
+	myTbl = myTbl or entMeta.GetTable( self )
+	local ply = myTbl.GetControlPlayer( self )
+	if !IsValid( ply ) then return false end
+
+	if plyMeta.GetDrivingEntity( ply ) != self then
 		self:StopControlByPlayer()
 		return false
+
 	end
-	
+
 	return true
 end
 

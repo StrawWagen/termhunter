@@ -38,6 +38,9 @@ ENT.ExtraSpawnHealthPerPlayer = 2500
 ENT.AlwaysAngry = true
 ENT.MimicPlayer = true -- make fist stance use player stance mimicking
 
+ENT.Term_FootstepTiming = "perfect"
+ENT.PerfectFootsteps_FeetBones = { "ValveBiped.Bip01_L_Foot", "ValveBiped.Bip01_R_Foot" }
+
 local low_health = 0.1 -- 10% health
 
 function ENT:canDoRun()

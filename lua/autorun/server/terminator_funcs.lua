@@ -5,10 +5,30 @@ local entMeta = FindMetaTable( "Entity" )
 local plyMeta = FindMetaTable( "Player" )
 local vecMeta = FindMetaTable( "Vector" )
 
+local IsValid = IsValid
 local negativeFiveHundredZ = Vector( 0,0,-500 )
 local solidMask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP )
 local vec_zero = Vector( 0, 0, 0 )
 
+--[[--------------------------
+    getNearestNav
+    Get nearest navarea to pos
+    @param pos Vector
+    @return navarea Entity or NULL if something goes wrong
+--]]--------------------------
+terminator_Extras.getNearestNav = function( pos )
+    if not pos then return NULL end
+    local navArea = navmesh.GetNearestNavArea( pos, false, 2000, false, false, -2 )
+    if not IsValid( navArea ) then return NULL end
+    return navArea
+end
+
+--[[--------------------------
+    getNearestNavFloor
+    Snaps the pos to the floor, then gets the nearest navarea
+    @param pos Vector
+    @return navarea Entity or NULL
+--]]--------------------------
 terminator_Extras.getNearestNavFloor = function( pos )
     if not pos then return NULL end
     local Dat = {
@@ -19,45 +39,43 @@ terminator_Extras.getNearestNavFloor = function( pos )
     local Trace = util.TraceLine( Dat )
     if not Trace.HitWorld then return NULL end
     local navArea = navmesh.GetNearestNavArea( Trace.HitPos, false, 2000, false, false, -2 )
-    if not navArea then return NULL end
-    if not navArea:IsValid() then return NULL end
+    if not IsValid( navArea ) then return NULL end
     return navArea
 end
 
-terminator_Extras.getNearestNav = function( pos )
-    if not pos then return NULL end
-    local Dat = {
-        start = pos,
-        endpos = pos + negativeFiveHundredZ,
-        mask = solidMask
-    }
-    local Trace = util.TraceLine( Dat )
-    if not Trace.Hit then return NULL end
-    local navArea = navmesh.GetNearestNavArea( pos, false, 2000, false, false, -2 )
-    if not navArea then return NULL end
-    if not navArea:IsValid() then return NULL end
-    return navArea
-end
-
+--[[--------------------------
+    getNearestPosOnNav
+    Returns data about the nearest position on the navmesh to the given pos.
+    @param pos Vector
+    @return table { pos = Vector, area = Entity }
+--]]--------------------------
 terminator_Extras.getNearestPosOnNav = function( pos )
     local result = { pos = nil, area = NULL }
     if not pos then return result end
 
     local navFound = terminator_Extras.getNearestNav( pos )
 
-    if not navFound then return result end
-    if not navFound:IsValid() then return result end
+    if not IsValid( navFound ) then return NULL end
 
     result = { pos = navFound:GetClosestPointOnArea( pos ), area = navFound }
     return result
 
 end
 
+--[[--------------------------
+    dirToPos
+    Returns a normalized direction vector from startPos to endPos
+    @param startPos Vector
+    @param endPos Vector
+    @return Vector
+--]]--------------------------
 terminator_Extras.dirToPos = function( startPos, endPos )
     if not startPos then return vec_zero end
     if not endPos then return vec_zero end
 
-    return ( endPos - startPos ):GetNormalized()
+    subtProduct = endPos - startPos
+    vecMeta.Normalize( subtProduct )
+    return subtProduct
 
 end
 
@@ -81,8 +99,14 @@ terminator_Extras.PitchToPos = function( pos1, ang1, pos2, ang2 )
 
 end
 
+--[[--------------------------
+    posIsInterrupting
+    Checks if the position would "interrupt" any player.
+    @param pos Vector
+    @param yieldable boolean (optional) - set this to true if calling from within a coroutine
+    @return boolean, Player - true if interrupting, Player who is interrupting
+--]]--------------------------
 local coroutine_yield = coroutine.yield
-
 terminator_Extras.posIsInterrupting = function( pos, yieldable )
     for _, ply in player.Iterator() do
         if yieldable then
@@ -109,9 +133,12 @@ terminator_Extras.posIsInterrupting = function( pos, yieldable )
     end
 end
 
+--[[--------------------------
+    posIsInterruptingAlive
+    same as above, but only checks players who are alive
+--]]--------------------------
 local recentlyDied = {}
 local usingInterruptingAlive
-
 terminator_Extras.posIsInterruptingAlive = function( pos, yieldable )
     if not usingInterruptingAlive then
         hook.Add( "PlayerDeath", "terminatorhelpers_posIsInterupptingAlive", function( ply )
@@ -152,6 +179,14 @@ terminator_Extras.posIsInterruptingAlive = function( pos, yieldable )
     end
 end
 
+--[[--------------------------
+    areaIsInterruptingSomeone
+    Same as above, but checks an area instead.
+    @param area NavArea
+    @param areasCenter Vector (optimisation) - center of the area, defaults to area:GetCenter()
+    @param yieldable boolean (optional) - set this to true if calling from within a coroutine
+    @return boolean, Player - true if interrupting, Player who is interrupting
+--]]--------------------------
 terminator_Extras.areaIsInterruptingSomeone = function( area, areasCenter, yieldable )
     areasCenter = areasCenter or area:GetCenter()
 
@@ -198,16 +233,15 @@ for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
 
         end
     end
-    PrintTable( biggest )
-    print( biggestKey )
-    print( biggestSize )
-    PrintTable( counts )
+    permaPrintTable( biggest )
+    permaPrint( biggestKey )
+    permaPrint( biggestSize )
+    permaPrintTable( counts )
 
 end--]]
 
 local bigNegativeZ = Vector( 0, 0, -3000 )
 local startOffset = Vector( 0, 0, 100 )
-
 local function getFloorTr( pos )
     local traceDat = {
         mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
@@ -220,6 +254,12 @@ local function getFloorTr( pos )
 
 end
 
+--[[--------------------------
+    posIsDisplacement
+    Checks if the position is on a displacement.
+    @param pos Vector
+    @return boolean - true if on a displacement, nil if not
+--]]--------------------------
 local function posIsDisplacement( pos )
     local tr = getFloorTr( pos )
     if not tr then return end
@@ -227,9 +267,14 @@ local function posIsDisplacement( pos )
     return true
 
 end
-
 terminator_Extras.posIsDisplacement = posIsDisplacement
 
+--[[--------------------------
+    areaIsEntirelyOverDisplacements
+    Checks if the area is entirely over displacements.
+    @param area NavArea
+    @return boolean - true if all corners are over displacements, nil if not
+--]]--------------------------
 terminator_Extras.areaIsEntirelyOverDisplacements = function( area )
     local positions = {
         area:GetCorner( 0 ),

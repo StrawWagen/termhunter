@@ -17,6 +17,7 @@ SWEP.HoldType = "slam"
 SWEP.SpawningOffset = 25
 SWEP.worksWithoutSightline = true
 SWEP.PreOverrideClass = "weapon_slam"
+SWEP.MinForceMul = 0.5
 
 terminator_Extras.SetupAnalogWeight( SWEP )
 
