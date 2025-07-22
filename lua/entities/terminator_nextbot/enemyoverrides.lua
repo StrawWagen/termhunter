@@ -136,6 +136,12 @@ local function pals( ent1, ent2 )
 
 end
 
+--[[------------------------------------
+    Name: ENT:enemyBearingToMeAbs
+    Desc: Returns the absolute bearing of the enemy to me.
+    Arg1: 
+    Ret1: number - Absolute bearing of the enemy to me.
+--]]------------------------------------
 function ENT:enemyBearingToMeAbs()
     local enemy = self:GetEnemy()
     if not IsValid( enemy ) then return 0 end
@@ -147,6 +153,12 @@ function ENT:enemyBearingToMeAbs()
 
 end
 
+--[[------------------------------------
+    Name: ENT:enemyPitchToMeAbs
+    Desc: Returns the absolute pitch of the enemy to me.
+    Arg1: 
+    Ret1: number - Absolute pitch of the enemy to me.
+--]]------------------------------------
 function ENT:enemyPitchToMeAbs()
     local enemy = self:GetEnemy()
     if not IsValid( enemy ) then return 0 end
@@ -163,7 +175,7 @@ do
 
     local function cacheEntShootPos( ent, entsTbl, pos )
         entsTbl.term_cachedEntShootPos = pos
-        timer.Simple( 0.01, function() -- cache this for barely more than a tick, HUGE perf save if there's lots and lots of bots
+        timer.Simple( 0.01, function() -- cache this for barely more than a tick, HUGE perf save if there's lots and lots and lots of bots
             if not IsValid( ent ) then return end
             entsTbl.term_cachedEntShootPos = nil
 
@@ -172,6 +184,15 @@ do
 
     end
 
+    --[[------------------------------------
+        Name: ENT:EntShootPos
+        Desc: Gets another npc/player/nextbot's shoot position.
+            For finding the best hitbox to shoot at, or the center of the entity.
+        Arg1: ent - Entity to get shoot position for.
+        Arg2: random - If true, will return a random hitbox position instead.
+        Arg3: entsTbl - Optimisation.
+        Ret1: Vector - Position where the entity should shoot from.
+    --]]------------------------------------
     function ENT:EntShootPos( ent, random, entsTbl )
         if not entsTbl and not IsValid( ent ) then return end -- entstbl is supplied if the ent is already valid, so we dont need to check
         entsTbl = entsTbl or entMeta.GetTable( ent )
@@ -194,7 +215,6 @@ do
             local sets = entMeta.GetHitboxSetCount( ent )
             if sets then
                 local hitboxes = {}
-                entsTbl = entsTbl or ent:GetTable()
                 local data = entsTbl.term_cachedHitboxData or nil
 
 
@@ -466,6 +486,14 @@ end
 do
     local isentity = isentity
 
+    --[[------------------------------------
+        Name: ENT:CanSeePosition
+        Desc: Checks if the bot can see the position.
+        Arg1: check - Vector or Entity to check.
+        Arg2: myTbl - Optimisation, entMeta.GetTable( self )
+        Arg3: checksTbl - Optimisation, entMeta.GetTable( check )
+        Ret1: bool - true if can see, false otherwise
+    --]]------------------------------------
     function ENT:CanSeePosition( check, myTbl, checksTbl )
         myTbl = myTbl or self:GetTable()
         local pos = check
@@ -754,7 +782,7 @@ function ENT:SetupRelationships( myTbl )
 
     hook.Add( "OnEntityCreated", self, function( _, ent )
         if notEnemyCache[ent] then return end
-        timer.Simple( 0.5, function()
+        timer.Simple( 0, function()
             if not IsValid( self ) then return end
             if not IsValid( ent ) then return end
             local entsTbl = ent:GetTable()
@@ -922,6 +950,7 @@ function ENT:HasToCrouchToSeeEnemy()
     if IsValid( enemy ) and not self.IsSeeEnemy then
         self.tryCrouchingToSeeEnemy = true
         self.shouldCrouchToSeeWeight = 0
+
     end
 end
 
@@ -1131,17 +1160,21 @@ function ENT:GetNearbyAllies()
     local cache = self.term_NearbyAlliesCache
     if cache then return cache end
 
-    local allies = {}
-    for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
-        if ent == self or not pals( self, ent ) or self:GetPos():DistToSqr( ent:GetPos() ) > self.InformRadius^2 then continue end
+    local myTbl = entMeta.GetTable( self )
 
+    local allies = {}
+    local myPos = self:GetPos()
+    local informRad = myTbl.InformRadius
+    local classNameStart = string.match( self:GetClass(), "^(.-)_" ) -- terminator_nextbot_slower becomes terminator_nextbot, etc
+    for _, ent in ipairs( ents.FindByClass( classNameStart .. "*" ) ) do
+        if ent == self or not pals( self, ent ) or myPos:DistToSqr( ent:GetPos() ) > informRad^2 then continue end
         table.insert( allies, ent )
 
     end
-    self.term_NearbyAlliesCache = allies
+    myTbl.term_NearbyAlliesCache = allies
     timer.Simple( 2, function()
         if not IsValid( self ) then return end
-        self.term_NearbyAlliesCache = nil
+        myTbl.term_NearbyAlliesCache = nil
 
     end )
     return allies
@@ -1265,22 +1298,27 @@ function ENT:Term_LookAround( myTbl )
     local seeEnem = myTbl.IsSeeEnemy
     --local lookAtType
 
+    -- look at last intercept pos
     if not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
         lookAtPos = myTbl.lastInterceptPos
         --lookAtType = "intercept"
 
+    -- look at what just damaged us
     elseif myTbl.TookDamagePos and ( not seeEnem or ( myTbl.TookDamagePos:Distance( myPos ) < ( myTbl.DistToEnemy * 0.75 ) and not myTbl.IsReallyAngry( self ) ) ) then
         lookAtPos = myTbl.TookDamagePos
         --lookAtType = "tookdamage"
 
+    -- look at sound hint
     elseif not seeEnem and sndHint and sndHint.time + sndCuriosity > cur then
         lookAtPos = sndHint.source
         --lookAtType = "soundhint"
 
+    -- look at generic hint
     elseif not seeEnem and genericHint and genericHint.time + sndCuriosity > cur then
         lookAtPos = genericHint.source
         --lookAtType = "generichint"
 
+    -- look at enemy last pos
     elseif lookAtGoal and pathIsValid and not seeEnem and ( enemyStillFresh or shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos, myTbl ) ) ) then
         if not shouldLookTime then
             myTbl.LookAtEnemyLastPos = cur + sndCuriosity
@@ -1289,14 +1327,24 @@ function ENT:Term_LookAround( myTbl )
         lookAtPos = myTbl.EnemyLastPos
         --lookAtType = "enemylastpos"
 
+    -- look up the ladder
     elseif lookAtGoal and pathIsValid and not seeEnem and laddering then
         lookAtPos = myPos + self:GetVelocity() * 100
         --lookAtType = "laddering"
 
+    -- look along the path
     elseif lookAtGoal and ( movingSlow or pathIsValid ) then
-        lookAtPos = aheadSegment.pos + vec_up25
+        -- by default, look one segment ahead
+        if myTbl.IsCrouching( self ) then
+            lookAtPos = aheadSegment.pos + vec_up25
+
+        else
+            lookAtPos = aheadSegment.pos + myTbl.GetViewOffset( self )
+
+        end
         --lookAtType = "lookatpath1"
 
+        -- if we're moving slow, look at what's blocking us, or down at where we're going
         if not self:IsOnGround() or movingSlow then
             if IsValid( disrespecting ) then
                 lookAtPos = myTbl.getBestPos( self, disrespecting )
@@ -1307,6 +1355,7 @@ function ENT:Term_LookAround( myTbl )
                 --lookAtType = "lookatpath2"
 
             end
+        -- look a bit ahead
         elseif lookAtPos:DistToSqr( myPos ) < 400^2 then
             -- attempt to look farther ahead
             local _, segmentAheadOfUs = myTbl.GetNextPathArea( self, myArea, 3, true )
@@ -1407,5 +1456,45 @@ end
 function ENT:InitializeListening( myTbl )
     if not myTbl.CanHearStuff then return end
     terminator_Extras.RegisterListener( self )
+
+end
+
+--[[-------------------------------------
+    Name: ENT:TimeSinceEnemySpotted
+    Desc: Returns how long ago the enemy was spotted.
+    Arg1: myTbl | table | Table of the entity.
+    Ret1: number | Seconds since enemy was spotted.
+--]]-------------------------------------
+function ENT:TimeSinceEnemySpotted( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+    if not myTbl then return 0 end
+
+    local lastSeen = myTbl.LastEnemySpotTime
+    if not lastSeen then return 0 end
+
+    return CurTime() - lastSeen
+
+end
+
+--[[-------------------------------------
+    Name: ENT:GetRealDuelEnemyDist
+    Desc: Returns our 'dueling' distance, taking into account weapon range.
+    Arg1: myTbl | table | Table of the entity.
+    Ret1: number | Distance to the enemy.
+--]]-------------------------------------
+function ENT:GetRealDuelEnemyDist( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    local wepRange = math.huge
+    local wep = self:GetActiveWeapon()
+    if IsValid( wep ) then
+        wepRange = myTbl.GetWeaponRange( self, myTbl, wep )
+
+    end
+
+    local duelDist = myTbl.DuelEnemyDist
+    duelDist = math.min( duelDist, wepRange )
+
+    return duelDist
 
 end

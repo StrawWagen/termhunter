@@ -99,16 +99,6 @@ function ENT:BehaviourCoroutine()
 end
 
 --[[------------------------------------
-	Name: NEXTBOT:DisableBehaviour
-	Desc: Decides should behaviour be disabled.
-	Arg1: 
-	Ret1: bool | Return true to disable.
---]]------------------------------------
-function ENT:DisableBehaviour()
-	return self:IsPostureActive() or self:IsGestureActive(true) or GetConVar("ai_disabled"):GetBool() and !self:IsControlledByPlayer() or self:RunTask("DisableBehaviour")
-end
-
---[[------------------------------------
 	Name: NEXTBOT:BehaviourThink
 	Desc: Override this function to control bot using think type.
 	Arg1: 

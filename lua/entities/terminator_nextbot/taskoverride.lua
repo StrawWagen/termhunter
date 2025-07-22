@@ -1,4 +1,5 @@
 local entMeta = FindMetaTable( "Entity" )
+local isstring = isstring
 local string_find = string.find
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
@@ -100,6 +101,17 @@ end
 local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks? Also enables a task history dump on bot +use." )
 
 --[[------------------------------------
+    Name: NEXTBOT:HasTask
+    Desc: Checks if a task with the given name is in the tasklist.
+    Arg1: string | taskName | Task name.
+    Ret1: bool | Does the task exist?
+--]]------------------------------------
+function ENT:HasTask( taskName )
+    return self.m_TaskList[taskName] ~= nil
+
+end
+
+--[[------------------------------------
     Name: NEXTBOT:StartTask
     Desc: Starts a task with given name and data.
     Arg1: string | task | Task name.
@@ -109,6 +121,12 @@ local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug t
 function ENT:StartTask( task, data, reason )
     if self:IsTaskActive( task ) then return end
     yieldIfWeCan()
+
+    if isstring( data ) then
+        reason = data
+        data = nil
+
+    end
 
     data = data or {}
     data.taskStartTime = CurTime()
@@ -132,7 +150,7 @@ function ENT:StartTask( task, data, reason )
 
     -- additional debugging tool
     if not debugPrintTasks:GetBool() then return end
-    print( self:GetCreationID(), task, self:GetEnemy(), reason ) -- global
+    permaPrint( self:GetCreationID(), task, self:GetEnemy(), reason ) -- global
 
     if not string.find( task, "movement_" ) then return end -- only store history of movement tasks
     self.taskHistory = self.taskHistory or {}
@@ -153,15 +171,15 @@ function ENT:Use( user )
     local fourSpaces = "    "
 
     self.taskHistory = self.taskHistory or {}
-    print( "taskhistory" )
-    PrintTable( self.taskHistory )
-    print( "activetasks", self )
+    permaPrint( "taskhistory" )
+    permaPrintTable( self.taskHistory )
+    permaPrint( "activetasks", self )
     for taskName, _ in pairs( self.m_ActiveTasks ) do
-        print( fourSpaces .. taskName )
+        permaPrint( fourSpaces .. taskName )
 
     end
-    print( "lastShootType", self.lastShootingType )
-    print( "lastPathKillReason", self.lastPathInvalidateReason )
+    permaPrint( "lastShootType", self.lastShootingType )
+    permaPrint( "lastPathKillReason", self.lastPathInvalidateReason )
 
 end
 
@@ -230,55 +248,83 @@ function ENT:DoCustomTasks( defaultTasks )
 end
 --]]
 
-
 --[[------------------------------------
-    Name: NEXTBOT:SetupClassTask
-    Desc: stub, Simple way to add class-specific task behaviour
-    NOT FOR ADDING MOVEMENT CHANGES!!!
-    this is just a simple background task for overriding death behaviour, etc
-    see zambie god crab for example
-    Arg1: table | task | raw task table
-    Ret1:
+    ENT.MyClassTask
+    Desc: Simple way to add class-specific behaviour to a bot.
+    Fully compatible with baseclassing. ( the class tasks, of base classes, will also be added )
+    NOT FOR ADDING MOVEMENT TASKS, USE DoCustomTasks INSTEAD. ( they're much more complex to get right )
 --]]------------------------------------
-function ENT:SetupClassTask( _myTbl, _myClassTask ) -- _ just here to make the linter happy
-end
-
-ENT.HasClassTask = false -- set this to true if you're using SetupClassTask
+ENT.MyClassTask = nil
 
 --[[
-SetupClassTask example!,
-function ENT:SetupClassTask( myClassTask )
-    myClassTask.EnemyFound = function( self, data )
-        -- do something on enemy found
-    end
-    myClassTask.EnemyLost = function( self, data )
+--ENT.MyClassTask example!,
+ENT.MyClassTask = {
+    OnCreated = function( self )
+        -- do something on creation, maybe set our color or a bodygroup?
+    end,
+    EnemyFound = function( self, data )
+        -- do something on enemy found, maybe play a sound
+    end,
+    EnemyLost = function( self, data )
         -- do something else on enemy lost
-    end
-    myClassTask.OnKilled = function( self, data )
+    end,
+    OnKilled = function( self, data )
         -- do something on death
-    end
-    return myClassTask
-
-end
+    end,
+}
 --]]
 
--- handles adding class task, donot touch!
+-- handles adding class tasks
+-- DO NOT OVERRIDE THIS ONE, OVERRIDE THE SetupClassTask ABOVE INSTEAD
+-- searches entire base class tree, setting up the class task of every class in the tree
+-- DO NOT OVERRIDE THESE
 function ENT:DoClassTask( myTbl )
-    if not myTbl.HasClassTask then return end
-    local classTask = {}
-    myTbl.SetupClassTask( self, myTbl, classTask )
+    local sentsToDo = myTbl.GetAllBaseClasses( self, myTbl )
 
-    if table.Count( classTask ) == 0 then
-        return
+    for _, sentTbl in ipairs( sentsToDo ) do
+        local classTask = sentTbl.MyClassTask
+
+        if not classTask then continue end
+        if table.Count( classTask ) == 0 then continue end
+
+        -- class tasks always start on initialize
+        classTask.StartsOnInitialize = true
+
+        local className = sentTbl.ClassName .. "_handler"
+        self.TaskList[className] = classTask
+
+    end
+end
+-- DO NOT OVERRIDE THESE, you can if you want, just adds spaghetti
+function ENT:GetAllBaseClasses( myTbl )
+    local fullTree = {}
+
+    local reachedRoot = false
+    local currClassName = myTbl.ClassName
+    local currBaseSent = scripted_ents.GetStored( currClassName ).t
+    local extent = 0
+    while not reachedRoot do
+        extent = extent + 1
+        if extent > 100 then -- you never know
+            break
+
+        end
+        if currBaseSent.Base == currClassName then
+            reachedRoot = true
+            break
+
+        end
+
+        fullTree[#fullTree + 1] = currBaseSent
+
+        currClassName = currBaseSent.Base
+        currBaseSent = scripted_ents.GetStored( currClassName ).t -- the next base class
+
     end
 
-    classTask.StartsOnInitialize = true
-
-    local className = entMeta.GetClass( self ) .. "_handler"
-    self.TaskList[className] = classTask
+    return fullTree
 
 end
-
 
 --[[------------------------------------
     Name: ENT:SetupTasks
@@ -288,7 +334,7 @@ end
     Ret1:
 --]]------------------------------------
 function ENT:SetupTasks( myTbl )
-    myTbl.DoDefaultTasks( self )
+    myTbl.DoDefaultTasks( self ) -- terminator tasks, so everything can use the same enemy handler, shooting handler, etc
 
     myTbl.DoCustomTasks( self, myTbl.TaskList )
     myTbl.DoClassTask( self, myTbl )

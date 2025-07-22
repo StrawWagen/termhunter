@@ -58,7 +58,7 @@ end, "updatedebugging" )
 
 local function debugPrint( ... )
     if not debugging then return end
-    print( ... )
+    permaPrint( ... )
 
 end
 

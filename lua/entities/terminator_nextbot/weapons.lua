@@ -24,9 +24,25 @@ for k,v in pairs( EngineAnalogs ) do EngineAnalogsReverse[v] = k end
 
 termHunter_WeaponAnalogs = EngineAnalogs
 
+--[[------------------------------------
+    Name: terminator_Extras.SetEngineAnalog
+    Desc: Override any weapon with a custom lua analog when a term nextbot picks it up.
+    Arg1: string | wepClass | Class to override.
+    Arg2: string | luaClass | Custom lua analog class.
+--]]------------------------------------
+function terminator_Extras.SetEngineAnalog( wepClass, luaClass )
+    termHunter_WeaponAnalogs[wepClass] = luaClass
+    termHunter_WeaponAnalogs[luaClass] = wepClass
+
+end
+
+local termCleanupDroppedWeapons = CreateConVar( "terminator_cleanupdroppedweps", 1, FCVAR_ARCHIVE, "Cleanup weapons dropped by term bots after some time?" )
+
 local IsValid = IsValid
 local entMeta = FindMetaTable( "Entity" )
 local wepMeta = FindMetaTable( "Weapon" )
+
+local minute = 60
 
 -- i love overoptimisation
 local notAWeaponCache = {}
@@ -116,20 +132,50 @@ end
 --[[------------------------------------
     Name: NEXTBOT:GiveDefaultWeapons
     Desc: Gives default weapons to bot. This is used in init.lua.
-    Arg1: 
-    Ret1:
 --]]------------------------------------
 function ENT:GiveDefaultWeapons()
     if self.DefaultSidearms and self.CanHolsterWeapons then
-        for _, sidearm in ipairs(self.DefaultSidearms) do
-            local sidearmEnt = self:Give(sidearm)
-            self:HolsterWeap(sidearmEnt)
+        local myPos = self:GetPos()
+        for _, sidearm in ipairs( self.DefaultSidearms ) do
+            if istable( sidearm ) then
+                sidearm = sidearm[math.random( 1, #sidearm )]
+
+            end
+            local sidearmEnt = ents.Create( sidearm )
+            sidearmEnt:SetPos( myPos )
+            sidearmEnt:Spawn()
+            self:HolsterWeap( sidearmEnt )
+
         end
     end
 
-    local wep = self:GetKeyValue("additionalequipment") or self.DefaultWeapon or self.TERM_FISTS
+    local trueDefaultWeps = self.DefaultWeapon
+    if isstring( trueDefaultWeps ) then
+        trueDefaultWeps = { trueDefaultWeps }
+
+    end
+    if not trueDefaultWeps and self.TERM_FISTS then
+        trueDefaultWeps = { self.TERM_FISTS } -- fists is always a default weapon
+
+    end
+
+    local wep = self:GetKeyValue("additionalequipment") -- default to what was set in the spawnmenu
+    if not wep then
+        wep = trueDefaultWeps[math.random( 1, #trueDefaultWeps )]
+
+    end
+    if not wep then
+        wep = self.TERM_FISTS
+
+    end
     if wep then
-        self:Give(wep)
+        local wepEnt = self:Give( wep )
+        if trueDefaultWeps and table.HasValue( trueDefaultWeps, wep ) then
+            self:GetActiveLuaWeapon().terminator_PropertyOf = self
+            self:GetWeapon().terminator_PropertyOf = self
+            wepEnt.terminator_PropertyOf = self
+
+        end
     end
 end
 
@@ -138,14 +184,14 @@ end
     Desc: If weapon is buggy, this function will set its weight to -100 and drop it.
     Arg1: Weapon | wep | Weapon to check.
     Arg2: bool | successful | Designed to take the result of a ProtectedCall, true for not buggy, false for buggy.
-    Ret1: bool | true if weapon was successfully handled hated.
+    Ret1: bool | true if weapon was successfully handled and hated.
 --]]------------------------------------
 
 function ENT:HateBuggyWeapon( wep, successful )
     if successful then return end
     terminator_Extras.OverrideWeaponWeight( wep:GetClass(), -100 )
     wep.terminatorCrappyWeapon = true
-    print( "Terminator fired buggy weapon!\ndisgustang!!!!" )
+    permaPrint( "Terminator fired buggy weapon!\ndisgustang!!!!" )
     -- drop weap without holstering it
     self:DropWeapon( true )
     self:Anger( 10 )
@@ -295,7 +341,7 @@ function ENT:SetupWeapon( wep )
     --[[
     -- debug for testing holstering
     timer.Simple( 0.5, function()
-        print( wep:GetModelScale() )
+        permaPrint( wep:GetModelScale() )
         if false then
             self:DropWeapon()
 
@@ -440,6 +486,19 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     myTbl.term_hasWeapon = nil
     wep:RemoveCallOnRemove( "term_unset_hasweapon" )
 
+    if not termCleanupDroppedWeapons:GetBool() then return end
+
+    local cleanupName = "terminator_nextbot_cleanupwep_" .. wep:GetCreationID()
+    timer.Create( cleanupName, minute * math.random( 5, 10 ), 0, function()
+        if not IsValid( wep ) then return end
+
+        local owner = wep:GetOwner()
+        if IsValid( owner ) then return end
+
+        SafeRemoveEntity( wep )
+
+    end )
+
     return wep
 end
 
@@ -474,7 +533,7 @@ function ENT:AssumeWeaponNextShootTime( myTbl, wep, wepsTbl )
     if isnumber( wepsTbl.NPC_NextPrimaryFireT ) then -- vj BASE
         return wepsTbl.NPC_NextPrimaryFireT
 
-    elseif wep and wepData.Primary.NextShootTime and wepData.Primary.NextShootTime ~= 0 then
+    elseif wep and wepData.Primary.NextShootTime and wepData.Primary.NextShootTime ~= 0 then -- properly setup sb_anb weapon
         return wepData.Primary.NextShootTime
 
     elseif nextPrimary and not ( wepsTbl.terminator_FiredBefore and nextPrimary == 0 ) then
@@ -566,7 +625,6 @@ function ENT:WeaponPrimaryAttack()
     if myTbl.CanWeaponPrimaryAttack( self, myTbl, wep, wepsTbl ) ~= true then return end
 
     local data = self.m_WeaponData.Primary
-
     local isSetupProperly = isfunction( wep.GetNPCBurstSettings ) and isfunction( wep.GetNPCRestTimes )
 
     local successful = ProtectedCall( function() -- cant be too safe here
@@ -822,11 +880,21 @@ end
 
 function ENT:GetWeightOfWeapon( wep )
     if not IsValid( wep ) then return -1 end
-    local class = wep:GetClass()
-    if class == crateClass then
+    local class = entMeta.GetClass( wep )
+    if class == crateClass then -- GLEE
         return 1
+
     end
-    return terminator_Extras.EngineAnalogWeights[class] or wep:GetWeight() or 0
+
+    local weight = terminator_Extras.EngineAnalogWeights[class] or wep:GetWeight() or 0
+
+    local hadDefaultWep = self.DefaultWeapon
+    if hadDefaultWep and wep.terminator_PropertyOf == self then
+        weight = math.max( wep:GetWeight(), weight * 100 ) -- MY gun!
+
+    end
+
+    return weight
 
 end
 
@@ -1005,22 +1073,22 @@ local math_max = math.max
 local math_min = math.min
 local math_abs = math.abs
 
-function ENT:SetupEyeAngles()
+function ENT:SetupEyeAngles( myTbl )
     -- old angles
-    local angp = self.m_PitchAim
-    local angy = self:GetAngles().y
+    local angp = myTbl.m_PitchAim
+    local angy = entMeta.GetAngles( self ).y
 
     -- new angles
-    local desired = self:GetDesiredEyeAngles()
-    local punch = self:GetViewPunchAngles()
+    local desired = myTbl.GetDesiredEyeAngles( self ) -- AddNetworkVar
+    local punch = myTbl.GetViewPunchAngles( self ) -- AddNetworkVar
 
-    if self:IsControlledByPlayer() then
-        desired = self:GetControlPlayer():EyeAngles()
+    if myTbl.IsControlledByPlayer( self, myTbl ) then
+        desired = myTbl.GetControlPlayer( self ):EyeAngles()
     end
 
     local diffp = math.AngleDifference( desired.p, angp )
     local diffy = math.AngleDifference( desired.y, angy )
-    local max = self.BehaveInterval * self.AimSpeed
+    local max = myTbl.BehaveInterval * myTbl.AimSpeed
 
     diffp = diffp < 0 and math_max( -max, diffp ) or math_min( max, diffp )
     diffy = diffy < 0 and math_max( -max, diffy ) or math_min( max, diffy )
@@ -1034,11 +1102,11 @@ function ENT:SetupEyeAngles()
 
     end
 
-    self:SetAngles( Angle( 0, angy, 0 ) )
+    entMeta.SetAngles( self, Angle( 0, angy, 0 ) )
 
-    self.m_PitchAim = angp
-    self:SetPoseParameter( "aim_pitch", self.m_PitchAim + punch.p )
-    self:SetPoseParameter( "aim_yaw", punch.y )
+    myTbl.m_PitchAim = angp
+    entMeta.SetPoseParameter( self, "aim_pitch", self.m_PitchAim + punch.p )
+    entMeta.SetPoseParameter( self, "aim_yaw", punch.y )
 
     self:SetEyeTarget( self:GetShootPos() + self:GetEyeAngles():Forward() * 100 )
 
@@ -1088,6 +1156,8 @@ function ENT:ResetWeaponSearchTimers()
 
 end
 
+local analogTblsCache = {}
+
 -- used everywhere to find weapons
 function ENT:canGetWeapon()
     local myTbl = entMeta.GetTable( self )
@@ -1095,8 +1165,8 @@ function ENT:canGetWeapon()
     local armed = not myTbl.IsFists( self )
     local nextSearch = myTbl.nextWeapSearch or 0
     if nextSearch < CurTime() then
-        myTbl.NextWeapSearch( self, math.Rand( 2, 4 ) ) -- this is a cached result
-        myTbl.cachedNewWeaponDat = myTbl.FindWeapon( self, myTbl ) -- find weapons
+        myTbl.NextWeapSearch( self, math.Rand( 2, 4 ) )
+        myTbl.cachedNewWeaponDat = myTbl.FindWeapon( self, myTbl ) -- find, cache best weapon
 
     end
 
@@ -1108,6 +1178,7 @@ function ENT:canGetWeapon()
     local reallyAngry = myTbl.IsReallyAngry( self )
 
     local justPickupTheDamnWep = not armed and reallyAngry and not IsValid( newWeap:GetParent() ) and self:GetRangeTo( newWeap ) < 500
+    justPickupTheDamnWep = justPickupTheDamnWep or ( not armed and newWeap.terminator_PropertyOf == self )
 
     -- we're pissed, just pick it up!
     if not justPickupTheDamnWep then
@@ -1122,6 +1193,14 @@ function ENT:canGetWeapon()
         local currWeap = self:GetActiveWeapon()
         if not IsValid( currWeap ) then return true, newWeap end
 
+        local analogClass = wepDat.engineAnalog
+        local analogsData = analogTblsCache[ analogClass ]
+        if analogClass and not analogsData then
+            analogsData = weapons.Get( analogClass )
+            analogTblsCache[ analogClass ] = analogsData
+
+        end
+
         local badWepTolerance = 1
         if reallyAngry then -- blinded by rage
             badWepTolerance = 3
@@ -1131,6 +1210,19 @@ function ENT:canGetWeapon()
         local rand = math.random( 1, 100 )
 
         local weapWeight = wepDat.weight or 0
+        if ( newWeap.worksWithoutSightline or ( analogsData and analogsData.worksWithoutSightline ) ) then
+            local sinceSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
+            if ( not IsValid( self:GetEnemy() ) or myTbl.IsSeeEnemy ) then
+                weapWeight = weapWeight * 0.1 -- if we see the enemy, we dont need this weapon rn
+
+            elseif sinceSpotted < 4 then -- mayyybe consider using it
+                weapWeight = weapWeight * sinceSpotted / 20
+
+            else -- ok time to flush them out
+                weapWeight = weapWeight * sinceSpotted
+
+            end
+        end
         local currWeapWeight = myTbl.GetWeightOfWeapon( self, currWeap )
 
         local distToEnemy = myTbl.DistToEnemy or 0
@@ -1217,7 +1309,24 @@ function ENT:FindWeapon( myTbl )
         end
     end
 
-    if IsValid( wep ) then return { wep = wep, weight = weight, range = range, isBox = nil } end
+    if IsValid( wep ) then
+        local data = {
+            wep = wep,
+            weight = weight,
+            range = range,
+            isBox = nil,
+            engineAnalog = EngineAnalogs[entMeta.GetClass( wep )],
+
+        }
+        return data
+
+    end
+
+    if not myTbl.CanFindWeaponsOnTheGround then
+        -- we dont need to find weapons on the ground, just return
+        return {}
+
+    end
 
     local needsAWepNow = myTbl.terminator_NeedsAWeaponNow -- set by movement tasks if the enemy is unreachable
     local bestWep = myTbl.terminator_BestWeaponIEverFound
@@ -1286,7 +1395,21 @@ function ENT:FindWeapon( myTbl )
 
     end
 
-    return { wep = wep, weight = weight, range = range, isBox = isBox }
+    if not wep then
+        return {} -- no weapon found
+
+    end
+
+    local data = {
+        wep = wep,
+        weight = weight,
+        range = range,
+        isBox = isBox,
+        engineAnalog = EngineAnalogs[entMeta.GetClass( wep )],
+
+    }
+
+    return data
 
 end
 
@@ -1489,6 +1612,7 @@ do
     --]]------------------------------------
     function ENT:GetAimVector( myTbl )
         myTbl = myTbl or entMeta.GetTable( self )
+        local hasBrains = myTbl.HasBrains
         local eyeAng = myTbl.GetEyeAngles( self )
         local dir = angMeta.Forward( eyeAng )
 
@@ -1507,7 +1631,7 @@ do
             if range and range < 150 then return dir end -- skip the calcs, melee weapon
 
             local prof = myTbl.GetCurrentWeaponProficiency( self ) + 0.95
-            local deg = 0 + ( 0.35 / prof )
+            local deg = 0 + ( 1 / prof )
 
             local velLeng = myTbl.GetCurrentSpeed( self )
             if velLeng > 10 then
@@ -1519,7 +1643,12 @@ do
                 deg = myTbl.WeaponSpread * ( activeTbl.NPC_CustomSpread / prof )
 
             elseif isfunction( activeTbl.GetNPCBulletSpread ) then
-                deg = activeTbl.GetNPCBulletSpread( active, myTbl.GetCurrentWeaponProficiency( self ) ) / 4
+                local divisor = 1
+                if hasBrains then
+                    divisor = 2
+
+                end
+                deg = activeTbl.GetNPCBulletSpread( active, myTbl.GetCurrentWeaponProficiency( self ) ) / divisor
 
             -- let the wep handle the spread
             elseif weapSpread( active ) ~= 0 then
@@ -1568,6 +1697,9 @@ function ENT:JudgeWeapon( myWeapon )
 
     local activeLua = self:GetActiveLuaWeapon()
     if not IsValid( myWeapon ) then return end
+
+    if activeLua.terminator_PropertyOf == self then return end -- dont judge our default weapon, we're supposed to have it
+    if myWeapon.terminator_PropertyOf == self then return end
 
     if myWeapon.terminator_IgnoreWeaponUtility or ( activeLua and activeLua.terminator_IgnoreWeaponUtility ) then return end -- disabled for this weapon
     local weapsWeightToMe = self:GetWeightOfWeapon( myWeapon )
@@ -1619,7 +1751,7 @@ function ENT:JudgeWeapon( myWeapon )
         end
     end
     if giveUpOnWeap then
-        print( "Terminator spits in the face of a useless weapon\n" .. myWepsClass .. "\nbecause it; " .. giveUpReason .. "\nphTOOEY!" )
+        permaPrint( "Terminator spits in the face of a useless weapon\n" .. myWepsClass .. "\nbecause it; " .. giveUpReason .. "\nphTOOEY!" )
         self:Anger( 5 )
         myWeapon.terminatorCrappyWeapon = true
         self:DropWeapon( true )
@@ -1629,18 +1761,24 @@ function ENT:JudgeWeapon( myWeapon )
     if not dmgTracker.reallyLikesThisOne and damageDealt > math.max( attackAttempts * 50, 500 ) then
         -- i like this one!
         dmgTracker.reallyLikesThisOne = true
-        print( "Terminator finds deep satisfaction in using\n" .. myWepsClass )
+        permaPrint( "Terminator finds deep satisfaction in using\n" .. myWepsClass )
         terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + 30 )
 
     end
 end
 
-function ENT:TryAndUseWeaponRight( wep, dmgTracker )
+function ENT:TryAndUseWeaponRight( myTbl, _wep, dmgTracker )
+    if not myTbl.HasBrains then return end -- no brains, no crouching
+
     local ready = dmgTracker.hasEvenDoneDamage or dmgTracker.attackAttempts > dmgTracker.bonusAttackAttempts
     if not ready then return end -- wait until weapon has been used a bit
 
-    if self:enemyBearingToMeAbs() < 8 and self:IsReallyAngry() then return end
-    if self:inSeriousDanger() then return end -- AAAAH
+    if myTbl.enemyBearingToMeAbs( self ) < 10 and myTbl.IsReallyAngry( self ) then return end
+    if myTbl.inSeriousDanger( self ) then return end -- AAAAH
+
+    local enemy = myTbl.GetEnemy( self )
+    -- dont crouch if enemy's stronger than us and really close
+    if myTbl.IsSeeEnemy and entMeta.Health( self ) < entMeta.Health( enemy ) and myTbl.DistToEnemy < myTbl.DuelEnemyDist * 0.25 then return end
 
     local standingDmg = dmgTracker.dmgWhileStanding
     local crouchingDmg = dmgTracker.dmgWhileCrouching

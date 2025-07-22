@@ -11,7 +11,7 @@ local debuggingVar = GetConVar( "terminator_event_debug" )
 local function debugPrint( ... )
     if not debuggingVar then return end
     if not debuggingVar:GetBool() then return end
-    print( ... )
+    permaPrint( ... )
 
 end
 
@@ -41,14 +41,14 @@ end )
 
 local asking
 local function askForAllCvars()
-    print( "Getting all event convars..." )
+    permaPrint( "Getting all event convars..." )
     net.Start( "terminator_event_askforallcvars" )
     net.SendToServer()
 
 end
 
 local function askToResetAllProgress()
-    if asking then print( "wait..." ) return end -- kind of anti-exploit
+    if asking then permaPrint( "wait..." ) return end -- kind of anti-exploit
     asking = true
 
     askForAllCvars()
@@ -56,19 +56,19 @@ local function askToResetAllProgress()
     timer.Simple( 3, function()
         asking = nil
         for name, var in pairs( terminator_Extras.alreadyCreated ) do
-            print( "Old progress for", name, var:GetInt() )
+            permaPrint( "Old progress for", name, var:GetInt() )
 
         end
         for name, _ in pairs( terminator_Extras.alreadyCreated ) do
             LocalPlayer():ConCommand( name .. " " .. 0 )
-            print( "Reset...", name )
+            permaPrint( "Reset...", name )
 
         end
     end )
 end
 
 local function askForAllCvarsCommand()
-    if asking then print( "wait..." ) return end
+    if asking then permaPrint( "wait..." ) return end
     asking = true
 
     askForAllCvars()
@@ -76,7 +76,7 @@ local function askForAllCvarsCommand()
     timer.Simple( 3, function()
         asking = nil
         for name, var in pairs( terminator_Extras.alreadyCreated ) do
-            print( name, var:GetInt() )
+            permaPrint( name, var:GetInt() )
 
         end
     end )

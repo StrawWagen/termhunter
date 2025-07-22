@@ -6,9 +6,6 @@ include("shared.lua")
 	NEXTBOT Settings
 --]]-------------------------------------------------------
 
--- Default bot's model
-ENT.Model = "models/player/combine_super_soldier.mdl"
-
 -- Default bot's weapon on spawn
 ENT.DefaultWeapon = nil
 
@@ -99,12 +96,14 @@ ENT.DrawPath = CreateConVar("term_debugpath",0)
 	NEXTBOT Meta Table Setup
 --]]-------------------------------------------------------
 
+local defaultModel = "models/player/kleiner.mdl"
+
 --[[------------------------------------
 	NEXTBOT:Initialize
 	Initialize our bot
 --]]------------------------------------
 function ENT:Initialize()
-	self:SetModel(self.Model)
+	self:SetModel( defaultModel ) -- kliener of doom
 	self:SetSolidMask(self.SolidMask)
 	self:SetCollisionGroup(COLLISION_GROUP_PLAYER)
 
@@ -143,6 +142,7 @@ function ENT:Initialize()
 	self.m_DuckHullType = HULL_TINY
 	self.m_PitchAim = 0
 	self.m_Conditions = {}
+	self.m_PathUpdatesDemanded = 0
 
 	self.loco:SetGravity(self.DefaultGravity)
 	self.loco:SetAcceleration(self.AccelerationSpeed)
@@ -157,8 +157,6 @@ function ENT:Initialize()
 	self:SetupDefaultCapabilities()
 
 	self:AddCallback("PhysicsCollide",self.PhysicsObjectCollide)
-
-	self:GiveDefaultWeapons()
 end
 
 --[[------------------------------------
@@ -202,6 +200,14 @@ end
 --]]------------------------------------
 function ENT:OnInjured(dmg)
 	self:RunTask("OnInjured",dmg)
+end
+
+--[[------------------------------------
+	NEXTBOT:OnRemove
+	Call task hooks
+--]]------------------------------------
+function ENT:OnRemove()
+	self:RunTask("OnRemoved")
 end
 
 --[[------------------------------------

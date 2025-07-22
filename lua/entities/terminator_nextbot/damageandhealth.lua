@@ -264,6 +264,7 @@ function ENT:OnTakeDamage( Damage )
             if class == "func_door_rotating" or class == "func_door" then
                 local newDmg = math.Clamp( Damage:GetDamage(), 0, 25 )
                 Damage:SetDamage( newDmg )
+                self:ReallyAnger( 10 )
                 self.overrideMiniStuck = true
 
             end
@@ -433,6 +434,19 @@ function ENT:PostTookDamage( dmg )
 
     end
 
+    local friendlyFireMul = myTbl.FriendlyFireMul
+    if friendlyFireMul and friendlyFireMul ~= 1 then
+        local attackerDisp = myTbl.TERM_GetRelationship( self, myTbl, attacker )
+        if attackerDisp == D_LI then -- buddies with attacker, scale the damage down
+            dmg:ScaleDamage( friendlyFireMul )
+
+        end
+        if dmg:GetDamage() <= 0 then
+            return true -- no damage, no need to do anything else
+
+        end
+    end
+
     ProtectedCall( function() myTbl.RunTask( self, "OnDamaged", dmg ) end )
 
     local cur = CurTime()
@@ -452,7 +466,9 @@ function ENT:PostTookDamage( dmg )
 
         local dmgSourcePos = myTbl.getBestPos( self, attacker )
 
-        local _, toAttackerPri = myTbl.TERM_GetRelationship( self, myTbl, attacker )
+        local toAttackerDisp, toAttackerPri = myTbl.TERM_GetRelationship( self, myTbl, attacker )
+        if toAttackerDisp == D_LI then return end -- dont look at friends
+
         local currEnemy = myTbl.GetEnemy( self )
         local currEnemyPri = 0
         if IsValid( currEnemy ) then
@@ -651,19 +667,12 @@ function ENT:OnKilled( dmg )
     self:AdditionalOnKilled( dmg )
     local deathAniming
 
-    if self.Term_DeathAnim then
-        local deathAnimDat = self.Term_DeathAnim
+    local extraDeathAnim = self:RunTask( "GetDeathAnim", dmg )
+
+    if self.Term_DeathAnim or extraDeathAnim then
+        local deathAnimDat = self.Term_DeathAnim or extraDeathAnim
         local deathAct = deathAnimDat.act
         if deathAct and not ( isnumber( deathAct ) and deathAct <= 0 ) then
-            local deathSeq
-            if isstring( deathAct ) then
-                deathSeq = self:LookupSequence( deathAct )
-                deathAct = deathSeq
-
-            else
-                deathSeq = self:SelectWeightedSequence( deathAct )
-
-            end
             deathAniming = true
 
             local startFunc = deathAnimDat.startFunc
@@ -702,6 +711,15 @@ function ENT:OnKilled( dmg )
 end
 
 function ENT:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damageForce )
+
+    if not IsValid( attacker ) then
+        attacker = game.GetWorld()
+
+    end
+    if not IsValid( inflictor ) then
+        inflictor = game.GetWorld()
+
+    end
 
     local dissolving = bit.band( damageType, DMG_DISSOLVE ) ~= 0
 
@@ -779,10 +797,12 @@ function ENT:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damag
         child:SetNoDraw( true )
 
     end
+    self:SetNoDraw( true )
 
     -- do these last just in case something below here errors
     hook.Run( "OnNPCKilled", self, attacker, inflictor )
     self:RunTask( "OnKilled", attacker, inflictor, ragdoll )
+    self:RunTask( "OnKilledDmg", dmg )
 
 end
 

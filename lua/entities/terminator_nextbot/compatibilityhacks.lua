@@ -323,6 +323,12 @@ if SERVER then
     end
 
     function ENT:StopMoving()
+        self.loco:SetVelocity( Vector( 0, 0, 0 ) )
+
+        if not self:HasTask( "movement_wait" ) then return end
+        self:KillAllTasksWith( "movement" )
+        self:StartTask( "movement_wait", { time = 1 }, "StopMoving was called!" )
+
     end
 
     function ENT:GetUserGroup()

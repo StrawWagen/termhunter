@@ -12,7 +12,7 @@ end, "updatedebugging" )
 
 local function debugPrint( ... )
     if not debugging then return end
-    print( ... )
+    permaPrint( ... )
 
 end
 
@@ -164,10 +164,10 @@ function terminator_Extras.RegisterEvent( event, name )
     local refreshed = istable( terminator_Extras.events[name] )
     terminator_Extras.events[name] = event
     if refreshed then
-        print( "TERMevents: Refreshed " .. name )
+        permaPrint( "TERMevents: Refreshed " .. name )
 
     else
-        print( "TERMevents: Initialized " .. name )
+        permaPrint( "TERMevents: Initialized " .. name )
 
     end
 end
@@ -351,6 +351,11 @@ local function steppedRandomRadius( currToSpawn, plyCount, allAreas, maxRad )
 
     for _ = 1, maxCount do
         local randomArea = allAreas[math.random( 1, #allAreas )]
+        if not IsValid( randomArea ) then
+            debugPrint( "invalid area, skipping" )
+            continue
+
+        end
         if randomArea:IsUnderwater() and not currToSpawn.canSpawnUnderwater then maxCount = maxCount + 1 continue end
 
         local areasCenter = randomArea:GetCenter()

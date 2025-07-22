@@ -4,6 +4,8 @@ function ENT:BehaveStart()
 end
 
 local entMeta = FindMetaTable( "Entity" )
+local locoMeta = FindMetaTable( "CLuaLocomotion" )
+local pathMeta = FindMetaTable( "PathFollower" )
 
 local coroutine_yield = coroutine.yield
 local coroutine_resume = coroutine.resume
@@ -12,6 +14,13 @@ local IsValid = IsValid
 local math = math
 local pairs = pairs
 local CurTime = CurTime
+
+local pathUpdateInterval = 0.08
+
+function ENT:DemandPathUpdates( myTbl )
+    myTbl.m_PathUpdatesDemanded = 2 -- demand path updates for 2 movement coroutine completions
+
+end
 
 function ENT:BehaveUpdate( interval )
     local myTbl = entMeta.GetTable( self )
@@ -33,11 +42,11 @@ function ENT:BehaveUpdate( interval )
 
     myTbl.SetupSpeed( self )
     myTbl.SetupMotionType( self, myTbl )
-    myTbl.ProcessFootsteps( self )
+    myTbl.ProcessFootsteps( self, myTbl )
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z
 
     if not disable then
-        myTbl.SetupEyeAngles( self )
+        myTbl.SetupEyeAngles( self, myTbl )
         myTbl.UpdatePhysicsObject( self )
         myTbl.HandlePathRemovedWhileOnladder( self )
 
@@ -72,12 +81,55 @@ function ENT:BehaveUpdate( interval )
             end
 
             if not threads.priorityCor then
-                threads.priorityCor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end )
+                threads.priorityCor = {
+                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
 
+                }
             end
             if not threads.motionCor then
-                threads.motionCor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end )
+                threads.motionCor = {
+                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
+                    onDone = function( self, myTbl )
+                        local demanded = myTbl.m_PathUpdatesDemanded
+                        if demanded <= 0 then return end
 
+                        myTbl.m_PathUpdatesDemanded = demanded - 1
+
+                    end,
+                    whenBusy = function( self, myTbl, lastOne ) -- horrible, terrible hacks to fix equally horrible terrible stuttering when low CoroutineThresh bots are pathing
+                        local demanded = myTbl.m_PathUpdatesDemanded
+                        if demanded <= 0 then return end
+
+                        if myTbl.IsFodder then -- ratelimit fodder path updates
+                            local nextUpdate = myTbl.m_NextPathUpdate or 0
+                            local cur = CurTime()
+                            if nextUpdate > cur then return end
+
+                            myTbl.m_NextPathUpdate = cur + pathUpdateInterval
+
+                        end
+
+                        local path = myTbl.GetPath( self )
+                        if not path or not pathMeta.IsValid( path ) then return end
+
+                        local loco = myTbl.loco
+
+                        -- was setting bot's angle to their angle before the path:Update, but that was breaking prediction/velocity somehow
+                        -- this as it turns out, is the correct way to stop it from turning towards the path
+                        local oldYawRate = locoMeta.GetMaxYawRate( loco )
+                        locoMeta.SetMaxYawRate( loco, 0 )
+
+                        pathMeta.Update( path, self )
+
+                        locoMeta.SetMaxYawRate( loco, oldYawRate )
+
+                        local phys = entMeta.GetPhysicsObject( self )
+                        if IsValid( phys ) then
+                            phys:SetAngles( angle_zero )
+
+                        end
+                    end
+                }
             end
         end
     end
@@ -144,20 +196,27 @@ function ENT:Think()
     end
 
     local doneSomething
-    for index, thread in pairs( threads ) do
+    for index, threadDat in pairs( threads ) do
+        local thread = threadDat.cor
+        local onDone = threadDat.onDone
+        local whenBusy = threadDat.whenBusy
         local oldTime = SysTime()
         local myCostThisTick = 0
+        local wasBusy
 
         while SysTime() - oldTime < thresh do
             doneSomething = true
+            wasBusy = true
             local noErrors, result = coroutine_resume( thread, self, myTbl )
             if noErrors == false then
                 threads[index] = nil
                 local stack = debug.traceback( thread )
                 ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\n", result .. "\n", stack )
+                wasBusy = false
                 break
 
             elseif result == "wait" then
+                wasBusy = false
                 break
 
             elseif result == "pathing" then
@@ -175,12 +234,26 @@ function ENT:Think()
                 end
                 myCostThisTick = myCostThisTick + 1
                 costThisTick = costThisTick + 1
+                wasBusy = false
 
             elseif result == "done" then
                 threads[index] = nil
+                if whenBusy then -- final whenBusy call
+                    whenBusy( self, myTbl, true )
+
+                end
+                if onDone then -- tell the thread we're done
+                    onDone( self, myTbl )
+
+                end
+                wasBusy = false -- dont call whenBusy after onDone
                 break
 
             end
+        end
+        if whenBusy and wasBusy then
+            whenBusy( self, myTbl )
+
         end
     end
     if doneSomething then
