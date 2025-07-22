@@ -97,26 +97,39 @@ end
 --[[------------------------------------
     Name: NEXTBOT:Give
     Desc: Gives weapon to bot.
-    Arg1: string | wepname | Class name of weapon.
+    Arg1: string | wepname | Class name of weapon, equips the weapon if we have it holstered
     Ret1: Weapon | Weapon given to bot. Returns NULL if failed to give this weapon.
 --]]------------------------------------
 function ENT:Give( wepname )
-    local wep = ents.Create( wepname )
+    local wep
 
-    if not IsValid( wep ) then return end
+    local holsteredWeps = self:GetHolsteredWeapons()
+    for currHolstered, _ in pairs( holsteredWeps ) do
+        if entMeta.GetClass( currHolstered ) == wepname then
+            wep = currHolstered
 
-    isEngineAnalog = EngineAnalogs[ wepname ]
-
-    if not wep:IsScripted() and not isEngineAnalog then
-        SafeRemoveEntity( wep )
-
-        return NULL
-
+        end
     end
 
-    wep:Spawn()
-    wep:Activate()
-    wep:SetPos( self:GetPos() )
+    if not IsValid( wep ) then
+        wep = ents.Create( wepname )
+
+        if not IsValid( wep ) then return end
+
+        isEngineAnalog = EngineAnalogs[ wepname ]
+
+        if not wep:IsScripted() and not isEngineAnalog then
+            SafeRemoveEntity( wep )
+
+            return NULL
+
+        end
+
+        wep:Spawn()
+        wep:Activate()
+        wep:SetPos( self:GetPos() )
+
+    end
 
     local setupResult = self:SetupWeapon( wep )
 
