@@ -65,9 +65,6 @@ ENT.PathStuckJumpTime = 0.5
 -- Solid mask used for raytracing when detecting collision while moving
 ENT.SolidMask = MASK_NPCSOLID
 
--- Mask used in line of sight test trace
-ENT.LineOfSightMask = MASK_BLOCKLOS
-
 -- Time need to forget enemy if bot doesn't see it
 ENT.ForgetEnemyTime = 30
 

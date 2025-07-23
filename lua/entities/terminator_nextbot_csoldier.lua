@@ -61,7 +61,7 @@ ENT.PathGoalToleranceFinal = 50
 ENT.SpawnHealth = 75
 ENT.FriendlyFireMul = 0.5
 ENT.DoMetallicDamage = false
-ENT.OnlyAttackIfNothingOrBreakable = true -- only attack if nothing or breakable is between us and the enemy
+ENT.DontShootThroughProps = true -- only attack if MASK_SHOT is clear
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_POOR
 ENT.WalkSpeed = 75
 ENT.MoveSpeed = 100
@@ -1333,6 +1333,12 @@ function ENT:DoCustomTasks( defaultTasks )
                 data.StartTheTask = CurTime() + addTime
 
             end,
+            EnemyFound = function( self, data ) -- break our trance
+                if not self.IsSeeEnemy then return end
+                self:TaskComplete( "movement_fanout" )
+                self:StartTask( "movement_handler", "i found an enemy!" )
+
+            end,
             BehaveUpdateMotion = function( self, data )
                 while data.StartTheTask > CurTime() do
                     coroutine_yield( "wait" )
@@ -1484,6 +1490,12 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
                 data.UpdateLeader()
+            end,
+            EnemyFound = function( self, data ) -- break our trance
+                if not self.IsSeeEnemy then return end
+                self:TaskComplete( "movement_patrol" )
+                self:StartTask( "movement_handler", "i found an enemy!" )
+
             end,
             BehaveUpdateMotion = function( self, data )
                 local myTbl = data.myTbl
