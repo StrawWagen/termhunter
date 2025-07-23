@@ -278,6 +278,7 @@ function ENT:SetupWeapon( wep )
         actwep:DeleteOnRemove( wep )
 
         myTbl.m_ActualWeapon = actwep
+        actwep.terminator_PropertyOf = wep.terminator_PropertyOf
 
     elseif wep.NPC_Initialize then
         wep:NPC_Initialize()

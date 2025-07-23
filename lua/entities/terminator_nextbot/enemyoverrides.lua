@@ -1199,6 +1199,8 @@ function ENT:JudgeEnemy( enemy )
 
     local currHealth = enemy:Health()
     local noChangeCount = enemy.term_NoHealthChangeCount or 0
+    if noChangeCount <= -1 then return end -- this bot damaged an enemy before, don't give up on it
+
     if currHealth <= 0 then
         enemy.term_NoHealthChangeCount = math.min( 0, noChangeCount + -100 )
         return

@@ -15,7 +15,7 @@ local math = math
 local pairs = pairs
 local CurTime = CurTime
 
-local pathUpdateInterval = 0.08
+local pathUpdateIntervalFodder = 0.1
 
 function ENT:DemandPathUpdates( myTbl )
     myTbl.m_PathUpdatesDemanded = 2 -- demand path updates for 2 movement coroutine completions
@@ -105,7 +105,7 @@ function ENT:BehaveUpdate( interval )
                             local cur = CurTime()
                             if nextUpdate > cur then return end
 
-                            myTbl.m_NextPathUpdate = cur + pathUpdateInterval
+                            myTbl.m_NextPathUpdate = cur + pathUpdateIntervalFodder
 
                         end
 

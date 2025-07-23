@@ -970,7 +970,9 @@ do
         stopBlaming = CurTime() + 0.025
         lastTermUseClass = class
 
-        hook.Run( "TerminatorUse", self, toUse )
+        local block = hook.Run( "TerminatorBlockUse", self, toUse )
+        if block then return end
+
         local successful = ProtectedCall( function() toUse:Use( self, self, USE_ON ) end )
 
         if not successful then

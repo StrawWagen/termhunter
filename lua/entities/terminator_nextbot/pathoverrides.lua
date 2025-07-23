@@ -63,23 +63,24 @@ function ENT:getCachedPathSegments()
 
 end
 
-function ENT:getMaxPathCurvature( passArea, extentDistance )
+function ENT:getMaxPathCurvature( myTbl, passArea, extentDistance )
 
-    if not self:PathIsValid() then return 0 end
+    if not myTbl.PathIsValid( self ) then return 0 end
 
     extentDistance = extentDistance or 400
 
-    local myNavArea = passArea or self:GetCurrentNavArea()
+    local myNavArea = passArea or myTbl.GetCurrentNavArea( self, myTbl )
 
     local maxCurvature = 0
-    local pathSegs = self:getCachedPathSegments()
+    local pathSegs = myTbl.getCachedPathSegments( self, myTbl )
     local distance = 0
     local wasCurrentSegment = nil
 
     -- go until we get past extent distance
 
+    local oldTime = SysTime()
     for _, currSegment in ipairs( pathSegs ) do
-        if currSegment.area == myNavArea or wasCurrentSegment then
+        if wasCurrentSegment or currSegment.area == myNavArea then
             wasCurrentSegment = true
 
             distance = distance + currSegment.length
@@ -90,6 +91,7 @@ function ENT:getMaxPathCurvature( passArea, extentDistance )
             local absCurvature = math.abs( currSegment.curvature )
             if absCurvature > maxCurvature then
                 maxCurvature = absCurvature
+
             end
         end
     end
@@ -1072,7 +1074,7 @@ local function reconstruct_path( cameFrom, goalArea )
         if noCircles[currId] then return false end -- rare, happened when navmesh was being actively edited
         noCircles[currId] = true
 
-        table_insert( total_path, 1, current.area )
+        total_path[#total_path + 1] = current.area
 
     end
     return total_path
@@ -1245,7 +1247,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
                 return -1 -- not in corridor, dont use this area
 
             else
-                return 100 -- low priority
+                return 1 -- low priority
 
             end
         end

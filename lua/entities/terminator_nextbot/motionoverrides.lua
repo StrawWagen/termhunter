@@ -622,7 +622,7 @@ function ENT:canRunOnPath( myTbl )
     if not IsValid( myArea ) then return end
     if myArea:HasAttributes( NAV_MESH_CLIFF ) then return end
     if myArea:HasAttributes( NAV_MESH_CROUCH ) then return end
-    if myTbl.getMaxPathCurvature( self, myArea, myTbl.MoveSpeed ) > 0.45 then return end
+    if myTbl.getMaxPathCurvature( self, myTbl, myArea, myTbl.MoveSpeed ) > 0.45 then return end
 
     local nextArea = myTbl.GetNextPathArea( self, myArea )
     if myTbl.confinedSlope( self, myArea, nextArea ) == true then return end -- running down slopes can get us stuck in the ceiling 
@@ -661,7 +661,7 @@ function ENT:shouldDoWalkOnPath( myTbl )
     if not IsValid( myArea ) then return end
     local minSize = math.min( myArea:GetSizeX(), myArea:GetSizeY() )
     if minSize < 45 then return true end
-    if myTbl.getMaxPathCurvature( self, myArea, myTbl.WalkSpeed, true ) > 0.85 then return true end
+    if myTbl.getMaxPathCurvature( self, myTbl, myArea, myTbl.WalkSpeed, true ) > 0.85 then return true end
 
     local nextArea = myTbl.GetNextPathArea( self )
     if myTbl.confinedSlope( self, myArea, nextArea ) then return true end
@@ -1095,7 +1095,7 @@ function ENT:CanStepAside( dir, goal )
     local cgroup = self:GetCollisionGroup()
 
     local distToTrace = ( pos - goal ):Length2D()
-    distToTrace = math.Clamp( distToTrace, 32, 64 )
+    distToTrace = math.Clamp( distToTrace, 32, 48 )
 
     local defEndPos = pos + dir * distToTrace
 
@@ -1211,9 +1211,15 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
     local checksThatHit = 0
 
     -- we got up to enemy, dont jump over them....
-    if dirResult.Hit and IsValid( enemy ) and dirResult.Entity == enemy then
-        return 0
+    if dirResult.Hit then
+        local hitEnt = dirResult.Entity
+        if IsValid( enemy ) and hitEnt == enemy then
+            return 0
 
+        elseif myTbl.DontJumpOverBuddies and hitEnt and hitEnt.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
+            return 0
+
+        end
     end
 
     -- ok something is blocking us, or we need to jump up to something
