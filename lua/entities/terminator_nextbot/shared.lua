@@ -2802,7 +2802,7 @@ function ENT:Initialize()
     myTbl.EnemyLastPos = myPos
     myTbl.EnemyLastPosOffsetted = myPos
 
-    myTbl.LineOfSightMask = LineOfSightMask
+    myTbl.LineOfSightMask = myTbl.LineOfSightMask or LineOfSightMask
 
 
     -- defaults to ENT.Models
@@ -3103,7 +3103,7 @@ function ENT:DoDefaultTasks()
 
                     local newEnemsShoot = myTbl.EntShootPos( self, newEnemy, newEnemysTbl )
                     myTbl.DistToEnemy = vecMeta.Distance( myPos, enemyPos )
-                    myTbl.IsSeeEnemy = myTbl.CanSeePosition( self, newEnemsShoot, myTbl )
+                    myTbl.IsSeeEnemy = myTbl.CanSeePosition( self, newEnemy, myTbl )
                     myTbl.EnemiesVehicle = IsValid( theirCar ) and theirCar
 
                     if myTbl.IsSeeEnemy and not myTbl.WasSeeEnemy then
@@ -3137,7 +3137,18 @@ function ENT:DoDefaultTasks()
                     end
 
                     if ( myTbl.IsSeeEnemy or posCheatsLeft > 0 ) and newEnemsHealth > 0 then -- health check fixed some silly problems
-                        myTbl.NothingOrBreakableBetweenEnemy = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
+                        local nothinOrBreakable, _, hitNothing = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
+                        if not hitNothing and myTbl.DontShootThroughProps then
+                            local shotTr = util.TraceLine( {
+                                start = myShoot,
+                                endpos = newEnemsShoot,
+                                filter = { self, newEnemy },
+                                mask = myTbl.LineOfSightMask,
+                            } )
+                            nothinOrBreakable = nothinOrBreakable and not shotTr.Hit
+
+                        end
+                        myTbl.NothingOrBreakableBetweenEnemy = nothinOrBreakable
                         local enemyLastMoveDir = terminator_Extras.dirToPos( myTbl.EnemyLastPos, enemyPos )
                         myTbl.EnemyLastMoveDir = enemyLastMoveDir -- enemy's last move direction
                         myTbl.EnemyLastPosOffsetted = enemyPos + enemyLastMoveDir * 150
@@ -3282,14 +3293,14 @@ function ENT:DoDefaultTasks()
                 elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
                     local wepRange = myTbl.GetWeaponRange( self, myTbl )
                     local seeOrWeaponDoesntCare = wep.worksWithoutSightline
-                    if not seeOrWeaponDoesntCare and myTbl.OnlyAttackIfNothingOrBreakable then
+                    if myTbl.DontShootThroughProps then
                         seeOrWeaponDoesntCare = myTbl.NothingOrBreakableBetweenEnemy
 
                     elseif not seeOrWeaponDoesntCare then
                         seeOrWeaponDoesntCare = myTbl.IsSeeEnemy
 
                     end
-                    if wep and myTbl.IsRangedWeapon( self, wep ) and seeOrWeaponDoesntCare then
+                    if wep and myTbl.IsRangedWeapon( self, wep ) then
                         local shootableVolatile = myTbl.getShootableVolatile( self, enemy )
 
                         if IsValid( shootableVolatile ) and not doShootingPrevent then
@@ -3307,6 +3318,10 @@ function ENT:DoDefaultTasks()
 
                         else
                             if myTbl.DistToEnemy > wepRange and not myTbl.IsReallyAngry( self ) then -- too far, dont shoot
+                                doShootingPrevent = true
+
+                            end
+                            if not seeOrWeaponDoesntCare then
                                 doShootingPrevent = true
 
                             end

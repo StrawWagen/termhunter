@@ -495,7 +495,7 @@ do
         Ret1: bool - true if can see, false otherwise
     --]]------------------------------------
     function ENT:CanSeePosition( check, myTbl, checksTbl )
-        myTbl = myTbl or self:GetTable()
+        myTbl = myTbl or entMeta.GetTable( self )
         local pos = check
         if isentity( check ) then
             pos = myTbl.EntShootPos( self, check, checksTbl )
