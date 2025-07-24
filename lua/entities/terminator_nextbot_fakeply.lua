@@ -116,8 +116,9 @@ function ENT:Appearance()
     
     for i = 0, self:GetNumBodyGroups() - 1 do
         local count = self:GetBodygroupCount( i )
-        if count > 1 then
-            self:SetBodygroup( i, math.random( 0, count - 1 ) )
-        end
+        if count <= 1 then continue end
+ 
+        self:SetBodygroup( i, math.random( 0, count - 1 ) )
+
     end
 end
