@@ -3,6 +3,7 @@ local isstring = isstring
 local string_find = string.find
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
+local coroutine_isyieldable = coroutine.isyieldable
 local function yieldIfWeCan( ... )
     if not coroutine_running() then return end
     coroutine_yield( ... )
@@ -51,11 +52,11 @@ function ENT:RunTask( event, ... )
         if not taskReal then continue end
 
         if k > nextYield then
-            if yieldable == nil then
-                yieldable = coroutine_running()
+            nextYield = k + 5
+            if yieldable == nil and myTbl.IsFodder then
+                yieldable = coroutine_isyieldable() -- needs to be isyieldable????
 
             end
-            nextYield = k + 2
             if yieldable then
                 coroutine_yield()
 
