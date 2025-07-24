@@ -1730,7 +1730,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 25 ) -- last intercept pos is valid and was set less than 25 seconds ago
                 coroutine_yield()
 
-                if result == true or self:GetRangeTo( data.CurrentTaskGoalPos ) < 15 then
+                if result == true or ( data.CurrentTaskGoalPos and self:GetRangeTo( data.CurrentTaskGoalPos ) < 15 ) then
                     data.CurrentTaskGoalPos = nil
                     if data.Count > 0 then
                         data.Count = data.Count - 1
