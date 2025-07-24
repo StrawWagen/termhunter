@@ -816,20 +816,21 @@ end
 function ENT:MakeFeud( enemy )
     if not IsValid( enemy ) then return end
     if enemy == self then return end
-    if not enemy.Health then return end
-    if enemy:Health() <= 0 then return end
+    if entMeta.Health( enemy ) <= 0 then return end -- they already dead, not gonna worry about it
 
-    local class = enemy:GetClass()
+    local class = entMeta.GetClass( enemy )
     if class == "rpg_missile" then return false end -- crazy fuckin bug
     if class == "env_flare" then return false end -- just as crazy
 
-    if pals( self, enemy ) then
+    local myTbl = entMeta.GetTable( self )
+
+    if pals( self, enemy ) then -- infighting logic
         if blockAllInfighting:GetBool() then return end
-        local imManiac = self:IsManiacTerm()
+        local imManiac = myTbl.IsManiacTerm and myTbl.IsManiacTerm( self )
         local maniacFight = imManiac or ( enemy.IsManiacTerm and enemy:IsManiacTerm() )
         if not maniacFight then return end
         if imManiac then
-            self.isTerminatorHunterChummy = self.isTerminatorHunterChummy .. "_manaic_" .. tostring( self:GetCreationID() )
+            myTbl.isTerminatorHunterChummy = myTbl.isTerminatorHunterChummy .. "_manaic_" .. tostring( entMeta.GetCreationID( self ) )
 
         end
     end
@@ -839,24 +840,24 @@ function ENT:MakeFeud( enemy )
 
     if isPly then
         priority = 1000
-        self:Term_SetEntityRelationship( enemy, D_HT, priority ) -- hate players more than anything else
+        myTbl.Term_SetEntityRelationship( self, enemy, D_HT, priority ) -- hate players more than anything else
 
     elseif isNpcEntClass( enemy, class ) or isNextbotEntClass( enemy, class ) then
         priority = 100
-        self:Term_SetEntityRelationship( enemy, D_HT, priority )
+        myTbl.Term_SetEntityRelationship( self, enemy, D_HT, priority )
 
     else
         priority = 1
-        self:Term_SetEntityRelationship( enemy, D_HT, priority )
+        myTbl.Term_SetEntityRelationship( self, enemy, D_HT, priority )
 
     end
 
     if isPly then return end
     if enemy.GetActiveWeapon and IsValid( enemy:GetActiveWeapon() ) then
-        self:memorizeEntAs( enemy, MEMORY_WEAPONIZEDNPC )
+        myTbl.memorizeEntAs( self, enemy, MEMORY_WEAPONIZEDNPC )
 
     elseif enemy:GetPos():DistToSqr( self:GetPos() ) > 200^2 then
-        self:memorizeEntAs( enemy, MEMORY_WEAPONIZEDNPC )
+        myTbl.memorizeEntAs( self, enemy, MEMORY_WEAPONIZEDNPC )
 
     end
 

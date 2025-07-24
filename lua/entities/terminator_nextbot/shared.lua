@@ -3618,6 +3618,7 @@ function ENT:DoDefaultTasks()
                 data.Inform = function( enemy, pos, senderPos )
                     for _, ally in ipairs( self:GetNearbyAllies() ) do
                         if not IsValid( ally ) then continue end
+                        coroutine_yield()
                         ally:RunTask( "InformReceive", enemy, pos, senderPos )
 
                     end
@@ -3633,12 +3634,12 @@ function ENT:DoDefaultTasks()
             end,
             OnKilled = function( self, data, attacker, inflictor )
                 local myTbl = data.myTbl
-                local myEnemy = myTbl.GetEnemy( self )
-                if not ( attacker == myEnemy or inflictor == myEnemy ) then -- stealth kill!!!
+                local enemy = myTbl.GetEnemy( self )
+                if not ( attacker == enemy or inflictor == enemy ) then -- stealth kill!!!
                     sound.EmitHint( SOUND_COMBAT, self:GetPos(), 120, 1, self )
 
                 else
-                    data.Inform( myEnemy, myTbl.EntShootPos( self, myEnemy ), self:GetPos() )
+                    data.Inform( enemy, myTbl.EntShootPos( self, enemy ), self:GetPos() )
 
                 end
             end,
@@ -3661,8 +3662,8 @@ function ENT:DoDefaultTasks()
                 data.Inform( enemy, myTbl.EntShootPos( self, enemy ), self:GetPos() )
 
             end,
-            InformReceive = function( self, data, enemy, pos, senderpos )
-                if not senderpos or not IsValid( enemy ) then return end
+            InformReceive = function( self, data, enemy, pos, senderPos )
+                if not senderPos or not IsValid( enemy ) then return end
                 local myTbl = data.myTbl
 
                 local realEnemy = myTbl.GetEnemy( self )
@@ -3693,7 +3694,7 @@ function ENT:DoDefaultTasks()
 
                 -- they arent moving, just go the opposite side of them!
                 if velLeng < 5^2 then
-                    local enemDir = -terminator_Extras.dirToPos( enemy:GetPos(), senderpos )
+                    local enemDir = -terminator_Extras.dirToPos( enemy:GetPos(), senderPos )
                     myTbl.lastInterceptDir = enemDir
 
                 -- they moving fast in one direction!
