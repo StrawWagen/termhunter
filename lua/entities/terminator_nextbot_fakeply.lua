@@ -103,9 +103,9 @@ end
 
 
 -- randomize bodygroups and skins
-function ENT:Initialize()
-    BaseClass.Initialize( self )
+function ENT:AdditionalInitialize()
     self:Appearance()
+
 end
 
 function ENT:Appearance()
