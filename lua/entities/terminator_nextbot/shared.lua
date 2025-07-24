@@ -3617,8 +3617,8 @@ function ENT:DoDefaultTasks()
             OnStart = function( self, data )
                 data.Inform = function( enemy, pos, senderPos )
                     for _, ally in ipairs( self:GetNearbyAllies() ) do
+                        yieldIfWeCan()
                         if not IsValid( ally ) then continue end
-                        coroutine_yield()
                         ally:RunTask( "InformReceive", enemy, pos, senderPos )
 
                     end

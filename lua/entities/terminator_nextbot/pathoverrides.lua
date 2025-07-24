@@ -64,6 +64,7 @@ function ENT:getCachedPathSegments()
 end
 
 function ENT:getMaxPathCurvature( myTbl, passArea, extentDistance )
+    myTbl = myTbl or entMeta.GetTable( self )
 
     if not myTbl.PathIsValid( self ) then return 0 end
 
@@ -936,15 +937,9 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
             end
         end
-        if not bestArea then
+        if not bestArea then -- fallback
             local _
             _, bestArea = table_Random( opened )
-
-        end
-
-        opCount = opCount + 1
-        if ( opCount % 15 ) == 0 then
-            yieldIfWeCan()
 
         end
 
@@ -953,6 +948,17 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
         addTo( areaId, closedSequential, closed )
 
         local area = getNavAreaOrLadderById( areaId )
+
+        opCount = opCount + 1
+        if ( opCount % 15 ) == 0 then
+            yieldIfWeCan()
+            if not IsValid( area ) then
+                -- area was removed while we were yielding, damn areapatcher
+                return nil, NULL, nil, nil
+
+            end
+        end
+
         local myDist = distances[areaId]
         local noMoreOptions = #openedSequential == 1 and #closedSequential >= noMoreOptionsMin
 

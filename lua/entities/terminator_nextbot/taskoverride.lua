@@ -3,9 +3,9 @@ local isstring = isstring
 local string_find = string.find
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
-local function yieldIfWeCan( reason )
+local function yieldIfWeCan( ... )
     if not coroutine_running() then return end
-    coroutine_yield( reason )
+    coroutine_yield( ... )
 
 end
 
@@ -25,6 +25,8 @@ function ENT:RunTask( event, ... )
 
     local hollowEvents = myTbl.m_HollowEventCache
     if hollowEvents and hollowEvents[event] then return end -- cached as hollow, no callbacks in here
+
+    local yieldable = nil
 
     local nextYield = 5
     local m_TaskList = myTbl.m_TaskList
@@ -49,9 +51,15 @@ function ENT:RunTask( event, ... )
         if not taskReal then continue end
 
         if k > nextYield then
-            nextYield = k + 2
-            yieldIfWeCan()
+            if yieldable == nil then
+                yieldable = coroutine_running()
 
+            end
+            nextYield = k + 2
+            if yieldable then
+                coroutine_yield()
+
+            end
         end
 
         local callback = taskReal[event]
