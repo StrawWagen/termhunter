@@ -823,6 +823,7 @@ function ENT:MakeFeud( enemy )
     if class == "env_flare" then return false end -- just as crazy
 
     local myTbl = entMeta.GetTable( self )
+    if not myTbl then return end
 
     if pals( self, enemy ) then -- infighting logic
         if blockAllInfighting:GetBool() then return end
