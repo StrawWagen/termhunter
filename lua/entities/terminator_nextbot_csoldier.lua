@@ -1814,7 +1814,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     data.NextGoalGet = cur + math.Rand( 0.25, 0.5 )
                     if shouldFollowLeader then -- follow leader
                         coroutine_yield()
-                        debugoverlay.Text( self:GetShootPos(), "getgoal1", 1, false )
+                        --debugoverlay.Text( self:GetShootPos(), "getgoal1", 1, false )
                         data.WatchFromArea = nil
                         local leader = data.UpdateLeader()
                         if not IsValid( leader ) then
@@ -1837,7 +1837,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     end
                     if not data.CurrentTaskGoalPos and shouldWanderOff and IsValid( data.WatchFromArea ) then
                         coroutine_yield()
-                        debugoverlay.Text( self:GetShootPos(), "getgoal2", 1, false )
+                        --debugoverlay.Text( self:GetShootPos(), "getgoal2", 1, false )
                         data.NotSeeCount = data.NotSeeCount + 1
                         local onTopOfTheArea = data.WatchFromArea:GetClosestPointOnArea( myPos ):Distance( myPos ) < 100
                         local badWatch = followerCount >= 1 or not onTopOfTheArea or data.WatchFromAreaCount <= 0
@@ -1892,7 +1892,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     end
                     if not data.CurrentTaskGoalPos and shouldWanderOff and not IsValid( data.WatchFromArea ) then
                         coroutine_yield()
-                        debugoverlay.Text( self:GetShootPos(), "getgoal3", 1, false )
+                        --debugoverlay.Text( self:GetShootPos(), "getgoal3", 1, false )
                         local scoreData = {}
                         scoreData.blockRadiusEnd = nil -- stop if we hit the edge of the radius
                         scoreData.searchRadius = myTbl.GetRealDuelEnemyDist( self, myTbl ) * math.Rand( 2, 4 )
@@ -1959,9 +1959,9 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local needsNewPath = myTbl.primaryPathInvalidOrOutdated( self, data.CurrentTaskGoalPos )
                 if needsNewPath and data.NextNewPath < CurTime() then
-                    debugoverlay.Text( self:GetShootPos() + Vector( 0,0,10 ), "new path", 1, false )
+                    --debugoverlay.Text( self:GetShootPos() + Vector( 0,0,10 ), "new path", 1, false )
+                    --debugoverlay.Line( myPos, data.CurrentTaskGoalPos, 1, color_white, true )
                     data.NextNewPath = CurTime() + math.Rand( 0.25, 0.5 )
-                    debugoverlay.Line( myPos, data.CurrentTaskGoalPos, 1, color_white, true )
                     myTbl.InvalidatePath( self, "new patrol path" )
                     myTbl.SetupPathShell( self, data.CurrentTaskGoalPos )
 
