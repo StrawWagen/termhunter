@@ -935,7 +935,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
         -- most of these will fail, allow lots!
         while attempts < maxAttempts do
             if nextYield < attempts then
-                nextYield = attempts + 5
+                nextYield = attempts + 3
                 coroutine_yield()
 
             end
@@ -1435,6 +1435,8 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
 
         end
 
+        if myTbl.IsFodder then coroutine_yield() end
+
         local beginSetposCrouchJump = IsValid( destinationArea ) and indexThatWasVisible <= 4 and destinationArea:HasAttributes( NAV_MESH_CROUCH ) and not hitBreakable
         local justSetposUsThere = IsValid( destinationArea ) and ( myTbl.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( destinationArea:GetClosestPointOnArea( myPos ) ) < 40^2
 
@@ -1514,6 +1516,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local iAmSwimming = myTbl.IsSwimming( self, myTbl )
     local _, aheadSegment = self:GetNextPathArea( myArea ) -- top of the jump
     local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
+    if isFodder then coroutine_yield() end
 
     if not aheadSegment then
         aheadSegment = currSegment
@@ -1550,6 +1553,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local laddering = aheadType == 4 or currType == 4 or aheadType == 5 or currType == 5
 
     if laddering then
+        if isFodder then coroutine_yield() end
         local result = self:TermHandleLadder( aheadSegment, currSegment )
         if result == false then
             return result
@@ -1613,6 +1617,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
         end
 
+        if isFodder then coroutine_yield() end
+
         local goingTo = obstacleAvoid
 
         -- cut the corner if we can
@@ -1650,6 +1656,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             --debugoverlay.Line( myPos, obstacleAvoid, 0.5, color_green, true )
             --debugoverlay.Cross( obstacleAvoid, 15, 0.5, color_white, true )
 
+            if isFodder then coroutine_yield() end
             myTbl.GotoPosSimple( self, myTbl, goingTo, 0, true )
             return
 
@@ -1666,6 +1673,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local reallyJustAGap = segData.reallyJustAGap
     local middle = ( aheadSegment.pos + currSegment.pos ) / 2
     if currType == 0 and reallyJustAGap == nil then
+        if isFodder then coroutine_yield() end
 
         local floorTraceDat = {
             start = middle + vector_up * 50,
@@ -1703,6 +1711,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local droppingType = aheadType == 1 or currType == 1
     local dropIsReallyJustAGap = nil
     if droppingType then
+        if isFodder then coroutine_yield() end
+
         local _, jumpBottomSeg = self:GetNextPathArea( myArea )
         local _, segAfterTheDrop = self:GetNextPathArea( myArea, 2 )
         if jumpBottomSeg and segAfterTheDrop then
@@ -1739,6 +1749,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     -- check if jumping over a gap is ACTUALLY jumping over a gap, should stop jumping up krangled stairs.
     local realGapJump = segData.realGapJump
     if ( aheadType == 3 or currType == 3 ) and realGapJump == nil then
+        if isFodder then coroutine_yield() end
 
         local middleOfGapHighestPoint = middle
         middleOfGapHighestPoint.z = math.max( currSegment.pos.z, aheadSegment.pos.z )
@@ -1808,9 +1819,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local myHeightToNext = aheadSegment.pos.z - myPos.z
     local jumpableHeight = myHeightToNext < myTbl.JumpHeight
 
-    coroutine_yield()
-
     if IsValid( areaSimple ) and good then
+        coroutine_yield()
 
         -- dont jump if we're trying to jump up stairs!
         local tryingToJumpUpStairs = areaSimple:HasAttributes( NAV_MESH_STAIRS )
@@ -1825,6 +1835,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             dir.z = 0
             dir:Normalize()
 
+            coroutine_yield()
             local jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( myTbl, dir, aheadSegment.pos )
 
             myTbl.moveAlongPathJumpingHeight = jumpingHeight or myTbl.moveAlongPathJumpingHeight
@@ -1849,6 +1860,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                 jumpingHeight = math.Clamp( jumpingHeight, myHeightToNext, math.huge )
 
             end
+
+            if isFodder then coroutine_yield() end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight
             local canStepAside = self:CanStepAside( dir, aheadSegment.pos )
@@ -1876,6 +1889,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                 needsToFeelAround
 
             then
+                if isFodder then coroutine_yield() end
                 local beenCloseToTheBottomOfTheJump = closeToGoal or myTbl.beenCloseToTheBottomOfTheJump
                 myTbl.beenCloseToTheBottomOfTheJump = beenCloseToTheBottomOfTheJump
 
@@ -1938,6 +1952,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                 -- Trying deal with jump, don't update path
                 isHandlingJump = true
                 doingJump = closeToGoal
+
+                if isFodder then coroutine_yield() end
+
             elseif iAmOnGround and jumpstate == 0 then
                 -- was jumping
                 if myTbl.m_PathJump then
@@ -1968,11 +1985,12 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         end
     end
 
-    coroutine_yield()
-
     local inAirNoDestination = nil
     -- off ground
     if not iAmOnGround and aheadSegment then
+
+        coroutine_yield()
+
         if myTbl.IsJumping( self, myTbl ) or iAmSwimming then
             local nextPathArea = myTbl.GetNextPathArea( self, myTbl.GetTrueCurrentNavArea( self ) )
 
@@ -2031,16 +2049,19 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
             -- build choose table, smaller num ones are checked first
             -- each check here was added to fix bot traversing some kind of jump shape
-            local toChoose = {}
-            table.insert( toChoose, smallJumpEnd )
-            table.insert( toChoose, desiredSegmentPos )
-            table.insert( toChoose, nextAreaCenter )
-            table.insert( toChoose, closestPoint )
-            table.insert( toChoose, closestPointForgiving )
-            table.insert( toChoose, jumpingDestinationOffset )
-            table.insert( toChoose, destinationRelativeToBot )
-            table.insert( toChoose, validJumpableBotRelative )
-            table.insert( toChoose, validJumpablePathRelative )
+            local toChoose = {
+                smallJumpEnd, -- 1
+                desiredSegmentPos, -- 2
+                nextAreaCenter, -- 3
+                closestPoint, -- 4
+                closestPointForgiving, -- 5
+                jumpingDestinationOffset, -- 6
+                destinationRelativeToBot, -- 7
+                validJumpableBotRelative, -- 8
+                validJumpablePathRelative, -- 9
+            }
+
+            if isFodder then coroutine_yield() end
 
             local didMove = myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose, nextPathArea )
 
@@ -2052,6 +2073,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             inAirNoDestination = true
 
         end
+
+        coroutine_yield()
+
     elseif not isHandlingJump and iAmOnGround then
         myTbl.WasSetposCrouchJump = nil
         myTbl.wasADropTypeInterpretedAsAGap = nil
@@ -2077,11 +2101,13 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
         myTbl.loco:SetVelocity( newVel )
 
+        coroutine_yield()
+
     end
 
-    coroutine_yield()
-
     if doPathUpdate then -- we're making progress!
+        if isFodder then coroutine_yield() end
+
         local distAhead = myPos:DistToSqr( currSegment.pos )
 
         -- blegh
@@ -2095,7 +2121,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         else
             myTbl.term_LastApproachPos = currSegment.pos
 
-            myTbl.DemandPathUpdates( self, myTbl )
+            myTbl.DemandPathUpdates( self, myTbl ) -- tell behaviouroverrides to update our path
 
             -- detect when bot falls down and we need to repath
             local aheadSegPos = IsValid( aheadSegment.area ) and aheadSegment.area:GetClosestPointOnArea( myPos ) or aheadSegment.pos
@@ -2119,6 +2145,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     end
 
     myTbl.isInTheMiddleOfJump = doingJump
+
+    if isFodder then coroutine_yield() end
 
     local range = self:GetRangeTo( self:GetPathPos() )
     local valid = path:IsValid()

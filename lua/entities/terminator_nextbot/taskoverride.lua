@@ -13,24 +13,30 @@ end
     Name: NEXTBOT:RunTask
     Desc: Runs active tasks callbacks with given event.
     Arg1: string | event | Event of hook.
-    Arg*: vararg | Arguments to callback. NOTE: In callback, first argument is always bot entity, second argument is always task data, passed arguments from NEXTBOT:RunTask starts at third argument.
+    Arg*: vararg | Arguments to callback. 
+        NOTE: In callback, first argument is always bot entity, second argument is always task data, passed arguments from NEXTBOT:RunTask starts at third argument.
     Ret*: vararg | Callback return.
 --]]------------------------------------
 
 function ENT:RunTask( event, ... )
-    local m_ActiveTasksNum = self.m_ActiveTasksNum
+    local myTbl = entMeta.GetTable( self )
+    local m_ActiveTasksNum = myTbl.m_ActiveTasksNum
     if not m_ActiveTasksNum then return end
 
-    local nextYield = 10
-    local m_TaskList = self.m_TaskList
+    local hollowEvents = myTbl.m_HollowEventCache
+    if hollowEvents and hollowEvents[event] then return end -- cached as hollow, no callbacks in here
+
+    local nextYield = 5
+    local m_TaskList = myTbl.m_TaskList
     local passedTasks = {}
 
+    local wasCallback
     local k = 1
     while true do
         local currTask = m_ActiveTasksNum[k]
         if not currTask then break end -- no more tasks
 
-        local task,data = currTask[1],currTask[2]
+        local task = currTask[1]
 
         if passedTasks[task] then -- already passed this task
             k = k + 1
@@ -42,19 +48,22 @@ function ENT:RunTask( event, ... )
         local taskReal = m_TaskList[task]
         if not taskReal then continue end
 
+        if k > nextYield then
+            nextYield = k + 2
+            yieldIfWeCan()
+
+        end
+
         local callback = taskReal[event]
 
         if callback then
+            wasCallback = true
             -- always yields every 2 'k'
-            if k > nextYield then
-                nextYield = k + 2
-                yieldIfWeCan()
-
-            end
+            local data = currTask[2] -- task data
             local args = { callback( self, data, ... ) }
 
-            if args[1] ~= nil then -- 
-                if args[2] ~= nil then
+            if args[1] ~= nil then -- something was returned
+                if args[2] == nil then -- only one argument returned
                     return args[1]
 
                 else
@@ -63,16 +72,37 @@ function ENT:RunTask( event, ... )
                 end
             end
 
-            while k > 0 do
+            while k > 0 do -- go back to the previous task
                 local cv = m_ActiveTasksNum[k]
                 if cv == currTask then break end
 
                 k = k - 1
+                nextYield = nextYield - 1
             end
         end
 
         k = k + 1
 
+    end
+
+    if not wasCallback then
+        if not hollowEvents then
+            hollowEvents = {}
+            myTbl.m_HollowEventCache = hollowEvents
+            local cacheTime = 2.5
+            if myTbl.IsFodder then
+                cacheTime = 10 -- fodder bots are not important, so we can cache them longer
+
+            end
+            timer.Simple( cacheTime, function()
+                myTbl.m_HollowEventCache = nil -- reset cache eventually
+
+            end )
+        end
+        if not hollowEvents[event] then
+            hollowEvents[event] = true
+
+        end
     end
 end
 

@@ -381,8 +381,19 @@ function ENT:DoCustomTasks( defaultTasks )
         ["movement_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
             OnStart = function( self, data )
+                if data.myTbl.HasBrains then
+                    data.StartTheTask = CurTime() + math.Rand( 0.05, 0.1 ) -- wait a bit before starting this task
+
+                else
+                    data.StartTheTask = CurTime() + math.Rand( 0.1, 0.5 ) -- wait a bit before starting this task
+
+                end
             end,
             BehaveUpdateMotion = function( self, data )
+                while data.StartTheTask > CurTime() do
+                    coroutine_yield( "wait" )
+
+                end
                 local myTbl = data.myTbl
                 local enemy = myTbl.GetEnemy( self )
                 local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 10 ) -- last intercept pos is valid and was set less than 10 seconds ago
@@ -396,6 +407,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     myTbl.StartTask( self, "movement_followtarget", "something wants me to follow a target!" )
 
                 elseif IsValid( enemy ) then
+                    coroutine_yield()
                     local distToEnemy = myTbl.DistToEnemy
                     local seeEnemy = myTbl.IsSeeEnemy
                     if seeEnemy then
@@ -412,7 +424,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                         elseif not hasBrains and not reachable then
                             myTbl.TaskComplete( self, "movement_handler" )
-                            myTbl.StartTask( self, "movement_standstillandshoot", "durr i have an enemy but i cant reach them!" )
+                            myTbl.StartTask( self, "movement_standandshoot", "durr i have an enemy but i cant reach them!" )
 
                         elseif not hasBrains and reachable then
                             myTbl.TaskComplete( self, "movement_handler" )
@@ -436,7 +448,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     myTbl.TaskComplete( self, "movement_handler" )
                     myTbl.StartTask( self, "movement_intercept", "one of my buddies spotted an enemy, ill intercept!" )
 
-                elseif myTbl.TimeSinceEnemySpotted( self, myTbl ) < 15 and ( not enemyLastPos or entMeta.GetPos( self ):Distance( enemyLastPos ) > 250 ) then
+                elseif myTbl.TimeSinceEnemySpotted( self, myTbl ) < 15 and ( not enemyLastPos or entMeta.GetPos( self ):Distance( enemyLastPos ) > 350 ) then
                     myTbl.TaskComplete( self, "movement_handler" )
                     myTbl.StartTask( self, "movement_approachenemy", "I just saw them right there!" )
 
@@ -506,6 +518,8 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local result = myTbl.ControlPath2( self, not myTbl.IsSeeEnemy )
 
+                coroutine_yield()
+
                 local givenItAChance = data.ApproachAfter < CurTime() -- this schedule didn't JUST start.
 
                 -- get WEAP
@@ -532,11 +546,11 @@ function ENT:DoCustomTasks( defaultTasks )
                 elseif not myTbl.TermSoldier_Fearless and myTbl.IsSeeEnemy and myTbl.DistToEnemy < myTbl.GetRealDuelEnemyDist( self, myTbl ) then
                     if myTbl.HasBrains then
                         self:TaskComplete( "movement_approachenemy" )
-                        self:StartTask( "movement_shootfromcover", "i am close to my enemy!" )
+                        self:StartTask( "movement_shootfromcover", "i have approached my enemy!" )
 
                     else
                         self:TaskComplete( "movement_approachenemy" )
-                        self:StartTask( "movement_walkslowtowardsenemy", "durr i am close to my enemy!" )
+                        self:StartTask( "movement_walkslowtowardsenemy", "durr i have approached my enemy!" )
 
                     end
                 end
@@ -565,6 +579,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 data.NextCoverposFind = 0
                 data.AllowFallbackCover = 0
                 data.NextAllowedRush = data.NextAllowedRush or CurTime() + 3 -- time until we can rush the enemy again
+                data.cachedAllHardcoverAreas = {}
 
             end,
             OnAllyTakingCoverBehindMe = function( self, data )
@@ -663,6 +678,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     maxCoverType = COVER_HARDCOVER
 
                 end
+                coroutine_yield()
 
                 local currPathGoal = data.CurrentTaskGoalPos
                 local goalsCoverType
@@ -671,9 +687,9 @@ function ENT:DoCustomTasks( defaultTasks )
                     goalsCoverType = myTbl.GetCoverStatusOfPos( self, myTbl, currPathGoal, enemy, enemysShoot )
                     badGoalsCoverType = goalsCoverType < minCoverType or goalsCoverType > maxCoverType
                     badGoalsCoverType = badGoalsCoverType and data.AllowFallbackCover < CurTime()
+                    coroutine_yield()
 
                 end
-                coroutine_yield()
 
                 if needReloadingCovertypes and myCoverType > COVER_CRAPCOVER then
                     myTbl.overrideCrouch = CurTime() + 0.25
@@ -705,6 +721,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local timeForANewCoverpos = data.NextCoverposFind < CurTime() or distToEnemy * 1.25 > data.LastCoverposDistToEnemy
 
                 if needsNewCoverPos and timeForANewCoverpos then
+                    coroutine_yield()
                     if not hasBrains and clearOrBreakable then
                         data.NextCoverposFind = CurTime() + math.Rand( 1, 4 ) -- wait a bit before finding a new cover pos
 
@@ -750,6 +767,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     local bestCoverType = 0
                     local coverFound
                     local isFallbackCover
+                    coroutine_yield()
 
                     local scoreFunction = function( scoreData, area1, area2 )
                         local selfLocal = scoreData.self
@@ -776,6 +794,8 @@ function ENT:DoCustomTasks( defaultTasks )
 
                             end
                         end
+
+                        coroutine_yield()
 
                         local enemysShootLocal = scoreData.enemysShoot
                         local closestToEnemy = area2:GetClosestPointOnArea( enemysShootLocal )
@@ -818,10 +838,11 @@ function ENT:DoCustomTasks( defaultTasks )
                         end
 
                         if not outsideDonut and score >= bestCoverScore then
+                            local areaWasAllHardcover = true
                             local toCheck = { closestToEnemy }
 
                             -- stupid enemies only check area's nearest point, smart ones all corners + nearest point
-                            if scoreData.hasBrains and math.min( area2:GetSizeX(), area2:GetSizeY() ) >= 25 then
+                            if scoreData.hasBrains and math.min( area2:GetSizeX(), area2:GetSizeY() ) >= 25 and not data.cachedAllHardcoverAreas[area2sId] then
                                 for i = 0, 3 do
                                     toCheck[#toCheck + 1] = area2:GetCorner( i )
 
@@ -829,7 +850,12 @@ function ENT:DoCustomTasks( defaultTasks )
                             end
                             for _, coverPosToCheck in ipairs( toCheck ) do
                                 if coverPosToCheck:Distance( enemysShoot ) < scoreData.hardMinRadius then continue end
+                                coroutine_yield()
                                 local itsCoverType = scoreData.myTbl.GetCoverStatusOfPos( selfLocal, scoreData.myTbl, coverPosToCheck, scoreData.enemy, enemysShootLocal )
+                                if itsCoverType < COVER_HARDCOVER then
+                                    areaWasAllHardcover = false
+
+                                end
                                 local coverWeWant = itsCoverType >= minCoverType and itsCoverType <= maxCoverType
                                 local betterCover = coverWeWant and itsCoverType >= bestCoverType
                                 local atLeastSomething = not coverFound and itsCoverType <= COVER_CRAPCOVER
@@ -840,6 +866,10 @@ function ENT:DoCustomTasks( defaultTasks )
                                 bestCoverType = itsCoverType
                                 coverFound = coverPosToCheck
                                 isFallbackCover = atLeastSomething
+
+                            end
+                            if areaWasAllHardcover then
+                                data.cachedAllHardcoverAreas[area2sId] = true
 
                             end
                         end
@@ -857,12 +887,11 @@ function ENT:DoCustomTasks( defaultTasks )
 
                     end
 
+                    coroutine_yield()
                     local fallbackCenter = myTbl.findValidNavResult( self, scoreData, myPos, scoreData.searchRadius, scoreFunction )
 
                     data.NeedsToChangePositions = nil
                     if coverFound then
-                        --print( "good cover", myTbl.GetCoverStatusOfPos( self, myTbl, coverFound, enemy, enemysShoot ) )
-                        --debugoverlay.Cross( coverFound, 5, 1, Color( 255, 0, 0 ), true )
                         data.CurrentTaskGoalPos = coverFound
                         data.GoalPosFailures = 0
                         if isFallbackCover then
@@ -878,15 +907,13 @@ function ENT:DoCustomTasks( defaultTasks )
                         data.GoalPosFailures = data.GoalPosFailures + 1
 
                     end
-                --elseif currPathGoal then
-                    --debugoverlay.Cross( currPathGoal, 1, 1, Color( 0, 255, 0 ), true )
+                    coroutine_yield()
 
                 end
 
-                coroutine_yield()
-
                 local needsNewPath = data.CurrentTaskGoalPos and myTbl.primaryPathInvalidOrOutdated( self, data.CurrentTaskGoalPos )
                 if needsNewPath and data.NextNewPath < CurTime() then
+                    coroutine_yield()
                     data.NextNewPath = CurTime() + math.Rand( 0.1, 0.25 )
                     local currArea = myTbl.GetCurrentNavArea( self, myTbl )
                     if IsValid( currArea ) then
@@ -900,12 +927,15 @@ function ENT:DoCustomTasks( defaultTasks )
                         data.OverusedAreaIds[currAreaId] = oldCount + weightAdded
 
                     end
+                    myTbl.InvalidatePath( self, "new shootfromcover path" )
                     if myTbl.HasBrains then -- really strongly avoid areas we were damaged in
                         myTbl.AddAreasToAvoid( self, myTbl.hazardousAreas, 50 )
+                        myTbl.SetupFlankingPath( self, data.CurrentTaskGoalPos, enemysNav, hardMinRadius ) -- make sure the path doesnt bring us too close to enem
+
+                    else
+                        myTbl.SetupPathShell( self, data.CurrentTaskGoalPos )
 
                     end
-                    myTbl.InvalidatePath( self, "new shootfromcover path" )
-                    myTbl.SetupFlankingPath( self, data.CurrentTaskGoalPos, enemysNav, hardMinRadius ) -- make sure the path doesnt bring us too close to enem
 
                     if enemysShoot then-- tell our allies to GET OUT THA WAY!
                         local maxs = Vector( 50, 50, 50 )
@@ -919,6 +949,8 @@ function ENT:DoCustomTasks( defaultTasks )
 
                         end
                     end
+                    coroutine_yield()
+
                 end
 
                 local lastSpottedDiv = data.LastSpottedDiv
@@ -940,6 +972,8 @@ function ENT:DoCustomTasks( defaultTasks )
                     self:SimpleSearchNearbyAreas( myPos, myTbl.GetShootPos( self ) )
 
                 end
+
+                coroutine_yield()
 
                 local result = myTbl.ControlPath2( self, not seeEnemy and lookAlongPath )
 
@@ -1060,8 +1094,8 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local needsNewBackupPos = tooCloseToThem or not data.CurrentTaskGoalPos or myPos:Distance( data.CurrentTaskGoalPos ) < 25
                 if goodEnemy and needsNewBackupPos then
-                    local areasToCheck = myNavArea:GetAdjacentAreas()
-                    local areasAlreadyAdded = {}
+                    local areasToCheck = myNav:GetAdjacentAreas()
+                    local areasAlreadyAdded = { myNav = true }
                     for _, area in ipairs( areasToCheck ) do
                         areasAlreadyAdded[area] = true
 
@@ -1100,6 +1134,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
 
                 if data.CurrentTaskGoalPos then
+                    coroutine_yield()
                     data.myTbl.GotoPosSimple( self, data.myTbl, data.CurrentTaskGoalPos, 5 )
 
                 end
@@ -1142,10 +1177,17 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
-                if not seeEnemy or not IsValid( enemy ) then
-                    self:TaskComplete( "movement_walkslowtowardsenemy" )
-                    myTbl.StartTask( self, "movement_handler", "i lost my enemy!" )
+                if not seeEnemy then
+                    coroutine_yield()
+                    if not IsValid( enemy ) then
+                        self:TaskComplete( "movement_walkslowtowardsenemy" )
+                        myTbl.StartTask( self, "movement_handler", "i lost my enemy!" )
 
+                    else
+                        self:TaskComplete( "movement_walkslowtowardsenemy" )
+                        myTbl.StartTask( self, "movement_standandshoot", "durr i cant see them" )
+
+                    end
                     return
 
                 end
@@ -1153,7 +1195,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local needsNewPathGoal = not data.CurrentTaskGoalPos or entMeta.GetPos( self ):Distance( data.CurrentTaskGoalPos ) < 25
                 if needsNewPathGoal then
                     local areasToCheck = myNav:GetAdjacentAreas()
-                    local areasAlreadyAdded = {}
+                    local areasAlreadyAdded = { myNav = true }
                     for _, area in ipairs( areasToCheck ) do
                         areasAlreadyAdded[area] = true
 
@@ -1194,12 +1236,13 @@ function ENT:DoCustomTasks( defaultTasks )
 
                     else
                         myTbl.TaskFail( self, "movement_walkslowtowardsenemy" )
-                        myTbl.StartTask( self, "movement_handler", "i can't reach my enemy!" )
+                        myTbl.StartTask( self, "movement_standandshoot", "durr i can't walk slow to my enemy, they're unreachable" )
 
                     end
                 end
 
                 if data.CurrentTaskGoalPos then
+                    coroutine_yield()
                     myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 5 )
 
                 end
@@ -1214,6 +1257,98 @@ function ENT:DoCustomTasks( defaultTasks )
                 local myTbl = data.myTbl
                 return myTbl.DistToEnemy < myTbl.DuelEnemyDist * 0.5
 
+            end,
+        },
+
+        ["movement_standandshoot"] = { -- durr
+            OnStart = function( self, data )
+                data.NextReachableCheck = CurTime() + 1
+                data.CurrentTaskGoalPos = nil
+
+            end,
+            BehaveUpdateMotion = function( self, data )
+                local myTbl = data.myTbl
+                local enemy = myTbl.GetEnemy( self )
+
+                local needsNewPathGoal = not myTbl.IsSeeEnemy and not data.CurrentTaskGoalPos and IsValid( enemy )
+                if needsNewPathGoal then
+                    local myNav = myTbl.GetCurrentNavArea( self, myTbl )
+                    local areasToCheck = myNav:GetAdjacentAreas()
+                    local areasAlreadyAdded = { myNav = true }
+                    for _, area in ipairs( areasToCheck ) do
+                        areasAlreadyAdded[area] = true
+
+                    end
+                    coroutine_yield()
+                    local finalAreasToCheck = {}
+                    for _, area in ipairs( areasToCheck ) do
+                        local areasNeighbors = area:GetAdjacentAreas()
+                        for _, neighbor in ipairs( areasNeighbors ) do
+                            if areasAlreadyAdded[neighbor] then continue end
+                            areasAlreadyAdded[neighbor] = true
+                            finalAreasToCheck[#finalAreasToCheck + 1] = neighbor
+
+                        end
+                    end
+                    local myViewOffset = myTbl.GetViewOffset( self )
+                    local myShoot = myTbl.GetShootPos( self )
+                    local enemysShoot = myTbl.EntShootPos( self, enemy )
+                    local bestStandPos
+
+                    for _, area in ipairs( finalAreasToCheck ) do
+                        coroutine_yield()
+                        local visible, visiblePos = area:IsVisible( enemysShoot )
+                        if not visible then continue end
+
+                        if not terminator_Extras.PosCanSeeComplex( myShoot, visiblePos + myViewOffset, self ) then continue end
+                        bestStandPos = visiblePos
+                        break
+
+                    end
+
+                    if bestStandPos then
+                        data.CurrentTaskGoalPos = bestStandPos
+
+                    else
+                        myTbl.TaskFail( self, "movement_standandshoot" )
+                        myTbl.StartTask( self, "movement_handler", "durr i can't find somewhere to shoot my enemy" )
+
+                    end
+                end
+                if data.CurrentTaskGoalPos then
+                    coroutine_yield()
+                    if self:GetRangeTo( data.CurrentTaskGoalPos ) < 15 then
+                        data.CurrentTaskGoalPos = nil
+
+                    else
+                        myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 5 )
+
+                    end
+                end
+
+                coroutine_yield()
+
+                if not IsValid( enemy ) or not myTbl.IsSeeEnemy then
+                    local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
+                    if sinceLastSpotted < 5 then return end
+
+                    self:TaskComplete( "movement_standandshoot" )
+                    myTbl.StartTask( self, "movement_handler", "no enemy to shoot at!" )
+                    return
+
+                elseif data.NextReachableCheck < CurTime() then
+                    data.NextReachableCheck = CurTime() + math.Rand( 2, 4 )
+                    local enemysPos = entMeta.GetPos( enemy )
+                    if math.abs( enemysPos.z - entMeta.GetPos( self ).z ) > myTbl.JumpHeight then return end
+
+                    local enemysNav = terminator_Extras.getNearestNav( enemysPos )
+                    local enemyIsReachable = myTbl.areaIsReachable( self, enemysNav )
+                    if not enemyIsReachable then return end
+
+                    myTbl.TaskComplete( self, "movement_standandshoot" )
+                    myTbl.StartTask( self, "movement_walkslowtowardsenemy", "durr my enemy is reachable now" )
+
+                end
             end,
         },
 
@@ -1245,6 +1380,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local enemyIsSupressed
                 local enemysBearingToMe
                 if IsValid( enemy ) then
+                    coroutine_yield()
                     goodEnemy = entMeta.Health( enemy ) > 0
                     scaryEnemy = ( entMeta.Health( enemy ) > entMeta.Health( self ) * 5 ) or myTbl.EnemyIsLethalInMelee( self, enemy )
                     enemysShoot = myTbl.EntShootPos( self, enemy )
@@ -1265,6 +1401,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local needsNewPathGoal = not data.CurrentTaskGoalPos or data.CurrentTaskGoalPos:Distance( enemysShoot )
 
                 if needsNewPathGoal and enemyIsReachable then
+                    coroutine_yield()
                     local furthestGoal
                     local furthestGoalDist = 0
                     local potenialGoals = { enemysNav }
@@ -1288,6 +1425,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
                 local needsNewPath = data.CurrentTaskGoalPos and myTbl.primaryPathInvalidOrOutdated( self, data.CurrentTaskGoalPos )
                 if needsNewPath then
+                    coroutine_yield()
                     myTbl.InvalidatePath( self, "new rushandshoot path" )
                     if myTbl.HasBrains and math.random( 0, 100 ) < 50 then
                         myTbl.AddAreasToAvoid( self, myTbl.hazardousAreas, 50 ) -- really strongly avoid areas we were damaged in
@@ -1300,23 +1438,29 @@ function ENT:DoCustomTasks( defaultTasks )
                         myTbl.SetupPathShell( self, data.CurrentTaskGoalPos )
 
                     end
+                    coroutine_yield()
+
                 end
 
                 local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
                 local lookAlongPath = sinceLastSpotted > math.Rand( 2, 3 ) and not seeEnemy and goodEnemy
 
+                coroutine_yield()
                 local result = myTbl.ControlPath2( self, lookAlongPath )
 
                 if not seeEnemy and not myTbl.primaryPathIsValid( self ) then
                     self:justLookAt( myTbl.LastEnemyShootPos )
 
                 elseif not seeEnemy and myTbl.TimeSinceEnemySpotted( self, myTbl ) > 4 then
+                    coroutine_yield()
                     self:SimpleSearchNearbyAreas( entMeta.GetPos( self ), myTbl.GetShootPos( self ) )
 
                 end
 
                 local notFeelingSupressed = ( enemysBearingToMe and enemysBearingToMe < 8 and clearOrBreakable ) or ( not enemyIsSupressed and clearOrBreakable ) 
                 local sinceStartedRush = CurTime() - data.StartedRush
+
+                coroutine_yield()
 
                 local canWep, potentialWep = self:canGetWeapon()
                 if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_shootfromcover", potentialWep ) then
@@ -1358,9 +1502,19 @@ function ENT:DoCustomTasks( defaultTasks )
         ["movement_intercept"] = {
             OnStart = function( self, data )
                 data.CurrentTaskGoalPos = nil
+                if data.myTbl.HasBrains then
+                    data.StartTheTask = CurTime() + math.Rand( 0.1, 0.25 )
 
+                else
+                    data.StartTheTask = CurTime() + math.Rand( 0.5, 1 )
+
+                end
             end,
             BehaveUpdateMotion = function( self, data )
+                while data.StartTheTask > CurTime() do
+                    coroutine_yield( "wait" )
+
+                end
                 local myTbl = data.myTbl
 
                 local lastInterceptPos              = myTbl.lastInterceptPos
@@ -1384,6 +1538,8 @@ function ENT:DoCustomTasks( defaultTasks )
                     data.CurrentTaskGoalPos = nil
 
                 end
+
+                coroutine_yield()
 
                 local needsNewPath = data.CurrentTaskGoalPos and myTbl.primaryPathInvalidOrOutdated( self, data.CurrentTaskGoalPos )
                 if needsNewPath then
@@ -1412,6 +1568,8 @@ function ENT:DoCustomTasks( defaultTasks )
                     myTbl.lastInterceptPos = nil -- burn this pos
 
                 end
+
+                coroutine_yield()
 
                 local result = myTbl.ControlPath2( self, not myTbl.IsSeeEnemy )
 
@@ -1453,13 +1611,14 @@ function ENT:DoCustomTasks( defaultTasks )
                 data.Count = data.Count or math.random( 1, 2 )
                 data.FanDistance = nil
                 data.NextGoalGet = 0
-                local addTime = math.Rand( 0, 0.5 )
-                if not data.myTbl.HasBrains then
-                    addTime = addTime * 4 -- stagger stupid bots more, so the pathfinding doesn't all happen at once
+
+                if data.myTbl.HasBrains then
+                    data.StartTheTask = CurTime() + math.Rand( 0.1, 0.25 )
+
+                else
+                    data.StartTheTask = CurTime() + math.Rand( 0.5, 1 )
 
                 end
-                data.StartTheTask = CurTime() + addTime
-
             end,
             EnemyFound = function( self, data ) -- break our trance
                 if not self.IsSeeEnemy then return end
@@ -1483,6 +1642,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
 
                 if not data.CurrentTaskGoalPos and data.NextGoalGet < CurTime() then
+                    coroutine_yield()
                     data.NextGoalGet = CurTime() + math.Rand( 0.1, 0.25 )
                     local scoreData = {}
                     scoreData.blockRadiusEnd = nil -- stop if we hit the edge of the radius
@@ -1502,6 +1662,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         local selfLocal = scoreData.self
                         if not scoreData.myTbl.areaIsReachable( selfLocal, area2 ) then return 0 end
                         if area2:IsBlocked() then return 0 end
+                        coroutine_yield()
 
                         local score = scoreData.increasingScores[area1:GetID()] or 1000
                         local area2sId = area2:GetID()
@@ -1534,6 +1695,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         return score
 
                     end
+                    coroutine_yield()
                     local finalFanoutCenter, finalFanoutArea = myTbl.findValidNavResult( self, scoreData, myPos, scoreData.searchRadius, scoreFunction )
                     if IsValid( finalFanoutArea ) then
                         data.CurrentTaskGoalPos = finalFanoutCenter
@@ -1546,10 +1708,14 @@ function ENT:DoCustomTasks( defaultTasks )
                     end
                 end
 
+                coroutine_yield()
+
                 local needsNewPath = myTbl.primaryPathInvalidOrOutdated( self, data.CurrentTaskGoalPos )
                 if needsNewPath then
+                    coroutine_yield()
                     myTbl.InvalidatePath( self, "new fanout path" )
                     myTbl.SetupPathShell( self, data.CurrentTaskGoalPos )
+                    coroutine_yield()
 
                 end
 
@@ -1557,12 +1723,14 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 if myTbl.HasBrains and not seeEnemy and myTbl.TimeSinceEnemySpotted( self, myTbl ) > 6 then
                     self:SimpleSearchNearbyAreas( myPos, myTbl.GetShootPos( self ) )
+                    coroutine_yield()
 
                 end
 
                 local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 25 ) -- last intercept pos is valid and was set less than 25 seconds ago
+                coroutine_yield()
 
-                if result == true then
+                if result == true or self:GetRangeTo( data.CurrentTaskGoalPos ) < 15 then
                     data.CurrentTaskGoalPos = nil
                     if data.Count > 0 then
                         data.Count = data.Count - 1
@@ -1632,7 +1800,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local cur = CurTime()
                 local followerCount = myTbl.GetFollowerCount( self, myTbl )
-                local myClk = cur + self:EntIndex()
+                local myClk = cur + entMeta.EntIndex( self )
                 local shouldWanderOff = followerCount >= 1 -- leaders always wander
                 if not shouldWanderOff then
                     shouldWanderOff = ( myClk % 20 ) < 10 -- follow leader for 10 seconds, then wander for 10 seconds
@@ -1643,8 +1811,10 @@ function ENT:DoCustomTasks( defaultTasks )
                 local shouldFollowLeader = not shouldWanderOff
 
                 if data.NextGoalGet < cur then
-                    data.NextGoalGet = cur + math.Rand( 0.1, 0.25 )
-                    if shouldFollowLeader then
+                    data.NextGoalGet = cur + math.Rand( 0.25, 0.5 )
+                    if shouldFollowLeader then -- follow leader
+                        coroutine_yield()
+                        debugoverlay.Text( self:GetShootPos(), "getgoal1", 1, false )
                         data.WatchFromArea = nil
                         local leader = data.UpdateLeader()
                         if not IsValid( leader ) then
@@ -1666,6 +1836,8 @@ function ENT:DoCustomTasks( defaultTasks )
                         end
                     end
                     if not data.CurrentTaskGoalPos and shouldWanderOff and IsValid( data.WatchFromArea ) then
+                        coroutine_yield()
+                        debugoverlay.Text( self:GetShootPos(), "getgoal2", 1, false )
                         data.NotSeeCount = data.NotSeeCount + 1
                         local onTopOfTheArea = data.WatchFromArea:GetClosestPointOnArea( myPos ):Distance( myPos ) < 100
                         local badWatch = followerCount >= 1 or not onTopOfTheArea or data.WatchFromAreaCount <= 0
@@ -1680,10 +1852,11 @@ function ENT:DoCustomTasks( defaultTasks )
 
                         end
                         data.WatchFromAreaCount = data.WatchFromAreaCount - bite
-                        if not data.WanderingOffStarePos or data.NotSeeCount > data.NotSeeToLookAround then
+                        if not data.WanderingOffStarePos or data.NotSeeCount > data.NotSeeToLookAround then -- look around for a bit
                             local myShootPos = myTbl.GetShootPos( self )
                             local didOne
                             for _ = 1, 5 do
+                                coroutine_yield()
                                 local offset = VectorRand()
                                 offset.z = math.Clamp( offset.z, -0.1, 0.1 )
                                 offset:Normalize()
@@ -1697,22 +1870,20 @@ function ENT:DoCustomTasks( defaultTasks )
 
                                 end
                             end
-                            if not didOne then
-                                data.NotSeeToLookAround = data.NotSeeToLookAround + math.random( 10, 20 )
 
-                            else
-                                local prod = terminator_Extras.dirToPos( myShootPos, self.EnemyLastPos ):Dot( terminator_Extras.dirToPos( myShootPos, data.WanderingOffStarePos ) )
-                                if prod > 0.75 then -- look for longer if the enemy was this direction
-                                    data.NotSeeToLookAround = data.NotSeeToLookAround + math.random( 75, 125 )
-
-                                elseif prod > 0.55 then
-                                    data.NotSeeToLookAround = data.NotSeeToLookAround + math.random( 50, 75 )
+                            if myTbl.hasBrains then
+                                if not didOne then
+                                    data.NotSeeToLookAround = data.NotSeeToLookAround + math.random( 0, 4 ) -- look around for longer if we didn't find a spot
 
                                 else
-                                    data.NotSeeToLookAround = data.NotSeeToLookAround + math.random( 45, 60 )
+                                    data.NotSeeToLookAround = data.NotSeeToLookAround + math.random( 10, 15 )
 
                                 end
+                            else
+                                data.NotSeeToLookAround = data.NotSeeToLookAround + math.random( 5, 10 )
+
                             end
+
                         end
                         if data.WanderingOffStarePos then
                             self:justLookAt( data.WanderingOffStarePos )
@@ -1720,6 +1891,8 @@ function ENT:DoCustomTasks( defaultTasks )
                         end
                     end
                     if not data.CurrentTaskGoalPos and shouldWanderOff and not IsValid( data.WatchFromArea ) then
+                        coroutine_yield()
+                        debugoverlay.Text( self:GetShootPos(), "getgoal3", 1, false )
                         local scoreData = {}
                         scoreData.blockRadiusEnd = nil -- stop if we hit the edge of the radius
                         scoreData.searchRadius = myTbl.GetRealDuelEnemyDist( self, myTbl ) * math.Rand( 2, 4 )
@@ -1736,6 +1909,8 @@ function ENT:DoCustomTasks( defaultTasks )
                             local selfLocal = scoreData.self
                             if not scoreData.myTbl.areaIsReachable( selfLocal, area2 ) then return 0 end
                             if area2:IsBlocked() then return 0 end
+
+                            coroutine_yield()
 
                             local score = scoreData.increasingScores[area1:GetID()] or 1000
                             local area2sId = area2:GetID()
@@ -1767,6 +1942,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         end
                         local finalPatrolCenter, finalPatrolArea = myTbl.findValidNavResult( self, scoreData, myPos, scoreData.searchRadius, scoreFunction )
                         if IsValid( finalPatrolArea ) then
+                            data.AlreadyPatrolledAreas[ finalPatrolArea:GetID() ] = true
                             data.CurrentTaskGoalPos = finalPatrolCenter
                             if followerCount <= 0 then
                                 data.WatchFromArea = finalPatrolArea -- im not a leader, so i'll watch from this area
@@ -1779,22 +1955,23 @@ function ENT:DoCustomTasks( defaultTasks )
                     end
                 end
 
+                coroutine_yield()
+
                 local needsNewPath = myTbl.primaryPathInvalidOrOutdated( self, data.CurrentTaskGoalPos )
                 if needsNewPath and data.NextNewPath < CurTime() then
+                    debugoverlay.Text( self:GetShootPos() + Vector( 0,0,10 ), "new path", 1, false )
                     data.NextNewPath = CurTime() + math.Rand( 0.25, 0.5 )
+                    debugoverlay.Line( myPos, data.CurrentTaskGoalPos, 1, color_white, true )
                     myTbl.InvalidatePath( self, "new patrol path" )
                     myTbl.SetupPathShell( self, data.CurrentTaskGoalPos )
 
-                else
-                    local myArea = myTbl.GetCurrentNavArea( self, myTbl )
-                    if IsValid( myArea ) then
-                        data.AlreadyPatrolledAreas[ myArea:GetID() ] = true
-
-                    end
                 end
+
+                coroutine_yield()
 
                 local result = myTbl.ControlPath2( self, not seeEnemy )
                 if myTbl.HasBrains and myTbl.IsAngry( self ) and myTbl.TimeSinceEnemySpotted( self, myTbl ) > 6 then
+                    coroutine_yield()
                     self:SimpleSearchNearbyAreas( myPos, myTbl.GetShootPos( self ) )
 
                 end
@@ -1825,21 +2002,6 @@ function ENT:DoCustomTasks( defaultTasks )
             ShouldWalk = function( self, data )
                 return self:shouldDoWalk()
 
-            end,
-        },
-        ["movement_standstillandshoot"] = { -- durr
-            BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
-                local enemy = myTbl.GetEnemy( self )
-                if not IsValid( enemy ) or not myTbl.IsSeeEnemy then
-                    local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
-                    if sinceLastSpotted < 5 then return end
- 
-                    self:TaskComplete( "movement_standstillandshoot" )
-                    myTbl.StartTask( self, "movement_handler", "no enemy to shoot at!" )
-                    return
-
-                end
             end,
         },
     }

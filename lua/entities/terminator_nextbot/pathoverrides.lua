@@ -1057,14 +1057,14 @@ end
 
 -- return "path" of navareas that get us where we're going
 local function reconstruct_path( cameFrom, goalArea )
-    local total_path = { goalArea }
+    local total_path_reverse = { goalArea }
     local noCircles = {}
 
     local count = 0
     local currId = GetID( goalArea )
     while cameFrom[currId] do
         count = count + 1
-        if count % 10 == 9 then
+        if count % 50 == 49 then
             coroutine_yield( "pathing" )
 
         end
@@ -1074,9 +1074,22 @@ local function reconstruct_path( cameFrom, goalArea )
         if noCircles[currId] then return false end -- rare, happened when navmesh was being actively edited
         noCircles[currId] = true
 
-        total_path[#total_path + 1] = current.area
+        total_path_reverse[#total_path_reverse + 1] = current.area
 
     end
+
+    local total_path
+    if #total_path_reverse > 0 then
+        total_path = {}
+        for i = #total_path_reverse, 1, -1 do
+            total_path[#total_path + 1] = total_path_reverse[i]
+
+        end
+    else
+        total_path = { goalArea }
+
+    end
+
     return total_path
 
 end
@@ -1297,6 +1310,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
     local corridorIds = {}
     for _, area in ipairs( areaCorridor ) do
+        --debugoverlay.Cross( area:GetCenter(), 10, 5, color_white, true )
         if not IsValid( area ) then continue end
         table_insert( corridorIds, GetID( area ) )
 
@@ -1318,8 +1332,9 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
         end
 
+        --yieldIfWeCan("wait")
         --local thisCenter = navMeta.GetCenter( getNavAreaOrLadderById( currId ) )
-        --debugoverlay.Line( last, thisCenter, 10, color_white, true )
+        --debugoverlay.Line( last, thisCenter, 5, color_white, true )
         --last = thisCenter
 
     end

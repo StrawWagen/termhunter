@@ -428,9 +428,8 @@ function ENT:PostTookDamage( dmg )
     local attacker = dmg:GetAttacker()
     local validAttacker = IsValid( attacker )
     if validAttacker then
-        -- reset enemy judging
         -- they attacked us so they're an enemy we should engage!
-        attacker.term_NoHealthChangeCount = nil
+        attacker.term_NoHealthChangeCount = -1
 
     end
 

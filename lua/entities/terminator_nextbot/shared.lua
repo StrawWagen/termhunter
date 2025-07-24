@@ -989,7 +989,7 @@ do
 
             if not toUse.GetPhysicsObject then return end
             local obj = toUse:GetPhysicsObject()
-            if not obj or not obj.IsValid or not obj:IsValid() then return end
+            if not IsValid( obj ) then return end
             if self:GetRangeTo( toUse:GetPos() ) > 100 then return end
 
             obj:ApplyForceCenter( VectorRand() * 1000 )
@@ -1856,7 +1856,7 @@ function ENT:ControlPath2( AimMode )
 
         myTbl.tryToHitUnstuck = true
         myTbl.unstuckingTimeout = CurTime() + 10
-        myTbl:ReallyAnger( 10 )
+        myTbl.ReallyAnger( self, 10 )
 
     end
 
@@ -2764,7 +2764,6 @@ function ENT:Initialize()
     BaseClass.Initialize( self )
 
     local myTbl = self:GetTable()
-    myTbl.RunTask( self, "OnPreCreated" )
 
     local myPos = self:GetPos()
 
@@ -2806,6 +2805,10 @@ function ENT:Initialize()
 
     myTbl.LineOfSightMask = myTbl.LineOfSightMask or LineOfSightMask
 
+    -- end lil config
+    myTbl.SetupTasks( self, myTbl )
+    myTbl.RunTask( self, "OnPreCreated" )
+
 
     -- defaults to ENT.Models
     -- if ENT.Models is nil, or false, uses ENT.Model
@@ -2844,9 +2847,6 @@ function ENT:Initialize()
 
     myTbl.SetCurrentWeaponProficiency( self, myTbl.TERM_WEAPON_PROFICIENCY )
     myTbl.WeaponSpread = 0
-
-    -- end lil config
-    myTbl.SetupTasks( self, myTbl )
 
     -- for stuff based on this
     myTbl.AdditionalInitialize( self, myTbl )
