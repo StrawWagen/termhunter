@@ -100,3 +100,25 @@ function ENT:GetAimVector()
 
     return dir
 end
+
+
+-- randomize bodygroups and skins
+function ENT:AdditionalInitialize()
+    self:Appearance()
+
+end
+
+function ENT:Appearance()
+    local model = self:GetModel()
+    if not model then return end
+    
+    self:SetSkin( math.random( 0, self:SkinCount() - 1 ) )
+    
+    for i = 0, self:GetNumBodyGroups() - 1 do
+        local count = self:GetBodygroupCount( i )
+        if count <= 1 then continue end
+ 
+        self:SetBodygroup( i, math.random( 0, count - 1 ) )
+
+    end
+end
