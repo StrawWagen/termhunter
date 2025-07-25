@@ -96,8 +96,6 @@ local function isNextbotOrNpcEnt( ent )
 
 end
 
-terminator_Extras.isNextbotOrNpcEnt = terminator_Extras.isNextbotOrNpcEnt or isNextbotOrNpcEnt
-
 
 local fogRange
 -- from CFC's LFS fork, code by reeedox
@@ -799,6 +797,7 @@ function ENT:SetupRelationships( myTbl )
         timer.Simple( 0, function()
             if not IsValid( self ) then return end
             if not IsValid( ent ) then return end
+            if not playersCache then return end -- weird err
             local entsTbl = ent:GetTable()
             myTbl.SetupEntityRelationship( self, myTbl, ent, entsTbl )
 
