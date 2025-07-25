@@ -1269,8 +1269,9 @@ end
 -- fixes bot firing guns slow in multiplayer, without making bot think faster.
 -- eg fixes m9k minigun firing at one tenth its actual fire rate
 function ENT:CreateShootingTimer( myTbl )
+    if myTbl.IsFodder then return end
     local timerName = "terminator_fastshootingthink_" .. self:GetCreationID()
-    timer.Create( timerName, 0, 0, function()
+    timer.Create( timerName, 0.05, 0, function()
         if not IsValid( self ) then timer.Remove( timerName ) return end
         if myTbl.terminator_FiringIsAllowed ~= true then return end
 
@@ -1372,9 +1373,14 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
     end
 
     if attacked then
-        myTbl.terminator_LastFiringIsAllowed = CurTime()
-        myTbl.terminator_FiringIsAllowed = true -- tell the ShootingTimer that it's shooting time
+        if myTbl.IsFodder then -- no shooting timer for fodder npcs
+            myTbl.WeaponPrimaryAttack( self )
 
+        else
+            myTbl.terminator_LastFiringIsAllowed = CurTime()
+            myTbl.terminator_FiringIsAllowed = true -- tell the ShootingTimer that it's shooting time
+
+        end
     end
 
     if ang < 1 then
@@ -2983,7 +2989,11 @@ function ENT:DoDefaultTasks()
                 if ( not data.UpdateEnemies ) or ( cur > data.UpdateEnemies ) or ( data.HasEnemy and not IsValid( prevEnemy ) ) then
                     data.UpdateEnemies = cur + 0.5
 
+                    coroutine_yield()
+
                     myTbl.FindEnemies( self, myTbl )
+
+                    coroutine_yield()
 
                     local potentialNewEnemy = myTbl.FindPriorityEnemy( self, myTbl )
                     local validPotentialNew = IsValid( potentialNewEnemy )
@@ -3010,6 +3020,7 @@ function ENT:DoDefaultTasks()
 
                     end
                     if IsValid( pickedPlayer ) then
+                        coroutine_yield()
                         local isLinkedPlayer = pickedPlayer == myTbl.linkedPlayer
                         local alive = entMeta.Health( pickedPlayer ) > 0
 
@@ -3089,6 +3100,8 @@ function ENT:DoDefaultTasks()
                     end
                 end
 
+                coroutine_yield()
+
                 if IsValid( newEnemy ) then
                     local newEnemysTbl = entMeta.GetTable( newEnemy )
                     local newEnemsHealth = entMeta.Health( newEnemy )
@@ -3129,6 +3142,7 @@ function ENT:DoDefaultTasks()
                     -- people can intuit where someone ran off to after 1 second, so bot can too
                     local posCheatsLeft = data.EnemyPosCheatsLeft or 0
                     if myTbl.IsSeeEnemy then
+                        myTbl.LastEnemySpotTime = cur
                         posCheatsLeft = 5
                         myTbl.LastEnemyShootPos = newEnemsShoot
 
@@ -3198,12 +3212,10 @@ function ENT:DoDefaultTasks()
                     end
 
                     data.HasEnemy = true
+                    myTbl.SetEnemy( self, newEnemy )
 
-                    if myTbl.IsSeeEnemy then
-                        myTbl.LastEnemySpotTime = cur
-
-                    end
                 else
+                    coroutine_yield()
                     if data.HasEnemy then
                         local memory, _ = myTbl.getMemoryOfObject( self, myTbl, prevEnemy )
 
@@ -3218,10 +3230,13 @@ function ENT:DoDefaultTasks()
 
                     end
 
+                    myTbl.SetEnemy( self, NULL )
                     data.HasEnemy = false
 
                 end
                 local decayTime = myTbl.VisibilityStartingHealthDecay or 0
+
+                coroutine_yield()
 
                 if myTbl.IsSeeEnemy then
                     -- save old health
@@ -3241,9 +3256,6 @@ function ENT:DoDefaultTasks()
                     myTbl.VisibilityStartingHealth = nil
 
                 end
-
-                myTbl.SetEnemy( self, newEnemy )
-
             end,
             StartControlByPlayer = function( self, data, ply )
                 self:TaskFail( "enemy_handler" )
@@ -3406,6 +3418,9 @@ function ENT:DoDefaultTasks()
 
                     end
                 end
+
+                coroutine_yield()
+
                 local nextCache = data.nextCache or 0
                 if nextCache < CurTime() then -- heavy staggered checks
                     local myPos = self:GetPos()
@@ -3445,6 +3460,8 @@ function ENT:DoDefaultTasks()
                         end
                     end
 
+                    coroutine_yield()
+
                     local stuck = nil
                     local sortaStuck = nil
                     local overrideStuck = myTbl.overrideVeryStuck
@@ -3469,6 +3486,8 @@ function ENT:DoDefaultTasks()
                     local underDisplacement = data.maybeUnderCount > 6
 
                     if #data.historicPositions > size then -- we built up a stack of historic positions, use them to determine if we're stuck!
+                        coroutine_yield()
+
                         if data.historicPositions[size + 1] then
                             table.remove( data.historicPositions, size + 1 )
                             table.remove( data.historicPositions, size + 1 )
@@ -3508,6 +3527,8 @@ function ENT:DoDefaultTasks()
                         end
                     end
 
+                    coroutine_yield()
+
                     if stuck or sortaStuck or underDisplacement or overrideStuck then -- i have been in the same EXACT spot for S I Z E seconds
                         self:ReallyAnger( 60 )
 
@@ -3523,6 +3544,7 @@ function ENT:DoDefaultTasks()
                         local freedomPos
 
                         local nearestNavArea = navmesh.GetNearestNavArea( self:GetPos(), false, 10000, false, true, 2 )
+
                         local myShootPos = self:GetShootPos()
                         local maxs = Vector( 1000, 1000, 1000 )
                         local bestDist = math.huge
@@ -3559,6 +3581,8 @@ function ENT:DoDefaultTasks()
                             data.freedomGotoPosSimple = nil
                             data.oldNavArea = nil
                             if freedomPos then -- teleport us there
+                                coroutine_yield()
+
                                 self:SetPosNoTeleport( freedomPos )
                                 self:InvalidatePath( "i was hard unstucked! bailing path." )
                                 myTbl.loco:SetVelocity( vec_zero )
@@ -3568,6 +3592,8 @@ function ENT:DoDefaultTasks()
                                 freedomPos = GAMEMODE:getValidHunterPos()
 
                                 if freedomPos then
+                                    coroutine_yield()
+
                                     self:SetPosNoTeleport( freedomPos )
                                     self:InvalidatePath( "i was hard unstucked! bailing path. 2" )
 
@@ -3583,6 +3609,8 @@ function ENT:DoDefaultTasks()
                             end
                         -- walk to the freedomPos instead
                         elseif data.extremeUnstucking < CurTime() then
+                            coroutine_yield()
+
                             if not freedomPos then -- fallback
                                 local offset = VectorRand()
                                 offset = offset * Vector( 1, 1, 0.5 ) -- flatten the vec
@@ -3615,13 +3643,10 @@ function ENT:DoDefaultTasks()
         ["inform_handler"] = {
             StartsOnInitialize = true,
             OnStart = function( self, data )
+                data.NeedsToDoInform = nil
                 data.Inform = function( enemy, pos, senderPos )
-                    for _, ally in ipairs( self:GetNearbyAllies() ) do
-                        yieldIfWeCan()
-                        if not IsValid( ally ) then continue end
-                        ally:RunTask( "InformReceive", enemy, pos, senderPos )
+                    data.NeedsToDoInform = { enemy = enemy, pos = pos, senderPos = senderPos } -- make sure the actual informing happens inside coroutine
 
-                    end
                 end
             end,
             EnemyFound = function( self, data, newEnemy, sinceLastFound )
@@ -3648,6 +3673,24 @@ function ENT:DoDefaultTasks()
                 local enemy = myTbl.GetEnemy( self )
                 if not IsValid( enemy ) then return end
                 if not myTbl.IsSeeEnemy then return end
+                if data.NeedsToDoInform then
+                    local informEnemy = data.NeedsToDoInform.enemy
+                    local pos = data.NeedsToDoInform.pos
+                    local senderPos = data.NeedsToDoInform.senderPos
+                    data.NeedsToDoInform = nil
+
+                    if not IsValid( informEnemy ) then return end
+
+                    for _, ally in ipairs( self:GetNearbyAllies() ) do
+                        yieldIfWeCan()
+                        if not IsValid( ally ) then continue end
+                        ally:RunTask( "InformReceive", informEnemy, pos, senderPos )
+
+                    end
+
+                    return
+
+                end
                 if data.EnemyPosInform and data.EnemyPosInform > CurTime() then return end
 
                 local add
@@ -3676,6 +3719,9 @@ function ENT:DoDefaultTasks()
                     if priorityOfCurr >= priorityOfNew then return end -- dont care about low priority enemies if we already fighting something decent
 
                 end
+
+                local lastIntercept = myTbl.lastInterceptTime
+                if lastIntercept and lastIntercept > ( CurTime() - 1 ) then return end -- dont do laggy intercept recieves too ofen
 
                 -- it made another terminator mad! it makes me mad!
                 myTbl.MakeFeud( self, enemy )

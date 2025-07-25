@@ -5,7 +5,7 @@ local IsValid = IsValid
 
 local function GetControlledBot(ply)
 	local bot = ply:GetDrivingEntity()
-	
+
 	if IsValid(bot) and bot.TerminatorNextBot then
 		return bot
 	end
@@ -19,8 +19,10 @@ end
 --]]------------------------------------
 function ENT:IsControlledByPlayer( myTbl )
 	myTbl = myTbl or entMeta.GetTable( self )
+
 	local ply = myTbl.GetControlPlayer( self )
-	if !IsValid( ply ) then return false end
+	if ply == NULL then return false end
+	if !IsValid( ply ) then myTbl.SetControlPlayer( self, NULL ) return false end
 
 	if plyMeta.GetDrivingEntity( ply ) != self then
 		self:StopControlByPlayer()

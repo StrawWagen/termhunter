@@ -43,33 +43,6 @@ function ENT:GetMotionType()
 end
 
 --[[------------------------------------
-	Name: NEXTBOT:SetupSpeed
-	Desc: (INTERNAL) Called to set locomotion desired motion speed сonsidering NEXTBOT:Should* and NEXTBOT:IsCrouching funcs.
-	Arg1: 
-	Ret1: 
---]]------------------------------------
-function ENT:SetupSpeed()
-	local speed = 0
-	
-	if self:IsCrouching() then
-		speed = self:ShouldWalk() and math.min( self.WalkSpeed, self.CrouchSpeed ) or self.CrouchSpeed
-	else
-		if self:ShouldRun() then
-			speed = self.RunSpeed
-		elseif self:ShouldWalk() then
-			speed = self.WalkSpeed
-		else
-			speed = self.MoveSpeed
-		end
-	end
-	
-	speed = self:RunTask("ModifyMovementSpeed",speed) or speed
-	
-	self.loco:SetDesiredSpeed(speed)
-	self.m_Speed = speed
-end
-
---[[------------------------------------
 	Name: NEXTBOT:GetCurrentSpeed
 	Desc: Returns bot current motion speed.
 	Arg1: 
@@ -383,42 +356,6 @@ function ENT:BodyUpdate()
 	end
 
 	self:RunTask("BodyUpdate")
-end
-
---[[------------------------------------
-	Name: NEXTBOT:ShouldRun
-	Desc: Decides should bot run or not.
-	Arg1: 
-	Ret1: bool | Should run or not
---]]------------------------------------
-function ENT:ShouldRun()
-	if self:IsControlledByPlayer() then
-		if self:ControlPlayerKeyDown(IN_SPEED) then
-			return true
-		end
-		
-		return false
-	else
-		return self:RunTask("ShouldRun") or false
-	end
-end
-
---[[------------------------------------
-	Name: NEXTBOT:ShouldWalk
-	Desc: Decides should bot walk or not.
-	Arg1: 
-	Ret1: bool | Should walk or not
---]]------------------------------------
-function ENT:ShouldWalk()
-	if self:IsControlledByPlayer() then
-		if self:ControlPlayerKeyDown(IN_WALK) then
-			return true
-		end
-		
-		return false
-	else
-		return self:RunTask("ShouldWalk") or false
-	end
 end
 
 --[[------------------------------------

@@ -96,6 +96,8 @@ local function isNextbotOrNpcEnt( ent )
 
 end
 
+terminator_Extras.isNextbotOrNpcEnt = terminator_Extras.isNextbotOrNpcEnt or isNextbotOrNpcEnt
+
 
 local fogRange
 -- from CFC's LFS fork, code by reeedox
@@ -275,16 +277,30 @@ local crouchingOffset = Vector( 0, 0, 20 )
 -- if alpha is below this, start the seeing calcs
 local maxSeen = 150
 
+local function cacheShouldNotSee( ent, seen )
+    ent.term_CachedShouldNotSee = seen
+    timer.Simple( 0.01, function()
+        if not IsValid( ent ) then return end
+        ent.term_CachedShouldNotSee = nil
+
+    end )
+    return seen
+
+end
+
 local function shouldNotSeeEnemy( me, enemy )
+    if enemy.term_CachedShouldNotSee then
+        return enemy.term_CachedShouldNotSee
+
+    end
     if not enemy.GetColor then return end
 
     local color = enemy:GetColor()
     local a = color.a
-    if not a then return end
-    if a == 255 then return end -- dont waste any more performance
-    if a > maxSeen then return end
-    if not me:CanSeePosition( enemy ) then return end
-    if enemy:IsOnFire() then return end -- they are visible!
+    if not a then cacheShouldNotSee( enemy, false ) return end
+    if a == 255 then cacheShouldNotSee( enemy, false ) return end -- dont waste any more performance
+    if a > maxSeen then cacheShouldNotSee( enemy, false ) return end
+    if enemy:IsOnFire() then cacheShouldNotSee( enemy, false ) return end -- they are visible!
 
     local seen = math.abs( a - maxSeen )
     local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )
@@ -293,10 +309,12 @@ local function shouldNotSeeEnemy( me, enemy )
     local weap = nil
     if enemy.GetActiveWeapon then
         weap = enemy:GetActiveWeapon()
+
     end
 
     if weap and weap.GetHoldType and weap:GetHoldType() ~= "normal" then
         weapBite = 80
+
     end
 
     if enemy:FlashlightIsOn() or enemy.glee_Thirdperson_Flashlight then
@@ -319,7 +337,7 @@ local function shouldNotSeeEnemy( me, enemy )
     local obviousEnemy = oldEnemyThatISee and randomSeed > seen * 0.1
 
     -- seen
-    if obviousEnemy then return end
+    if obviousEnemy then cacheShouldNotSee( enemy, false ) return end
 
     local seedIsGreater = math.random( 0, maxSeen ) > seen * 0.9
 
@@ -342,17 +360,13 @@ local function shouldNotSeeEnemy( me, enemy )
     end
 
     if enemDistSqr < 75^2 then
-        return
-
-    elseif enemDistSqr < 45^2 then
-        return
+        return cacheShouldNotSee( enemy, false )
 
     -- NOT visible
     elseif randomSeed < seen or trulyInvisible then
-        return true
+        return cacheShouldNotSee( enemy, true )
 
     end
-
 end
 
 local ignorePlayers = GetConVar( "ai_ignoreplayers" )

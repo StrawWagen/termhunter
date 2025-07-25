@@ -307,29 +307,59 @@ hook.Add( "StrawSoundPlayHook", "straw_termalerter_soundplayhook", function( ...
 
 
 local string_StartsWith = string.StartWith
+local goodClassCache = {}
+local lastSoundLevels = {}
 
 -- sound reading!?!??
 local function emitSoundThink( soundDat )
     if not listening then return end
     local entity = soundDat.Entity
     if not IsValid( entity ) then return end
+
     local class = entMeta.GetClass( entity )
-    local valid = nil
-    if string_StartsWith( class, "item" ) then valid = true end
-    if string_StartsWith( class, "prop" ) then valid = true end
-    if string_StartsWith( class, "player" ) then valid = true end
-    if string_StartsWith( class, "func" ) then valid = true end
-    if entity.IsNPC and entity:IsNPC() then valid = true end
-    if entity.IsNextBot and entity:IsNextBot() then valid = true end
-    if entity.IsWeapon and entity:IsWeapon() then valid = true end
-    if not valid then return end
+    local cache = goodClassCache[class]
+    if cache == false then return end -- dont spam sound info
 
-    timer.Simple( 0, function()
+    if cache == nil then
+        local valid
+
+        if string_StartsWith( class, "item" ) then
+            valid = true
+
+        elseif string_StartsWith( class, "prop" ) then
+            valid = true
+
+        elseif string_StartsWith( class, "player" ) then
+            valid = true
+
+        elseif string_StartsWith( class, "func" ) then
+            valid = true
+
+        elseif entity.IsNPC and entity:IsNPC() then
+            valid = true
+
+        elseif entity.IsNextBot and entity:IsNextBot() then
+            valid = true
+
+        elseif entity.IsWeapon and entity:IsWeapon() then
+            valid = true
+
+        end
+        if not valid then goodClassCache[class] = false return end
+        goodClassCache[class] = true
+
+    end
+
+    local soundLevel = soundDat.SoundLevel * soundDat.Volume
+    local lastSoundLevel = lastSoundLevels[entity]
+    if lastSoundLevel and soundLevel < lastSoundLevel then return end-- dont spam sound info
+
+    timer.Simple( 0.1, function()
+        lastSoundLevels[entity] = nil
         if not IsValid( entity ) then return end
-        local soundLvl = soundDat.SoundLevel * soundDat.Volume
 
-        local pos = entity:GetPos()
-        handleNormalSound( entity, pos, soundLvl, soundDat.SoundName )
+        local pos = entMeta.GetPos( entity )
+        handleNormalSound( entity, pos, soundLevel, soundDat.SoundName )
 
     end )
 end

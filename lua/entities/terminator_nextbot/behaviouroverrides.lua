@@ -40,7 +40,7 @@ function ENT:BehaveUpdate( interval )
         end
     end
 
-    myTbl.SetupSpeed( self )
+    myTbl.SetupSpeed( self, myTbl )
     myTbl.SetupMotionType( self, myTbl )
     myTbl.ProcessFootsteps( self, myTbl )
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z

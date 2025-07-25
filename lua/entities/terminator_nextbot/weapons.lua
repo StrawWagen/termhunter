@@ -649,7 +649,7 @@ function ENT:WeaponPrimaryAttack()
             local successfulShoot = ProtectedCall( function() wep:NPCShoot_Primary( self:GetShootPos(), self:GetAimVector() ) end )
             self:HateBuggyWeapon( wep, successfulShoot )
 
-            if self:ShouldWeaponAttackUseBurst( wep ) then
+            if myTbl.ShouldWeaponAttackUseBurst( self, wep ) then
                 local bmin, bmax, frate = wep:GetNPCBurstSettings()
                 local rmin, rmax = wep:GetNPCRestTimes()
 
@@ -688,6 +688,7 @@ function ENT:WeaponPrimaryAttack()
         wepsTbl.term_LastFire = CurTime()
         wepsTbl.terminator_FiredBefore = true
         self:RunTask( "OnAttack" )
+        return true
 
     end
 end

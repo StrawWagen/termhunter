@@ -1070,7 +1070,7 @@ local function reconstruct_path( cameFrom, goalArea )
     local currId = GetID( goalArea )
     while cameFrom[currId] do
         count = count + 1
-        if count % 50 == 49 then
+        if count % 15 == 14 then
             coroutine_yield( "pathing" )
 
         end
@@ -1200,7 +1200,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
         for _, neighborDat in ipairs( adjacentDatas ) do
             currExtent = currExtent + 1
-            if fodder and currExtent % 4 == 3 then
+            if currExtent % 3 == 2 then
                 coroutine_yield( "pathing" )
 
             end

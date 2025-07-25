@@ -1,11 +1,12 @@
 local entMeta = FindMetaTable( "Entity" )
 local isstring = isstring
 local string_find = string.find
+
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
-local coroutine_isyieldable = coroutine.isyieldable
 local function yieldIfWeCan( ... )
-    if not coroutine_running() then return end
+    local cor = coroutine_running()
+    if not cor then return end
     coroutine_yield( ... )
 
 end
@@ -25,9 +26,7 @@ function ENT:RunTask( event, ... )
     if not m_ActiveTasksNum then return end
 
     local hollowEvents = myTbl.m_HollowEventCache
-    if hollowEvents and hollowEvents[event] then return end -- cached as hollow, no callbacks in here
-
-    local yieldable = nil
+    if hollowEvents and hollowEvents[event] then return end -- cached as hollow, no callbacks in here, cache is reset after some time, or when a new task is started below
 
     local nextYield = 5
     local m_TaskList = myTbl.m_TaskList
@@ -51,24 +50,13 @@ function ENT:RunTask( event, ... )
         local taskReal = m_TaskList[task]
         if not taskReal then continue end
 
-        if k > nextYield then
-            nextYield = k + 5
-            if yieldable == nil and myTbl.IsFodder then
-                yieldable = coroutine_isyieldable() -- needs to be isyieldable????
-
-            end
-            if yieldable then
-                coroutine_yield()
-
-            end
-        end
-
         local callback = taskReal[event]
 
         if callback then
             wasCallback = true
             -- always yields every 2 'k'
             local data = currTask[2] -- task data
+            local beforeCalledCount = #m_ActiveTasksNum
             local args = { callback( self, data, ... ) }
 
             if args[1] ~= nil then -- something was returned
@@ -81,12 +69,13 @@ function ENT:RunTask( event, ... )
                 end
             end
 
-            while k > 0 do -- go back to the previous task
+            if #m_ActiveTasksNum == beforeCalledCount then continue end -- no tasks were added/removed, dont need to retrace
+            while k > 0 do -- tasks were added/removed, retrace to find the current task
                 local cv = m_ActiveTasksNum[k]
                 if cv == currTask then break end
 
                 k = k - 1
-                nextYield = nextYield - 1
+
             end
         end
 
@@ -137,7 +126,18 @@ function ENT:KillAllTasksWith( withStr )
     end
 end
 
-local debugPrintTasks = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks? Also enables a task history dump on bot +use." )
+local printTasksCvar = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks? Also enables a task history dump on bot +use." )
+local printTasks = printTasksCvar:GetBool()
+cvars.AddChangeCallback( "term_debugtasks", function( _, _, newValue )
+    printTasks = tobool( newValue )
+    if not printTasks then
+        permaPrint( "Term task debugging disabled." )
+
+    else
+        permaPrint( "Term task debugging enabled." )
+
+    end
+end, "TerminatorDebugTasks" )
 
 --[[------------------------------------
     Name: NEXTBOT:HasTask
@@ -158,51 +158,54 @@ end
     Arg3: string | reason | Reason for starting task, used for debugging.
 --]]------------------------------------
 function ENT:StartTask( task, data, reason )
-    if self:IsTaskActive( task ) then return end
+    local myTbl = entMeta.GetTable( self )
+    if myTbl.IsTaskActive( self, task ) then return end
     yieldIfWeCan()
 
-    if isstring( data ) then
+    if isstring( data ) then -- if data is a string, it is the reason for starting the task
         reason = data
         data = nil
 
     end
-
-    data = data or {}
-    data.taskStartTime = CurTime()
-    data.myTbl = self:GetTable()
-
-    self.m_ActiveTasks[task] = data
-
-    local m_ActiveTasksNum = self.m_ActiveTasksNum
-    if not m_ActiveTasksNum then
-        m_ActiveTasksNum = {}
-        self.m_ActiveTasksNum = m_ActiveTasksNum
-    end
-    m_ActiveTasksNum[ #m_ActiveTasksNum + 1 ] = { task, data }
-
-    self:RunCurrentTask( task, "OnStart" )
 
     if not reason then -- This is an essential debugging tool, Use it.
         ErrorNoHaltWithStack( "NEXTBOT:StartTask with NO reason!" .. task )
 
     end
 
+    data = data or {}
+    data.taskStartTime = CurTime()
+    data.myTbl = myTbl -- store myTbl in data, so we can access it in task callbacks
+
+    myTbl.m_ActiveTasks[task] = data
+
+    local m_ActiveTasksNum = myTbl.m_ActiveTasksNum
+    if not m_ActiveTasksNum then
+        m_ActiveTasksNum = {}
+        myTbl.m_ActiveTasksNum = m_ActiveTasksNum
+    end
+    m_ActiveTasksNum[ #m_ActiveTasksNum + 1 ] = { task, data }
+
+    myTbl.m_HollowEventCache = nil -- reset hollow event cache
+
+    myTbl.RunCurrentTask( self, task, "OnStart" )
+
     -- additional debugging tool
-    if not debugPrintTasks:GetBool() then return end
+    if not printTasks then return end
     permaPrint( self:GetCreationID(), task, self:GetEnemy(), reason ) -- global
 
     if not string.find( task, "movement_" ) then return end -- only store history of movement tasks
-    self.taskHistory = self.taskHistory or {}
+    myTbl.taskHistory = myTbl.taskHistory or {}
 
-    table.insert( self.taskHistory, SysTime() .. " " .. task .. " " .. reason )
+    table.insert( myTbl.taskHistory, SysTime() .. " " .. task .. " " .. reason )
 
 end
 
 -- dump task info on +use
 -- only dump task history when the task debugger is true
 function ENT:Use( user )
+    if not printTasks then return end
     if not user:IsPlayer() then return end
-    if not debugPrintTasks:GetBool() then return end
 
     if ( self.nextCheatUse or 0 ) > CurTime() then return end
     self.nextCheatUse = CurTime() + 1

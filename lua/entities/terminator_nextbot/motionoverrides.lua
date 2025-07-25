@@ -3238,6 +3238,76 @@ function ENT:SetupMotionType( myTbl ) -- override this to allow some npcs to mor
 
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:SetupSpeed
+    Desc: (INTERNAL) Called to set locomotion desired motion speed сonsidering NEXTBOT:Should* and NEXTBOT:IsCrouching funcs.
+    Arg1: 
+    Ret1: 
+--]]------------------------------------
+function ENT:SetupSpeed( myTbl )
+    local speed = 0
+
+    if myTbl.IsCrouching( self ) then
+        speed = myTbl.ShouldWalk( self, myTbl ) and math.min( myTbl.WalkSpeed, myTbl.CrouchSpeed ) or myTbl.CrouchSpeed
+    else
+        if myTbl.ShouldRun( self, myTbl ) then
+            speed = myTbl.RunSpeed
+
+        elseif myTbl.ShouldWalk( self, myTbl ) then
+            speed = myTbl.WalkSpeed
+
+        else
+            speed = myTbl.MoveSpeed
+
+        end
+    end
+
+    speed = myTbl.RunTask( self, "ModifyMovementSpeed", speed ) or speed
+
+    myTbl.loco:SetDesiredSpeed(speed)
+    myTbl.m_Speed = speed
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:ShouldRun
+    Desc: Decides should bot run or not.
+    Arg1: 
+    Ret1: bool | Should run or not
+--]]------------------------------------
+function ENT:ShouldRun( myTbl )
+    if myTbl.IsControlledByPlayer( self, myTbl ) then
+        if self:ControlPlayerKeyDown(IN_SPEED) then
+            return true
+
+        end
+
+        return false
+    else
+        return myTbl.RunTask( self, "ShouldRun" ) or false
+
+    end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:ShouldWalk
+    Desc: Decides should bot walk or not.
+    Arg1: 
+    Ret1: bool | Should walk or not
+--]]------------------------------------
+function ENT:ShouldWalk( myTbl )
+    if myTbl.IsControlledByPlayer( self, myTbl ) then
+        if self:ControlPlayerKeyDown(IN_WALK) then
+            return true
+
+        end
+
+        return false
+    else
+        return myTbl.RunTask( self, "ShouldWalk" ) or false
+
+    end
+end
+
 local defaultHeight = 72
 local defaultViewOffsetNudge = 8
 local defaultCrouchHeight = 43

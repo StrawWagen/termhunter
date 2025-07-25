@@ -1158,7 +1158,6 @@ function ENT:DoCustomTasks( defaultTasks )
         },
 
         -- let brainless npcs walk slowly towards enemy, using gotopossimple
-
         ["movement_walkslowtowardsenemy"] = {
             OnStart = function( self, data )
                 data.CurrentTaskGoalPos = nil
@@ -1181,7 +1180,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     coroutine_yield()
                     if not IsValid( enemy ) then
                         self:TaskComplete( "movement_walkslowtowardsenemy" )
-                        myTbl.StartTask( self, "movement_handler", "i lost my enemy!" )
+                        myTbl.StartTask( self, "movement_handler", "durr i lost my enemy!" )
 
                     else
                         self:TaskComplete( "movement_walkslowtowardsenemy" )
