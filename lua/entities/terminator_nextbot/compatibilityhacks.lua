@@ -300,6 +300,12 @@ if SERVER then
 
     end
 
+    function ENT:NavSetGoalPos()
+    end
+
+    function ENT:StartEngineTask()
+    end
+
     function ENT:GetIdealMoveSpeed()
         return self.loco:GetDesiredSpeed()
 
@@ -309,6 +315,9 @@ if SERVER then
     end
 
     function ENT:SetSchedule()
+    end
+
+    function ENT:SetSquad()
     end
 
     function ENT:ClearSchedule()
@@ -353,6 +362,16 @@ if SERVER then
 
     function ENT:HasEnemyMemory( potEnemy )
         return self.m_EnemiesMemory[potEnemy] ~= nil
+
+    end
+
+    function ENT:GetKnownEnemyCount()
+        local count = 0
+        for _, _ in pairs( self.m_EnemiesMemory ) do
+            count = count + 1
+
+        end
+        return count
 
     end
 

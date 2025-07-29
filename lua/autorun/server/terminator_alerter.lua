@@ -98,16 +98,27 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     local rangeSqr = range^2
 
     local listeners = terminator_Extras.listeners
+    local pleaseCleanup
 
     for _, currTerm in ipairs( listeners ) do
         if thing == currTerm then continue end
         if listenersToCleanup[currTerm] then continue end
 
         local termsTbl = entMeta.GetTable( currTerm )
+        if not termsTbl then -- null ent
+            pleaseCleanup = true
+            continue
+
+        end
         if IsValid( thing ) and termsTbl.isTerminatorHunterChummy == thingTbl.isTerminatorHunterChummy then continue end -- bots know when sounds are coming from buddies
 
         if vecMeta.DistToSqr( entMeta.GetPos( currTerm ), src ) > rangeSqr then continue end
         termsTbl.SaveSoundHint( currTerm, src, valuable, thing )
+
+    end
+
+    if pleaseCleanup then
+        cleanupListenerTbl()
 
     end
 end

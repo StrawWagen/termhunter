@@ -756,7 +756,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     scoreData.OverusedAreaIds = data.OverusedAreaIds or {}
                     scoreData.DistToEnemy = distToEnemy
 
-                    if hasBrains and enemysNav then
+                    if hasBrains and IsValid( enemysNav ) then
                         scoreData.occupiedAreaCosts[ enemysNav:GetID() ] = 100
 
                     end

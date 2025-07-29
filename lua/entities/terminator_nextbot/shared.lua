@@ -2606,6 +2606,7 @@ end
 -- config vars
 -- see sh_terminator_funcs.lua for terminator_Extras.baseCoroutineThresh
 ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides.lua 
+
 ENT.ThreshMulIfDueling = nil -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = nil -- if we're closer than DuelEnemyDist * 2
 ENT.MaxPathingIterations = 30000 -- set this to like 30000 if you dont care about a specific bot having perfect ( read, expensive ) paths
