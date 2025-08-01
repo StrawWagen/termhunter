@@ -346,12 +346,17 @@ end
 
 local up = Vector( 0, 0, 1 )
 
-local function SnapToGrid( vec )
-    vec.x = ( math_Round( vec.x / gridSize ) * gridSize ) + gridOffset
-    vec.y = ( math_Round( vec.y / gridSize ) * gridSize ) + gridOffset
-    vec.z = ( math_Round( vec.z / gridSize ) * gridSize ) + gridOffset
+local function SnapToGrid( vec, gridSizeInternal, gridOffsetInternal )
+    gridSizeInternal = gridSizeInternal or gridSize
+    gridOffsetInternal = gridOffsetInternal or gridOffset
+    vec.x = ( math_Round( vec.x / gridSizeInternal ) * gridSizeInternal ) + gridOffsetInternal
+    vec.y = ( math_Round( vec.y / gridSizeInternal ) * gridSizeInternal ) + gridOffsetInternal
+    vec.z = ( math_Round( vec.z / gridSizeInternal ) * gridSizeInternal ) + gridOffsetInternal
 
 end
+
+terminator_Extras.SnapVecToGrid = SnapToGrid
+
 local function GetSnappedToGrid( vec )
     local x = ( math_Round( vec.x / gridSize ) * gridSize ) + gridOffset
     local y = ( math_Round( vec.y / gridSize ) * gridSize ) + gridOffset
