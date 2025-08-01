@@ -6,6 +6,7 @@ local coroutine_running = coroutine.running
 
 local Vector = Vector
 local table_insert = table.insert
+local util_IsInWorld = util.IsInWorld
 
 local MDLSCALE_LARGE = terminator_Extras.MDLSCALE_LARGE
 local gapJumpHull = Vector( 5, 5, 5 )
@@ -691,13 +692,11 @@ local headclearanceOffsets = {
     Vector( -sideOffs, -sideOffs, aboveHead ),
     Vector( sideOffs, -sideOffs, aboveHead ),
     Vector( sideOffs, sideOffs, belowHead ),
-    Vector( -sideOffs, sideOffs, belowHead ),
     Vector( -sideOffs, -sideOffs, belowHead ),
-    Vector( sideOffs, -sideOffs, belowHead ),
 
 }
 
-local headclearanceOffsetsOversized = {
+local headclearanceOffsetsOversized = { -- more inworld checks for oversized bots
     Vector( sideOffs, sideOffs, aboveHead ),
     Vector( -sideOffs, sideOffs, aboveHead ),
     Vector( -sideOffs, -sideOffs, aboveHead ),
@@ -713,17 +712,20 @@ local headclearanceOffsetsOversized = {
 
 }
 
-local function canFitSimple( pos, scale )
+local function canFitSimple( pos, scale ) -- see if we can fit somewhere, cheap ver that uses isInWorld to skip traces
     local blockedCount = 0
-    local offsets = headclearanceOffsets
+    local offsets
     if scale >= MDLSCALE_LARGE then
         offsets = headclearanceOffsetsOversized
+
+    else
+        offsets = headclearanceOffsets
 
     end
     for _, check in ipairs( offsets ) do
         local scaledCheck = ( check * scale )
         --debugoverlay.Cross( pos + scaledCheck, 1, 0.1 )
-        if not util.IsInWorld( pos + scaledCheck ) then
+        if not util_IsInWorld( pos + scaledCheck ) then
             blockedCount = blockedCount + 1
 
         end
@@ -773,8 +775,10 @@ function ENT:ShouldCrouch( myTbl )
             local nextsClosest = validNext and nextArea:GetClosestPointOnArea( myPos ) or nil
             local crouchNextArea = validNext and nextsClosest:Distance( myPos ) < 60 and ( nextArea:HasAttributes( NAV_MESH_CROUCH ) or math.min( nextArea:GetSizeX(), nextArea:GetSizeY() ) <= 20 or not canFitSimple( nextArea:GetCenter(), myScale ) or not canFitSimple( nextsClosest, myScale ) )
 
-            if myScale >= MDLSCALE_LARGE then -- if we're very large
-                crouchNextArea = crouchNextArea or ( validNext and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + terminator_Extras.dirToPos( myPos, nextsClosest ) * 25 ) )
+            if not crouchNextArea and validNext and myScale >= MDLSCALE_LARGE then -- if we're very large
+                local flattenedDirToNext = terminator_Extras.dirToPos( myPos, nextsClosest )
+                flattenedDirToNext.z = flattenedDirToNext.z * 0.1 -- flatten it, 'dir to next' is straight down when we're about to get to the next area
+                crouchNextArea = not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + flattenedDirToNext * 25 * myScale )
 
             end
 
@@ -820,7 +824,7 @@ function ENT:CanStandAtPos( myTbl, pos, endPos )
         mask = self:GetSolidMask(),
         collisiongroup = self:GetCollisionGroup(),
         filter = TrFilterNoSelf( self ),
-        mins = bounds[1] * scale,
+        mins = bounds[1] * scale, -- this creates a new vector, so we can safely modify it below
         maxs = bounds[2] * scale,
     }
 
@@ -830,9 +834,11 @@ function ENT:CanStandAtPos( myTbl, pos, endPos )
 
     local canStand = not result.Hit and not result.StartSolid
 
+    --debugoverlay.SweptBox( pos, endPos, trDat.mins, trDat.maxs, Angle( 0,0,0 ), 0.1, canStand and Color( 0,255,0 ) or Color( 255,0,0 ), true )
+
     if not canStand and scale >= MDLSCALE_LARGE and IsValid( result.Entity ) then
         local entsObj = result.Entity:GetPhysicsObject()
-        if IsValid( entsObj ) and entsObj:GetMass() <= myTbl.MyPhysicsMass / 6 then
+        if IsValid( entsObj ) and entsObj:GetMass() <= myTbl.MyPhysicsMass / 6 then -- if large, dont crouch for stuff with less mass than us
             return true
 
         end
@@ -972,7 +978,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
             end
 
-            if not util.IsInWorld( newStartPos ) then
+            if not util_IsInWorld( newStartPos ) then
                 if doBigTraces then
                     traceDist = traceDist + 2
 

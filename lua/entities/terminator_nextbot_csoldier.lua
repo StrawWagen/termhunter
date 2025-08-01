@@ -404,6 +404,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
         ["soldier_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
+            -- TODO; death sounds and stuff
         },
 
         -- custom movement starter

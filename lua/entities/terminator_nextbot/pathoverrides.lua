@@ -1293,7 +1293,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
             end
 
-            local goodRetrace = wasTackled and ourCameFrom.id ~= neighborsId and neighborsCostSoFar <= costsSoFar[neighborsId]
+            local goodRetrace = wasTackled and ourCameFrom and ourCameFrom.id ~= neighborsId and neighborsCostSoFar <= costsSoFar[neighborsId]
 
             if wasTackled and not goodRetrace then
                 continue

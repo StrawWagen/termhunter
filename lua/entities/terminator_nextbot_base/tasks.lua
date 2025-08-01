@@ -109,7 +109,9 @@ function ENT:TaskComplete(task)
 	
 	self:RunCurrentTask(task,"OnComplete")
 	self:RunCurrentTask(task,"OnDelete")
-	
+
+	self:RestartMotionThread()
+
 	self.m_ActiveTasks[task] = nil
 	
 	local m_ActiveTasksNum = self.m_ActiveTasksNum
@@ -132,6 +134,8 @@ function ENT:TaskFail(task)
 	
 	self:RunCurrentTask(task,"OnFail")
 	self:RunCurrentTask(task,"OnDelete")
+
+	self:RestartMotionThread()
 	
 	self.m_ActiveTasks[task] = nil
 	

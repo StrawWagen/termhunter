@@ -27,6 +27,14 @@ function ENT:RejectPathUpdates( myTbl )
 
 end
 
+function ENT:RestartMotionThread() -- so taskComplete/Fail also ends any active pathfinding, etc, early.
+    local threads = self.BehaviourThreads
+    if not threads then return end
+
+    threads.motionCor = nil
+
+end
+
 function ENT:BehaveUpdate( interval )
     local myTbl = entMeta.GetTable( self )
     myTbl.BehaveInterval = interval

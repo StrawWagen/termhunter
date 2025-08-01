@@ -1449,10 +1449,11 @@ local function getDamageTrackerOf( me, myTbl, wepOrClass )
     if isstring( wepOrClass ) then
         class = wepOrClass
 
-    elseif IsValid( wepOrClass ) then
+    elseif entMeta.GetTable( wepOrClass ) ~= nil then -- no _index call :clueless:
         class = entMeta.GetClass( wepOrClass )
 
     end
+
     if not isstring( class ) then return end
 
     local tracker = trackers[ class ]
