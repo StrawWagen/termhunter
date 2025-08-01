@@ -408,18 +408,17 @@ function ENT:unIgnoreEnt( ent )
 end
 
 do
-    local IsValidAwareness = IsValid
+    local IsValid2 = IsValid
     local isstring = isstring
     local isentity = isentity
     local isfunction = isfunction
     local table = table
-    local table_insertAware = table_insert
     local string_find = string.find
 
     -- i love overoptimisation
     local notInterestingCache = {}
-    hook.Add( "terminator_nextbot_oneterm_exists", "setup_notinterestingcache", function()
-        timer.Create( "term_cache_isnotinteresting", 10, 0, function()
+    hook.Add( "terminator_nextbot_oneterm_exists", "setup_notinterestingcache", function() -- crowdsource this between all the bots
+        timer.Create( "term_cache_isnotinteresting", 30, 0, function()
             notInterestingCache = {}
 
         end )
@@ -433,6 +432,12 @@ do
     local function boring( ent )
         if not ent then return end
         notInterestingCache[ent] = true
+
+    end
+    local function IsValidAwareness( ent )
+        if notInterestingCache[ent] then return false end
+        if not IsValid2( ent ) then return false end
+        return true
 
     end
 
@@ -497,37 +502,42 @@ do
         if not IsValidAwareness( ent ) then boring( ent ) return end
 
         local entsTbl = ent:GetTable()
+        if entsTbl.terminatorIgnoreEnt then return end
+
         local class = entMeta.GetClass( ent )
+        local hasFists = myTbl.TERM_FISTS
 
         -- locked doors create navmesh blocker flags under them even though we can bash them down
         -- KILL ALL LOCKED DOORS!
-        local isLockedDoor = class == "prop_door_rotating" and entMeta.GetInternalVariable( ent, "m_bLocked" ) ~= false and entMeta.IsSolid( ent ) and terminator_Extras.CanBashDoor( ent )
-        if isLockedDoor then
-            table_insertAware( myTbl.awarenessLockedDoors, ent )
-            table_insertAware( myTbl.awarenessBash, ent )
+        if hasFists then
+            local isLockedDoor = class == "prop_door_rotating" and entMeta.GetInternalVariable( ent, "m_bLocked" ) ~= false and entMeta.IsSolid( ent ) and terminator_Extras.CanBashDoor( ent )
+            if isLockedDoor then
+                myTbl.awarenessLockedDoors[#myTbl.awarenessLockedDoors + 1] = ent
+                myTbl.awarenessBash[#myTbl.awarenessBash + 1] = ent
 
+            end
         end
 
-        if entsTbl.terminatorIgnoreEnt then return end
+        local brainy = not myTbl.IsFodder and myTbl.HasBrains
 
         local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
 
         if isnumber( memory ) then
             if memory == MEMORY_MEMORIZING then
-                table_insertAware( myTbl.awarenessUnknown, ent )
+                myTbl.awarenessUnknown[#myTbl.awarenessUnknown + 1] = ent
 
             elseif memory == MEMORY_INERT then
                 return
                 -- do nothing, it's inert
 
-            elseif memory == MEMORY_BREAKABLE then -- entities that we can shoot if they're blocking us
-                table_insertAware( myTbl.awarenessBash, ent )
+            elseif hasFists and memory == MEMORY_BREAKABLE then -- entities that we can shoot if they're blocking us
+                myTbl.awarenessBash[#myTbl.awarenessBash + 1] = ent
 
-            elseif memory == MEMORY_VOLATILE or memory == MEMORY_DAMAGING then -- stay away, it hurt us before!
-                table_insertAware( myTbl.awarenessDamaging, ent )
+            elseif brainy and memory == MEMORY_VOLATILE or memory == MEMORY_DAMAGING then -- stay away, it hurt us before!
+                myTbl.awarenessDamaging[#myTbl.awarenessDamaging + 1] = ent
 
                 if memory == MEMORY_VOLATILE then -- entities that we can shoot to damage enemies
-                    table_insertAware( myTbl.awarenessVolatiles, ent )
+                    myTbl.awarenessVolatiles[#myTbl.awarenessVolatiles + 1] = ent
 
                 end
             elseif memory == MEMORY_WEAPONIZEDNPC and ( ent:IsNPC() or ent:IsNextBot() ) then
@@ -553,8 +563,8 @@ do
                     myTbl.memorizeEntAs( self, ent, MEMORY_INERT )
 
                 end
-            elseif ent.huntersglee_breakablenails then
-                table_insertAware( myTbl.awarenessBash, ent )
+            elseif hasFists and ent.huntersglee_breakablenails then
+                myTbl.awarenessBash[#myTbl.awarenessBash + 1] = ent
 
             elseif isDynamic or class == "base_entity" then
                 myTbl.memorizeEntAs( self, ent, MEMORY_INERT )
@@ -562,7 +572,7 @@ do
             elseif isWoodBoard or isVentGuard then
                 myTbl.memorizeEntAs( self, ent, MEMORY_BREAKABLE )
 
-            elseif isExplosiveBarrel or isSlam then
+            elseif brainy and ( isExplosiveBarrel or isSlam ) then
                 myTbl.memorizeEntAs( self, ent, MEMORY_VOLATILE )
 
             else
@@ -571,7 +581,7 @@ do
 
                 else
                     myTbl.memorizeEntAs( self, ent, MEMORY_MEMORIZING ) -- need to beat this up
-                    table_insertAware( myTbl.awarenessUnknown, ent )
+                    myTbl.awarenessUnknown[#myTbl.awarenessUnknown + 1] = ent
 
                 end
             end
@@ -583,26 +593,37 @@ do
 
     function ENT:understandSurroundings( myTbl )
         myTbl = myTbl or entMeta.GetTable( self )
-        myTbl.awarenessSubstantialStuff = {}
+        awarenessSubstantialStuff = {}
+        myTbl.awarenessSubstantialStuff = awarenessSubstantialStuff
         myTbl.awarenessUnknown = {}
-        myTbl.awarenessBash = {}
-        myTbl.awarenessDamaging = {}
-        myTbl.awarenessVolatiles = {}
-        myTbl.awarenessLockedDoors = {}
+        local brainy = not myTbl.IsFodder and myTbl.HasBrains
+        if brainy then
+            myTbl.awarenessVolatiles = {}
+            myTbl.awarenessDamaging = {}
+
+        end
+        if myTbl.TERM_FISTS then
+            myTbl.awarenessBash = {}
+            myTbl.awarenessLockedDoors = {}
+
+        end
         coroutine_yield()
 
-        local add = 2
+        local add = 4
         if myTbl.IsFodder then
-            add = math.Rand( 8, 12 )
+            add = math.Rand( 12, 24 )
 
         end
         myTbl.term_NextAwareness = CurTime() + add
 
         local pos = entMeta.GetPos( self )
-        local rawSurroundings = ents.FindInSphere( pos, myTbl.AwarenessCheckRange )
+        local AwarenessCheckRange = myTbl.AwarenessCheckRange
+        local rawSurroundings = ents.FindInSphere( pos, AwarenessCheckRange )
+        coroutine_yield()
 
         local enemy = myTbl.GetEnemy( self )
-        if IsValidAwareness( enemy ) and not myTbl.IsFodder and myTbl.IsSeeEnemy and myTbl.DistToEnemy > 1250 then
+        if IsValidAwareness( enemy ) and brainy and myTbl.IsSeeEnemy and myTbl.DistToEnemy > AwarenessCheckRange then
+            coroutine_yield()
             local enemSurroundings = ents.FindInSphere( entMeta.GetPos( enemy ), 400 ) -- shoot explosive barrels next to enemies!
             table.Add( rawSurroundings, enemSurroundings )
 
@@ -610,19 +631,18 @@ do
 
         local surroundings = {}
         for _, ent in ipairs( rawSurroundings ) do
-            if not notInterestingCache[ent] then
-                table.insert( surroundings, ent )
+            if notInterestingCache[ent] then continue end
+            if not IsValidAwareness( ent ) then boring( ent ) continue end
+            surroundings[#surroundings + 1] = ent
 
-            end
         end
-
 
         coroutine_yield()
 
         local centers = {}
 
         for _, ent in ipairs( surroundings ) do
-            if not IsValidAwareness( ent ) then continue end
+            if not IsValidAwareness( ent ) then boring( ent ) continue end
             centers[ent] = entMeta.WorldSpaceCenter( ent )
 
         end
@@ -639,33 +659,25 @@ do
         coroutine_yield()
 
         local added = 0
-        local substantialStuff = {}
         local caresAbout = myTbl.caresAbout
+        local understandObject = myTbl.understandObject
+
         for _, currEnt in ipairs( surroundings ) do
-            if ( added % 40 ) == 0 then coroutine_yield() end
+            if ( added % 40 ) == 39 then coroutine_yield() end
             if added > 400 then -- cap this!
                 break
 
             end
             if caresAbout( self, currEnt ) then
                 added = added + 1
-                table_insert( substantialStuff, currEnt )
+                understandObject( self, currEnt )
+
+                awarenessSubstantialStuff[#awarenessSubstantialStuff + 1] = currEnt
+
+            else
+                boring( currEnt ) -- not interesting, don't care about it
 
             end
-        end
-
-        coroutine_yield()
-
-        added = 0
-        local understandObject = myTbl.understandObject
-
-        for _, currEnt in ipairs( substantialStuff ) do
-            if not IsValid( currEnt ) then continue end
-            if ( added % 40 ) == 0 then coroutine_yield() end
-            added = added + 1
-            understandObject( self, currEnt )
-            table_insert( myTbl.awarenessSubstantialStuff, currEnt )
-
         end
 
         coroutine_yield()
@@ -675,11 +687,13 @@ do
     end
 end
 
-function ENT:getShootableVolatile( enemy )
-    if not self.awarenessVolatiles then return end
+function ENT:getShootableVolatile( myTbl, enemy )
+    if myTbl.IsFodder then return end
+    if not myTbl.HasBrains then return end
+    if not myTbl.awarenessVolatiles then return end
     if not enemy then return end
 
-    for _, currVolatile in ipairs( self.awarenessVolatiles ) do
+    for _, currVolatile in ipairs( myTbl.awarenessVolatiles ) do
         if not IsValid( currVolatile ) then continue end
 
         local pos = self:getBestPos( currVolatile )
@@ -3322,7 +3336,7 @@ function ENT:DoDefaultTasks()
 
                     end
                     if wep and myTbl.IsRangedWeapon( self, wep ) then
-                        local shootableVolatile = myTbl.getShootableVolatile( self, enemy )
+                        local shootableVolatile = myTbl.getShootableVolatile( self, myTbl, enemy )
 
                         if IsValid( shootableVolatile ) and not doShootingPrevent then
                             myTbl.shootAt( self, myTbl.getBestPos( self, shootableVolatile ), nil )
@@ -6174,7 +6188,8 @@ function ENT:DoDefaultTasks()
                     local watchCount = self.watchCount or 0
 
                     if watchCount > 2 or myHp < ( myMaxHp * 0.95 ) or self:IsAngry() then
-                        data.lastKnownStalkDist = math.Clamp( data.lastKnownStalkDist + -self.MoveSpeed, 0, math.huge )
+                        local lastKnownStalkDist = data.lastKnownStalkDist or self.DistToEnemy
+                        data.lastKnownStalkDist = math.Clamp( lastKnownStalkDist + -self.MoveSpeed, 0, math.huge )
 
                     end
 
