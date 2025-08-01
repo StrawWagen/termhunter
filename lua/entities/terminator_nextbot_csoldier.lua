@@ -167,7 +167,6 @@ local SnapVecToGrid
 local coverposCache
 
 function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
-
     local cachePos = coverPos + enemysShoot
     if not SnapVecToGrid then
         SnapVecToGrid = terminator_Extras.SnapVecToGrid
@@ -574,7 +573,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     self:StartTask( "movement_fanout", "damn, i lost them!" )
 
                 elseif not myTbl.TermSoldier_Fearless and myTbl.IsSeeEnemy and myTbl.DistToEnemy < myTbl.GetRealDuelEnemyDist( self, myTbl ) then
-                    if myTbl.term_ExpensivePath and myTbl.GetPath( self ):GetLength() > myTbl.DistToEnemy * 1.15 then return end -- if it's an important path, dont waste it
+                    if myTbl.term_ExpensivePath and myTbl.DistToEnemy * 1.15 > myTbl.GetPath( self ):GetLength() then return end -- if it's an important path, dont waste it
                     if myTbl.HasBrains then
                         self:TaskComplete( "movement_approachenemy" )
                         self:StartTask( "movement_shootfromcover", "i have approached my enemy!" )
