@@ -162,13 +162,15 @@ function ENT:GiveDefaultWeapons()
         end
     end
 
+    local fistsClass = self.TERM_FISTS
+
     local trueDefaultWeps = self.DefaultWeapon
     if isstring( trueDefaultWeps ) then
         trueDefaultWeps = { trueDefaultWeps }
 
     end
-    if not trueDefaultWeps and self.TERM_FISTS then
-        trueDefaultWeps = { self.TERM_FISTS } -- fists is always a default weapon
+    if not trueDefaultWeps and fistsClass then
+        trueDefaultWeps = { fistsClass } -- fists is always a default weapon
 
     end
 
@@ -178,7 +180,7 @@ function ENT:GiveDefaultWeapons()
 
     end
     if not wep then
-        wep = self.TERM_FISTS
+        wep = fistsClass
 
     end
     if wep then
@@ -187,6 +189,10 @@ function ENT:GiveDefaultWeapons()
             self:GetActiveLuaWeapon().terminator_PropertyOf = self
             self:GetWeapon().terminator_PropertyOf = self
             wepEnt.terminator_PropertyOf = self
+
+        end
+        if wep == fistsClass then
+            self:SetupFists( wepEnt )
 
         end
     end
@@ -551,7 +557,7 @@ function ENT:AssumeWeaponNextShootTime( myTbl, wep, wepsTbl )
         return wepData.Primary.NextShootTime
 
     elseif nextPrimary and not ( wepsTbl.terminator_FiredBefore and nextPrimary == 0 ) then
-        if wepsTbl.Primary.Automatic ~= true and myTbl.Term_GetDamageTrackerOf( self, wep ).isBurst then
+        if wepsTbl.Primary.Automatic ~= true and myTbl.Term_GetDamageTrackerOf( self, myTbl, wep ).isBurst then
             local nextFire = nextPrimary
             if myTbl.IsAngry( self ) then
                 nextFire = nextFire + math.Rand( 0.5, 1 )
@@ -996,6 +1002,10 @@ function ENT:DoFists()
     end
     self.terminator_NextWeaponPickup = CurTime() + 2.5
     local fists = self:Give( self.TERM_FISTS )
+    self:SetupFists( fists )
+end
+
+function ENT:SetupFists( fists )
     if self.FistRangeMul then
         fists.Range = fists.Range * self.FistRangeMul
 
@@ -1296,7 +1306,7 @@ end
 
 -- can find item crates too
 function ENT:FindWeapon( myTbl )
-    local searchrange = self.WeaponSearchRange
+    local searchrange = myTbl.WeaponSearchRange
     local wep
     local range
     local weight = -1
@@ -1428,15 +1438,21 @@ function ENT:FindWeapon( myTbl )
 
 end
 
-local function getDamageTrackerOf( me, wepOrClass )
-    local trackers = me.term_WeaponDamageTrackers
+local function getDamageTrackerOf( me, myTbl, wepOrClass )
+    local trackers = myTbl.term_WeaponDamageTrackers
     if not trackers then
         trackers = {}
-        me.term_WeaponDamageTrackers = trackers
+        myTbl.term_WeaponDamageTrackers = trackers
 
     end
-    local realWep = IsValid( wepOrClass )
-    local class = realWep and entMeta.GetClass( wepOrClass ) or wepOrClass
+    local class
+    if isstring( wepOrClass ) then
+        class = wepOrClass
+
+    elseif IsValid( wepOrClass ) then
+        class = entMeta.GetClass( wepOrClass )
+
+    end
     if not isstring( class ) then return end
 
     local tracker = trackers[ class ]
@@ -1444,13 +1460,14 @@ local function getDamageTrackerOf( me, wepOrClass )
         -- tolerance for weapons
         local bonusAttackAttempts = 30
         local tolerance = 4
+        local realWep = IsValid( wepOrClass )
         if realWep and weapSpread( wepOrClass ) then
             -- weapon that has spread!?!!? (real bullets!)
             -- or we've done damage with it sometime in the past
             bonusAttackAttempts = 60
             tolerance = 8
 
-        elseif me:IsMeleeWeapon() then
+        elseif realWep and me:IsMeleeWeapon( wepOrClass ) then
             -- be much less forgiving with melee weaps!
             bonusAttackAttempts = 10
             tolerance = 1
@@ -1489,8 +1506,8 @@ end
 
 ENT.Term_GetDamageTrackerOf = getDamageTrackerOf
 
-local function getTrackedDamage( me, wepOrClass )
-    local dmgTracker = getDamageTrackerOf( me, wepOrClass )
+local function getTrackedDamage( me, myTbl, wepOrClass )
+    local dmgTracker = getDamageTrackerOf( me, myTbl, wepOrClass )
     if not dmgTracker then return end
 
     return dmgTracker.dmg, dmgTracker
@@ -1499,8 +1516,8 @@ end
 
 ENT.Term_GetTrackedDamage = getTrackedDamage
 
-local function addTrackedDamage( me, wepOrClass, add )
-    local dmgTracker = getDamageTrackerOf( me, wepOrClass )
+local function addTrackedDamage( me, myTbl, wepOrClass, add )
+    local dmgTracker = getDamageTrackerOf( me, myTbl, wepOrClass )
     if not dmgTracker then return end
 
     dmgTracker.dmg = dmgTracker.dmg + add
@@ -1565,7 +1582,7 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
         toJudgeWepOrClass = attacker:GetActiveWeapon()
 
     end
-    local trackedDamage, dmgTracker = getTrackedDamage( attacker, toJudgeWepOrClass )
+    local trackedDamage, dmgTracker = getTrackedDamage( attacker, entMeta.GetTable( attacker ), toJudgeWepOrClass )
 
     if not trackedDamage then return end
 
@@ -1585,7 +1602,7 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
 
     end
 
-    addTrackedDamage( attacker, toJudgeWepOrClass, dmgDealt )
+    addTrackedDamage( attacker, entMeta.GetTable( attacker ), toJudgeWepOrClass, dmgDealt )
 
     if IsValid( toJudgeWepOrClass ) and dmg:GetInflictor() == toJudgeWepOrClass then -- only do this if the inflictor IS the weapon
         dmgTracker.maxDistEverDamagedWith = math.max( attacker.DistToEnemy, dmgTracker.maxDistEverDamagedWith )
@@ -1627,7 +1644,6 @@ do
     --]]------------------------------------
     function ENT:GetAimVector( myTbl )
         myTbl = myTbl or entMeta.GetTable( self )
-        local hasBrains = myTbl.HasBrains
         local eyeAng = myTbl.GetEyeAngles( self )
         local dir = angMeta.Forward( eyeAng )
 
@@ -1659,7 +1675,7 @@ do
 
             elseif isfunction( activeTbl.GetNPCBulletSpread ) then
                 local divisor = 1
-                if hasBrains then
+                if myTbl.HasBrains then
                     divisor = 2
 
                 end
@@ -1677,7 +1693,7 @@ do
             end
 
             if myTbl.terminator_FiringIsAllowed then
-                local dmgTracker = getDamageTrackerOf( self, active )
+                local dmgTracker = getDamageTrackerOf( self, myTbl, active )
 
                 local degToOverrideWalk = 10
                 if dmgTracker.noLeading then
@@ -1705,28 +1721,28 @@ local dropWeps = CreateConVar( "termhunter_dropuselessweapons", 1, FCVAR_NONE, "
 
 -- is a weapon not being useful?
 
-function ENT:JudgeWeapon( myWeapon )
-    if self:IsFists() then return end
+function ENT:JudgeWeapon( myTbl, myWeapon )
+    if myTbl.IsFists( self, myTbl ) then return end
     if not dropWeps:GetBool() then return end -- can disable this
-    if not self.NothingOrBreakableBetweenEnemy then return end -- only judge when perfect visiblity
+    if not myTbl.NothingOrBreakableBetweenEnemy then return end -- only judge when perfect visiblity
 
-    local activeLua = self:GetActiveLuaWeapon()
     if not IsValid( myWeapon ) then return end
+    local activeLua = myTbl.GetActiveLuaWeapon( self, myTbl )
 
     if activeLua.terminator_PropertyOf == self then return end -- dont judge our default weapon, we're supposed to have it
     if myWeapon.terminator_PropertyOf == self then return end
 
     if myWeapon.terminator_IgnoreWeaponUtility or ( activeLua and activeLua.terminator_IgnoreWeaponUtility ) then return end -- disabled for this weapon
-    local weapsWeightToMe = self:GetWeightOfWeapon( myWeapon )
+    local weapsWeightToMe = myTbl.GetWeightOfWeapon( self, myWeapon )
 
-    local dmgTracker = getDamageTrackerOf( self, myWeapon ) -- get our memory of this weapon
+    local dmgTracker = getDamageTrackerOf( self, myTbl, myWeapon ) -- get our memory of this weapon
 
     local attackAttempts = dmgTracker.attackAttempts
     local damageDealt = dmgTracker.dmg
     local noLeading = dmgTracker.noLeading
 
     dmgTracker.attackAttempts = attackAttempts + 1
-    if self:IsCrouching() then
+    if myTbl.IsCrouching( self ) then
         dmgTracker.attackAttemptsWhileCrouching = dmgTracker.attackAttemptsWhileCrouching + 1
 
     else
@@ -1734,7 +1750,7 @@ function ENT:JudgeWeapon( myWeapon )
 
     end
 
-    local myWepsClass = myWeapon:GetClass()
+    local myWepsClass = entMeta.GetClass( myWeapon )
 
     local bonusAttackAttempts = dmgTracker.bonusAttackAttempts
     local tolerance = dmgTracker.tolerance
@@ -1753,7 +1769,7 @@ function ENT:JudgeWeapon( myWeapon )
 
     elseif ( offsettedAttackAttempts / tolerance ) > damageDealt then
         terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.1 )
-        local weightToMe = self:GetWeightOfWeapon( myWeapon )
+        local weightToMe = myTbl.GetWeightOfWeapon( self, myWeapon )
 
         if weightToMe <= 2 and not dmgTracker.hasEvenDoneDamage then
             giveUpOnWeap = true
@@ -1767,9 +1783,9 @@ function ENT:JudgeWeapon( myWeapon )
     end
     if giveUpOnWeap then
         permaPrint( "Terminator spits in the face of a useless weapon\n" .. myWepsClass .. "\nbecause it; " .. giveUpReason .. "\nphTOOEY!" )
-        self:Anger( 5 )
+        myTbl.Anger( self, 5 )
         myWeapon.terminatorCrappyWeapon = true
-        self:DropWeapon( true )
+        myTbl.DropWeapon( self, true )
         terminator_Extras.OverrideWeaponWeight( myWepsClass, weapsWeightToMe + -0.5 )
 
     end
@@ -1835,7 +1851,7 @@ function ENT:GetWeaponRange( myTbl, wep, wepTable )
 
     wepTable = wepTable or entMeta.GetTable( wep )
 
-    local dmgTracker = getDamageTrackerOf( self, wep )
+    local dmgTracker = getDamageTrackerOf( self, myTbl, wep )
     if dmgTracker and dmgTracker.attackAttempts > 20 and dmgTracker.dmg > 250 then
         return dmgTracker.maxDistEverDamagedWith + 250 -- certified cannot deal damage further than this
 

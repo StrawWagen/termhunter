@@ -173,6 +173,8 @@ end
 
 function ENT:SetAmmo()
 end
+function ENT:RemoveAmmo()
+end
 function ENT:GetAmmoCount()
     return -1
 
@@ -258,14 +260,16 @@ if SERVER then
 
     end
 
-    function ENT:SelectWeapon()
-    end
-
     function ENT:PrintMessage()
     end
 
-    function ENT:SelectWeapon( wep )
-        self:Give( wep )
+    function ENT:SelectWeapon( wepClass )
+        local activeWep = self:GetActiveWeapon()
+        if IsValid( activeWep ) and activeWep:GetClass() == wepClass then
+            return -- already selected
+
+        end
+        self:Give( wepClass )
 
     end
 
@@ -333,6 +337,7 @@ if SERVER then
 
     function ENT:StopMoving()
         self.loco:SetVelocity( Vector( 0, 0, 0 ) )
+        self:RejectPathUpdates( self:GetTable() ) -- no path:Update() pls
 
         if not self:HasTask( "movement_wait" ) then return end
         self:KillAllTasksWith( "movement" )

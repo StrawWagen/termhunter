@@ -1241,7 +1241,7 @@ function ENT:CanDoNewPath( pathTarget )
     local NewPathDist = 1
     local mul = 1
     if self.term_ExpensivePath then
-        mul = 5
+        mul = 10
 
     end
     local Dist = self:MyPathLength() or 0
@@ -1297,7 +1297,7 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
     local wep = self:GetActiveWeapon()
     local validEnemy
 
-    local dmgTracker = myTbl.Term_GetDamageTrackerOf( self, wep )
+    local dmgTracker = myTbl.Term_GetDamageTrackerOf( self, myTbl, wep )
 
     if IsValid( enemy ) then
         validEnemy = true
@@ -1363,7 +1363,7 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
             local nextJudge = myTbl.term_NextJudge or 0
             if validEnemy and nextJudge < CurTime() then
                 myTbl.term_NextJudge = CurTime() + 0.08
-                myTbl.JudgeWeapon( self, wep )
+                myTbl.JudgeWeapon( self, myTbl, wep )
                 myTbl.JudgeEnemy( self, enemy )
 
             end
@@ -1654,7 +1654,12 @@ local function HunterIsStuck( self, myTbl )
         myTbl.ResetUnstuckInfo( self )
 
     end
-    myTbl.nextUnstuckCheck = CurTime() + 0.2
+    local add = 0.2
+    if myTbl.term_ExpensivePath then -- i really like this path :(
+        add = add * 10
+
+    end
+    myTbl.nextUnstuckCheck = CurTime() + add
 
     local HasAcceleration = myTbl.loco:GetAcceleration()
     if HasAcceleration <= 0 then return end
@@ -2628,8 +2633,9 @@ ENT.HealthRegenInterval = nil -- time between health regens
 ENT.Term_BloodColor = BLOOD_COLOR_RED
 
 -- custom values for the nextbot base to use
--- i set these as multiples of defaults ( 70 )
-ENT.JumpHeight = 70 * 3.5
+ENT.JumpHeight = 70 * 3.5 -- a multiple of default ( 70 )
+ENT.Term_Leaps = nil -- enables leaping towards enemy, leaping along paths
+
 ENT.DefaultStepHeight = 18
 -- allow us to have different step height when couching/standing
 -- stops bot from sticking to ceiling with big step height
@@ -2654,11 +2660,11 @@ ENT.LastEnemySpotTime = 0
 ENT.InformRadius = 20000
 ENT.AwarenessCheckRange = 1500 -- used by weapon searching too if wep search radius is <= this
 
-ENT.CanUseStuff = true
+ENT.CanUseStuff = true -- flatly stops this bot :Use()-ing stuff.
 ENT.JudgesEnemies = true -- dynamically ignore enemies if they aren't taking damage?
-ENT.IsFodder = nil -- enables optimisations that make sense on bullet fodder enemies
-ENT.IsStupid = nil -- enables optimisations/simplifcations that make sense for dumb enemies
-ENT.HasBrains = true -- enables features that make it feel more aware of it's surroundings
+ENT.IsFodder = nil -- enables optimisations for enemies you want to spawn in hordes, where each enemy won't matter as much, such as disabling mapwide player spotting, sharing unreachable areas, etc
+ENT.IsStupid = nil -- enables optimisations/simplifications for zombie, animal type enemies
+ENT.HasBrains = true -- enables less optimisations, mostly used by ents based on this
 
 ENT.TakesFallDamage = true
 ENT.HeightToStartTakingDamage = ENT.JumpHeight
@@ -3306,7 +3312,7 @@ function ENT:DoDefaultTasks()
                     myTbl.lastShootingType = "witnessplayer"
 
                 elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
-                    local wepRange = myTbl.GetWeaponRange( self, myTbl )
+                    local wepRange = myTbl.GetWeaponRange( self, myTbl, wep )
                     local seeOrWeaponDoesntCare = wep.worksWithoutSightline
                     if myTbl.DontShootThroughProps then
                         seeOrWeaponDoesntCare = myTbl.NothingOrBreakableBetweenEnemy
@@ -6175,7 +6181,7 @@ function ENT:DoDefaultTasks()
                     local currWep = self:GetActiveWeapon()
                     local coolWep
                     if IsValid( currWep ) then
-                        local dmgTracker = self:Term_GetDamageTrackerOf( currWep )
+                        local dmgTracker = self:Term_GetDamageTrackerOf( data.myTbl, currWep )
                         coolWep = dmgTracker.reallyLikesThisOne or dmgTracker.noLeading
 
                     end
@@ -6629,7 +6635,7 @@ function ENT:DoDefaultTasks()
                 local currWep = self:GetActiveWeapon()
                 local coolWep
                 if IsValid( currWep ) then
-                    local dmgTracker = self:Term_GetDamageTrackerOf( currWep )
+                    local dmgTracker = self:Term_GetDamageTrackerOf( data.myTbl, currWep )
                     coolWep = dmgTracker.reallyLikesThisOne or dmgTracker.noLeading
 
                 end

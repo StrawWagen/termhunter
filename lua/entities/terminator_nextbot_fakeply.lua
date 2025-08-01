@@ -37,6 +37,8 @@ if CLIENT then
 
 end
 
+ENT.DefaultWeapon = "gmod_camera"
+
 ENT.CoroutineThresh = 0.000002
 ENT.MaxPathingIterations = 2500
 ENT.ThreshMulIfDueling = 3 -- thresh is multiplied by this amount if we're closer than DuelEnemyDist

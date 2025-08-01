@@ -22,6 +22,11 @@ function ENT:DemandPathUpdates( myTbl )
 
 end
 
+function ENT:RejectPathUpdates( myTbl )
+    myTbl.m_PathUpdatesDemanded = 0 -- stop demanding path updates
+
+end
+
 function ENT:BehaveUpdate( interval )
     local myTbl = entMeta.GetTable( self )
     myTbl.BehaveInterval = interval

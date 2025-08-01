@@ -1205,7 +1205,7 @@ function ENT:JudgeEnemy( enemy )
     if not judgeableWeapon then
         local myWeapon = self:GetActiveWeapon()
         if IsValid( myWeapon ) then
-            judgeableWeapon = self:Term_GetTrackedDamage( myWeapon ) > 10
+            judgeableWeapon = self:Term_GetTrackedDamage( entMeta.GetTable( self ), myWeapon ) > 10
 
         end
     end

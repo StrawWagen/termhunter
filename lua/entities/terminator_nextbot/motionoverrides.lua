@@ -2335,6 +2335,8 @@ end
 function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     myTbl = myTbl or self:GetTable()
 
+    if myTbl.m_JumpingToPos then return end
+
     local myPos = entMeta.GetPos( self )
     local dir = terminator_Extras.dirToPos( myPos, pos )
     dir.z = dir.z * 0.05
@@ -2351,6 +2353,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
         end
 
         local aboveUs
+        local doJumpTowards
         local simpleClearPos
         local aboveUsJumpHeight
         local heightDiffNeededToJump = simpleJumpMinHeight + 20
@@ -2362,9 +2365,9 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             dist2d = dist2d:Length()
             local scaledDiffNeededToJump = heightDiffNeededToJump * 2
             local distExp = dist2d^1.3
-            local adjustdedDiffNeeded = distExp - scaledDiffNeededToJump
+            local jumpUpDiffNeeded = distExp - scaledDiffNeededToJump
 
-            if zToPos > adjustdedDiffNeeded then
+            if zToPos > jumpUpDiffNeeded then
                 aboveUs = true
                 aboveUsJumpHeight = zToPos
                 pos = pos + dir * simpleJumpMinHeight
@@ -2374,6 +2377,9 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                     pos = pos + dir * 50
 
                 end
+            elseif myTbl.Term_Leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos then
+                doJumpTowards = true
+
             end
         end
 
@@ -2396,16 +2402,20 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 adaptBlock = not hasCached or ( myTbl.IsFodder and math.random( 1, 100 ) > 90 )
 
             end
-            local jump = readyToJump and ( jumpstate == 1 or goalBasedJump )
+            local jump = readyToJump and ( jumpstate == 1 or goalBasedJump or doJumpTowards )
             -- jump if the jumpblock says we should, or if the simple jump up says we should
             if jump then
                 local stepAside, asidePos
-                if not goalBasedJump then
+                if not goalBasedJump and not doJumpTowards then
                     stepAside, asidePos = myTbl.CanStepAside( self, dir, pos )
 
                 end
                 if stepAside then
                     pos = asidePos
+
+                elseif doJumpTowards then
+                    myTbl.JumpToPos( self, pos, zToPos )
+                    return
 
                 else
                     jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
@@ -2618,6 +2628,90 @@ function ENT:Jump( height, fakeJump )
 
 end
 
+-- simple sanity check for leaps
+local function getLeapHeight( self, myTbl, pos, maxHeight, startFromMin )
+    local myPos = entMeta.GetPos( self )
+    local heightFinal = maxHeight
+    local minHeight = heightFinal * 0.25
+    local heightStepSize = -math.max( maxHeight * 0.1, 25 )
+    if startFromMin then
+        heightFinal = minHeight
+        heightStepSize = -heightStepSize -- start from the bottom, go up
+
+    end
+
+    local trResult = {}
+    local mins, maxs = myTbl.BoundsAdjusted( self, 1.1, true )
+
+    local trData = {
+        filter = TrFilterNoSelf( self ),
+        output = trResult,
+        mask = MASK_NPCSOLID,
+        mins = mins,
+        maxs = maxs
+
+    }
+
+    while heightFinal > minHeight do
+        if heightFinal < minHeight or heightFinal > maxHeight then
+            return -1 -- cant leap :(
+
+        end
+        local upOffset = vector_up * math.max( heightFinal / 2, 75 )
+        local arcStart = myPos + upOffset
+        local arcMiddle = ( ( pos + myPos ) / 2 ) + vector_up * heightFinal
+        local arcEnd = pos + upOffset
+
+        trData.start = arcStart
+        trData.endpos = arcMiddle
+        util.TraceHull( trData )
+        debugoverlay.SweptBox( trData.start, trResult.HitPos, trData.mins, trData.maxs, Angle( 0, 0, 0 ), 5, color_white, true )
+        if trResult.Hit then
+            heightFinal = heightFinal + heightStepSize
+            continue -- hit something, try lower
+
+        end
+
+        trData.start = arcMiddle
+        trData.endpos = arcEnd
+        util.TraceHull( trData )
+        debugoverlay.SweptBox( trData.start, trResult.HitPos, trData.mins, trData.maxs, Angle( 0, 0, 0 ), 5, color_white, true )
+        if trResult.Hit then
+            heightFinal = heightFinal + heightStepSize
+            continue -- hit something, try lower
+
+        end
+
+        break -- no hit, we can leap!
+
+    end
+    return heightFinal -- return the height we can leap to
+
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:CanJumpToPos
+    Desc: Checks if bot can jump to given position.
+    Arg1: table | myTbl | optimisation
+    Arg2: Vector | pos | Position to jump to.
+    Ret1: bool | Bot can jump to given position
+--]]------------------------------------
+
+function ENT:CanJumpToPos( myTbl, pos, maxHeight )
+    myTbl = myTbl or self:GetTable()
+    local nextPathJump = myTbl.nextPathJump or 0
+    if nextPathJump > CurTime() then
+        return
+
+    end
+
+    maxHeight = maxHeight or myTbl.loco:GetJumpHeight()
+    local leapHeight = getLeapHeight( self, myTbl, pos, maxHeight, myTbl.Term_LeapMinimizesHeight )
+
+    return leapHeight > 0, leapHeight
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:JumpToPos
     Desc: Makes bot jump to given position. Jump height depends on height difference of given position and current position.
@@ -2625,15 +2719,23 @@ end
     Arg2: (optional) height | Jump height. Default is CLuaLocomotion:GetJumpHeight()
     Ret1: 
 --]]------------------------------------
-function ENT:JumpToPos(pos,height)
-    height = height or self.loco:GetJumpHeight()
+function ENT:JumpToPos( pos, height )
+    local myTbl = entMeta.GetTable( self )
+    local nextPathJump = myTbl.nextPathJump or 0
+    if nextPathJump > CurTime() then
+        return
 
-    local curpos = self:GetPos()
+    end
+
+    local _
+    _, height = myTbl.CanJumpToPos( self, myTbl, pos, height )
+
+    local curpos = entMeta.GetPos( self )
     local dir = pos - curpos
     local dist = dir:Length()
     dir:Div( dist ) -- normalize
 
-    local gravity = self.loco:GetGravity()
+    local gravity = myTbl.loco:GetGravity()
 
     local maxh = math.max( pos.z, curpos.z ) + height
     local h1 = maxh - curpos.z
@@ -2643,11 +2745,14 @@ function ENT:JumpToPos(pos,height)
     local t2 = ( 2 / gravity * h2 ) ^ 0.5
     local t = t1 + t2
 
-    self:Jump( height )
+    myTbl.Jump( self, height )
     local vel = Vector( dir.x * dist / t, dir.y * dist / t, ( 2 * gravity * h1 ) ^ 0.5 ) -- calculate velocity to reach the position in time t
-    self.loco:SetVelocity( vel )
+    myTbl.loco:SetVelocity( vel )
 
-    self.m_JumpingToPos = true
+    myTbl.RunTask( self, "OnJumpToPos", pos, height )
+
+    myTbl.m_JumpingToPos = true
+
 end
 
 --[[------------------------------------
@@ -2797,6 +2902,10 @@ function ENT:HandleInAir( myTbl )
             myTbl.SetDesiredEyeAngles( self, lookAt )
 
         end
+    elseif myTbl.m_JumpingToPos then
+        -- if we are jumping to a pos, we dont need to look at anything
+        myTbl.SetDesiredEyeAngles( self, self:GetVelocity():Angle() )
+
     end
 
     local waterLevel = self:WaterLevel()
@@ -2886,7 +2995,7 @@ function ENT:UpdateGravity( myTbl )
 
 end
 
-function ENT:AdditionalOnLandOnGround( _ent ) -- stub!
+function ENT:AdditionalOnLandOnGround( _ent, _fallHeight ) -- stub!
 end
 
 local vecDown = Vector( 0, 0, -1 )
@@ -3022,10 +3131,10 @@ function ENT:OnLandOnGround( ent )
 
     end
 
-    self:AdditionalOnLandOnGround( ent )
+    self:AdditionalOnLandOnGround( ent, fallHeight )
 
     self.jumpingPeak = nil
-    self:RunTask( "OnLandOnGround", ent )
+    self:RunTask( "OnLandOnGround", ent, fallHeight )
 
 end
 

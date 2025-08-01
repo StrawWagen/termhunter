@@ -1,6 +1,7 @@
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
 local IsValid = IsValid
+local SysTime = SysTime
 local entMeta = FindMetaTable( "Entity" )
 
 local function yieldIfWeCan( reason )
@@ -42,7 +43,7 @@ function ENT:InvalidatePath( reason )
     self.m_PathObstacleAvoidTarget = nil
     self.m_PathObstacleAvoidTimeout = 0
 
-    -- debug
+    --debug
     if not isCheats() then return end
 
     -- this is displayed when bot is used by a player
@@ -444,6 +445,41 @@ local vecMeta = FindMetaTable( "Vector" )
 local GetID = navMeta.GetID
 local LaddGetID = ladMeta.GetID
 
+local inCorridorAreas = {} -- save areas that were valid a* paths, and biast bots to use them, makes pathing faster by letting bots confidently traverse old valid paths
+local corridorExpireTimes = {}
+
+hook.Add( "terminator_nextbot_oneterm_exists", "corridorareas_optimisation", function()
+    inCorridorAreas = {}
+    corridorExpireTimes = {}
+
+    timer.Create( "terminator_cleanupcorridor", 30, 0, function()
+        local cur = CurTime()
+        for area, expireTime in pairs( corridorExpireTimes ) do
+            if expireTime < cur then
+                inCorridorAreas[area] = nil
+                corridorExpireTimes[area] = nil
+
+            end
+        end
+    end )
+end )
+
+hook.Add( "terminator_nextbot_noterms_exist", "corridorareas_optimisation", function()
+    inCorridorAreas = nil
+    corridorExpireTimes = nil
+    timer.Remove( "terminator_cleanupcorridor" )
+
+end )
+
+local function addToCorridor( corridor )
+    local cur = CurTime()
+    for _, area in ipairs( corridor ) do
+        inCorridorAreas[area] = true
+        corridorExpireTimes[area] = cur + 60
+
+    end
+end
+
 -- scoreKeeper
 
 function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist )
@@ -478,6 +514,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
     if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not self:transientAreaPathable( toArea, toAreasId ) then return -1 end
 
     local hunterIsFlanking = myTbl.hunterIsFlanking
+    local flankingIsReallyAngry = myTbl.flankingIsReallyAngry
 
     if band( attributes, NAV_MESH_CROUCH ) ~= 0 then
         crouching = true
@@ -525,6 +562,12 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
         cost = cost * 2
     end
 
+    if inCorridorAreas[toArea] then
+        cost = cost * 0.5 -- this area was part of some other bot's valid path, so it probably goes somewhere useful
+        --debugoverlay.Cross( toArea:GetCenter(), 10, 10, Color( 0, 255, 0 ), true )
+
+    end
+
     local deltaZ = navMeta.ComputeAdjacentConnectionHeightChange( fromArea, toArea )
     local stepHeight = myTbl.loco:GetStepHeight()
     local jumpHeight = myTbl.loco:GetJumpHeight()
@@ -535,7 +578,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
                 cost = cost * 2
 
             else
-                cost = cost * 4
+                cost = cost * 5
 
             end
         elseif deltaZ > stepHeight * 2 then
@@ -543,7 +586,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
                 cost = cost * 1.5
 
             else
-                cost = cost * 2.5
+                cost = cost * 3
 
             end
         else
@@ -551,7 +594,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
                 cost = cost * 1.25
 
             else
-                cost = cost * 1.5
+                cost = cost * 2
 
             end
         end
@@ -579,6 +622,14 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
 
         else
             cost = cost * 1.5
+
+        end
+    elseif deltaZ > 5 or deltaZ < -5 then
+        if hunterIsFlanking then
+            cost = cost * 1.1
+
+        else
+            cost = cost * 1.2
 
         end
     end
@@ -698,7 +749,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         local after = SysTime()
 
         local cost = ( after - before )
-        if cost > 1 then
+        if cost > 2 then
             self.term_ExpensivePath = true
 
         end
@@ -719,7 +770,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         else
             local setupPath2NoNavs = self.setupPath2NoNavs or 0
             -- aha, im not on the navmesh! that's why!
-            if not navmesh.GetNearestNavArea( self:GetPos(), false, 45, false, false, -2 ) and self:IsOnGround() then
+            local myArea = navmesh.GetNearestNavArea( self:GetPos(), false, 45, false, false, -2 )
+            if ( not IsValid( myArea ) or #myArea:GetAdjacentAreas() <= 0 ) and self:IsOnGround() then
                 self.setupPath2NoNavs = setupPath2NoNavs + 1
 
             end
@@ -741,10 +793,10 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     end
 
-    if not IsValid( endArea.area ) then return end -- outdated....
+    if not IsValid( endArea.area ) then return nil, "softfail1" end -- outdated....
 
-    if not self:IsOnGround() then return end -- don't member as unreachable when we're in the air
-    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 25 then return end -- if endpos is off the navmesh then dont create false unreachable flags
+    if not self:IsOnGround() then return nil, "softfail2" end -- don't member as unreachable when we're in the air
+    if endArea.area:GetClosestPointOnArea( endpos ):Distance( endpos ) > 25 then return nil, "softfail3" end -- if endpos is off the navmesh then dont create false unreachable flags
 
     --debugoverlay.Text( endArea.area:GetCenter(), "unREACHABLE" .. tostring( pathDestinationIsAnOrphan ), 8 )
 
@@ -820,6 +872,9 @@ local table_Random = table.Random
 
 -- helper func for findValidNavResult
 local function removeFrom( idToRemove, seqTbl, maskTbl )
+    local existed = maskTbl[idToRemove]
+    if not existed then return false end
+
     maskTbl[idToRemove] = nil
     for i = 1, #seqTbl do
         if seqTbl[i] == idToRemove then
@@ -1068,6 +1123,7 @@ local function reconstruct_path( cameFrom, goalArea )
 
     local count = 0
     local currId = GetID( goalArea )
+    local last = goalArea:GetCenter()
     while cameFrom[currId] do
         count = count + 1
         if count % 15 == 14 then
@@ -1077,7 +1133,16 @@ local function reconstruct_path( cameFrom, goalArea )
         local current = cameFrom[currId]
         currId = current.id
 
-        if noCircles[currId] then return false end -- rare, happened when navmesh was being actively edited
+        if noCircles[currId] then -- rare, happened when navmesh was being actively edited, also when the astar was giving invalid camefroms
+            --debugoverlay.Line( last, current.area:GetCenter(), 15, Color( 255, 0, 0 ), true )
+            --debugoverlay.Cross( last, 15, 15, Color( 255, 0, 0 ), true )
+            return false
+
+        --else
+            --debugoverlay.Line( last, current.area:GetCenter(), 5, color_white, true )
+
+        end
+        last = current.area:GetCenter()
         noCircles[currId] = true
 
         total_path_reverse[#total_path_reverse + 1] = current.area
@@ -1154,6 +1219,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
             end
         end
         local costSoFar = costsSoFar[bestId]
+        local ourCameFrom = cameFrom[bestId]
         removeFrom( bestId, openedSequential, opened )
         addTo( bestId, closedSequential, closed )
 
@@ -1163,7 +1229,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
         end
 
-        --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( smallestCost ) ), 1, color_white, true )
+        --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( smallestCost ) ), 5, color_white, true )
 
         if maxPathingIterations and currExtent > maxPathingIterations then -- all out :(
             local smallestCompromiseCost = inf
@@ -1200,7 +1266,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
         for _, neighborDat in ipairs( adjacentDatas ) do
             currExtent = currExtent + 1
-            if currExtent % 3 == 2 then
+            if currExtent % 4 == 3 then
                 coroutine_yield( "pathing" )
 
             end
@@ -1213,16 +1279,23 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
             local neighborsCostSoFar = costSoFar + neighborsCost
 
-            if neighborsCost <= -1 then -- cant go this way
+            local wasTackled = opened[neighborsId] or closed[neighborsId]
+
+            local cannotTraverse = neighborsCost <= -1
+
+            if cannotTraverse and wasTackled then -- cant go this way, but there's already a way there
+                continue
+
+            elseif cannotTraverse then -- cant go this way
                 addTo( neighborsId, closedSequential, closed ) -- mark as closed
-                costsSoFar[neighborsId] = neighborsCostSoFar * 100
+                costsSoFar[neighborsId] = costSoFar * 1000 -- blow up the cost, so any valid retraces are very confident going back over this
                 continue
 
             end
 
-            local staleRetrace = ( opened[neighborsId] or closed[neighborsId] ) and ( not costsSoFar[neighborsId] or costsSoFar[neighborsId] <= neighborsCostSoFar )
+            local goodRetrace = wasTackled and ourCameFrom.id ~= neighborsId and neighborsCostSoFar <= costsSoFar[neighborsId]
 
-            if staleRetrace then
+            if wasTackled and not goodRetrace then
                 continue
 
             else
@@ -1231,7 +1304,6 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
                 removeFrom( neighborsId, closedSequential, closed )
                 addTo( neighborsId, openedSequential, opened )
-
                 cameFrom[ neighborsId ] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
 
             end
@@ -1266,7 +1338,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
                 return -1 -- not in corridor, dont use this area
 
             else
-                return 1 -- low priority
+                return 10000000000000 -- low priority
 
             end
         end
@@ -1279,7 +1351,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
         areaId = GetID( area )
         local areaMask = areaCorridorNexts[ areaId ]
         if not areaMask then
-            return 10000000000 -- not in corridor, try this last
+            return 10000000000000 -- not in corridor, try this last
 
         end
     end
@@ -1298,7 +1370,10 @@ end
 
 local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
     local startArea = me:GetCurrentNavArea()
+    --debugoverlay.Line( startArea:GetCenter(), goal, 5, Color( 0, 255, 0 ), true )
+    local start = SysTime()
     local newGoalArea, areaCorridor, wasGood, _debugMsg = Astar( me, myTbl, startArea, goal, goalArea, scoreKeeper )
+    local timeTaken = SysTime() - start
 
     if not areaCorridor then
         path:Invalidate() -- a* failed to find a good path, or even a compromise path
@@ -1318,7 +1393,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
     for _, area in ipairs( areaCorridor ) do
         --debugoverlay.Cross( area:GetCenter(), 10, 5, color_white, true )
         if not IsValid( area ) then continue end
-        table_insert( corridorIds, GetID( area ) )
+        corridorIds[#corridorIds + 1] = GetID( area )
 
     end
 
@@ -1326,7 +1401,8 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
     -- terrible hack, we make a corridor with astar, then run a path:Compute inside that corridor
     -- all this since building a Path() manually seemed to not be possible
-    -- the things that must be done for coroutined pathfinding... 
+    -- the things that must be done for coroutined pathfinding...
+
     areaCorridorNexts = { [GetID( newGoalArea )] = true, [GetID( startArea )] = corridorIds[1] }
     for i, currId in ipairs( corridorIds ) do
         local nextOne = corridorIds[i + 1]
@@ -1338,10 +1414,12 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
         end
 
-        --yieldIfWeCan("wait")
-        --local thisCenter = navMeta.GetCenter( getNavAreaOrLadderById( currId ) )
-        --debugoverlay.Line( last, thisCenter, 5, color_white, true )
-        --last = thisCenter
+        --[[
+        yieldIfWeCan("wait")
+        local thisCenter = navMeta.GetCenter( getNavAreaOrLadderById( currId ) )
+        debugoverlay.Line( last, thisCenter, 5, color_white, true )
+        last = thisCenter
+        --]]
 
     end
 
@@ -1353,6 +1431,11 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
     if not path:IsValid() then -- :(
         return nil, false, "noCompute"
+
+    end
+
+    if timeTaken > 2 or startArea:GetCenter():Distance( goal ) > 1000 then
+        addToCorridor( areaCorridor ) -- let future bots confidently traverse this valid path corridor
 
     end
 

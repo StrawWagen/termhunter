@@ -165,31 +165,6 @@ end
 function ENT:GetFallDamage(speed)
 	return 10
 end
-function ENT:OnKilled(dmg)
-	if self:HasWeapon() then
-		local wep = self:GetActiveLuaWeapon()
-
-		if !dmg:IsDamageType(DMG_DISSOLVE) then
-			if self:CanDropWeaponOnDie(wep) and wep:ShouldDropOnDie() then
-				self:DropWeapon(nil,true)
-			else
-				wep:Remove()
-			end
-		else
-			local wep = self:DropWeapon(nil,true)
-			self:DissolveEntity(wep)
-		end
-	end
-
-	if !self:RunTask("PreventBecomeRagdollOnKilled",dmg) then
-		if dmg:IsDamageType(DMG_DISSOLVE) then self:DissolveEntity() end
-		
-		self:BecomeRagdoll(dmg)
-	end
-	
-	self:RunTask("OnKilled",dmg)
-	hook.Run("OnNPCKilled",self,dmg:GetAttacker(),dmg:GetInflictor())
-end
 
 --[[------------------------------------
 	NEXTBOT:OnInjured

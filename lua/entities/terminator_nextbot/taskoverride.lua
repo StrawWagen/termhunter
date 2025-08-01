@@ -28,7 +28,6 @@ function ENT:RunTask( event, ... )
     local hollowEvents = myTbl.m_HollowEventCache
     if hollowEvents and hollowEvents[event] then return end -- cached as hollow, no callbacks in here, cache is reset after some time, or when a new task is started below
 
-    local nextYield = 5
     local m_TaskList = myTbl.m_TaskList
     local passedTasks = {}
 
@@ -160,7 +159,6 @@ end
 function ENT:StartTask( task, data, reason )
     local myTbl = entMeta.GetTable( self )
     if myTbl.IsTaskActive( self, task ) then return end
-    yieldIfWeCan()
 
     if isstring( data ) then -- if data is a string, it is the reason for starting the task
         reason = data
