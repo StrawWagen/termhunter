@@ -2618,7 +2618,7 @@ ENT.MaxPathingIterations = 30000 -- set this to like 30000 if you dont care abou
 
 ENT.TERM_FISTS = "weapon_terminatorfists_term" -- bot's innate melee weapon it will pull out to conquer obstacles
 ENT.DefaultWeapon = nil -- weapon to spawn with, nil for fists
-ENT.DefaultSidearms = nil -- sidearms to spawn with, nil for fists
+ENT.DefaultSidearms = nil -- sidearms to spawn with
 ENT.CanHolsterWeapons = true
 ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if the enemy is unreachable or lethal in melee
 ENT.CanFindWeaponsOnTheGround = true -- set to false to force bots to only use weapons they spawn with
@@ -2626,10 +2626,10 @@ ENT.CanFindWeaponsOnTheGround = true -- set to false to force bots to only use w
 ENT.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
 
 ENT.SpawnHealth = healthFunc
-ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG the bot is immune to
-ENT.DoMetallicDamage = true -- terminator model damage logic
 ENT.HealthRegen = nil -- health regen per interval
 ENT.HealthRegenInterval = nil -- time between health regens
+ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG the bot is immune to
+ENT.DoMetallicDamage = true -- terminator model damage logic
 ENT.Term_BloodColor = BLOOD_COLOR_RED
 
 -- custom values for the nextbot base to use
@@ -7408,6 +7408,8 @@ function ENT:DoDefaultTasks()
                     self.bigInertiaPreserveBeenAreas = data.beenAreas
 
                 elseif want > 0 then
+                    coroutine_yield()
+
                     if result ~= nil then
                         local potentiallyBeenAreas = navmesh.Find( data.PathStart, self:GetPos():Distance( data.PathStart ), self.loco:GetStepHeight() * 2, self.loco:GetStepHeight() )
 

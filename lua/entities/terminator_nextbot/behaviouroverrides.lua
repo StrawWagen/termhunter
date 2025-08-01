@@ -9,6 +9,7 @@ local pathMeta = FindMetaTable( "PathFollower" )
 
 local coroutine_yield = coroutine.yield
 local coroutine_resume = coroutine.resume
+local coroutine_create = coroutine.create
 local SysTime = SysTime
 local IsValid = IsValid
 local math = math
@@ -31,7 +32,10 @@ function ENT:RestartMotionThread() -- so taskComplete/Fail also ends any active 
     local threads = self.BehaviourThreads
     if not threads then return end
 
-    threads.motionCor = nil
+    local motionCor = threads.motionCor
+    if not motionCor then return end
+
+    motionCor.cor = coroutine_create( function() coroutine_yield( "done" ) end )
 
 end
 
@@ -95,13 +99,13 @@ function ENT:BehaveUpdate( interval )
 
             if not threads.priorityCor then
                 threads.priorityCor = {
-                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
+                    cor = coroutine_create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
 
                 }
             end
             if not threads.motionCor then
                 threads.motionCor = {
-                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
+                    cor = coroutine_create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
                     onDone = function( self, myTbl )
                         local demanded = myTbl.m_PathUpdatesDemanded
                         if demanded <= 0 then return end
@@ -217,14 +221,15 @@ function ENT:Think()
         local myCostThisTick = 0
         local wasBusy
 
-        while SysTime() - oldTime < thresh do
+        while thread and SysTime() - oldTime < thresh do
             doneSomething = true
             wasBusy = true
             local noErrors, result = coroutine_resume( thread, self, myTbl )
             if noErrors == false then
                 threads[index] = nil
                 local stack = debug.traceback( thread )
-                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\n", result .. "\n", stack )
+                result = result or "unknown error"
+                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\n" .. result .. "\n" .. stack .. "\n" )
                 wasBusy = false
                 break
 

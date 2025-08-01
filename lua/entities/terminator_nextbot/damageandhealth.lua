@@ -659,6 +659,7 @@ function ENT:OnKilled( dmg )
 
     local attacker = dmg:GetAttacker()
     local inflictor = dmg:GetInflictor()
+    local damage = dmg:GetDamage()
     local damageType = dmg:GetDamageType()
     local damagePos = dmg:GetDamagePosition()
     local damageForce = dmg:GetDamageForce()
@@ -697,19 +698,19 @@ function ENT:OnKilled( dmg )
 
                 end
 
-                -- doesn't pass dmg object because there's just 1 global damage object
-                self:FinishDying( attacker, inflictor, nil, damageType, damagePos, damageForce )
+                -- doesn't pass dmg object because there's just 1 global damage object, it'll be some other damage event by the time we call this
+                self:FinishDying( attacker, inflictor, nil, damage, damageType, damagePos, damageForce )
 
             end )
         end
     end
 
     if deathAniming then return end
-    self:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damageForce )
+    self:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePos, damageForce )
 
 end
 
-function ENT:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damageForce )
+function ENT:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePos, damageForce )
 
     if not IsValid( attacker ) then
         attacker = game.GetWorld()
@@ -775,13 +776,14 @@ function ENT:FinishDying( attacker, inflictor, dmg, damageType, damagePos, damag
 
         hook.Run( "OnTerminatorKilledScripted", self, attacker, inflictor, damageType, damagePos, damageForce )
 
-        local fauxDamage = DamageInfo()
-        fauxDamage:SetAttacker( attacker )
-        fauxDamage:SetInflictor( inflictor )
-        fauxDamage:SetDamageType( damageType )
-        fauxDamage:SetDamagePosition( damagePos )
-        fauxDamage:SetDamageForce( damageForce )
-        ragdoll = self:BecomeRagdoll( fauxDamage )
+        dmg = DamageInfo() -- scripted death, the dmg object is definitely a new damageevent by now
+        dmg:SetAttacker( attacker )
+        dmg:SetInflictor( inflictor )
+        dmg:SetDamage( damage )
+        dmg:SetDamageType( damageType )
+        dmg:SetDamagePosition( damagePos )
+        dmg:SetDamageForce( damageForce )
+        ragdoll = self:BecomeRagdoll( dmg )
 
     end
 

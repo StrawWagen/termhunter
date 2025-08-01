@@ -445,12 +445,20 @@ local vecMeta = FindMetaTable( "Vector" )
 local GetID = navMeta.GetID
 local LaddGetID = ladMeta.GetID
 
-local inCorridorAreas = {} -- save areas that were valid a* paths, and biast bots to use them, makes pathing faster by letting bots confidently traverse old valid paths
-local corridorExpireTimes = {}
+terminator_Extras.DOING_CORRIDORAREAS = terminator_Extras.DOING_CORRIDORAREAS or nil 
+local inCorridorAreas = nil -- save areas that were valid a* paths, and biast bots to use them, makes pathing faster by letting bots confidently traverse old valid paths
+local corridorExpireTimes = nil
+
+if terminator_Extras.DOING_CORRIDORAREAS then
+    inCorridorAreas = {}
+    corridorExpireTimes = {}
+
+end
 
 hook.Add( "terminator_nextbot_oneterm_exists", "corridorareas_optimisation", function()
     inCorridorAreas = {}
     corridorExpireTimes = {}
+    terminator_Extras.DOING_CORRIDORAREAS = true
 
     timer.Create( "terminator_cleanupcorridor", 30, 0, function()
         local cur = CurTime()
@@ -468,6 +476,7 @@ hook.Add( "terminator_nextbot_noterms_exist", "corridorareas_optimisation", func
     inCorridorAreas = nil
     corridorExpireTimes = nil
     timer.Remove( "terminator_cleanupcorridor" )
+    terminator_Extras.DOING_CORRIDORAREAS = nil
 
 end )
 
