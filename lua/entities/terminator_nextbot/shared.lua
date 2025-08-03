@@ -7426,7 +7426,17 @@ function ENT:DoDefaultTasks()
                     coroutine_yield()
 
                     if result ~= nil then
-                        local potentiallyBeenAreas = navmesh.Find( data.PathStart, self:GetPos():Distance( data.PathStart ), self.loco:GetStepHeight() * 2, self.loco:GetStepHeight() )
+                        local myPos = self:GetPos()
+                        local pathStart = data.PathStart
+                        if not myPos or not pathStart then
+                            self:TaskFail( "movement_biginertia" )
+                            self:StartTask( "movement_handler", nil, "AAAAAAA" )
+                            myTbl.overrideVeryStuck = true
+                            error( tostring( myPos ) .. " " .. tostring( pathStart ) .. " " .. tostring( self ) .. " You got the special funny error! Congrats!" )
+                            return
+
+                        end
+                        local potentiallyBeenAreas = navmesh.Find( pathStart, myPos:Distance( pathStart ), self.loco:GetStepHeight() * 2, self.loco:GetStepHeight() )
 
                         for _, potentiallyBeenArea in ipairs( potentiallyBeenAreas ) do
                             local areaId = potentiallyBeenArea:GetID()
