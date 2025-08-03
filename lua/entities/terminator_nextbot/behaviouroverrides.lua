@@ -29,6 +29,7 @@ function ENT:RejectPathUpdates( myTbl )
 end
 
 function ENT:RestartMotionThread() -- so taskComplete/Fail also ends any active pathfinding, etc, early.
+    --[[
     local threads = self.BehaviourThreads
     if not threads then return end
 
@@ -36,6 +37,7 @@ function ENT:RestartMotionThread() -- so taskComplete/Fail also ends any active 
     if not motionCor then return end
 
     motionCor.cor = coroutine_create( function() coroutine_yield( "done" ) end )
+    --]]
 
 end
 
