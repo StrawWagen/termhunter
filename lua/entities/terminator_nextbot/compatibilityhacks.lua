@@ -69,6 +69,11 @@ function ENT:GetTarget()
 
 end
 
+function ENT:SetTarget( target )
+    self:SetEnemy( target )
+
+end
+
 function ENT:DrawViewModel()
 end
 

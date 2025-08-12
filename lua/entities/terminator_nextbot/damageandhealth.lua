@@ -429,7 +429,7 @@ function ENT:PostTookDamage( dmg )
     local validAttacker = IsValid( attacker )
     if validAttacker then
         -- they attacked us so they're an enemy we should engage!
-        attacker.term_NoHealthChangeCount = -1
+        attacker.term_NoHealthChangeCount = -1000
 
     end
 

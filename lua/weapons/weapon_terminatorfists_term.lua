@@ -80,10 +80,12 @@ hook.Add( "EntityTakeDamage", "term_busteddoorbreak", function( target, damage )
     local result = util.TraceLine( trInfo )
 
     local surfaceProps = result.SurfaceProps
-    local surfaceData = util.GetSurfaceData( surfaceProps )
-    if surfaceData.breakSound and surfaceData.breakSound ~= "" then
-        breakSound = surfaceData.breakSound
+    if surfaceProps then
+        local surfaceData = util.GetSurfaceData( surfaceProps )
+        if surfaceData and surfaceData.breakSound and surfaceData.breakSound ~= "" then
+            breakSound = surfaceData.breakSound
 
+        end
     end
     target:EmitSound( breakSound, 100, math.random( 80, 90 ) + target.bustedDoorHp / 100 )
 

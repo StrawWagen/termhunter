@@ -1027,7 +1027,7 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
     local startedTryingToOpen = myTbl.startedTryingToOpen or 0
     local sinceStarted = CurTime() - startedTryingToOpen
 
-    if blockerTbl.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
+    if blockerTbl.isTerminatorHunterBased and blockerTbl.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
         if ( myTbl.GetCurrentSpeed( self ) <= 5 or blockerTbl.GetCurrentSpeed( blocker ) <= 5 ) then
             blockerTbl.RunTask( blocker, "OnBlockingAlly", self, sinceStarted )
             myTbl.RunTask( self, "OnBlockedByAlly", blocker, sinceStarted )
@@ -2457,7 +2457,7 @@ function ENT:EnemyIsLethalInMelee( enemy )
 end
 
 hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, inflictor )
-    if not npc.isTerminatorHunterChummy then return end
+    if not npc.isTerminatorHunterBased then return end
     if not attacker then return end
     if not inflictor then return end
 

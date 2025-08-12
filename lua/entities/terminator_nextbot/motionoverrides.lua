@@ -1825,8 +1825,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local myHeightToNext = aheadSegment.pos.z - myPos.z
     local jumpableHeight = myHeightToNext < myTbl.JumpHeight
 
+    coroutine_yield()
     if IsValid( areaSimple ) and good then
-        coroutine_yield()
 
         -- dont jump if we're trying to jump up stairs!
         local tryingToJumpUpStairs = areaSimple:HasAttributes( NAV_MESH_STAIRS )
@@ -1836,12 +1836,12 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         end
         local blockJump = areaSimple:HasAttributes( NAV_MESH_NO_JUMP ) or tryingToJumpUpStairs or prematureGapJump
 
+        coroutine_yield()
         if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( myTbl.nextPathJump or 0 ) < cur then
             local dir = aheadSegment.pos-myPos
             dir.z = 0
             dir:Normalize()
 
-            coroutine_yield()
             local jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( myTbl, dir, aheadSegment.pos )
 
             myTbl.moveAlongPathJumpingHeight = jumpingHeight or myTbl.moveAlongPathJumpingHeight
@@ -1992,10 +1992,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     end
 
     local inAirNoDestination = nil
+    coroutine_yield()
     -- off ground
     if not iAmOnGround and aheadSegment then
-
-        coroutine_yield()
 
         if myTbl.IsJumping( self, myTbl ) or iAmSwimming then
             local nextPathArea = myTbl.GetNextPathArea( self, myTbl.GetTrueCurrentNavArea( self ) )
@@ -2712,6 +2711,10 @@ function ENT:CanJumpToPos( myTbl, pos, maxHeight )
     end
 
     maxHeight = maxHeight or myTbl.loco:GetJumpHeight()
+
+    local myPos = entMeta.GetPos( self )
+    if myPos.z + maxHeight < pos.z then return end -- too high
+
     local leapHeight = getLeapHeight( self, myTbl, pos, maxHeight, myTbl.Term_LeapMinimizesHeight )
 
     return leapHeight > 0, leapHeight

@@ -1130,13 +1130,16 @@ local function reconstruct_path( cameFrom, goalArea )
     local total_path_reverse = { goalArea }
     local noCircles = {}
 
+    --local last = goalArea:GetCenter()
+
+    local yielded
     local count = 0
     local currId = GetID( goalArea )
-    local last = goalArea:GetCenter()
     while cameFrom[currId] do
         count = count + 1
-        if count % 15 == 14 then
+        if count >= 25 and count % 15 == 14 then -- only yield for long paths
             coroutine_yield( "pathing" )
+            yielded = true
 
         end
         local current = cameFrom[currId]
@@ -1149,6 +1152,10 @@ local function reconstruct_path( cameFrom, goalArea )
 
         --else
             --debugoverlay.Line( last, current.area:GetCenter(), 5, color_white, true )
+
+        end
+        if yielded and not IsValid( current.area ) then -- outdated
+            return false
 
         end
         last = current.area:GetCenter()

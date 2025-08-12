@@ -47,7 +47,7 @@ end
     getNearestPosOnNav
     Returns data about the nearest position on the navmesh to the given pos.
     @param pos Vector
-    @return table { pos = Vector, area = Entity }
+    @return table { pos = Vector, area = NavArea }
 --]]--------------------------
 terminator_Extras.getNearestPosOnNav = function( pos )
     local result = { pos = nil, area = NULL }
@@ -55,9 +55,10 @@ terminator_Extras.getNearestPosOnNav = function( pos )
 
     local navFound = terminator_Extras.getNearestNav( pos )
 
-    if not IsValid( navFound ) then return NULL end
+    if not IsValid( navFound ) then return result end
 
-    result = { pos = navFound:GetClosestPointOnArea( pos ), area = navFound }
+    result.pos = navFound:GetClosestPointOnArea( pos )
+    result.area = navFound
     return result
 
 end
