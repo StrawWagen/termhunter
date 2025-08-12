@@ -169,7 +169,7 @@ function ENT:GiveDefaultWeapons()
         trueDefaultWeps = { trueDefaultWeps }
 
     end
-    if not trueDefaultWeps and fistsClass then
+    if not trueDefaultWeps and fistsClass and self.HasFists then
         trueDefaultWeps = { fistsClass } -- fists is always a default weapon
 
     end

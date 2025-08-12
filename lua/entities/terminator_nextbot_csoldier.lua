@@ -24,6 +24,7 @@ ENT.DefaultSidearms = {
 }
 
 ENT.TERM_FISTS = false
+ENT.HasFists = false
 
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
@@ -88,7 +89,6 @@ ENT.isTerminatorHunterChummy = "combine"
 ENT.MetallicMoveSounds = false
 ENT.ReallyStrong = false
 ENT.ReallyHeavy = false
-ENT.HasFists = false
 ENT.DuelEnemyDist = 1000
 ENT.CloseEnemyDistance = 500 -- focus on closest enemy, not best, if below this dist
 

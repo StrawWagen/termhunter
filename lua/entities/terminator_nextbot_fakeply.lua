@@ -38,6 +38,7 @@ if CLIENT then
 end
 
 ENT.DefaultWeapon = "gmod_camera"
+ENT.HasFists = false
 
 ENT.CoroutineThresh = 0.000002
 ENT.MaxPathingIterations = 2500
@@ -71,7 +72,6 @@ ENT.alwaysManiac = true
 ENT.isTerminatorHunterChummy = "paparazzi"
 ENT.MetallicMoveSounds = false
 ENT.ReallyStrong = false
-ENT.HasFists = false
 ENT.FootstepClomping = false
 
 -- a table is getting in here, maybe this fixes it?
