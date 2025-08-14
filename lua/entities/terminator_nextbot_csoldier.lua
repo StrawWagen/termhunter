@@ -1641,7 +1641,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local myTbl = data.myTbl
                 data.NextCheckIfSeeEnemy = CurTime() + 1
                 data.CurrentTaskGoalPos = nil
-                data.CheckIfWeCanJustSee = myTbl.HasBrains
+                data.CheckIfWeCanJustSee = true
                 if data.myTbl.HasBrains then
                     data.StartTheTask = CurTime() + math.Rand( 0.1, 0.25 )
 
@@ -1674,9 +1674,15 @@ function ENT:DoCustomTasks( defaultTasks )
                     local canJustSee = self:CanSeePosition( lastInterceptPos + self:GetViewOffset() )
                     if canJustSee then
                         myTbl.TaskComplete( self, "movement_intercept" )
-                        myTbl.StartTask( self, "movement_shootfromcover", "my buddy found an enemy, im gonna shoot them from here!" )
+                        if myTbl.HasBrains then
+                            myTbl.StartTask( self, "movement_shootfromcover", "my buddy found an enemy, im gonna shoot them from here!" )
 
+                        else
+                            myTbl.StartTask( self, "movement_standandshoot", "durr my buddy found an enemy and i can see them!" )
+
+                        end
                         return
+
                     end
                 end
 
