@@ -254,6 +254,7 @@ local function getFloorTr( pos )
     return trace
 
 end
+terminator_Extras.getFloorTr = getFloorTr
 
 --[[--------------------------
     posIsDisplacement

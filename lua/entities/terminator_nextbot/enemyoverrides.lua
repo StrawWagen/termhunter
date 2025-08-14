@@ -1081,11 +1081,27 @@ function ENT:validSoundHint()
 end
 
 function ENT:RegisterForcedEnemyCheckPos( enemy )
+    local myTbl = entMeta.GetTable( self )
+    if myTbl.IsFodder then return end
+
     if not IsValid( enemy ) then return end
 
-    self.forcedCheckPositions = self.forcedCheckPositions or {}
+    local checkPositions = myTbl.forcedCheckPositions
+    if checkPositions == false then return end
 
-    self.forcedCheckPositions[ enemy:GetCreationID() ] = enemy:GetPos()
+    if not checkPositions then
+        if not self:HasTask( "movement_approachforcedcheckposition" ) then
+            myTbl.forcedCheckPositions = false
+            return
+
+        else
+            checkPositions = {}
+            myTbl.forcedCheckPositions = checkPositions
+
+        end
+    end
+
+    checkPositions[ enemy:GetCreationID() ] = enemy:GetPos()
 
 end
 
@@ -1178,8 +1194,10 @@ function ENT:GetNearbyAllies()
     local myTbl = entMeta.GetTable( self )
 
     local allies = {}
-    local myPos = self:GetPos()
     local informRad = myTbl.InformRadius
+    if informRad <= 0 then return allies end
+
+    local myPos = self:GetPos()
     local classNameStart = string.match( self:GetClass(), "^(.-)_" ) -- terminator_nextbot_slower becomes terminator_nextbot, etc
     for _, ent in ipairs( ents.FindByClass( classNameStart .. "*" ) ) do
         if ent == self or not pals( self, ent ) or myPos:DistToSqr( ent:GetPos() ) > informRad^2 then continue end

@@ -38,7 +38,7 @@ if CLIENT then
 end
 
 ENT.DefaultWeapon = "gmod_camera"
-ENT.HasFists = false
+ENT.TERM_FISTS = false
 
 ENT.CoroutineThresh = 0.000002
 ENT.MaxPathingIterations = 2500

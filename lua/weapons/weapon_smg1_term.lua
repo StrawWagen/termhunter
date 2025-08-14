@@ -126,11 +126,6 @@ function SWEP:SecondaryAttack()
 	grenade:Spawn()
 	grenade:SetCustomCollisionCheck(true)
 	
-	hook.Add("ShouldCollide",grenade,function(self,ent1,ent2)
-		if self==ent1 then print(ent2) end
-		if self==ent2 then print(ent1) end
-	end)
-	
 	self:SetNextPrimaryFire(CurTime()+0.5)
 	self:SetNextSecondaryFire(CurTime()+1)
 end

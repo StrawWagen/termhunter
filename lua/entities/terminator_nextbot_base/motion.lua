@@ -124,35 +124,6 @@ function ENT:IsJumping( myTbl )
 end
 
 --[[------------------------------------
-	Name: NEXTBOT:SetupMotionType()
-	Desc: (INTERNAL) Called to setup motion type сonsidering motion speed and NEXTBOT:IsCrouching.
-	Arg1: 
-	Ret1: 
---]]------------------------------------
-function ENT:SetupMotionType()
-	local moving = self:IsMoving()
-	local type = TERMINATOR_NEXTBOT_MOTIONTYPE_IDLE
-	
-	if self:IsJumping() then
-		type = TERMINATOR_NEXTBOT_MOTIONTYPE_JUMPING
-	elseif self:IsCrouching() then
-		type = moving and TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCHWALK or TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCH
-	elseif moving then
-		local speed = self:GetCurrentSpeed()
-		
-		if speed>self.MoveSpeed+1 then
-			type = TERMINATOR_NEXTBOT_MOTIONTYPE_RUN
-		elseif speed<self.MoveSpeed/2+1 then
-			type = TERMINATOR_NEXTBOT_MOTIONTYPE_WALK
-		else
-			type = TERMINATOR_NEXTBOT_MOTIONTYPE_MOVE
-		end
-	end
-	
-	self:SetMotionType(type)
-end
-
---[[------------------------------------
 	Name: NEXTBOT:SetDesiredEyeAngles
 	Desc: Sets direction where bot want aim. You should use this in behaviour.
 	Arg1: Angle | ang | Desired direction.

@@ -307,6 +307,21 @@ function ENT:flagConnectionAsShit( area1, area2 )
     end )
 end
 
+local function badConnectionCost( connectionsId, dist )
+    if badConnections[connectionsId] then
+        dist = dist * 10
+        dist = dist + 3000
+
+    end
+    if superBadConnections[connectionsId] then
+        dist = dist * 1000
+        dist = dist + 20000000
+
+    end
+    return dist
+
+end
+
 hook.Add( "PostCleanupMap", "terminator_clear_connectionflags", function()
     badConnections = {}
     lastBadFlags = {}
@@ -419,20 +434,6 @@ function ENT:FlankAroundEasyEntraceToThing( bubbleStart, thing )
     self:AddAreasToAvoid( secondBubbleAreasClipped, FLANK_DEFAULT_COST * 2 )
 end
 
-local function badConnectionCheck( connectionsId, dist )
-    if badConnections[connectionsId] then
-        dist = dist * 10
-        dist = dist + 3000
-
-    end
-    if superBadConnections[connectionsId] then
-        dist = dist + 20000000
-
-    end
-    return dist
-
-end
-
 
 local navmesh = navmesh
 local IsValidCost = IsValid
@@ -506,7 +507,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
         cost = cost + 400
     end
 
-    cost = badConnectionCheck( getConnId( GetID( fromArea ), toAreasId ), cost )
+    cost = badConnectionCost( getConnId( GetID( fromArea ), toAreasId ), cost )
 
     if laddering then return cost end
 

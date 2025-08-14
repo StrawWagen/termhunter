@@ -164,11 +164,11 @@ local vector1000ZDown = Vector( 0, 0, -1000 )
 -- ret3 is if you want to do stuff with the first trace result
 -- good to do like, underDisplacement = ret1 or ret2
 
-terminator_Extras.posIsUnderDisplacement = function( pos )
+terminator_Extras.posIsUnderDisplacement = function( pos, dir )
     -- get the sky
     local firstTraceDat = {
         start = pos,
-        endpos = pos + vector6000ZUp,
+        endpos = pos + ( dir and dir * 6000 or vector6000ZUp ),
         mask = MASK_SOLID_BRUSHONLY,
     }
     local firstTraceResult = util.TraceLine( firstTraceDat )
@@ -185,7 +185,7 @@ terminator_Extras.posIsUnderDisplacement = function( pos )
     -- final check to make sure
     local thirdTraceDat = {
         start = pos,
-        endpos = pos + vector1000ZDown,
+        endpos = pos + ( dir and dir * -1000 or vector1000ZDown ),
         mask = MASK_SOLID_BRUSHONLY,
     }
     local thirdTraceResult = util.TraceLine( thirdTraceDat )

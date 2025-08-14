@@ -169,17 +169,18 @@ function ENT:GiveDefaultWeapons()
         trueDefaultWeps = { trueDefaultWeps }
 
     end
-    if not trueDefaultWeps and fistsClass and self.HasFists then
+
+    if not trueDefaultWeps and fistsClass then
         trueDefaultWeps = { fistsClass } -- fists is always a default weapon
 
     end
 
     local wep = self:GetKeyValue("additionalequipment") -- default to what was set in the spawnmenu
-    if not wep then
+    if not wep and trueDefaultWeps then
         wep = trueDefaultWeps[math.random( 1, #trueDefaultWeps )]
 
     end
-    if not wep then
+    if not wep and fistsClass then
         wep = fistsClass
 
     end
@@ -880,7 +881,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
     if blockWeaponNoticing > CurTime() then return end
 
-    if class == crateClass and myTbl.HasFists then -- CRATE!
+    if class == crateClass and myTbl.TERM_FISTS then -- CRATE!
         local wepPos = entMeta.GetPos( wep )
         local result = terminator_Extras.getNearestPosOnNav( wepPos )
         if IsValid( result.area ) and result.pos:DistToSqr( wepPos ) < cratesMaxDistFromGround then

@@ -115,7 +115,7 @@ function ENT:BehaveUpdate( interval )
                         myTbl.m_PathUpdatesDemanded = demanded - 1
 
                     end,
-                    whenBusy = function( self, myTbl, lastOne ) -- horrible, terrible hacks to fix equally horrible terrible stuttering when low CoroutineThresh bots are pathing
+                    whenBusy = function( self, myTbl, lastOne ) -- horrible, terrible hacks to fix equally horrible terrible visual stuttering when low CoroutineThresh bots are pathing
                         local demanded = myTbl.m_PathUpdatesDemanded
                         if demanded <= 0 then return end
 
@@ -225,7 +225,7 @@ function ENT:Think()
 
         while thread and SysTime() - oldTime < thresh do
             doneSomething = true
-            wasBusy = true
+            wasBusy = true -- did we have a normal yield?
             local noErrors, result = coroutine_resume( thread, self, myTbl )
             if noErrors == false then
                 threads[index] = nil

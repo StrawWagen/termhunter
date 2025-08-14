@@ -2312,7 +2312,7 @@ function ENT:TermHandleLadder( aheadSegment, currSegment )
     if wasHandlingLadder and nextLadderSound < CurTime() then
         self.nextLadderSound = CurTime() + 0.5
         if not self:IsSilentStepping() then
-            local bite = 15
+            local bite = 25
             if self.ReallyHeavy then
                 bite = 0
 
@@ -2488,7 +2488,7 @@ function ENT:EnterLadder()
 
     if self:IsSilentStepping() then return end
 
-    local bite = 15
+    local bite = 25
     if self.ReallyHeavy then
         bite = 0
 
@@ -2567,7 +2567,7 @@ function ENT:ExitLadder( exit, recalculate )
     end )
 
     if self:IsSilentStepping() then return end
-    local bite = 15
+    local bite = 25
     if self.ReallyHeavy then
         bite = 0
 
@@ -2670,7 +2670,7 @@ local function getLeapHeight( self, myTbl, pos, maxHeight, startFromMin )
         trData.start = arcStart
         trData.endpos = arcMiddle
         util.TraceHull( trData )
-        debugoverlay.SweptBox( trData.start, trResult.HitPos, trData.mins, trData.maxs, Angle( 0, 0, 0 ), 5, color_white, true )
+        --debugoverlay.SweptBox( trData.start, trResult.HitPos, trData.mins, trData.maxs, Angle( 0, 0, 0 ), 5, color_white, true )
         if trResult.Hit then
             heightFinal = heightFinal + heightStepSize
             continue -- hit something, try lower
@@ -2680,7 +2680,7 @@ local function getLeapHeight( self, myTbl, pos, maxHeight, startFromMin )
         trData.start = arcMiddle
         trData.endpos = arcEnd
         util.TraceHull( trData )
-        debugoverlay.SweptBox( trData.start, trResult.HitPos, trData.mins, trData.maxs, Angle( 0, 0, 0 ), 5, color_white, true )
+        --debugoverlay.SweptBox( trData.start, trResult.HitPos, trData.mins, trData.maxs, Angle( 0, 0, 0 ), 5, color_white, true )
         if trResult.Hit then
             heightFinal = heightFinal + heightStepSize
             continue -- hit something, try lower
@@ -2905,6 +2905,7 @@ function ENT:HandleInAir( myTbl )
 
         if fallHeight > fearFall then
             myTbl.WeaponPrimaryAttack( self )
+            myTbl.lastShootingType = "fearFall"
 
         end
         if lookAt then
@@ -3317,7 +3318,7 @@ end
 --[[------------------------------------
     Name: NEXTBOT:SetupMotionType()
     Desc: (INTERNAL) Called to setup motion type сonsidering motion speed and NEXTBOT:IsCrouching.
-    Arg1: 
+    Arg1: myTbl, optimisation
     Ret1: 
 --]]------------------------------------
 function ENT:SetupMotionType( myTbl ) -- override this to allow some npcs to more strictly play running anims
