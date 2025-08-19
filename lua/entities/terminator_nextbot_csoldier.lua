@@ -202,6 +202,8 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
         filter = { self, enemy },
     }
 
+    coroutine_yield()
+
     local standingTr = util.TraceLine( trStruc )
     local willSeeEnemy = not standingTr.Hit or standingTr.Entity == enemy
     willSeeEnemy = willSeeEnemy and not standingTr.StartSolid
@@ -210,6 +212,7 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
     if hasBrains then
         trStruc.start = coverPos + myTbl.GetCrouchViewOffset( self )
 
+        coroutine_yield()
         local crouchingTr = util.TraceLine( trStruc )
         willSeeEnemyCrouching = not crouchingTr.Hit or crouchingTr.Entity == enemy
         willSeeEnemyCrouching = willSeeEnemyCrouching and not crouchingTr.StartSolid
@@ -225,7 +228,7 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
         coverposCache[ cacheStr ] = COVER_HARDCOVER
         return COVER_HARDCOVER
 
-    elseif hasBrains then
+    elseif hasBrains then -- brainy enemies can notice "crap" cover, otherwise treat all as no cover
         coroutine_yield()
         if not coverposCache then return COVER_NONE end -- edge case
 
@@ -547,6 +550,8 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
+                coroutine_yield()
+
                 local somewhereToPathTo = toPos and not data.Unreachable
                 local canDoNewPath = somewhereToPathTo and myTbl.primaryPathInvalidOrOutdated( self, toPos )
                 if canDoNewPath and data.NextPathBuild < CurTime() then
@@ -581,6 +586,8 @@ function ENT:DoCustomTasks( defaultTasks )
                         if not myTbl.primaryPathIsValid( self ) then data.Unreachable = true return end
 
                     end
+                    coroutine_yield()
+
                 end
 
                 local result = myTbl.ControlPath2( self, not myTbl.IsSeeEnemy )
@@ -1319,8 +1326,11 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
+                coroutine_yield()
+
                 local needsNewPathGoal = not data.CurrentTaskGoalPos or entMeta.GetPos( self ):Distance( data.CurrentTaskGoalPos ) < 25
                 if needsNewPathGoal then
+                    coroutine_yield()
                     local areasToCheck = myNav:GetAdjacentAreas()
                     local areasAlreadyAdded = { myNav = true }
                     for _, area in ipairs( areasToCheck ) do
@@ -1365,6 +1375,8 @@ function ENT:DoCustomTasks( defaultTasks )
                         end
                     end
 
+                    coroutine_yield()
+
                     if bestChargePos then
                         data.CurrentTaskGoalPos = bestChargePos
 
@@ -1380,7 +1392,6 @@ function ENT:DoCustomTasks( defaultTasks )
                     myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 15 )
 
                 end
-
             end,
             ShouldRun = function( self, data )
                 local myTbl = data.myTbl
@@ -1407,6 +1418,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local needsNewPathGoal = not myTbl.IsSeeEnemy and not data.CurrentTaskGoalPos and IsValid( enemy )
                 if needsNewPathGoal then
+                    coroutine_yield()
                     local myNav = myTbl.GetCurrentNavArea( self, myTbl )
                     local areasToCheck = myNav:GetAdjacentAreas()
                     local areasAlreadyAdded = { myNav = true }
@@ -1440,6 +1452,8 @@ function ENT:DoCustomTasks( defaultTasks )
                         break
 
                     end
+
+                    coroutine_yield()
 
                     if bestStandPos then
                         data.CurrentTaskGoalPos = bestStandPos
@@ -1717,7 +1731,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     -- only do this when sound is confirmed from something dangerous, and there is another hunter pathing
                     if otherHuntersHalfwayPoint then
                         local result = terminator_Extras.getNearestPosOnNav( otherHuntersHalfwayPoint )
-                        if result.area:IsValid() then
+                        if IsValid( result.area ) then
                             local flankBubble = entMeta.GetPos( self ):Distance( otherHuntersHalfwayPoint ) * 0.7
                             -- create path, avoid simplest path
                             self:SetupFlankingPath( soundPos, result.area, flankBubble )

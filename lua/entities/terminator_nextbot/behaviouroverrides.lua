@@ -5,6 +5,7 @@ end
 
 local entMeta = FindMetaTable( "Entity" )
 local locoMeta = FindMetaTable( "CLuaLocomotion" )
+local physMeta = FindMetaTable( "PhysObj" )
 local pathMeta = FindMetaTable( "PathFollower" )
 
 local coroutine_yield = coroutine.yield
@@ -25,19 +26,6 @@ end
 
 function ENT:RejectPathUpdates( myTbl )
     myTbl.m_PathUpdatesDemanded = 0 -- stop demanding path updates
-
-end
-
-function ENT:RestartMotionThread() -- so taskComplete/Fail also ends any active pathfinding, etc, early.
-    --[[
-    local threads = self.BehaviourThreads
-    if not threads then return end
-
-    local motionCor = threads.motionCor
-    if not motionCor then return end
-
-    motionCor.cor = coroutine_create( function() coroutine_yield( "done" ) end )
-    --]]
 
 end
 
@@ -69,7 +57,7 @@ function ENT:BehaveUpdate( interval )
         myTbl.UpdatePhysicsObject( self )
         myTbl.HandlePathRemovedWhileOnladder( self )
 
-        local ply = self:GetControlPlayer()
+        local ply = myTbl.GetControlPlayer( self )
         if IsValid( ply ) then -- not optimizing this
             -- Sending current weapon clips data
 
@@ -144,7 +132,7 @@ function ENT:BehaveUpdate( interval )
 
                         local phys = entMeta.GetPhysicsObject( self )
                         if IsValid( phys ) then
-                            phys:SetAngles( angle_zero )
+                            physMeta.SetAngles( phys, angle_zero )
 
                         end
                     end
@@ -156,6 +144,97 @@ function ENT:BehaveUpdate( interval )
     myTbl.SetupGesturePosture( self )
 
 end
+
+
+-- debuggers for finding yields that need TLC
+local yieldDebugTotalCosts
+local yieldDebugWorstCosts
+local debugging = false
+
+do
+    local function onToggleDebugging()
+        if debugging then
+            yieldDebugTotalCosts = {}
+            yieldDebugWorstCosts = {}
+
+        else
+            yieldDebugTotalCosts = nil
+            yieldDebugWorstCosts = nil
+
+        end
+    end
+
+    CreateConVar( "term_debug_totaloverbudgetyields", "0", FCVAR_NONE, "Prints the yields that are collectively draining FPS" )
+    cvars.AddChangeCallback( "term_debug_totaloverbudgetyields", function( _, _, newVal )
+        debugging = tobool( newVal )
+        if debugging then
+            permaPrint( "Starting overbudget yield finder.\nRun term_debug_totaloverbudgetyields 0 to see results" )
+
+        else
+            if not yieldDebugTotalCosts then permaPrint( "ERR: File was autorefreshed." ) return end
+
+            local overbudgetFound = table.Count( yieldDebugTotalCosts )
+            if overbudgetFound <= 0 then
+                permaPrint( "No overbudget yields found." )
+                return
+
+            else
+                local i = 0
+                local max = 20
+                permaPrint( "Found " .. overbudgetFound .. " overbudget yields. Displaying the " .. math.min( overbudgetFound, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
+                for currStack, value in SortedPairsByValue( yieldDebugTotalCosts, true ) do
+                    i = i + 1
+                    if i > max then break end
+                    permaPrint( "-------------------------" )
+                    permaPrint( "Added costs: " .. value .. "\n", currStack )
+
+                end
+                permaPrint( "-------------------------" )
+
+            end
+            yieldDebugTotalCosts = nil
+
+        end
+        onToggleDebugging()
+
+    end, "maindebugthinker" )
+
+    CreateConVar( "term_debug_worstoverbudgetyields", "0", FCVAR_NONE, "Prints the yields spiking performance, causing tiny freezes" )
+    cvars.AddChangeCallback( "term_debug_worstoverbudgetyields", function( _, _, newVal )
+        debugging = tobool( newVal )
+        if debugging then
+            permaPrint( "Starting worst overbudget yield finder.\nRun term_debug_worstoverbudgetyields 0 to see results" )
+
+        else
+            if not yieldDebugWorstCosts then permaPrint( "ERR: File was autorefreshed." ) return end
+
+            local overbudgetFound = table.Count( yieldDebugWorstCosts )
+            if overbudgetFound <= 0 then
+                permaPrint( "No worst overbudget yields found." )
+                return
+
+            else
+                local i = 0
+                local max = 20
+                permaPrint( "Found " .. overbudgetFound .. " worst overbudget yields. Displaying the " .. math.min( overbudgetFound, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
+                for currStack, value in SortedPairsByValue( yieldDebugWorstCosts, true ) do
+                    i = i + 1
+                    if i > max then break end
+                    permaPrint( "-------------------------" )
+                    permaPrint( "Worst cost: " .. value .. "\n", currStack )
+
+                end
+                permaPrint( "-------------------------" )
+
+            end
+            yieldDebugWorstCosts = nil
+
+        end
+        onToggleDebugging()
+
+    end, "maindebugthinker" )
+end
+
 
 local costThisTick = 0
 local lastTick = CurTime()
@@ -198,10 +277,10 @@ function ENT:Think()
 
     local enem = myTbl.GetEnemy( self )
     local thresh = myTbl.CoroutineThresh
-    if myTbl.IsFodder and not IsValid( enem ) then
+    if myTbl.IsFodder and not IsValid( enem ) then -- fodders without enemies think slower
         thresh = thresh / 2
 
-    elseif myTbl.ThreshMulIfDueling then
+    elseif myTbl.ThreshMulIfDueling then -- think fast when next to an enemy, even faster when next to player enemy
         local distFullBoost = math.max( myTbl.DuelEnemyDist, 500 )
         local distHalfBoost = math.max( myTbl.DuelEnemyDist * 3, 1500 )
         if distToEnem <= distFullBoost and myTbl.IsPlyNoIndex( enem ) then
@@ -223,7 +302,19 @@ function ENT:Think()
         local myCostThisTick = 0
         local wasBusy
 
-        while thread and SysTime() - oldTime < thresh do
+        while thread do
+            local cost = SysTime() - oldTime
+            local overbudget = cost > thresh
+            if overbudget then
+                if debugging then
+                    local stack = debug.traceback( thread )
+                    yieldDebugTotalCosts[stack] = ( yieldDebugTotalCosts[stack] or 0 ) + cost
+                    yieldDebugWorstCosts[stack] = math.max( yieldDebugWorstCosts[stack] or 0, cost )
+
+                end
+                break
+
+            end
             doneSomething = true
             wasBusy = true -- did we have a normal yield?
             local noErrors, result = coroutine_resume( thread, self, myTbl )

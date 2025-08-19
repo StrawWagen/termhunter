@@ -122,7 +122,7 @@ end
 	Ret1: bool | Has weapon or not
 --]]------------------------------------
 function ENT:HasWeapon()
-	return self:GetActiveWeapon():IsValid() and (CLIENT or self:GetActiveLuaWeapon():IsValid())
+	return IsValid( self:GetActiveWeapon() ) and (CLIENT or IsValid( self:GetActiveLuaWeapon() ))
 end
 
 --[[------------------------------------

@@ -527,29 +527,64 @@ do
     end
 end
 
-function ENT:FindEnemies( myTbl )
-    myTbl = myTbl or self:GetTable()
-    local ShouldBeEnemy = myTbl.ShouldBeEnemy
-    local CanSeePosition = myTbl.CanSeePosition
-    local UpdateEnemyMemory = myTbl.UpdateEnemyMemory
-    local EntShootPos = myTbl.EntShootPos
-    local myFov = myTbl.Term_FOV
-    local found
-    if myFov >= 180 then
-        found = ents.FindInSphere( self:GetPos(), myTbl.MaxSeeEnemyDistance )
+do
+    coroutine_yield = coroutine.yield
 
-    else
-        found = ents.FindInCone( self:GetShootPos(), self:GetEyeAngles():Forward(), myTbl.MaxSeeEnemyDistance, math.cos( math.rad( myFov ) ) )
+    local function processFindingEnt( self, myTbl, ent, fodder, myFov, ShouldBeEnemy, CanSeePosition, UpdateEnemyMemory, EntShootPos )
+        if notEnemyCache[ ent ] then return end
+
+        if ent == self then return end
+
+        coroutine_yield()
+        local entsTbl = entMeta.GetTable( ent )
+        if not entsTbl then return end
+
+        if not ShouldBeEnemy( self, ent, myFov, myTbl, entsTbl ) then return end
+        if fodder then
+            coroutine_yield()
+            if not IsValid( ent ) then return end
+
+        end
+        if not CanSeePosition( self, ent, myTbl, entsTbl ) then return end
+        if fodder then
+            coroutine_yield()
+            if not IsValid( ent ) then return end
+
+        end
+
+        UpdateEnemyMemory( self, ent, EntShootPos( self, ent, entsTbl ), true )
 
     end
 
-    for _, ent in ipairs( found ) do
-        if ( ent ~= self ) and ( not notEnemyCache[ ent ] ) then
-            local entsTbl = ent:GetTable()
-            if ShouldBeEnemy( self, ent, myFov, myTbl, entsTbl ) and CanSeePosition( self, ent, myTbl, entsTbl ) then
-                UpdateEnemyMemory( self, ent, EntShootPos( self, ent, entsTbl ), true )
+    function ENT:FindEnemies( myTbl )
+        myTbl = myTbl or entMeta.GetTable( self )
+        local fodder = myTbl.IsFodder
+        local ShouldBeEnemy = myTbl.ShouldBeEnemy
+        local CanSeePosition = myTbl.CanSeePosition
+        local UpdateEnemyMemory = myTbl.UpdateEnemyMemory
+        local EntShootPos = myTbl.EntShootPos
+        local myFov = myTbl.Term_FOV
+
+        if fodder then coroutine_yield() end
+
+        local found
+        if myFov >= 180 then
+            found = ents.FindInSphere( entMeta.GetPos( self ), myTbl.MaxSeeEnemyDistance )
+
+        else
+            found = ents.FindInCone( myTbl.GetShootPos( self ), myTbl.GetAimVector( self, myTbl ), myTbl.MaxSeeEnemyDistance, math.cos( math.rad( myFov ) ) )
+
+        end
+
+        coroutine_yield() -- very expensive yield for cheap enemies :( 
+
+        for i, ent in ipairs( found ) do
+            if fodder and ( i % 30 == 15 ) then
+                coroutine_yield()
 
             end
+            processFindingEnt( self, myTbl, ent, fodder, myFov, ShouldBeEnemy, CanSeePosition, UpdateEnemyMemory, EntShootPos )
+
         end
     end
 end
@@ -1274,19 +1309,25 @@ end )
 local vec_up25 = Vector( 0, 0, 25 )
 
 function ENT:Term_LookAround( myTbl )
-    local cur = CurTime()
-    local myPos = self:GetPos()
+    local pathIsValid = myTbl.PathIsValid( self )
+    if not pathIsValid then return end
 
-    local myArea = myTbl.GetTrueCurrentNavArea( self )
+    local cur = CurTime()
+    local myPos = entMeta.GetPos( self )
+
+    local myArea = myTbl.GetCurrentNavArea( self, myTbl )
     local _, aheadSegment = myTbl.GetNextPathArea( self, myArea ) -- top of the jump
     if not aheadSegment then
-        aheadSegment = self:GetPath():GetCurrentGoal()
+        aheadSegment = myTbl.GetPath( self, myTbl ):GetCurrentGoal()
 
     end
+
+    coroutine_yield()
+
     local laddering = myTbl.terminator_HandlingLadder
 
     local lookAtGoalTime = myTbl.term_LookAtPathGoal or 0
-    local lookAtGoal = lookAtGoalTime > cur and self:PathIsValid()
+    local lookAtGoal = lookAtGoalTime > cur and pathIsValid
 
     local disrespecting = myTbl.GetCachedDisrespector( self )
     local speedToStopLookingFarAhead = terminator_Extras.term_DefaultSpeedToAimAtProps
@@ -1303,7 +1344,8 @@ function ENT:Term_LookAround( myTbl )
         end
     end
 
-    local pathIsValid = myTbl.PathIsValid( self )
+    coroutine_yield()
+
     local lookAtPos
     local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
@@ -1319,6 +1361,9 @@ function ENT:Term_LookAround( myTbl )
         freshnessFocus = 0.75
 
     end
+
+    coroutine_yield()
+
     local enemyStillFresh = ( myTbl.LastEnemySpotTime - cur ) > freshnessFocus
 
     local lookAtEnemyLastPos = myTbl.LookAtEnemyLastPos or 0
@@ -1368,6 +1413,8 @@ function ENT:Term_LookAround( myTbl )
 
     -- look along the path
     elseif lookAtGoal and ( movingSlow or pathIsValid ) then
+        coroutine_yield()
+
         -- by default, look one segment ahead
         if myTbl.IsCrouching( self ) then
             lookAtPos = aheadSegment.pos + vec_up25
@@ -1390,7 +1437,7 @@ function ENT:Term_LookAround( myTbl )
 
             end
         -- look a bit ahead
-        elseif lookAtPos:DistToSqr( myPos ) < 400^2 then
+        elseif lookAtPos:DistToSqr( myPos ) < 400^2 and IsValid( myArea ) then
             -- attempt to look farther ahead
             local _, segmentAheadOfUs = myTbl.GetNextPathArea( self, myArea, 3, true )
             if segmentAheadOfUs then
@@ -1402,6 +1449,8 @@ function ENT:Term_LookAround( myTbl )
     end
 
     if lookAtPos then
+        coroutine_yield()
+
         local myShoot = self:GetShootPos()
         if lookAtPos.z > myPos.z - 25 and lookAtPos.z < myPos.z + 25 then
             lookAtPos.z = myShoot.z
@@ -1501,7 +1550,6 @@ end
 --]]-------------------------------------
 function ENT:TimeSinceEnemySpotted( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
-    if not myTbl then return 0 end
 
     local lastSeen = myTbl.LastEnemySpotTime
     if not lastSeen then return 0 end

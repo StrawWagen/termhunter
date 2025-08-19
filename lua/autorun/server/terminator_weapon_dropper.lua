@@ -67,7 +67,7 @@ local function setDropWeapons( ply, attacker, _ )
             if not IsValid( ply ) then return end
 
             local newWepObj = newWep:GetPhysicsObject()
-            if not newWepObj or not newWepObj.IsValid or not newWepObj:IsValid() then return end
+            if not IsValid( newWepObj ) then return end
             newWepObj:ApplyForceCenter( forceDir * newWepObj:GetMass() * math.random( 150, 300 ) )
 
         end )

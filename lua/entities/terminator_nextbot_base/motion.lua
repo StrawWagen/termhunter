@@ -422,8 +422,9 @@ end
 	Arg1: 
 	Ret1: PathFollower | PathFollower object
 --]]------------------------------------
-function ENT:GetPath()
-	return self.m_Path
+function ENT:GetPath( myTbl )
+	myTbl = myTbl or entMeta.GetTable( self )
+	return myTbl.m_Path
 end
 
 --[[------------------------------------

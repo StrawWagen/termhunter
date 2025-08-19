@@ -139,7 +139,7 @@ function SWEP:HandleDoor( tr, strength )
         local lockHealth = door.terminator_lockHealth
         if not door.terminator_lockHealth then
             local initialHealth = 200
-            if doorsObj and doorsObj:IsValid() then
+            if IsValid( doorsObj ) then
                 initialHealth = math.max( initialHealth, doorsObj:GetVolume() / 1250 )
 
             end

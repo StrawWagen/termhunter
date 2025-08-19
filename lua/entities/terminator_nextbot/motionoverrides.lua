@@ -1,5 +1,6 @@
 local entMeta = FindMetaTable( "Entity" )
 local vecMeta = FindMetaTable( "Vector" )
+local pathMeta = FindMetaTable( "PathFollower" )
 
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
@@ -400,13 +401,16 @@ function ENT:OnStuck()
         for x = 0, w * 1.2, w * 0.2 do
             if yieldable then coroutine_yield() end
             for y = 0, w * 1.2, w * 0.2 do
+                if yieldable then coroutine_yield() end
                 if TryStuck( self, pos + Vector( x, y, z ),     t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, y, z ),    t, tr ) then return end
+                if yieldable then coroutine_yield() end
                 if TryStuck( self, pos + Vector( x, -y, z ),    t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, -y, z ),   t, tr ) then return end
                 if yieldable then coroutine_yield() end
                 if TryStuck( self, pos + Vector( x, y, -z ),    t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, y, -z ),   t, tr ) then return end
+                if yieldable then coroutine_yield() end
                 if TryStuck( self, pos + Vector( x, -y, -z ),   t, tr ) then return end
                 if TryStuck( self, pos + Vector( -x, -y, -z ),  t, tr ) then return end
 
@@ -889,10 +893,13 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
     end )
 
+    local cur = CurTime()
+
     -- lots of traces ahead, use caching please!
     local nextCache = self.nextBringUsTowardsCache or 0
-    if nextCache > CurTime() and self.cachedBringUsTowards then return self.cachedBringUsTowards end
-    self.nextBringUsTowardsCache = CurTime() + 0.8
+    if nextCache > cur and self.cachedBringUsTowards then return self.cachedBringUsTowards end
+
+    local cacheTime = 0.8
 
     local b1,b2 = self:BoundsAdjusted( 0.75 )
     local mask = self:GetSolidMask()
@@ -936,15 +943,11 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
         local jumpHeight = self.loco:GetMaxJumpHeight()
         local stepHeight = self.loco:GetStepHeight()
 
-        local nextYield = 10
+        local startTime = cur
 
         -- most of these will fail, allow lots!
         while attempts < maxAttempts do
-            if nextYield < attempts then
-                nextYield = attempts + 3
-                coroutine_yield()
-
-            end
+            coroutine_yield()
 
             attempts = attempts + 0.25
 
@@ -1033,6 +1036,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
                 return newStartPos
 
             end
+            coroutine_yield()
             -- imperfect, rank it!
             if not dirResult.StartSolid then
                 currScore = dirResult.Fraction
@@ -1081,10 +1085,16 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
         end
 
+        local timeTaken = cur - startTime
+        cacheTime = cacheTime + timeTaken
+
+        self.nextBringUsTowardsCache = cur + cacheTime
+
         self.cachedBringUsTowards = bestFraction
         return bestFraction
 
     else
+        self.nextBringUsTowardsCache = cur + cacheTime
         self.cachedBringUsTowards = dirResult.HitPos
         return dirResult.HitPos
 
@@ -1504,7 +1514,11 @@ terminator_Extras.term_InterruptedSpeedToAimAtProps = 100^2
     overriden to fuck with the broken jumping, hopefully making it more reliable.
 --]]------------------------------------
 function ENT:MoveAlongPath( lookAtGoal, myTbl )
-    myTbl = myTbl or self:GetTable()
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    local isFodder = myTbl.IsFodder
+    if isFodder then coroutine_yield() end
+
     local path = myTbl.GetPath( self )
     --local drawingPath
 
@@ -1515,13 +1529,16 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         --drawingPath = true
 
     end
-    local isFodder = myTbl.IsFodder
-    local myPos = self:GetPos()
+    local myPos = entMeta.GetPos( self )
     local myArea = myTbl.GetTrueCurrentNavArea( self )
+    if isFodder then coroutine_yield() end
+
+    local currSegment = pathMeta.GetCurrentGoal( path ) -- maybe bottom of the jump, paths are stupid
+    local _, aheadSegment = myTbl.GetNextPathArea( self, myArea ) -- always top of the jump
+    if isFodder then coroutine_yield() end
+
     local iAmOnGround = myTbl.loco:IsOnGround()
     local iAmSwimming = myTbl.IsSwimming( self, myTbl )
-    local _, aheadSegment = self:GetNextPathArea( myArea ) -- top of the jump
-    local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
     if isFodder then coroutine_yield() end
 
     if not aheadSegment then
@@ -2365,6 +2382,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
         -- simple jump up to the pos
         if zToPos > heightDiffNeededToJump and myTbl.IsAngry( self ) then
+            coroutine_yield()
             local dist2d = ( pos - myPos )
             dist2d.z = 0
             dist2d = dist2d:Length()
@@ -2410,6 +2428,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             local jump = readyToJump and ( jumpstate == 1 or goalBasedJump or doJumpTowards )
             -- jump if the jumpblock says we should, or if the simple jump up says we should
             if jump then
+                coroutine_yield()
                 local stepAside, asidePos
                 if not goalBasedJump and not doJumpTowards then
                     stepAside, asidePos = myTbl.CanStepAside( self, dir, pos )

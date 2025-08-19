@@ -609,13 +609,6 @@ do
         end
         coroutine_yield()
 
-        local add = 4
-        if myTbl.IsFodder then
-            add = math.Rand( 12, 24 )
-
-        end
-        myTbl.term_NextAwareness = CurTime() + add
-
         local pos = entMeta.GetPos( self )
         local AwarenessCheckRange = myTbl.AwarenessCheckRange
         local rawSurroundings = ents.FindInSphere( pos, AwarenessCheckRange )
@@ -639,6 +632,7 @@ do
 
         coroutine_yield()
 
+        local startTime = SysTime()
         local centers = {}
 
         for _, ent in ipairs( surroundings ) do
@@ -646,6 +640,8 @@ do
             centers[ent] = entMeta.WorldSpaceCenter( ent )
 
         end
+
+        coroutine_yield()
 
         table.sort( surroundings, function( a, b ) -- sort ents by distance to me
             if not IsValidAwareness( a ) then return false end
@@ -656,7 +652,22 @@ do
 
         end )
 
+        local took = SysTime() - startTime
+
         coroutine_yield()
+
+        local add = 4
+        if myTbl.IsFodder then
+            add = math.Rand( 12, 24 )
+
+        end
+        local tookScaled = took * 200
+        if tookScaled > 1 then -- #1 overbudget hotspot right here if there's lots of props spawned
+            add = add * tookScaled
+
+        end
+        myTbl.term_NextAwareness = CurTime() + add
+
 
         local added = 0
         local caresAbout = myTbl.caresAbout
@@ -885,6 +896,8 @@ do
         }
         local tr = util.TraceLine( traceStruc )
         if tr.Hit and not tr.HitWorld then return tr.Entity, tr end
+
+        coroutine_yield()
 
         traceStruc = {
             start = start,
@@ -1196,12 +1209,19 @@ function ENT:BehaviourThink( myTbl )
     local filter = { self, myTbl.GetEnemy( self ) }
     table.Add( filter, entMeta.GetChildren( self ) )
 
-    yieldIfWeCan()
+    coroutine_yield()
+
     local pos = myTbl.GetShootPos( self )
     local aimVec = myTbl.GetAimVector( self, myTbl )
+
+    coroutine_yield()
+
     local endpos1 = pos + aimVec * 150
     local blocker, blockerTrace = myTbl.ShootBlocker( self, myTbl, pos, endpos1, filter )
     local worldBlocker
+
+    coroutine_yield()
+
     if not myTbl.IsFodder then
         local endpos2 = pos + aimVec * 100
         worldBlocker = myTbl.ShootBlockerWorld( self, myTbl, pos, endpos2, filter ) or {}
@@ -1209,12 +1229,14 @@ function ENT:BehaviourThink( myTbl )
     end
 
     if IsValid( blocker ) and not blocker:IsWorld() then
-        yieldIfWeCan()
+        coroutine_yield()
         myTbl.tryToOpen( self, myTbl, blocker, blockerTrace )
 
     end
 
     myTbl.LastShootBlocker = blocker
+
+    coroutine_yield()
 
     local blocks = { blockerTrace, worldBlocker }
     -- slow down bot when it has stuff in front of it
@@ -1780,8 +1802,10 @@ end
 function ENT:ControlPath2( AimMode )
     local myTbl = self:GetTable()
     local result = nil
+    local fodder = myTbl.IsFodder
 
     if myTbl.blockControlPath and myTbl.blockControlPath > CurTime() then return end
+    coroutine_yield()
 
     local validPath = myTbl.PathIsValid( self )
     local badPathAndStuck = myTbl.isUnstucking and not validPath
@@ -1791,7 +1815,11 @@ function ENT:ControlPath2( AimMode )
     local doUnstuckPath = blockUnstuckRetrace < CurTime()
     myTbl.blockUnstuckRetrace = nil
 
+    if fodder then coroutine_yield() end
+
     local posBasedStuck = HunterIsStuck( self, myTbl )
+
+    coroutine_yield()
 
     if badPathAndStuck or posBasedStuck then -- new unstuck
         local myPos = self:GetPos()
@@ -1804,6 +1832,8 @@ function ENT:ControlPath2( AimMode )
 
         end
 
+        coroutine_yield()
+
         local myNav = myTbl.GetTrueCurrentNavArea( self ) or self:GetCurrentNavArea()
         if not IsValid( myNav ) then return end --- AAAAH
 
@@ -1814,6 +1844,8 @@ function ENT:ControlPath2( AimMode )
         scoreData.dirToEnd = self:GetForward()
         scoreData.bearingPos = myTbl.startUnstuckPos
 
+        coroutine_yield()
+
         if validPath then -- we were pathing, time to flag this connection
             local path = self:GetPath()
             local _, aheadSegment = myTbl.GetNextPathArea( self, myNav ) -- top of the jump
@@ -1823,10 +1855,9 @@ function ENT:ControlPath2( AimMode )
 
             if not aheadSegment then goto skipTheShitConnectionFlag end
 
-            scoreData.dirToEnd = terminator_Extras.dirToPos( self:GetPos(), path:GetEnd() )
+            scoreData.dirToEnd = terminator_Extras.dirToPos( myPos, path:GetEnd() )
             if not aheadSegment or not currSegment then goto skipTheShitConnectionFlag end
-            if not aheadSegment.area or not currSegment.area then goto skipTheShitConnectionFlag end
-            if not aheadSegment.area:IsValid() or not currSegment.area:IsValid() then goto skipTheShitConnectionFlag end
+            if not IsValid( aheadSegment.area ) then goto skipTheShitConnectionFlag end
 
             dirPathGoes = myNav:ComputeDirection( aheadSegment.pos )
             areasInDir = myNav:GetAdjacentAreasAtSide( dirPathGoes )
@@ -1842,12 +1873,15 @@ function ENT:ControlPath2( AimMode )
 
             ::skipTheShitConnectionFlag::
 
+            coroutine_yield()
+
             myTbl.InvalidatePath( self, "connection was flagged, killing my path for a new one!" )
 
         end
 
         if doUnstuckPath then -- get OUTTA here
             for _ = 1, 4 do
+                coroutine_yield()
                 local randOffset = math.random( -40, 40 )
 
                 -- find an area that is at least in the opposite direction of our current path
@@ -1884,11 +1918,14 @@ function ENT:ControlPath2( AimMode )
 
                 end
 
-                local _, escapeArea = self:findValidNavResult( scoreData, self:GetPos(), 1000, scoreFunction )
-                if not escapeArea then continue end
-                if not escapeArea:IsValid() then continue end
+                coroutine_yield()
+
+                local _, escapeArea = self:findValidNavResult( scoreData, myPos, 1000, scoreFunction )
+                if not IsValid( escapeArea ) then continue end
                 --debugoverlay.Cross( escapeArea:GetCenter(), 50, 100, Color( 255, 255, 0 ), true )
                 self:SetupPathShell( escapeArea:GetRandomPoint(), true )
+
+                coroutine_yield()
 
                 if self:PathIsValid() and IsValid( myNav ) then
                     self.initArea = myNav
@@ -1902,13 +1939,15 @@ function ENT:ControlPath2( AimMode )
 
         end
 
+        coroutine_yield()
+
         myTbl.tryToHitUnstuck = isstring( myTbl.TERM_FISTS )
         myTbl.unstuckingTimeout = CurTime() + 10
         myTbl.ReallyAnger( self, 10 )
 
     end
 
-    yieldIfWeCan()
+    coroutine_yield()
     validPath = myTbl.PathIsValid( self )
 
     if myTbl.tryToHitUnstuck then
@@ -2259,8 +2298,9 @@ local offset25z = Vector( 0, 0, 25 )
 function ENT:WalkArea( myTbl )
     local walkedArea = myTbl.GetCurrentNavArea( self, myTbl )
     if not IsValid( walkedArea ) then return end
+    local cur = CurTime()
 
-    if not myTbl.areaIsReachable( self, walkedArea ) and myTbl.nextUnreachableWipe < CurTime() then -- we got somewhere unreachable, probably should reset this
+    if not myTbl.areaIsReachable( self, walkedArea ) and myTbl.nextUnreachableWipe < cur then -- we got somewhere unreachable, probably should reset this
         if myTbl.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
             local ourClass = entMeta.GetClass( self )
             terminator_Extras.unreachableAreasForClasses[ ourClass ] = {}
@@ -2269,25 +2309,23 @@ function ENT:WalkArea( myTbl )
                 if ent == myTbl then continue end -- self gets a special case
 
                 ent.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
-                ent.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
+                ent.nextUnreachableWipe = cur + 15 -- never ever ever spam this
 
             end
         end
         myTbl.unreachableAreas = {} -- fodder enemies get this too, they break off from the global unreachable table
-        myTbl.nextUnreachableWipe = CurTime() + 15 -- never ever ever spam this
+        myTbl.nextUnreachableWipe = cur + 15 -- never ever ever spam this
 
     end
 
     if not myTbl.walkedAreas then return end -- set as nil to disable this, for fodder enemies, etc
 
     local nextFloodMark = myTbl.nextFloodMarkWalkable or 0
-
-    local cur = CurTime()
-
     if nextFloodMark > cur then return end
-    local add = math.Rand( 1, 1.5 )
+
+    local add = math.Rand( 1.5, 3 )
     if myTbl.IsFodder then
-        add = add * math.Rand( 2, 3 )
+        add = add * math.Rand( 5, 15 )
 
     end
     myTbl.nextFloodMarkWalkable = cur + add
@@ -2302,23 +2340,29 @@ function ENT:WalkArea( myTbl )
     local scoreFunction = function( scoreData, _, area2 )
         local score = 0
         if not area2 then return 0 end -- patch a script err?
+        coroutine_yield()
+
         local areaCenter = area2:GetCenter()
         if scoreData.currentWalked[area2:GetID()] then
             score = 1
 
         elseif scoreData.InitialArea:IsCompletelyVisible( area2 ) or terminator_Extras.PosCanSee( areaCenter + offset25z, scoreData.checkOrigin ) then
+            coroutine_yield()
             scoreData.currentWalked[area2:GetID()] = true
             scoreData.self:markAsWalked( area2 )
             score = math.abs( dist + -areaCenter:Distance( scoreData.checkOrigin ) )
             score = score / dist
             score = score * 25
+
         end
+
         --debugoverlay.Text( areaCenter, tostring( math.Round( score ) ), 8 )
         return score
 
     end
 
     local _ = myTbl.findValidNavResult( self, scoreData, self:GetPos(), dist, scoreFunction )
+    coroutine_yield()
 
 end
 
@@ -2999,41 +3043,51 @@ function ENT:DoDefaultTasks()
                 myTbl.SetEnemy( self, NULL )
                 data.nextCheck = 0
                 data.EnemyPosCheatsLeft = 0
+                function data.ResetVisVariables()
+                    myTbl.IsSeeEnemy = false -- assume false
+                    myTbl.NothingOrBreakableBetweenEnemy = false
+                    myTbl.EnemiesVehicle = false
 
+                end
             end,
             BehaveUpdatePriority = function( self, data )
                 local cur = CurTime()
                 if data.nextCheck > cur then return end
+                coroutine_yield()
+
                 local myTbl = data.myTbl
                 local fodder = myTbl.IsFodder
 
-                local add
+                local checkAdd
                 if fodder then
-                    add = 0.25
+                    checkAdd = 0.25
 
                 else
-                    add = 0.1
+                    checkAdd = 0.1
 
                 end
-                data.nextCheck = cur + add
-
-                myTbl.ForgetOldEnemies( self, myTbl )
+                data.nextCheck = cur + checkAdd
 
                 local prevEnemy = myTbl.GetEnemy( self )
                 local newEnemy = prevEnemy
                 local myShoot = myTbl.GetShootPos( self )
                 local myPos = entMeta.GetPos( self )
 
-                myTbl.IsSeeEnemy = false -- assume false
-                myTbl.NothingOrBreakableBetweenEnemy = false
-                myTbl.EnemiesVehicle = false
+                if ( not data.UpdateEnemies ) or ( cur > data.UpdateEnemies ) or ( not fodder and data.HasEnemy and not IsValid( prevEnemy ) ) then
+                    local updateAdd = 0.5
+                    if fodder then
+                        updateAdd = math.Rand( 1.5, 3 )
 
-                if ( not data.UpdateEnemies ) or ( cur > data.UpdateEnemies ) or ( data.HasEnemy and not IsValid( prevEnemy ) ) then
-                    data.UpdateEnemies = cur + 0.5
+                    end
+                    data.UpdateEnemies = cur + updateAdd
 
                     coroutine_yield()
 
                     myTbl.FindEnemies( self, myTbl )
+
+                    coroutine_yield()
+
+                    myTbl.ForgetOldEnemies( self, myTbl )
 
                     coroutine_yield()
 
@@ -3158,12 +3212,43 @@ function ENT:DoDefaultTasks()
                         end
                     end
 
+                    if fodder then
+                        coroutine_yield()
+                        if not IsValid( newEnemy ) then return end
+
+                    end
+
+                    data.ResetVisVariables() -- reset right before we figure this out
+
                     local newEnemsShoot = myTbl.EntShootPos( self, newEnemy, newEnemysTbl )
+                    isSeeEnemy = myTbl.CanSeePosition( self, newEnemy, myTbl )
                     myTbl.DistToEnemy = vecMeta.Distance( myPos, enemyPos )
-                    myTbl.IsSeeEnemy = myTbl.CanSeePosition( self, newEnemy, myTbl )
+                    myTbl.IsSeeEnemy = isSeeEnemy
                     myTbl.EnemiesVehicle = IsValid( theirCar ) and theirCar
 
-                    if myTbl.IsSeeEnemy and not myTbl.WasSeeEnemy then
+                    if fodder then
+                        coroutine_yield()
+
+                    end
+
+                    if isSeeEnemy then
+                        local nothinOrBreakable, _, hitNothing = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
+                        if not hitNothing and myTbl.DontShootThroughProps then
+                            local shotTr = util.TraceLine( {
+                                start = myShoot,
+                                endpos = newEnemsShoot,
+                                filter = { self, newEnemy },
+                                mask = myTbl.LineOfSightMask,
+                            } )
+                            nothinOrBreakable = nothinOrBreakable and not shotTr.Hit
+
+                        end
+                        myTbl.NothingOrBreakableBetweenEnemy = nothinOrBreakable
+                    end
+
+                    coroutine_yield()
+
+                    if isSeeEnemy and not myTbl.WasSeeEnemy then
                         local added = math.Rand( 0.4, 0.7 )
                         if myTbl.DistToEnemy > 2500 then
                             added = math.Rand( 0.9, 1.5 )
@@ -3173,9 +3258,9 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    myTbl.WasSeeEnemy = myTbl.IsSeeEnemy
+                    myTbl.WasSeeEnemy = isSeeEnemy
 
-                    if myTbl.EnemiesVehicle and myTbl.IsSeeEnemy then
+                    if myTbl.EnemiesVehicle and isSeeEnemy then
                         myTbl.term_VehicleIHateAlot = myTbl.EnemiesVehicle
 
                     end
@@ -3195,18 +3280,10 @@ function ENT:DoDefaultTasks()
                     end
 
                     if ( myTbl.IsSeeEnemy or posCheatsLeft > 0 ) and newEnemsHealth > 0 then -- health check fixed some silly problems
-                        local nothinOrBreakable, _, hitNothing = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
-                        if not hitNothing and myTbl.DontShootThroughProps then
-                            local shotTr = util.TraceLine( {
-                                start = myShoot,
-                                endpos = newEnemsShoot,
-                                filter = { self, newEnemy },
-                                mask = myTbl.LineOfSightMask,
-                            } )
-                            nothinOrBreakable = nothinOrBreakable and not shotTr.Hit
+                        if fodder then
+                            coroutine_yield()
 
                         end
-                        myTbl.NothingOrBreakableBetweenEnemy = nothinOrBreakable
                         local enemyLastMoveDir = terminator_Extras.dirToPos( myTbl.EnemyLastPos, enemyPos )
                         myTbl.EnemyLastMoveDir = enemyLastMoveDir -- enemy's last move direction
                         myTbl.EnemyLastPosOffsetted = enemyPos + enemyLastMoveDir * 150
@@ -3257,6 +3334,8 @@ function ENT:DoDefaultTasks()
                     myTbl.SetEnemy( self, newEnemy )
 
                 else
+                    data.ResetVisVariables()
+
                     coroutine_yield()
                     if data.HasEnemy then
                         local memory, _ = myTbl.getMemoryOfObject( self, myTbl, prevEnemy )
@@ -3298,6 +3377,8 @@ function ENT:DoDefaultTasks()
                     myTbl.VisibilityStartingHealth = nil
 
                 end
+                coroutine_yield()
+
             end,
             StartControlByPlayer = function( self, data, ply )
                 self:TaskFail( "enemy_handler" )
@@ -3308,6 +3389,8 @@ function ENT:DoDefaultTasks()
             OnStart = function( self, data )
             end,
             BehaveUpdatePriority = function( self, data, interval )
+                coroutine_yield()
+
                 local myTbl = data.myTbl
                 local enemy = myTbl.GetEnemy( self )
 
@@ -3329,16 +3412,18 @@ function ENT:DoDefaultTasks()
                     end
                 end
 
+                coroutine_yield()
                 local forcedToLook = myTbl.Term_LookAround( self, myTbl ) -- handle looking around while pathing, with no enemy
                 if forcedToLook then return end
 
                 local doShootingPrevent = myTbl.PreventShooting
 
+                coroutine_yield()
                 -- drop crap wep
                 if wep.terminatorCrappyWeapon == true and myTbl.TERM_FISTS then
                     myTbl.DoFists( self )
 
-                elseif wep.Clip1 and wepMeta.Clip1( wep ) <= 0 and wepMeta.GetMaxClip1( wep ) > 0 and not myTbl.IsReloadingWeapon then
+                elseif wepMeta.Clip1( wep ) <= 0 and wepMeta.GetMaxClip1( wep ) > 0 and not myTbl.IsReloadingWeapon then
                     myTbl.WeaponReload( self )
 
                 -- allow us to not stop shooting at the witness player, glee
@@ -3347,6 +3432,9 @@ function ENT:DoDefaultTasks()
                     myTbl.lastShootingType = "witnessPlayer"
 
                 elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
+                    coroutine_yield()
+                    if not IsValid( enemy ) then return end
+
                     local wepRange = myTbl.GetWeaponRange( self, myTbl, wep )
                     local seeOrWeaponDoesntCare = wep.worksWithoutSightline
                     if myTbl.DontShootThroughProps then
@@ -3357,6 +3445,9 @@ function ENT:DoDefaultTasks()
 
                     end
                     if wep and myTbl.IsRangedWeapon( self, wep ) then
+                        coroutine_yield()
+                        if not IsValid( enemy ) then return end
+
                         local shootableVolatile
                         if not doShootingPrevent and ( not myTbl.IsFodder and myTbl.HasBrains ) then
                             shootableVolatile = myTbl.getShootableVolatile( self, myTbl, enemy )
@@ -3390,6 +3481,9 @@ function ENT:DoDefaultTasks()
                         end
                     --melee
                     elseif wep and myTbl.IsMeleeWeapon( self, wep ) then
+                        coroutine_yield()
+                        if not IsValid( enemy ) then return end
+
                         local blockShoot = doShootingPrevent or true
                         local meleeAtPos = myTbl.LastEnemyShootPos
 
@@ -3410,11 +3504,13 @@ function ENT:DoDefaultTasks()
 
                     end
                 else
-                    if wep.Clip1 and ( wepMeta.GetMaxClip1( wep ) > 0 ) and ( wepMeta.Clip1( wep ) < wepMeta.GetMaxClip1( wep ) / 2 ) and not myTbl.IsReloadingWeapon then
+                    if not myTbl.IsReloadingWeapon and ( wepMeta.GetMaxClip1( wep ) > 0 ) and ( wepMeta.Clip1( wep ) < wepMeta.GetMaxClip1( wep ) / 2 ) then
                         myTbl.WeaponReload( self )
 
                     end
                 end
+                coroutine_yield()
+
             end,
             StartControlByPlayer = function( self, data, ply )
                 self:TaskFail( "shooting_handler" )
@@ -3443,6 +3539,8 @@ function ENT:DoDefaultTasks()
                 data.nextUnderDisplacementCheck = 0
             end,
             BehaveUpdatePriority = function( self, data )
+                coroutine_yield()
+
                 local myTbl = data.myTbl
                 local fodder = myTbl.IsFodder
                 if data.freedomGotoPosSimple and data.extremeUnstucking > CurTime() then -- try and unstuck without teleporting!
@@ -4635,7 +4733,7 @@ function ENT:DoDefaultTasks()
                         -- only do this when sound is confirmed from something dangerous, and there is another hunter pathing
                         if data.Valuable and otherHuntersHalfwayPoint then
                             local result = terminator_Extras.getNearestPosOnNav( otherHuntersHalfwayPoint )
-                            if result.area:IsValid() then
+                            if IsValid( result.area ) then
                                 local flankBubble = myPos:Distance( otherHuntersHalfwayPoint ) * 0.7
                                 -- create path, avoid simplest path
                                 self:SetupFlankingPath( soundPos, result.area, flankBubble )
@@ -5790,7 +5888,7 @@ function ENT:DoDefaultTasks()
 
                 local result = terminator_Extras.getNearestPosOnNav( enemyPos )
 
-                local enemyOnNav = result.area:IsValid()
+                local enemyOnNav = IsValid( result.area )
                 if enemyPos then
                     local minEnemyDist = 0
                     if tooDangerousToApproach then
@@ -6075,10 +6173,10 @@ function ENT:DoDefaultTasks()
                     local enemOffsetted = enemyPos + vecFiftyZ
                     enemySeesDestination = terminator_Extras.PosCanSeeComplex( pathEndNav:GetCenter() + vecFiftyZ, enemOffsetted, self )
                     if self:PathIsValid() then
-                        local segments = self:getCachedPathSegments()
+                        local segments = self:getCachedPathSegments( data.myTbl )
                         local middleIndex = math.Round( #segments / 2 )
                         local middleSegment = segments[middleIndex]
-                        if middleSegment.area.IsValid and middleSegment.area:IsValid() then
+                        if IsValid( middleSegment.area ) then
                             enemySeesMiddle = terminator_Extras.PosCanSeeComplex( middleSegment.area:GetCenter() + vecFiftyZ, enemOffsetted, self )
 
                         end

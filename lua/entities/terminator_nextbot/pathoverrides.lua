@@ -3,6 +3,8 @@ local coroutine_running = coroutine.running
 local IsValid = IsValid
 local SysTime = SysTime
 local entMeta = FindMetaTable( "Entity" )
+local pathMeta = FindMetaTable( "PathFollower" )
+local locoMeta  = FindMetaTable( "CLuaLocomotion" )
 
 local function yieldIfWeCan( reason )
     if not coroutine_running() then return end
@@ -51,8 +53,9 @@ function ENT:InvalidatePath( reason )
 
 end
 
-function ENT:getCachedPathSegments()
-    local path = self:GetPath()
+function ENT:getCachedPathSegments( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+    local path = myTbl.GetPath( self, myTbl )
     local pathEnd = path:GetEnd()
     local lastEnd = self.lastCachedPathEnd or vector_origin
     if pathEnd == lastEnd then return self.cachedPathSegments end
@@ -80,7 +83,6 @@ function ENT:getMaxPathCurvature( myTbl, passArea, extentDistance )
 
     -- go until we get past extent distance
 
-    local oldTime = SysTime()
     for _, currSegment in ipairs( pathSegs ) do
         if wasCurrentSegment or currSegment.area == myNavArea then
             wasCurrentSegment = true
@@ -102,13 +104,27 @@ function ENT:getMaxPathCurvature( myTbl, passArea, extentDistance )
 end
 
 function ENT:GetNextPathArea( refArea, offset, visCheck )
-    if not self:PathIsValid() then return end
+    local myTbl = entMeta.GetTable( self )
+    local path = myTbl.GetPath( self, myTbl )
+    if not myTbl.PathIsValid( self, path ) then return end
 
-    local targetReferenceArea = refArea or self:GetCurrentNavArea()
+    local targetReferenceArea = refArea or myTbl.GetCurrentNavArea( self, myTbl )
     if not targetReferenceArea then return end
 
-    local pathSegs = self:getCachedPathSegments()
-    local myPathPoint = self:GetPath():GetCurrentGoal()
+    local fodder = myTbl.IsFodder
+    local key
+    if fodder then
+        key = tostring( pathMeta.GetEnd( path ) ) .. tostring( targetReferenceArea )
+        local oldCacheKey = myTbl.GetNextPathAreaCacheKey
+        if oldCacheKey and oldCacheKey == key then
+            local cache = myTbl.GetNextPathAreaCache
+            return cache[1], cache[2]
+
+        end
+    end
+
+    local pathSegs = myTbl.getCachedPathSegments( self, myTbl )
+    local myPathPoint = path:GetCurrentGoal()
     local myShootPos = self:GetShootPos()
     local goalArea = NULL
     local goalPathPoint
@@ -137,6 +153,12 @@ function ENT:GetNextPathArea( refArea, offset, visCheck )
             --debugoverlay.Cross( pathPoint.area:GetCenter(), 0.1, 10, Color( 255,0,0 ), true )
 
         end
+    end
+
+    if fodder then
+        myTbl.GetNextPathAreaCacheKey = key
+        myTbl.GetNextPathAreaCache = { goalArea, goalPathPoint }
+
     end
     return goalArea, goalPathPoint
 
@@ -436,7 +458,6 @@ end
 
 
 local navmesh = navmesh
-local IsValidCost = IsValid
 local band = bit.band
 
 local navMeta = FindMetaTable( "CNavArea" )
@@ -497,7 +518,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
     local cost = connDist
     local laddering
 
-    if ladder and IsValidCost( ladder ) then
+    if ladder and IsValid( ladder ) then
         if not myTbl.CanUseLadders then return -1 end
 
         laddering = true
@@ -521,7 +542,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
     local attributes = navMeta.GetAttributes( toArea )
     local crouching
 
-    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not self:transientAreaPathable( toArea, toAreasId ) then return -1 end
+    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not myTbl.transientAreaPathable( self, toArea, toAreasId ) then return -1 end
 
     local hunterIsFlanking = myTbl.hunterIsFlanking
     local flankingIsReallyAngry = myTbl.flankingIsReallyAngry
@@ -544,6 +565,10 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
             cost = cost * 1.5 -- these usually look goofy
         end
     end
+
+    coroutine_yield( "pathing" )
+    if not IsValid( fromArea ) then return -1 end
+    if not IsValid( toArea ) then return -1 end
 
     local sizeX = navMeta.GetSizeX( toArea )
     local sizeY = navMeta.GetSizeY( toArea )
@@ -578,9 +603,14 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
 
     end
 
+    coroutine_yield( "pathing" )
+    if not IsValid( fromArea ) then return -1 end
+    if not IsValid( toArea ) then return -1 end
+
     local deltaZ = navMeta.ComputeAdjacentConnectionHeightChange( fromArea, toArea )
-    local stepHeight = myTbl.loco:GetStepHeight()
-    local jumpHeight = myTbl.loco:GetJumpHeight()
+    local myLoco = myTbl.loco
+    local stepHeight = locoMeta.GetStepHeight( myLoco )
+    local jumpHeight = locoMeta.GetJumpHeight( myLoco )
     if deltaZ >= stepHeight then
         if deltaZ >= jumpHeight then return -1 end
         if deltaZ > stepHeight * 4 then
@@ -612,7 +642,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
             cost = cost * 10
 
         end
-    elseif not flankingIsReallyAngry and deltaZ <= -myTbl.loco:GetDeathDropHeight() then
+    elseif not flankingIsReallyAngry and deltaZ <= -locoMeta.GetDeathDropHeight( myLoco ) then
         cost = cost * 50000
 
     elseif not flankingIsReallyAngry and deltaZ <= -jumpHeight then
@@ -643,6 +673,10 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
 
         end
     end
+
+    coroutine_yield( "pathing" )
+    if not IsValid( fromArea ) then return -1 end
+    if not IsValid( toArea ) then return -1 end
 
     return cost
 end
@@ -722,6 +756,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     if not isUnstuck and not self:nextNewPathIsGood() then return nil, "blocked1" end
     self.nextNewPath = CurTime() + math.Rand( 0.05, 0.1 )
 
+    coroutine_yield()
+
     if not isvector( endpos ) then return nil, "blocked2" end
     if self.isUnstucking and not isUnstuck then return nil, "blocked3" end
 
@@ -739,13 +775,13 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     end
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     -- if we are not going to an orphan ( can still be an orphan, this is just a sanity check! )
     -- prevents paths to really small collections of navareas that don't connect back to the bot. ( and the lagspikes that come from those! )
     local pathDestinationIsAnOrphan, encounteredABlockedArea = self:AreaIsOrphan( endArea.area )
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     -- not an orphan, proceed as normal!
     if pathDestinationIsAnOrphan ~= true then
@@ -759,7 +795,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         local after = SysTime()
 
         local cost = ( after - before )
-        if cost > 2 then
+        if cost > 2 then -- yeesh!
             self.term_ExpensivePath = true
 
         end
@@ -773,6 +809,8 @@ function ENT:SetupPathShell( endpos, isUnstuck )
                 self:FloodMarkAsUnreachable( endArea.area )
 
             end
+
+            coroutine_yield()
 
             return nil, "blocked5 ( the good ending )"
 
@@ -983,6 +1021,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     local scores = { [curId] = 1 }
     local opCount = 0
     local isLadder = {}
+    local fodder = self.IsFodder
 
     if cur.GetTop then
         isLadder[curId] = true
@@ -1015,7 +1054,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
         local area = getNavAreaOrLadderById( areaId )
 
         opCount = opCount + 1
-        if ( opCount % 15 ) == 0 then
+        if fodder or ( opCount % 5 ) == 0 then
             yieldIfWeCan()
             if not IsValid( area ) then
                 -- area was removed while we were yielding, damn areapatcher
@@ -1240,6 +1279,8 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
         removeFrom( bestId, openedSequential, opened )
         addTo( bestId, closedSequential, closed )
 
+        coroutine_yield( "pathing" )
+
         local bestArea = navmesh.GetNavAreaByID( bestId )
         if not IsValid( bestArea ) then -- we are in a coroutine, this can happen
             continue
@@ -1248,7 +1289,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
         --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( smallestCost ) ), 5, color_white, true )
 
-        if maxPathingIterations and currExtent > maxPathingIterations then -- all out :(
+        if maxPathingIterations and currExtent > maxPathingIterations then -- all out :( guess the goal is whatever got closest
             local smallestCompromiseCost = inf
             local bestCompromiseId
             for _, id in ipairs( opened ) do
@@ -1273,7 +1314,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
                 return nil, false, "fail5"
 
             end
-        elseif bestArea == goalArea then
+        elseif bestArea == goalArea then -- got there!
             return goalArea, reconstruct_path( cameFrom, goalArea ), true, "succeed1"
 
         end
@@ -1283,16 +1324,20 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
         for _, neighborDat in ipairs( adjacentDatas ) do
             currExtent = currExtent + 1
-            if currExtent % 4 == 3 then
-                coroutine_yield( "pathing" )
+            coroutine_yield( "pathing" )
 
-            end
             local neighbor = neighborDat.area
             if not IsValid( neighbor ) then continue end -- can happen when navmesh is being edited
 
             local neighborsId = GetID( neighbor )
+            if fodder then
+                coroutine_yield( "pathing" )
+                if not IsValid( neighbor ) then continue end
+                if not IsValid( bestArea ) then continue end
+            end
             -- NavMeshPathCostGenerator
             local neighborsCost = scoreKeeper( neighbor, bestArea, neighborDat.ladder, neighborDat.dist )
+            if fodder then coroutine_yield( "pathing" ) end
 
             local neighborsCostSoFar = costSoFar + neighborsCost
 
@@ -1306,6 +1351,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
             elseif cannotTraverse then -- cant go this way
                 addTo( neighborsId, closedSequential, closed ) -- mark as closed
                 costsSoFar[neighborsId] = costSoFar * 1000 -- blow up the cost, so any valid retraces are very confident going back over this
+                coroutine_yield( "pathing" )
                 continue
 
             end
@@ -1322,6 +1368,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
                 removeFrom( neighborsId, closedSequential, closed )
                 addTo( neighborsId, openedSequential, opened )
                 cameFrom[ neighborsId ] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
+                coroutine_yield( "pathing" )
 
             end
         end
@@ -1406,6 +1453,8 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
     goal = navMeta.GetClosestPointOnArea( newGoalArea, goal ) -- make sure the goal lines up
 
+    coroutine_yield()
+
     local corridorIds = {}
     for _, area in ipairs( areaCorridor ) do
         --debugoverlay.Cross( area:GetCenter(), 10, 5, color_white, true )
@@ -1442,9 +1491,11 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
     allowedDeviations = 250
 
-    local computed = path:Compute( me, goal, generatorHack )
+    local computed = path:Compute( me, goal, generatorHack ) -- "fake" path compute with overriden score func, forces it to stay on the rails defined by coroutined a*
     areaCorridorNexts = nil
     allowedDeviations = nil
+
+    coroutine_yield()
 
     if not path:IsValid() then -- :(
         return nil, false, "noCompute"
@@ -1452,6 +1503,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
     end
 
     if timeTaken > 2 or startArea:GetCenter():Distance( goal ) > 1000 then
+        coroutine_yield()
         addToCorridor( areaCorridor ) -- let future bots confidently traverse this valid path corridor
 
     end
@@ -1474,6 +1526,9 @@ end
     Ret1: any | PathFollower object if created succesfully, otherwise false
 --]]------------------------------------
 function ENT:SetupPath( pos, endArea )
+
+    coroutine_yield()
+
     local myTbl = entMeta.GetTable( self )
     myTbl.InvalidatePath( self, "i started a new path" )
 
@@ -1490,6 +1545,8 @@ function ENT:SetupPath( pos, endArea )
         myTbl.pathAreasAdditionalCost = adjusted
 
     end
+
+    coroutine_yield()
 
     if myTbl.awarenessDamaging then
         local damagingAreas = self:DamagingAreas()
@@ -1511,6 +1568,8 @@ function ENT:SetupPath( pos, endArea )
 
     end
 
+    coroutine_yield()
+
     local path = Path( "Follow" )
     myTbl.m_Path = path
 
@@ -1522,6 +1581,8 @@ function ENT:SetupPath( pos, endArea )
     local computed, wasGood, _status = AstarCompute( path, self, myTbl, pos, endArea, scoreKeeper )
     --print( self:GetCreationID(), "AstarCompute", computed, wasGood, _status )
 
+    coroutine_yield()
+
     myTbl.pathAreasAdditionalCost = nil
 
     if not path:IsValid() then
@@ -1529,10 +1590,10 @@ function ENT:SetupPath( pos, endArea )
 
         -- this stuck edge case usually happens when the bot ends up in some orphan part of the navmesh with no way out, eg bottom of an elevator shaft
         local old = myTbl.term_ConsecutivePathFailures or 0
-        if old > 25 then
+        if old > 15 then
             myTbl.overrideVeryStuck = true -- alert the reallystuck_handler
 
-        elseif old >= 5 then
+        elseif old >= 5 then -- start checkin if we're at the bottom of an elevator shaft
             local currNav = myTbl.GetCurrentNavArea( self, myTbl )
             if not IsValid( currNav ) or self:AreaIsOrphan( currNav, true ) then
                 myTbl.overrideVeryStuck = true -- alert the reallystuck_handler early!
