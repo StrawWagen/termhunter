@@ -2758,6 +2758,8 @@ function ENT:JumpToPos( pos, height )
     local _
     _, height = myTbl.CanJumpToPos( self, myTbl, pos, height )
 
+    if not height then return end -- cant jump
+
     local curpos = entMeta.GetPos( self )
     local dir = pos - curpos
     local dist = dir:Length()
