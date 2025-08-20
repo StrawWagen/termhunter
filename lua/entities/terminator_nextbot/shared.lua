@@ -3069,7 +3069,7 @@ function ENT:DoDefaultTasks()
                 data.nextCheck = cur + checkAdd
 
                 local prevEnemy = myTbl.GetEnemy( self )
-                local newEnemy = prevEnemy
+                local newEnemy
                 local myShoot = myTbl.GetShootPos( self )
                 local myPos = entMeta.GetPos( self )
 
@@ -3197,6 +3197,11 @@ function ENT:DoDefaultTasks()
                 end
 
                 coroutine_yield()
+
+                if not IsValid( newEnemy ) and IsValid( prevEnemy ) and myTbl.ShouldBeEnemy( self, prevEnemy, myTbl.Term_FOV, myTbl, entMeta.GetTable( prevEnemy ) ) then
+                    newEnemy = prevEnemy
+
+                end
 
                 if IsValid( newEnemy ) then
                     local newEnemysTbl = entMeta.GetTable( newEnemy )

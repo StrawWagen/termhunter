@@ -2734,6 +2734,9 @@ function ENT:CanJumpToPos( myTbl, pos, maxHeight )
     local myPos = entMeta.GetPos( self )
     if myPos.z + maxHeight < pos.z then return end -- too high
 
+    local distance = myPos:Distance2D( pos )
+    if distance > myTbl.JumpHeight * 2 then return end -- too far
+
     local leapHeight = getLeapHeight( self, myTbl, pos, maxHeight, myTbl.Term_LeapMinimizesHeight )
 
     return leapHeight > 0, leapHeight
