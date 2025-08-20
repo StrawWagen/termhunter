@@ -787,6 +787,11 @@ function ENT:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePo
 
     end
 
+    if IsValid( ragdoll ) and self.AdditionalRagdollDeathEffects then
+        self:AdditionalRagdollDeathEffects( ragdoll )
+
+    end
+
     for _, child in ipairs( self:GetChildren() ) do
         if not IsValid( child ) then continue end
 
@@ -896,3 +901,9 @@ function ENT:InitializeDrowning( myTbl )
         end
     end
 end
+
+--[[
+-- stub, make sure you add this shared, this is called for client ragdolls too
+function ENT:AdditionalRagdollDeathEffects( ragdoll )
+end
+--]]

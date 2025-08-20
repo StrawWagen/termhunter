@@ -109,12 +109,12 @@ function ENT:GetNextPathArea( refArea, offset, visCheck )
     if not myTbl.PathIsValid( self, path ) then return end
 
     local targetReferenceArea = refArea or myTbl.GetCurrentNavArea( self, myTbl )
-    if not targetReferenceArea then return end
+    if not IsValid( targetReferenceArea ) then return end
 
     local fodder = myTbl.IsFodder
     local key
     if fodder then
-        key = tostring( pathMeta.GetEnd( path ) ) .. tostring( targetReferenceArea )
+        key = tostring( pathMeta.GetEnd( path ) ) .. targetReferenceArea:GetID()
         local oldCacheKey = myTbl.GetNextPathAreaCacheKey
         if oldCacheKey and oldCacheKey == key then
             local cache = myTbl.GetNextPathAreaCache

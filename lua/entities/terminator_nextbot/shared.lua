@@ -7602,7 +7602,7 @@ function ENT:DoDefaultTasks()
                         if not myPos or not pathStart then
                             self:TaskFail( "movement_biginertia" )
                             self:StartTask( "movement_handler", nil, "AAAAAAA" )
-                            myTbl.overrideVeryStuck = true
+                            self.overrideVeryStuck = true
                             error( tostring( myPos ) .. " " .. tostring( pathStart ) .. " " .. tostring( self ) .. " You got the special funny error! Congrats!" )
                             return
 
