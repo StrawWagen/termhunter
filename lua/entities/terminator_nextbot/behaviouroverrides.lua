@@ -17,7 +17,11 @@ local math = math
 local pairs = pairs
 local CurTime = CurTime
 
-local printTasks = GetConVar( "term_debugtasks" ):GetBool()
+local printTasks
+hook.Add( "InitPostEntity", "getprinttasks", function()
+    printTasks = GetConVar( "term_debugtasks" ):GetBool()
+
+end )
 cvars.AddChangeCallback( "term_debugtasks", function( _, _, newValue )
     printTasks = tobool( newValue )
 
