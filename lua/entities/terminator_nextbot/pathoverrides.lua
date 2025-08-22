@@ -39,6 +39,8 @@ function ENT:InvalidatePath( reason )
     if not path:IsValid() then return end
     path:Invalidate()
 
+    self.term_cancelPathGen = true
+
     self.m_PathObstacleGoal = nil
     self.m_PathObstacleRebuild = nil
     self.m_PathObstacleAvoidPos = nil
@@ -405,7 +407,7 @@ function ENT:SetupFlankingPath( destination, areaToFlankAround, flankAvoidRadius
 
 end
 
-local FLANK_DEFAULT_COST = 10
+local FLANK_DEFAULT_COST = 5
 
 function ENT:flankAroundArea( bubbleArea, bubbleRadius )
     bubbleRadius = math.Clamp( bubbleRadius, 0, 3000 )
@@ -566,7 +568,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
         end
     end
 
-    coroutine_yield( "pathing" )
+    coroutine_yield() -- dont yield as pathing in here
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end
 
@@ -603,7 +605,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
 
     end
 
-    coroutine_yield( "pathing" )
+    coroutine_yield()
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end
 
@@ -674,7 +676,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
         end
     end
 
-    coroutine_yield( "pathing" )
+    coroutine_yield()
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end
 
@@ -1008,8 +1010,10 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     -- start is invalid or off the navmesh
     if not IsValid( cur ) then return nil, NULL, nil, nil end
 
+    local myTbl = entMeta.GetTable( self )
+
     local curId = AreaOrLadderGetID( cur )
-    local blockLadders = not self.CanUseLadders
+    local blockLadders = not myTbl.CanUseLadders
 
     noMoreOptionsMin = noMoreOptionsMin or 8
 
@@ -1021,7 +1025,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     local scores = { [curId] = 1 }
     local opCount = 0
     local isLadder = {}
-    local fodder = self.IsFodder
+    local fodder = myTbl.IsFodder
 
     if cur.GetTop then
         isLadder[curId] = true
@@ -1172,14 +1176,12 @@ local function reconstruct_path( cameFrom, goalArea )
 
     --local last = goalArea:GetCenter()
 
-    local yielded
     local count = 0
     local currId = GetID( goalArea )
     while cameFrom[currId] do
         count = count + 1
         if count >= 25 and count % 15 == 14 then -- only yield for long paths
             coroutine_yield( "pathing" )
-            yielded = true
 
         end
         local current = cameFrom[currId]
@@ -1194,7 +1196,7 @@ local function reconstruct_path( cameFrom, goalArea )
             --debugoverlay.Line( last, current.area:GetCenter(), 5, color_white, true )
 
         end
-        if yielded and not IsValid( current.area ) then -- outdated
+        if not IsValid( current.area ) then -- outdated
             return false
 
         end
@@ -1255,6 +1257,8 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
     local costsToEnd = { [startAreasId] = areaDistToPos( startArea, goal ) }
 
     while #openedSequential > 0 do
+        if myTbl.term_cancelPathGen then return goalArea, nil, false, "fail2.5" end
+
         if fodder and lastNewUnreachables ~= newUnreachables then -- fodder enems share unreachable areas, so check if a buddy marked this as unreachable
             lastNewUnreachables = newUnreachables
             if newUnreachableClass == entMeta.GetClass( me ) and not myTbl.areaIsReachable( me, goalArea ) then
@@ -1502,7 +1506,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
     end
 
-    if timeTaken > 2 or startArea:GetCenter():Distance( goal ) > 1000 then
+    if timeTaken > 2 or ( IsValid( startArea ) and startArea:GetCenter():Distance( goal ) > 1000 ) then
         coroutine_yield()
         addToCorridor( areaCorridor ) -- let future bots confidently traverse this valid path corridor
 
@@ -1531,6 +1535,8 @@ function ENT:SetupPath( pos, endArea )
 
     local myTbl = entMeta.GetTable( self )
     myTbl.InvalidatePath( self, "i started a new path" )
+
+    myTbl.term_cancelPathGen = nil
 
     myTbl.pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost or {}
 

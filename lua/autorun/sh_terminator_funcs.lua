@@ -5,7 +5,7 @@ terminator_Extras = terminator_Extras or {}
 
 terminator_Extras.healthDefault = 900 -- shared, for GLEE
 terminator_Extras.MDLSCALE_LARGE = 1.2
-terminator_Extras.baseCoroutineThresh = 0.003 -- base coroutine thresh, so you can make your bot's thresh 0.1x the default thresh or something
+terminator_Extras.baseCoroutineThresh = 0.05 -- base coroutine thresh, so you can make your bot's thresh 0.1x the default thresh or something
 
 local entMeta = FindMetaTable( "Entity" )
 

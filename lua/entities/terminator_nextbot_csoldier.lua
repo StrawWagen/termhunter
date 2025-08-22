@@ -52,7 +52,7 @@ local function Distance2D( pos1, pos2 )
     return product:Length2D()
 end
 
-ENT.CoroutineThresh = 0.0001
+ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 10
 ENT.MaxPathingIterations = 2500
 ENT.ThreshMulIfDueling = 3 -- CoroutineThresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
@@ -412,6 +412,7 @@ function ENT:DoCustomTasks( defaultTasks )
         ["movement_getweapon"] = defaultTasks["movement_getweapon"],
         ["movement_followtarget"] = defaultTasks["movement_followtarget"],
         ["playercontrol_handler"] = defaultTasks["playercontrol_handler"],
+        ["movement_backthehellup"] = defaultTasks["movement_backthehellup"],
 
         ["soldier_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
@@ -1156,138 +1157,6 @@ function ENT:DoCustomTasks( defaultTasks )
             end,
             ShouldWalk = function( self, data )
                 return self:shouldDoWalk()
-
-            end,
-        },
-
-        -- gotopossimple to some position on a nearby area that's farther away from the enemy
-        ["movement_backthehellup"] = {
-            OnStart = function( self, data )
-                local myTbl = data.myTbl
-                data.CurrentTaskGoalPos = nil
-                data.OldDistToEnemy = self.DistToEnemy
-                data.DistToQuit = data.DistToQuit or myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.5
-                myTbl.InvalidatePath( self, "we gotta back the hell up" )
-
-            end,
-            BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
-                local myNav = myTbl.GetCurrentNavArea( self, myTbl )
-                if not IsValid( myNav ) then
-                    self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, "movement_handler", "i dont know where i am!" )
-
-                    return
-
-                end
-                local myPos = entMeta.GetPos( self )
-                local myShoot = myTbl.GetShootPos( self )
-                local goodEnemy
-                local enemy = myTbl.GetEnemy( self )
-                local distToEnemy = myTbl.DistToEnemy
-                local enemysShoot = myTbl.LastEnemyShootPos
-
-                if IsValid( enemy ) then
-                    goodEnemy = entMeta.Health( enemy ) > 0
-                    enemysShoot = myTbl.EntShootPos( self, enemy )
-
-                end
-
-                local tooCloseToThem
-                if myTbl.HasBrains then
-                    tooCloseToThem = distToEnemy < data.OldDistToEnemy * 0.9
-                    data.OldDistToEnemy = distToEnemy
-
-                end
-
-                local needsNewBackupPos = tooCloseToThem or not data.CurrentTaskGoalPos or myPos:Distance( data.CurrentTaskGoalPos ) < 25
-                if goodEnemy and needsNewBackupPos then
-                    local areasToCheck = myNav:GetAdjacentAreas()
-                    local areasAlreadyAdded = { myNav = true }
-                    for _, area in ipairs( areasToCheck ) do
-                        areasAlreadyAdded[area] = true
-
-                    end
-                    coroutine_yield()
-                    local finalAreasToCheck = {}
-                    for _, area in ipairs( areasToCheck ) do
-                        local areasNeighbors = area:GetAdjacentAreas()
-                        for _, neighbor in ipairs( areasNeighbors ) do
-                            if areasAlreadyAdded[neighbor] then continue end
-                            areasAlreadyAdded[neighbor] = true
-                            finalAreasToCheck[#finalAreasToCheck + 1] = neighbor
-
-                        end
-                    end
-                    local myViewOffset = myTbl.GetViewOffset( self )
-                    local bestBackupPos
-                    local bestBackupDist
-                    local myZ = myPos.z
-                    for _, area in ipairs( finalAreasToCheck ) do
-                        coroutine_yield()
-                        if area == myNav then continue end
-                        local backupPos
-                        if data.UseNearestPoints then
-                            backupPos = area:GetClosestPointOnArea( myShoot )
-
-                        else
-                            backupPos = area:GetCenter()
-
-                        end
-                        local myShootWhenImThere = backupPos + myViewOffset
-                        if not terminator_Extras.PosCanSeeComplex( myShoot, myShootWhenImThere, self ) then continue end
-
-                        local dropoff = math.Clamp( myZ - backupPos.z, 0, math.huge )
-                        local dirToThere = terminator_Extras.dirToPos( myShoot, myShootWhenImThere )
-                        local distWeGetToEnemy = util.DistanceToLine( myShoot + dirToThere * 10, myShootWhenImThere, enemysShoot )
-                        distWeGetToEnemy = distWeGetToEnemy / dropoff
-
-                        if myTbl.HasBrains and distWeGetToEnemy > distToEnemy and not terminator_Extras.PosCanSeeComplex( myShootWhenImThere, enemysShoot, self ) then -- try and break LOS
-                            distWeGetToEnemy = distWeGetToEnemy * 2
-
-                        end
-
-                        if not bestBackupDist or distWeGetToEnemy > bestBackupDist then
-                            bestBackupDist = distWeGetToEnemy
-                            bestBackupPos = backupPos
-
-                        end
-                    end
-                    if not bestBackupPos then
-                        if not data.UseNearestPoints then
-                            data.UseNearestPoints = true
-                            return
-
-                        else
-                            myTbl.TaskFail( self, "movement_backthehellup" )
-                            myTbl.StartTask( self, "movement_standandshoot", "i can't find a good backup position!" )
-                            return
-
-                        end
-                    end
-                    data.UseNearestPoints = nil
-                    data.CurrentTaskGoalPos = bestBackupPos
-
-                end
-
-                if data.CurrentTaskGoalPos then
-                    coroutine_yield()
-                    data.myTbl.GotoPosSimple( self, data.myTbl, data.CurrentTaskGoalPos, 5 )
-
-                end
-
-                if not myTbl.IsSeeEnemy and myTbl.TimeSinceEnemySpotted( self, myTbl ) > 1 then
-                    self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, "movement_handler", "no more enemy to backup from" )
-
-                elseif distToEnemy > data.DistToQuit then
-                    self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, "movement_handler", "i got far enough from my enemy!" )
-
-                end
-            end,
-            ShouldRun = function( self, data )
-                return true
 
             end,
         },

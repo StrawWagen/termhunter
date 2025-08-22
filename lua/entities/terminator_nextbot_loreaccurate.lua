@@ -19,7 +19,7 @@ if CLIENT then
 
 end
 
-ENT.CoroutineThresh = 0.006 -- boss, think a bit faster than normal
+ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh * 1.25 -- boss, think a bit faster than normal
 
 ENT.WalkSpeed = 130
 ENT.MoveSpeed = 275

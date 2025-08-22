@@ -1567,6 +1567,11 @@ end
 function ENT:GetRealDuelEnemyDist( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
+    if myTbl.IsFists( self, myTbl ) then
+        return myTbl.DuelEnemyDist
+
+    end
+
     local wepRange = math.huge
     local wep = self:GetActiveWeapon()
     if IsValid( wep ) then

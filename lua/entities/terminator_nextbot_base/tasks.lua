@@ -134,7 +134,7 @@ function ENT:TaskFail(task)
 	self:RunCurrentTask(task,"OnDelete")
 	
 	self.m_ActiveTasks[task] = nil
-	
+
 	local m_ActiveTasksNum = self.m_ActiveTasksNum
 	for index, currTask in ipairs( m_ActiveTasksNum ) do
 		if currTask[1] == task then

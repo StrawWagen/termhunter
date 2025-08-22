@@ -17,7 +17,11 @@ local math = math
 local pairs = pairs
 local CurTime = CurTime
 
-local pathUpdateIntervalFodder = 0.1
+local printTasks = GetConVar( "term_debugtasks" ):GetBool()
+cvars.AddChangeCallback( "term_debugtasks", function( _, _, newValue )
+    printTasks = tobool( newValue )
+
+end, "TerminatorDebugTasks_LastYield" )
 
 function ENT:DemandPathUpdates( myTbl )
     myTbl.m_PathUpdatesDemanded = 2 -- demand path updates for 2 movement coroutine completions
@@ -28,6 +32,22 @@ function ENT:RejectPathUpdates( myTbl )
     myTbl.m_PathUpdatesDemanded = 0 -- stop demanding path updates
 
 end
+
+function ENT:RestartMotionCoroutine( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+
+    local threads = myTbl.BehaviourThreads
+    if not threads then return end
+
+    local motionCor = threads.motionCor
+    if not motionCor then return end
+
+    threads.motionCor.cor = coroutine_create( function()
+        coroutine_yield( "done" )
+    end )
+end
+
+local pathUpdateIntervalFodder = 0.1
 
 function ENT:BehaveUpdate( interval )
     local myTbl = entMeta.GetTable( self )
@@ -315,6 +335,10 @@ function ENT:Think()
                 break
 
             end
+            if printTasks then
+                myTbl.lastYieldLocation = debug.traceback( thread )
+
+            end
             doneSomething = true
             wasBusy = true -- did we have a normal yield?
             local noErrors, result = coroutine_resume( thread, self, myTbl )
@@ -392,6 +416,8 @@ end
 
 -- do motion, anything super computationally expensive on this coroutine
 function ENT:BehaviourMotionCoroutine( myTbl )
+    myTbl.term_cancelPathGen = nil -- set in tasks.lua when tasks end.
+
     myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
     myTbl.WalkArea( self, myTbl ) -- mark nearby areas as walked, used for searching new unwalked areas
 

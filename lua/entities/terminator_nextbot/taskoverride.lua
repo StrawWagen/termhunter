@@ -220,6 +220,7 @@ function ENT:Use( user )
     end
     permaPrint( "lastShootType", self.lastShootingType )
     permaPrint( "lastPathKillReason", self.lastPathInvalidateReason )
+    permaPrint( "lastYield", self.lastYieldLocation )
 
 end
 

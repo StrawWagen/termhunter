@@ -35,7 +35,7 @@ if CLIENT then
 
 end
 
-ENT.CoroutineThresh = 0.00001
+ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 15
 ENT.MaxPathingIterations = 2500
 ENT.ThreshMulIfDueling = 3 -- CoroutineThresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2

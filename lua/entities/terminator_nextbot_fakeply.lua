@@ -40,7 +40,7 @@ end
 ENT.DefaultWeapon = "gmod_camera"
 ENT.TERM_FISTS = false
 
-ENT.CoroutineThresh = 0.000002
+ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 20
 ENT.MaxPathingIterations = 2500
 ENT.ThreshMulIfDueling = 3 -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
