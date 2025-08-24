@@ -503,7 +503,6 @@ function ENT:DoCustomTasks( defaultTasks )
                 self:Term_SpeakSoundNow( self.term_DieSound )
             end,
             OnKillEnemy = function( self, data ) 
-                self:Term_ClearStuffToSay()
                 self:Term_SpeakSoundNow( self.term_KilledEnemySound )
             end,
         },
