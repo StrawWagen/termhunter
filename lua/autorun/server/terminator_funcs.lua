@@ -293,3 +293,9 @@ terminator_Extras.areaIsEntirelyOverDisplacements = function( area )
     return true
 
 end
+
+terminator_Extras.TeleportTermTo = function( term, pos )
+    term:SetPosNoTeleport( pos )
+    term:RestartMotionCoroutine()
+
+end

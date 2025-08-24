@@ -3175,7 +3175,7 @@ end
 function ENT:FallIntoTheVoid()
     if self.ReallyHeavy and not self:IsSilentStepping() then
         local snd = CreateSound( self, "ambient/levels/canals/windmill_wind_loop1.wav" )
-        snd:SetSoundLevel( 100 )
+        snd:SetSoundLevel( 75 )
         snd:PlayEx( 1, 100 )
         snd:ChangePitch( 0, 2 )
         snd:ChangeVolume( 1 )

@@ -3544,6 +3544,16 @@ function ENT:DoDefaultTasks()
                 data.nextUnstuckGotoEscape = 0
                 data.freedomGotoPosSimple = nil
                 data.nextUnderDisplacementCheck = 0
+                local myTbl = data.myTbl
+
+                if myTbl.ReallyStuckDisable then -- DISABLE this for bots
+                    self:TaskComplete( "reallystuck_handler", ".ReallyStuckDisable is true!" )
+
+                end
+                if myTbl.MoveSpeed <= 0 then
+                    self:TaskComplete( "reallystuck_handler", ".MoveSpeed is 0!" )
+
+                end
             end,
             BehaveUpdatePriority = function( self, data )
                 coroutine_yield()

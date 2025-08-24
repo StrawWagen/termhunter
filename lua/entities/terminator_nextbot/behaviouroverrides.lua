@@ -143,6 +143,15 @@ function ENT:BehaveUpdate( interval )
                         local path = myTbl.GetPath( self )
                         if not path or not pathMeta.IsValid( path ) then return end
 
+                        local currSegment = pathMeta.GetCurrentGoal( path )
+                        local currType = currSegment.type
+                        local laddering = currType == 4 or currType == 5
+                        if laddering then
+                            myTbl.TermHandleLadder( self )
+                            return
+
+                        end
+
                         local loco = myTbl.loco
 
                         -- was setting bot's angle to their angle before the path:Update, but that was breaking prediction/velocity somehow
