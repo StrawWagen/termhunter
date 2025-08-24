@@ -58,3 +58,60 @@ ENT.Models = {
     "models/player/police.mdl",
 }
 ENT.ModelSkin = 1
+
+ENT.term_LoseEnemySound = {
+    "npc/metropolice/vo/nocontact.wav",
+    "npc/metropolice/hiding02.wav",
+    "npc/metropolice/hiding03.wav",
+    "npc/combine_soldier/vo/stayalert.wav",
+    "npc/metropolice/vo/suspectlocationunknown.wav",
+}
+ENT.term_FindEnemySound = {
+    "npc/metropolice/vo/acquiringonvisual.wav",
+    "npc/metropolice/vo/holdit.wav",
+    "npc/metropolice/vo/preparingtojudge10-107.wav",
+    "npc/metropolice/vo/prepareforjudgement.wav",
+    "npc/metropolice/vo/holditrightthere.wav",
+    "npc/metropolice/vo/dontmove.wav",
+}
+ENT.term_DamagedSound = {
+    "npc/metropolice/vo/help.wav",
+    "npc/metropolice/pain1.wav",
+    "npc/metropolice/pain2.wav",
+    "npc/metropolice/pain3.wav",
+    "npc/metropolice/knockout2.wav", 
+
+}
+ENT.term_DieSound = {
+    "npc/metropolice/die1.wav",
+    "npc/metropolice/die2.wav",
+    "npc/metropolice/die3.wav",
+    "npc/metropolice/die4.wav"
+}
+ENT.term_KilledEnemySound = {
+    "npc/metropolice/vo/condemnedzone.wav",
+    "npc/metropolice/vo/finalverdictadministered.wav",
+    "npc/metropolice/vo/externaljurisdiction.wav",
+    "npc/metropolice/vo/sociocide.wav",
+    "npc/metropolice/vo/suspectisbleeding.wav",
+}
+
+ENT.IdleLoopingSounds = {}
+ENT.AngryLoopingSounds = {}
+
+ENT.Term_FootstepSoundWalking = {
+    {
+        path = "NPC_MetroPolice.FootstepRight",
+    },
+    {
+        path = "NPC_MetroPolice.FootstepLeft",
+    },
+}
+ENT.Term_FootstepSound = { -- running sounds
+    {
+        path = "NPC_MetroPolice.RunFootstepLeft",
+    },
+    {
+        path = "NPC_MetroPolice.RunFootstepRight",
+    },
+}
