@@ -119,6 +119,47 @@ ENT.Models = {
 
 ENT.TermSoldier_MaxFollowers = 6
 ENT.TermSoldier_Fearless = nil -- set to true to make bot always just walk up to enemies, not take cover 
+ENT.CanSpeak = true -- enable speaking thinker
+
+ENT.term_SoundPitchShift = 0
+ENT.term_SoundLevelShift = 0
+
+ENT.term_LoseEnemySound = {
+    "npc/combine_soldier/vo/lostcontact.wav",
+    "npc/combine_soldier/vo/sightlineisclear.wav",
+    "npc/combine_soldier/vo/stayalertreportsightlines.wav",
+    "npc/combine_soldier/vo/stayalert.wav",
+}
+ENT.term_FindEnemySound = {
+    "npc/combine_soldier/vo/contactconfim.wav",
+    "npc/combine_soldier/vo/contact.wav",
+    "npc/combine_soldier/vo/contactconfirmprosecuting.wav",
+    "npc/combine_soldier/vo/bouncerbouncer.wav",
+    "npc/combine_soldier/vo/sectorisnotsecure.wav",
+    "npc/combine_soldier/vo/suppressing.wav",
+}
+ENT.term_DamagedSound = {
+    "npc/combine_soldier/pain1.wav",
+    "npc/combine_soldier/pain2.wav",
+    "npc/combine_soldier/pain3.wav",
+}
+ENT.term_DieSound = {
+    "npc/combine_soldier/die1.wav",
+    "npc/combine_soldier/die2.wav",
+    "npc/combine_soldier/die3.wav",
+}
+ENT.term_KilledEnemySound = {
+    "npc/combine_soldier/vo/onecontained.wav",
+    "npc/combine_soldier/vo/onedown.wav",
+    "npc/combine_soldier/vo/overwatchtargetcontained.wav",
+    "npc/combine_soldier/vo/flatline.wav",
+    "npc/combine_soldier/vo/contained.wav",
+    "npc/combine_soldier/vo/affirmativewegothimnow.wav",
+}
+
+ENT.IdleLoopingSounds = {}
+ENT.AngryLoopingSounds = {}
+
 
 local friendly = { D_LI, D_LI, 1000 }
 local hate = { D_HT, D_HT, 1000 }
@@ -400,6 +441,8 @@ function ENT:GetLeader( myTbl )
 
 end
 
+
+
 function ENT:DoCustomTasks( defaultTasks )
     self.TaskList = {
         ["enemy_handler"] = defaultTasks["enemy_handler"],
@@ -443,10 +486,28 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local translation = data.passiveTranslations[act]
                 if translation then return translation end
-
-            end
-            -- TODO; death sounds and stuff
+            
+            end,
+            
+            EnemyLost = function( self, data )
+                self:Term_SpeakSound( self.term_LoseEnemySound )
+            end,
+            EnemyFound = function( self, data )
+                self:Term_SpeakSound( self.term_FindEnemySound )
+            end,
+            OnDamaged = function( self, data, damage )
+                self:Term_ClearStuffToSay()
+                self:Term_SpeakSoundNow( self.term_DamagedSound )
+            end,
+            OnKilled = function( self, data, damage, rag )
+                self:Term_SpeakSoundNow( self.term_DieSound )
+            end,
+            OnKillEnemy = function( self, data ) 
+                self:Term_ClearStuffToSay()
+                self:Term_SpeakSoundNow( self.term_KilledEnemySound )
+            end,
         },
+    
 
         -- custom movement starter
         ["movement_handler"] = {
