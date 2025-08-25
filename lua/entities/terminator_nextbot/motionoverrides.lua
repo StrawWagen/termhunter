@@ -1262,15 +1262,24 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
         }
         local vertResult
 
-        local maxjump = myTbl.JumpHeight * 2
+        local maxjump = myTbl.JumpHeight * 1.25
 
         local height = 0
 
         local offset = Vector( 0, 0, height )
         local goalWithOverriddenZ = Vector( goal.x, goal.y, 0 )
 
+        local yieldable = coroutine_running()
+        if not yieldable then -- dont create lagspikes
+            maxjump = maxjump / 4
+
+        end
+
         while height <= maxjump do
-            coroutine_yield()
+            if yieldable then
+                coroutine_yield()
+
+            end
 
             offset.z = height
             height = math.Round( math.min( height + step, maxjump ) )
