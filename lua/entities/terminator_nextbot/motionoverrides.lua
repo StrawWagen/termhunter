@@ -1365,6 +1365,7 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
         endpos = nil,
         mask = mask,
         collisiongroup = collisiongroup,
+
     }
 
     local swimming = self:IsSwimming( self:GetTable() )
@@ -1403,6 +1404,8 @@ end
 function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
     local myPos = self:GetPos()
     local nextPos, indexThatWasVisible, hitBreakable = self:ChooseBasedOnVisible( myPos, toChoose )
+
+    local yieldable = coroutine_running()
 
     if nextPos then
         myTbl.term_LastApproachPos = nextPos
@@ -1451,7 +1454,7 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
 
         end
 
-        if myTbl.IsFodder then coroutine_yield() end
+        if yieldable and myTbl.IsFodder then coroutine_yield() end
 
         local beginSetposCrouchJump = IsValid( destinationArea ) and indexThatWasVisible <= 4 and destinationArea:HasAttributes( NAV_MESH_CROUCH ) and not hitBreakable
         local justSetposUsThere = IsValid( destinationArea ) and ( myTbl.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( destinationArea:GetClosestPointOnArea( myPos ) ) < 40^2
@@ -2364,8 +2367,17 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     dir.z = dir.z * 0.05
     vecMeta.Normalize( dir )
 
+    local yieldable = coroutine_running()
+    if not yieldable then
+        noAdapt = true -- laggy
+
+    end
+
     if vecMeta.DistToSqr( entMeta.NearestPoint( self, pos ), pos ) > distance^2 then
-        coroutine_yield()
+        if yieldable then
+            coroutine_yield()
+
+        end
         local zToPos = ( pos.z - myPos.z )
 
         local overrideCrouch = myTbl.overrideCrouch or 0
@@ -2382,7 +2394,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
         -- simple jump up to the pos
         if zToPos > heightDiffNeededToJump and myTbl.IsAngry( self ) then
-            coroutine_yield()
+            if yieldable then
+                coroutine_yield()
+
+            end
             local dist2d = ( pos - myPos )
             dist2d.z = 0
             dist2d = dist2d:Length()
@@ -2408,7 +2423,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
         local onGround = myTbl.loco:IsOnGround()
         if onGround then
-            coroutine_yield()
+            if yieldable then
+                coroutine_yield()
+
+            end
 
             if myTbl.CanSwim and entMeta.WaterLevel( self ) >= 3 then
                 myTbl.StartSwimming( self )
@@ -2428,7 +2446,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             local jump = readyToJump and ( jumpstate == 1 or goalBasedJump or doJumpTowards )
             -- jump if the jumpblock says we should, or if the simple jump up says we should
             if jump then
-                coroutine_yield()
+                if yieldable then
+                    coroutine_yield()
+
+                end
                 local stepAside, asidePos
                 if not goalBasedJump and not doJumpTowards then
                     stepAside, asidePos = myTbl.CanStepAside( self, dir, pos )
@@ -2451,7 +2472,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 end
             -- adapt if the jumpstate says we need to
             elseif jumpstate == 2 and not adaptBlock then
-                coroutine_yield()
+                if yieldable then
+                    coroutine_yield()
+
+                end
                 local goodPosToGoto = myTbl.PosThatWillBringUsTowards( self, myPos + vec_up15, pos, 50 )
                 if not goodPosToGoto then return end
                 myTbl.term_LastApproachPos = goodPosToGoto
@@ -2462,7 +2486,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             end
         elseif not onGround then
             if myTbl.IsJumping( self, myTbl ) then
-                coroutine_yield()
+                if yieldable then
+                    coroutine_yield()
+
+                end
                 local toChoose = {
                     pos,
                     pos + vec_up25,
@@ -2473,7 +2500,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then return end
 
             elseif myTbl.IsSwimming( self, myTbl ) then
-                coroutine_yield()
+                if yieldable then
+                    coroutine_yield()
+
+                end
                 local swimmingExitPos
                 local swimmingExitPosHigher
                 if swimming then
@@ -2494,7 +2524,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             end
         end
 
-        coroutine_yield()
+        if yieldable then
+            coroutine_yield()
+
+        end
         myTbl.term_LastApproachPos = pos
         myTbl.loco:Approach( pos, 10000 )
         --debugoverlay.Cross( pos, 10, 1, color_white, true )
