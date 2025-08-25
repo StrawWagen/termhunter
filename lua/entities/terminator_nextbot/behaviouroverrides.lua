@@ -356,8 +356,8 @@ function ENT:Think()
             wasBusy = true -- did we have a normal yield?
             local noErrors, result = coroutine_resume( thread, self, myTbl )
             if noErrors == false then
-                threads[index] = nil
                 local stack = debug.traceback( thread )
+                threads[index] = nil
                 result = result or "unknown error"
                 ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\n" .. result .. "\n" .. stack .. "\n" )
                 wasBusy = false
