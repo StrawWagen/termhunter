@@ -500,7 +500,8 @@ function ENT:DoCustomTasks( defaultTasks )
                 self:Term_SpeakSound( self.term_DamagedSound )
             end,
             OnKilled = function( self, data, damage, rag )
-                self:Term_SpeakSound( self.term_DieSound )
+                self:Term_ClearStuffToSay()
+                self:Term_SpeakSoundNow( self.term_DieSound )
             end,
             OnKillEnemy = function( self, data ) 
                 self:Term_SpeakSound( self.term_KilledEnemySound )
