@@ -501,7 +501,8 @@ function ENT:DoCustomTasks( defaultTasks )
             end,
             OnDamaged = function( self, data, damage )
                 if not data.myTbl.CanSpeak then return end
-                self:Term_SpeakSoundNow( self.term_DamagedSound )
+                self:Term_ClearStuffToSay() 
+                self:Term_SpeakSound( self.term_DamagedSound )
 
             end,
             OnKilled = function( self, data, damage, rag )
