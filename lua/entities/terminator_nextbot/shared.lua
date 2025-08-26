@@ -1028,14 +1028,12 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
     if not IsValid( blocker ) then return end
     local blockerTbl = blocker:GetTable()
 
-    local OpenTime = myTbl.OpenDoorTime or 0
+    local openTime = myTbl.openDoorTime or 0
     if blocker and blocker ~= myTbl.oldBlockerITriedToOpen then
         myTbl.oldBlockerITriedToOpen = blocker
         myTbl.startedTryingToOpen = CurTime()
 
     end
-
-    local class = blocker:GetClass()
     local startedTryingToOpen = myTbl.startedTryingToOpen or 0
     local sinceStarted = CurTime() - startedTryingToOpen
 
@@ -1049,8 +1047,10 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
 
     end
 
+    local class = blocker:GetClass()
+
     local nextUse = blockerTbl.term_NextUse or 0
-    local doorTimeIsGood = CurTime() - OpenTime > 2 and nextUse < CurTime()
+    local doorTimeIsGood = CurTime() - openTime > 2 and nextUse < CurTime()
     local doorIsStale = sinceStarted > 2
     local doorIsPrettyStale = sinceStarted > 4
     local doorIsVeryStale = sinceStarted > 8
@@ -1059,7 +1059,7 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
     local memory, _ = myTbl.getMemoryOfObject( self, myTbl, blocker )
     local breakableMemory = memory == MEMORY_BREAKABLE
 
-    if myTbl.IsStupid then
+    if myTbl.IsStupid then -- npcs with animal level intelligence
         local attack
         if myTbl.IsReallyAngry( self ) then
             attack = "stupid_reallyAngry"
@@ -1119,7 +1119,7 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
             attack = "toOpen_staleDoor"
 
         elseif doorState ~= 2 then -- door is not open
-            myTbl.OpenDoorTime = CurTime()
+            myTbl.openDoorTime = CurTime()
             blockerTbl.term_NextUse = CurTime() + 3
             use = true
 
@@ -1136,7 +1136,7 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
                     myTbl.overrideMiniStuck = true
 
                 end
-            elseif CurTime() - OpenTime > 1 then
+            elseif CurTime() - openTime > 1 then
                 use = true
 
             end
@@ -1155,11 +1155,11 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
             end
         end
     elseif ( class == "func_door_rotating" or class == "func_door" ) and blocker:GetInternalVariable( "m_toggle_state" ) == 1 and doorTimeIsGood then
-        myTbl.OpenDoorTime = CurTime()
+        myTbl.openDoorTime = CurTime()
         use = true
 
     elseif doorTimeIsGood and not myTbl.ShouldBeEnemy( self, blocker, nil, myTbl, blockerTbl ) then
-        myTbl.OpenDoorTime = CurTime()
+        myTbl.openDoorTime = CurTime()
 
     -- generic, kill the blocker
     elseif reallyAngry and myTbl.caresAbout( self, blocker ) and not blocker:IsNextBot() and not blocker:IsPlayer() then

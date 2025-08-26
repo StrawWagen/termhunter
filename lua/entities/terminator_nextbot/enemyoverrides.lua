@@ -8,7 +8,7 @@ local entMeta = FindMetaTable( "Entity" )
 local IsFlagSet = entMeta.IsFlagSet
 
 local blockRandomInfighting = CreateConVar( "terminator_block_random_infighting", 0, FCVAR_ARCHIVE, "Block random infighting?" )
-local blockAllInfighting = CreateConVar( "terminator_block_infighting", 0, FCVAR_ARCHIVE, "Disable ALL infighting?" )
+local blockAllInfighting = CreateConVar( "terminator_block_infighting", 0, FCVAR_ARCHIVE, "Disable ALL infighting, even non-random infighting?" )
 
 
 local playersCache -- i love overoptimisation
@@ -96,6 +96,7 @@ local function isNextbotOrNpcEnt( ent )
 
 end
 
+ENT.IsNextbotOrNpcEnt = isNextbotOrNpcEnt
 
 local fogRange
 -- from CFC's LFS fork, code by reeedox

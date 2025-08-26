@@ -100,6 +100,8 @@ local defaultModel = "models/player/kleiner.mdl"
 	Initialize our bot
 --]]------------------------------------
 function ENT:Initialize()
+	self:IsNPCHackRegister()
+
 	self:SetModel( defaultModel ) -- kliener of doom
 	self:SetSolidMask(self.SolidMask)
 	self:SetCollisionGroup(COLLISION_GROUP_PLAYER)
@@ -113,8 +115,6 @@ function ENT:Initialize()
 	self:SetHealth( self:GetMaxHealth() )
 
 	self:AddFlags(FL_OBJECT)
-
-	self:IsNPCHackRegister()
 
 	self.BehaveInterval = 0
 	self.m_Path = Path("Follow")

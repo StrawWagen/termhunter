@@ -1,6 +1,7 @@
 local entMeta = FindMetaTable( "Entity" )
 local vecMeta = FindMetaTable( "Vector" )
 local pathMeta = FindMetaTable( "PathFollower" )
+local physMeta = FindMetaTable( "PhysObj" )
 
 local coroutine_yield = coroutine.yield
 local coroutine_running = coroutine.running
@@ -125,62 +126,64 @@ end
 -- should we assume that we will break this upon doing our path?
 function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
     local hitEnt = traceResult.Entity
-    if traceResult.MatType == MAT_GLASS and ( skipDistCheck or traceResult.HitPos:DistToSqr( traceStruct.endpos ) < 55^2 ) then -- got to the end or its glass
-        if IsValid( hitEnt ) then
-            local class = entMeta.GetClass( hitEnt )
-            local isSurf = class == "func_breakable_surf"
-            local hasHealth = isnumber( entMeta.Health( hitEnt ) ) and entMeta.Health( hitEnt ) < 2000
+    if not IsValid( hitEnt ) then return end -- we cant break it if its not an entity!
 
-            local hpOrBreakableSurf = isSurf or hasHealth
+    local hitEntsTbl = entMeta.GetTable( hitEnt )
+    local cached = hitEntsTbl.term_CachedAsBreakable
+    if cached ~= nil then return cached end
 
-            if hpOrBreakableSurf then
-                return true
+    if traceResult.MatType == MAT_GLASS and ( skipDistCheck or vecMeta.DistToSqr( traceResult.HitPos, traceStruct.endpos ) < 55^2 ) then -- got to the end or its glass
+        local class = entMeta.GetClass( hitEnt )
+        local isSurf = class == "func_breakable_surf"
+        local hasHealth = isnumber( entMeta.Health( hitEnt ) ) and entMeta.Health( hitEnt ) < 2000
 
-            else
-                return false
+        local hpOrBreakableSurf = isSurf or hasHealth
 
-            end
-        -- we cant break it if its not an entity!
+        if hpOrBreakableSurf then
+            return true
+
+        else
+            return false
+
+        end
+    end
+    -- didnt hit close to end, or hit glass
+    local myTbl = entMeta.GetTable( self )
+    local class = entMeta.GetClass( hitEnt )
+    local isDoor = string.find( class, "door" ) and entMeta.IsSolid( hitEnt )
+    local enemy = myTbl.GetEnemy( self )
+    if hitEnt == enemy then
+        hitEntsTbl.term_CachedAsBreakable = true
+        return true
+
+    elseif myTbl.memorizedAsBreakable( self, myTbl, hitEnt ) or myTbl.IsNextbotOrNpcEnt( hitEnt ) or myTbl.IsPlyNoIndex( self, hitEnt ) or isDoor then
+        if isDoor and class == "prop_door_rotating" and not terminator_Extras.CanBashDoor( hitEnt ) then
+            return nil
+
+        elseif hitEnt.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
+            return nil
+
+        else
+            return true
+
+        end
+    elseif hitEnt.GetDriver and IsValid( hitEnt:GetDriver() ) and hitEnt:GetDriver() == enemy then
+        hitEntsTbl.term_CachedAsBreakable = true
+        return true
+
+    else
+        local obj = entMeta.GetPhysicsObject( hitEnt )
+        if IsValid( obj ) and physMeta.IsMoveable( obj ) and physMeta.IsMotionEnabled( obj ) and physMeta.GetMass( obj ) <= 100 then
+            hitEntsTbl.term_CachedAsBreakable = true
+            return true
+
         else
             return nil
 
         end
-    elseif IsValid( hitEnt ) then -- didnt hit close to end, or hit glass
-        local myTbl = entMeta.GetTable( self )
-        local class = entMeta.GetClass( hitEnt )
-        local isDoor = string.find( class, "door" ) and entMeta.IsSolid( hitEnt )
-        local enemy = myTbl.GetEnemy( self )
-        if hitEnt == enemy then
-            return true
-
-        elseif myTbl.memorizedAsBreakable( self, myTbl, hitEnt ) or hitEnt:IsNPC() or hitEnt:IsPlayer() or isDoor then
-            if isDoor and class == "prop_door_rotating" and not terminator_Extras.CanBashDoor( hitEnt ) then
-                return nil
-
-            elseif hitEnt.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
-                return nil
-
-            else
-                return true
-
-            end
-        elseif hitEnt.GetDriver and IsValid( hitEnt:GetDriver() ) and hitEnt:GetDriver() == enemy then
-            return true
-
-        else
-            local obj = entMeta.GetPhysicsObject( hitEnt )
-            if obj and IsValid( obj ) and obj:IsMoveable() and obj:IsMotionEnabled() and obj:GetMass() <= 100 then
-                return true
-
-            else
-                return nil
-
-            end
-        end
-    else
-        return nil
-
     end
+    return nil
+
 end
 
 local aiDisabled = GetConVar( "ai_disabled" )
@@ -1262,7 +1265,7 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
         }
         local vertResult
 
-        local maxjump = myTbl.JumpHeight * 1.25
+        local maxJump = myTbl.JumpHeight * 1.25
 
         local height = 0
 
@@ -1271,18 +1274,21 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
 
         local yieldable = coroutine_running()
         if not yieldable then -- dont create lagspikes
-            maxjump = maxjump / 4
+            maxJump = maxJump / 4
 
         end
 
-        while height <= maxjump do
+        while height <= maxJump do
+            print( height, maxJump )
             if yieldable then
                 coroutine_yield()
 
             end
 
             offset.z = height
-            height = math.Round( math.min( height + step, maxjump ) )
+            height = math.Round( height + step )
+
+            if height >= maxJump then break end
 
             local newEndPos = defEndPos + offset
             local newStartPos = pos + offset
@@ -1300,12 +1306,22 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
                 return 2 -- step back bot!
             end
 
+            if yieldable then
+                coroutine_yield()
+
+            end
+
             dirConfig.start = newStartPos
             dirConfig.endpos = newEndPos
 
             dirResult = util.TraceHull( dirConfig )
 
             local hitThingWeCanBreak = myTbl.hitBreakable( self, dirConfig, dirResult )
+
+            if yieldable then
+                coroutine_yield()
+
+            end
 
             -- final check!
             goalWithOverriddenZ.z = math.max( dirConfig.start.z, goal.z + 30 )
@@ -1342,8 +1358,6 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
 
                 end
             end
-
-            if height >= maxjump then break end
         end
 
         return 2 -- step back bot!
