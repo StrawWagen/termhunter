@@ -1821,7 +1821,6 @@ function ENT:ControlPath2( AimMode )
     coroutine_yield()
 
     if badPathAndStuck or posBasedStuck then -- new unstuck
-        print( self:GetCreationID(), badPathAndStuck, posBasedStuck )
         local myPos = self:GetPos()
         myTbl.startUnstuckDestination = myTbl.PathEndPos -- save where we were going
         myTbl.startUnstuckPos = myPos
