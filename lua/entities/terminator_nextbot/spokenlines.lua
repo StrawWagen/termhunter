@@ -5,9 +5,11 @@
 
 local CurTime = CurTime
 
+-- helper function to get a number value from various types
 function asNumber( ent, entsTbl, var )
     if not var then return 0 end
     if isfunction( var ) then return var( ent, entsTbl ) end
+
     return var
 
 end
@@ -135,7 +137,7 @@ function ENT:SpokenLinesThink( myTbl )
         -- EmitSentence doesnt take dsp
 
         local pitch = 100 + pitShift
-        EmitSentence( sentence, self:GetShootPos(), self:EntIndex(), CHAN_AUTO, 1, 80 + lvlShift, 0, pitch )
+        EmitSentence( sentence, self:GetShootPos(), self:EntIndex(), CHAN_VOICE, 1, 80 + lvlShift, SND_NOFLAGS, pitch )
 
         local additional = math.random( 10, 15 ) / 50
 
@@ -214,6 +216,29 @@ function ENT:Term_SpeakSound( pathIn, conditionFunc )
         table.insert( self.StuffToSay, { path = pathIn } )
 
     end
+end
+
+-- Immediately plays a sentence, bypassing StuffToSay queue
+function ENT:Term_SpeakSentenceNow( sentenceIn, specificPitchShift )
+    specificPitchShift = specificPitchShift or 0
+
+    local myTbl = self:GetTable()
+    local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
+    local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
+
+    if istable( sentenceIn ) then
+        sentenceIn = sentenceIn[ math.random( 1, #sentenceIn ) ]
+    end
+
+    local pitch = 100 + pitShift + specificPitchShift
+
+    EmitSentence( sentenceIn, self:GetShootPos(), self:EntIndex(), CHAN_VOICE, 1, 80 + lvlShift, SND_NOFLAGS, pitch )
+    local additional = math.random( 10, 15 ) / 50
+    local duration = SentenceDuration( sentenceIn ) or 1
+    local durDivisor = pitch / 100
+    duration = duration / durDivisor
+    myTbl.NextTermSpeak = CurTime() + ( duration + additional )
+
 end
 
 function ENT:Term_SpeakSentence( sentenceIn, conditionFunc )

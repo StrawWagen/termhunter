@@ -1711,18 +1711,18 @@ local function HunterIsStuck( self, myTbl )
     myTbl.nextUnstuckCheck = CurTime() + add
 
     local HasAcceleration = myTbl.loco:GetAcceleration()
-    if HasAcceleration <= 0 then return end
+    if HasAcceleration <= 0 then return end -- we aren't trying to move rn
 
     local myPos = self:GetPos()
-    local StartPos = myTbl.LastMovementStartPos or vec_zero
-    local GoalPos = myTbl.PathEndPos or vec_zero
-    local NotMoving
+    local startPos = myTbl.LastMovementStartPos or vec_zero
+    local goalPos = myTbl.PathEndPos or vec_zero
+    local notMoving = myTbl.StuckPos3 and myTbl.StuckPos5
     -- laddering? check 3d dist, not 2d dist!
-    if myTbl.terminator_HandlingLadder and myTbl.StuckPos5 and myTbl.StuckPos3 then
-        NotMoving = myPos:DistToSqr( myTbl.StuckPos5 ) < 20^2 and myPos:DistToSqr( myTbl.StuckPos3 ) < 20^2
+    if notMoving and myTbl.terminator_HandlingLadder then
+        notMoving = myPos:DistToSqr( myTbl.StuckPos3 ) < 20^2 and myPos:DistToSqr( myTbl.StuckPos5 ) < 20^2 
 
-    else
-        NotMoving = DistToSqr2D( myPos, myTbl.StuckPos5 ) < 20^2 and DistToSqr2D( myPos, myTbl.StuckPos3 ) < 20^2
+    elseif notMoving then
+        notMoving = DistToSqr2D( myPos, myTbl.StuckPos5 ) < 20^2 and DistToSqr2D( myPos, myTbl.StuckPos3 ) < 20^2
 
     end
 
@@ -1742,16 +1742,16 @@ local function HunterIsStuck( self, myTbl )
 
     end
 
-    local FarFromStart = DistToSqr2D( myPos, StartPos ) > 15^2
-    local FarFromStartAndNew = FarFromStart or ( myTbl.LastMovementStart and ( myTbl.LastMovementStart + 1 < CurTime() ) )
-    local FarFromEnd = DistToSqr2D( myPos, GoalPos ) > 15^2
-    local IsPath = myTbl.PathIsValid( self )
+    local farFromStart = DistToSqr2D( myPos, startPos ) > 15^2
+    local farFromStartAndNew = farFromStart or ( myTbl.LastMovementStart and ( myTbl.LastMovementStart + 1 < CurTime() ) )
+    local farFromEnd = DistToSqr2D( myPos, goalPos ) > 15^2
+    local isPath = myTbl.PathIsValid( self )
 
-    local NotMovingAndSameBlocker = myTbl.StuckEnt1 and ( myTbl.StuckEnt1 == myTbl.StuckEnt2 ) and ( myTbl.StuckEnt1 == myTbl.StuckEnt3 ) and DistToSqr2D( myPos, myTbl.StuckPos2 ) < 20^2 and DistToSqr2D( myPos, myTbl.StuckPos3 ) < 20^2
+    local notMovingAndSameBlocker = myTbl.StuckEnt1 and ( myTbl.StuckEnt1 == myTbl.StuckEnt2 ) and ( myTbl.StuckEnt1 == myTbl.StuckEnt3 ) and notMoving
 
     local nextPosUpdate = myTbl.nextPosUpdate or 0
 
-    if nextPosUpdate < CurTime() and IsPath then
+    if nextPosUpdate < CurTime() and isPath then
         if myTbl.canDoRun( self ) and not myTbl.IsJumping( self, myTbl ) then
             myTbl.nextPosUpdate = CurTime() + 0.25
 
@@ -1771,8 +1771,8 @@ local function HunterIsStuck( self, myTbl )
 
     end
 
-    --print( ( NotMoving or NotMovingAndSameBlocker ), FarFromStartAndNew, FarFromEnd, IsPath )
-    local stuck = ( NotMoving or NotMovingAndSameBlocker ) and FarFromStartAndNew and FarFromEnd and IsPath
+    --print( ( notMoving or notMovingAndSameBlocker ), farFromStartAndNew, farFromEnd, isPath )
+    local stuck = ( notMoving or notMovingAndSameBlocker ) and farFromStartAndNew and farFromEnd and isPath
     if stuck then -- reset so chains of stuck events happen less
         myTbl.ResetUnstuckInfo( self )
 
@@ -1821,6 +1821,7 @@ function ENT:ControlPath2( AimMode )
     coroutine_yield()
 
     if badPathAndStuck or posBasedStuck then -- new unstuck
+        print( self:GetCreationID(), badPathAndStuck, posBasedStuck )
         local myPos = self:GetPos()
         myTbl.startUnstuckDestination = myTbl.PathEndPos -- save where we were going
         myTbl.startUnstuckPos = myPos
@@ -4591,7 +4592,7 @@ function ENT:DoDefaultTasks()
         ["movement_getweapon"] = {
             OnStart = function( self, data )
 
-                data.failedCount = 0
+                data.validityFailCount = 0
                 data.giveUpTime = CurTime() + 5
 
                 if not isstring( data.nextTask ) then
@@ -4604,16 +4605,17 @@ function ENT:DoDefaultTasks()
                 end
 
                 data.crapWep = function()
-                    local failedWeaponPaths = data.Wep.failedWeaponPaths or 0
+                    local wep = data.Wep
+                    local failedWeaponPaths = wep.failedWeaponPaths or 0
                     local wasExpensivePath = self.term_ExpensivePath
                     local added = 1
                     if wasExpensivePath then
                         added = 5
 
                     end
-                    data.Wep.failedWeaponPaths = failedWeaponPaths + added
-                    if data.Wep.failedWeaponPaths > 5 then
-                        data.Wep.terminatorCrappyWeapon = true
+                    wep.failedWeaponPaths = failedWeaponPaths + added
+                    if wep.failedWeaponPaths > 1 then
+                        wep.terminatorCrappyWeapon = true
 
                     end
                 end
@@ -4675,7 +4677,7 @@ function ENT:DoDefaultTasks()
                 end
 
                 data.updateWep = function()
-                    if data.failedCount > 3 then
+                    if data.validityFailCount > 3 then
                         data:finishAfterwards( "wep is invalid" )
                         return
 
@@ -4685,7 +4687,7 @@ function ENT:DoDefaultTasks()
 
                         if canGetWeap == false then
                             if not IsValid( data.Wep ) then
-                                data.failedCount = data.failedCount + 1
+                                data.validityFailCount = data.validityFailCount + 1
 
                             end
                         else
@@ -4696,7 +4698,7 @@ function ENT:DoDefaultTasks()
                     elseif not self:CanPickupWeapon( data.Wep ) then
                         self:ResetWeaponSearchTimers()
                         data.Wep = nil
-                        data.failedCount = data.failedCount + 0.5
+                        data.validityFailCount = data.validityFailCount + 0.5
 
                     end
                     return true
@@ -4729,6 +4731,15 @@ function ENT:DoDefaultTasks()
                 local wepsPos = currWep:GetPos()
 
                 if self:HasTask( "movement_bashobject" ) and self:CanBashLockedDoor( self:GetPos(), 500 ) and self:BashLockedDoor( "movement_getweapon" ) then
+                    return
+
+                end
+
+                -- if unreachable, bail on the wep early
+                local wepsNav = terminator_Extras.getNearestPosOnNav( wepsPos )
+                if wepsNav and IsValid( wepsNav.area ) and not self:areaIsReachable( wepsNav.area ) then
+                    data.crapWep()
+                    data:finishAfterwards( "the weapon is somewhere unreachable!" )
                     return
 
                 end
@@ -4805,16 +4816,6 @@ function ENT:DoDefaultTasks()
                 if result == true then
                     data.crapWep()
                     data:finishAfterwards( "reached the end of my path, no weapon tho" )
-                    return
-
-                elseif result == false then
-                    data:finishAfterwards( "my path failed!" )
-                    return
-
-                elseif not self:primaryPathIsValid() and data.wasAValidPath then
-                    data.crapWep()
-                    data:finishAfterwards( "my path was invalid!" )
-                    return
 
                 end
             end,
