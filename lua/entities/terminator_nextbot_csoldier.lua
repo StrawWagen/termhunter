@@ -486,28 +486,37 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local translation = data.passiveTranslations[act]
                 if translation then return translation end
-            
+
             end,
-            
+
             EnemyLost = function( self, data )
+                if not data.myTbl.CanSpeak then return end -- support silent ents based off this
                 self:Term_SpeakSound( self.term_LoseEnemySound )
+
             end,
             EnemyFound = function( self, data )
+                if not data.myTbl.CanSpeak then return end
                 self:Term_SpeakSound( self.term_FindEnemySound )
+
             end,
             OnDamaged = function( self, data, damage )
+                if not data.myTbl.CanSpeak then return end
                 self:Term_ClearStuffToSay()
                 self:Term_SpeakSound( self.term_DamagedSound )
+
             end,
             OnKilled = function( self, data, damage, rag )
+                if not data.myTbl.CanSpeak then return end
                 self:Term_ClearStuffToSay()
                 self:Term_SpeakSoundNow( self.term_DieSound )
+
             end,
-            OnKillEnemy = function( self, data ) 
+            OnKillEnemy = function( self, data )
+                if not data.myTbl.CanSpeak then return end
                 self:Term_SpeakSound( self.term_KilledEnemySound )
+
             end,
         },
-    
 
         -- custom movement starter
         ["movement_handler"] = {
