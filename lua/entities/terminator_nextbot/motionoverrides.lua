@@ -1279,7 +1279,6 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
         end
 
         while height <= maxJump do
-            print( height, maxJump )
             if yieldable then
                 coroutine_yield()
 

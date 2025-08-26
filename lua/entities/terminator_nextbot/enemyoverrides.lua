@@ -41,12 +41,15 @@ hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache"
     end )
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
-    timer.Remove( "term_cache_players" )
-    playersCache = nil
-    npcClassCache = nil
-    nextbotClassCache = nil
     terminator_Extras.DOINGTYPECACHE = nil
+    timer.Simple( 0, function()
+        if terminator_Extras.DOINGTYPECACHE then return end
+        timer.Remove( "term_cache_players" )
+        playersCache = nil
+        npcClassCache = nil
+        nextbotClassCache = nil
 
+    end )
 end )
 
 function ENT:IsPlyNoIndex( ent )
