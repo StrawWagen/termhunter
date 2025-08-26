@@ -2649,7 +2649,7 @@ if not termModel() then
 end
 
 local fovDefault = 95
-local fovVar = CreateConVar( "termhunter_fovoverride", -1, FCVAR_ARCHIVE, "Override the terminator's FOV, -1 for default, ( " .. fovDefault .. ")", -1, fovDefault, 0, 180 )
+local fovVar = CreateConVar( "termhunter_fovoverride", -1, FCVAR_ARCHIVE, "Override the terminator's FOV, -1 for default, ( " .. fovDefault .. ")", -1, fovDefault, -1, 180 )
 local fovCached
 
 local function fovVarThink()
