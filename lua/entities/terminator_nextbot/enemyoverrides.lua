@@ -281,7 +281,7 @@ local maxSeen = 150
 
 local function cacheShouldNotSee( ent, seen )
     ent.term_CachedShouldNotSee = seen
-    timer.Simple( 0.01, function()
+    timer.Simple( 0.02, function()
         if not IsValid( ent ) then return end
         ent.term_CachedShouldNotSee = nil
 
@@ -290,7 +290,7 @@ local function cacheShouldNotSee( ent, seen )
 
 end
 
-local function shouldNotSeeEnemy( me, enemy )
+local function shouldNotSeeEnemy( me, enemy ) -- return true to block seeing, false to see
     if enemy.term_CachedShouldNotSee then
         return enemy.term_CachedShouldNotSee
 
@@ -303,6 +303,7 @@ local function shouldNotSeeEnemy( me, enemy )
     if a == 255 then cacheShouldNotSee( enemy, false ) return end -- dont waste any more performance
     if a > maxSeen then cacheShouldNotSee( enemy, false ) return end
     if enemy:IsOnFire() then cacheShouldNotSee( enemy, false ) return end -- they are visible!
+    if playersCache[enemy] and enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
 
     local seen = math.abs( a - maxSeen )
     local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )

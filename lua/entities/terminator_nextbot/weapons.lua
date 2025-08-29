@@ -90,7 +90,7 @@ end
 --]]------------------------------------
 function ENT:HasWeapon( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
-    return myTbl.term_hasWeapon
+    return myTbl.m_HasWeapon
 
 end
 
@@ -339,7 +339,7 @@ function ENT:SetupWeapon( wep )
     myTbl.terminator_LastFiringIsAllowed = 0 -- ditto
     myTbl.NextWeapSearch( self, 0 )
 
-    myTbl.term_hasWeapon = true -- _index optimisation with HasWeapon
+    myTbl.m_HasWeapon = true -- _index optimisation with HasWeapon
     wep:CallOnRemove( "term_unset_hasweapon", function()
         local currWep = self:GetActiveWeapon()
         local validWep = IsValid( currWep )
@@ -347,7 +347,7 @@ function ENT:SetupWeapon( wep )
             return
 
         end
-        myTbl.term_hasWeapon = nil
+        myTbl.m_HasWeapon = nil
         myTbl.m_ActualWeapon = nil
 
     end )
@@ -400,7 +400,7 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     if entMeta.GetClass( wep ) == myTbl.TERM_FISTS then
         wep:RemoveCallOnRemove( "term_unset_hasweapon" )
         myTbl.m_ActualWeapon = nil
-        myTbl.term_hasWeapon = nil
+        myTbl.m_HasWeapon = nil
         SafeRemoveEntity( wep )
         myTbl.UpdateIsFists( self, myTbl )
         return
@@ -504,7 +504,7 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     end
 
     myTbl.terminator_NextWeaponPickup = CurTime() + math.Rand( 1, 2 )
-    myTbl.term_hasWeapon = nil
+    myTbl.m_HasWeapon = nil
     wep:RemoveCallOnRemove( "term_unset_hasweapon" )
 
     if not termCleanupDroppedWeapons:GetBool() then return end

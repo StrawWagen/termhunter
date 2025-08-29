@@ -810,3 +810,29 @@ function terminator_Extras.dynamicallyPatchPos( pos )
         end
     end
 end
+
+-- Superadmin-only concommand to patch around the caller's eye trace position using smallSize and grid size 11.25
+concommand.Add( "terminator_areapatch_here", function( ply )
+    if not IsValid( ply ) then return end -- must be a player
+    if not ply:IsSuperAdmin() then
+        if ply.ChatPrint then ply:ChatPrint( "Superadmin only." ) end
+        return
+    end
+
+    local tr = ply:GetEyeTrace()
+    if not tr or not tr.HitPos then return end
+
+    local pos = tr.HitPos
+    SnapToGrid( pos, 11.25, 0 )
+
+    terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, 11.25 )
+
+    -- Visualize the region being queued with a debug box
+    local boxMins = -smallSize
+    local boxMaxs = smallSize
+    debugoverlay.Box( pos, boxMins, boxMaxs, 10, Color( 0, 255, 0 ) )
+
+    if debugging and ply.ChatPrint then
+        ply:ChatPrint( "Queued nav patch at eye position (grid 11.25)." )
+    end
+end, nil, "Patch a nav region centered at your crosshair using smallSize and grid 11.25 (superadmin only)")

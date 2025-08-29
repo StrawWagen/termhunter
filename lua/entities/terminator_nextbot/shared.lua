@@ -6417,9 +6417,10 @@ function ENT:DoDefaultTasks()
                 elseif not self.IsSeeEnemy and self.WasHidden and self:beatupVehicleIfWeCan( "movement_stalkenemy" ) then
                     exit = true
 
-                elseif data.KilledEnemy and data.KilledEnemyNoEnemCount > 30 then
+                elseif data.KilledEnemy and data.KilledEnemyNoEnemCount and data.KilledEnemyNoEnemCount > 30 then
                     self:TaskComplete( "movement_stalkenemy" )
                     self:StartTask( "movement_approachlastseen", { pos = data.lastKnownStalkPos or self.EnemyLastPos }, "i killed the enemy and nobody else showed up, checkin their body" )
+                    exit = true
 
                 elseif tooCloseToDangerousAndGettingCloser then
                     self:TaskFail( "movement_stalkenemy" )
