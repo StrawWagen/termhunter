@@ -14,7 +14,7 @@ local function setDropWeapons( ply, attacker, _ )
 
     local plysActiveWeapon = ply:GetActiveWeapon()
 
-    local weapsToDrop = ply:GetWeapons()
+    local plysWeapons = ply:GetWeapons()
     ply.terminator_droppedweapons = ply.terminator_droppedweapons or {}
 
     for _, oldDropped in ipairs( ply.terminator_droppedweapons ) do
@@ -29,19 +29,26 @@ local function setDropWeapons( ply, attacker, _ )
 
     end
 
-    local count = 0
-    -- randomly remove weapons until we have just enough
-    -- was removing all the worst weapons but that lead to all the bots using the same weapon
-    while #weapsToDrop > maxDrop - 1 do
-        count = count + 1
-        if count > 50 then break end
+    local droppingActiveAlready
+    local weapsToDrop = {}
+    for i = 1, maxDrop do
+        local wepCount = #plysWeapons
+        if wepCount <= 0 then break end
 
-        table.remove( weapsToDrop, math.random( 1, #weapsToDrop ) )
+        randWepIndex = math.random( 1, wepCount )
+        local randWep = table.remove( plysWeapons, randWepIndex )
+        weapsToDrop[i] = randWep
+        if randWep == plysActiveWeapon then
+            droppingActiveAlready = true
+            break
 
+        end
     end
 
-    -- always drop active weapon
-    table.insert( weapsToDrop, plysActiveWeapon )
+    if not droppingActiveAlready and IsValid( plysActiveWeapon ) then
+        table.insert( weapsToDrop, plysActiveWeapon )
+
+    end
 
     for _, wep in ipairs( weapsToDrop ) do
 

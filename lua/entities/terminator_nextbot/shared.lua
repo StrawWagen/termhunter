@@ -1374,7 +1374,9 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
     local dot = math.Clamp( myTbl.GetAimVector( self, myTbl ):Dot( dir ), 0, 1 )
     local ang = math.deg( math.acos( dot ) )
 
-    if not blockShoot and myTbl.terminator_LastFiringIsAllowed < CurTime() then
+    local lastFiringAllowed = myTbl.terminator_LastFiringIsAllowed or 0
+
+    if not blockShoot and lastFiringAllowed < CurTime() then
         myTbl.RunTask( self, "OnMightStartAttacking" )
 
     end
@@ -6235,7 +6237,9 @@ function ENT:DoDefaultTasks()
 
                 local enemy = self:GetEnemy()
                 local myPos = self:GetPos()
-                local tooDangerousToApproach = self:EnemyIsLethalInMelee( enemy )
+
+                local belowHalfHealth = ( self:Health() < self:GetMaxHealth() * 0.5 )
+                local tooDangerousToApproach = ( belowHalfHealth and self:inSeriousDanger() ) or self:EnemyIsLethalInMelee( enemy )
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
                 local enemyNav = terminator_Extras.getNearestPosOnNav( enemyPos ).area
                 local reachable = self:areaIsReachable( enemyNav )
@@ -6677,14 +6681,14 @@ function ENT:DoDefaultTasks()
                 end
 
                 local belowHalfHealth = ( self:Health() < self:GetMaxHealth() * 0.5 )
-                local scared = ( belowHalfHealth and self:inSeriousDanger() ) or self:EnemyIsLethalInMelee( enemy )
+                local tooDangerousToApproach = ( belowHalfHealth and self:inSeriousDanger() ) or self:EnemyIsLethalInMelee( enemy )
 
                 local result = self:ControlPath2( not self.IsSeeEnemy )
                 local canWep, potentialWep = self:canGetWeapon()
                 if canWep and not self.IsSeeEnemy and self:getTheWeapon( "movement_flankenemy", potentialWep, "movement_flankenemy" ) then
                     exit = true
 
-                elseif scared and not data.wasStalk and enemyBearingToMeAbs < 80 then -- scary enemy and they can see us!
+                elseif tooDangerousToApproach and not data.wasStalk and enemyBearingToMeAbs < 80 then -- scary enemy and they can see us!
                     self:TaskComplete( "movement_flankenemy" )
                     self:GetTheBestWeapon()
                     self:StartTask( "movement_stalkenemy", { distMul = 0.01, forcedOrbitDist = self.DistToEnemy * 1.5 }, "that hurt!" )

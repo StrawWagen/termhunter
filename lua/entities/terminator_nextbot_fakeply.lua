@@ -37,7 +37,7 @@ if CLIENT then
 
 end
 
-ENT.DefaultWeapon = "gmod_camera"
+ENT.DefaultWeapon = false
 ENT.TERM_FISTS = false
 
 ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 20

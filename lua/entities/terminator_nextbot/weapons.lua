@@ -175,7 +175,7 @@ function ENT:GiveDefaultWeapons()
 
     end
 
-    local wep = self:GetKeyValue("additionalequipment") -- default to what was set in the spawnmenu
+    local wep = self:GetKeyValue( "additionalequipment" ) -- default to what was set in the spawnmenu
     if not wep and trueDefaultWeps then
         wep = trueDefaultWeps[math.random( 1, #trueDefaultWeps )]
 
@@ -184,8 +184,13 @@ function ENT:GiveDefaultWeapons()
         wep = fistsClass
 
     end
+
+    local wepEnt
     if wep then
-        local wepEnt = self:Give( wep )
+        wepEnt = self:Give( wep )
+
+    end
+    if wep and IsValid( wepEnt ) then
         if trueDefaultWeps and table.HasValue( trueDefaultWeps, wep ) then
             self:GetActiveLuaWeapon().terminator_PropertyOf = self
             self:GetWeapon().terminator_PropertyOf = self
