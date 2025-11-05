@@ -1469,7 +1469,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
                     if sinceLastSpotted < 5 then return end
 
-                    if data.LookAt then self:LookAt( data.LookAt ) end
+                    if data.LookAt then self:justLookAt( data.LookAt ) end
 
                     self:TaskComplete( "movement_standandshoot" )
                     myTbl.StartTask( self, "movement_handler", "no enemy to shoot at!" )

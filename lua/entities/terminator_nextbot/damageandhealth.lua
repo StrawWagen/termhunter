@@ -446,7 +446,12 @@ function ENT:PostTookDamage( dmg )
         end
     end
 
-    ProtectedCall( function() myTbl.RunTask( self, "OnDamaged", dmg ) end )
+    local blockDamage
+    ProtectedCall( function()
+        blockDamage = myTbl.RunTask( self, "OnDamaged", dmg )
+
+    end )
+    if blockDamage then return true end
 
     local cur = CurTime()
     local nextNoticeDamage = myTbl.term_NextNoticeDamage or 0
