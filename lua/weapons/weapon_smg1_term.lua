@@ -9,7 +9,7 @@ end
 SWEP.PrintName = "#HL2_SMG1"
 SWEP.Spawnable = false
 SWEP.Author = "Shadow Bonnie (RUS)"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.ViewModel = "models/weapons/v_smg1.mdl"
 SWEP.WorldModel = "models/weapons/w_smg1.mdl"
@@ -44,6 +44,7 @@ end
 
 local MAX_TRACE_LENGTH	= 56756
 local vec3_origin		= vector_origin
+local skSmg1DamageCvar 	= GetConVar( "sk_plr_dmg_smg1" )
 
 function SWEP:PrimaryAttack()
 	if !self:CanPrimaryAttack() then return end
@@ -57,7 +58,7 @@ function SWEP:PrimaryAttack()
 		Spread = vec3_origin,
 		Distance = MAX_TRACE_LENGTH,
 		AmmoType = self:GetPrimaryAmmoType(),
-		Damage = 4,
+		Damage = skSmg1DamageCvar:GetInt(),
 		Force = 1,
 		Attacker = owner,
 	})

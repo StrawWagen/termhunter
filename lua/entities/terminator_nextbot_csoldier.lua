@@ -39,7 +39,56 @@ if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
     } )
 end
 
-ENT.PlayerColorVec = Vector( 0.4, 0.4, 0.6 ) -- used for player color
+ENT.PlayerColorVec = Vector( 0.4, 0.4, 0.6 ) -- changes ENT:GetPlayerColor result
+
+ENT.TermSoldier_CanMeleeAttack = true
+ENT.TermSoldier_MeleeAttackRange = 60
+ENT.TermSoldier_MeleeAttackDamage = 15
+ENT.TermSoldier_MeleeAttackHull = 10
+ENT.TermSoldier_MeleeAttackDmgType = DMG_CLUB
+ENT.TermSoldier_MeleeAttackGesture = ACT_GMOD_GESTURE_MELEE_SHOVE_2HAND
+ENT.TermSoldier_MeleeAttackHitDelay = 0.3
+ENT.TermSoldier_MeleeAttackSound = "weapons/slam/throw.wav"
+ENT.TermSoldier_MeleeAttackHitSound = "physics/body/body_medium_impact_hard6.wav"
+
+ENT.MySpecialActions = {
+    ["TermSoldier_Melee"] = {
+        commandName = "impulse 100", -- flashlight
+        drawHint = function( bot ) return bot.TermSoldier_CanMeleeAttack end,
+        name = "Melee",
+        desc = "Simple melee attack.", -- desc is unused for now
+        ratelimit = 0.68,
+
+        svAction = function( _drive, _driver, bot )
+            bot:DoGesture( bot.TermSoldier_MeleeAttackGesture, 1, false )
+            timer.Simple( bot.TermSoldier_MeleeAttackHitDelay or 0.2, function()
+                if not IsValid( bot ) then return end
+                bot:EmitSound( bot.TermSoldier_MeleeAttackSound, 75, math.random( 95, 105 ), 1, CHAN_WEAPON )
+
+                local hit = false
+                bot:FireBullets( {
+                    Attacker = bot,
+                    Damage = bot.TermSoldier_MeleeAttackDamage,
+                    Force = bot.TermSoldier_MeleeAttackDamage * 0.5,
+                    Tracer = 0,
+                    Num = 1,
+                    Src = bot:GetShootPos(),
+                    Dir = bot:GetAimVector(),
+                    HullSize = bot.TermSoldier_MeleeAttackHull,
+                    Distance = bot.TermSoldier_MeleeAttackRange,
+                    Callback = function( attacker, tr, dmginfo )
+                        hit = true
+                        dmginfo:SetDamageType( bot.TermSoldier_MeleeAttackDmgType )
+                    end,
+                } )
+
+                if not hit then return end
+                bot:EmitSound( bot.TermSoldier_MeleeAttackHitSound, 75, math.random( 95, 105 ), 1, CHAN_WEAPON )
+
+            end )
+        end,
+    },
+}
 
 if CLIENT then
     language.Add( "terminator_nextbot_csoldier", ENT.PrintName )
@@ -58,7 +107,7 @@ ENT.ThreshMulIfDueling = 3 -- CoroutineThresh is multiplied by this amount if we
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
 ENT.IsFodder = true
 
-ENT.JumpHeight = 50
+ENT.JumpHeight = 60
 ENT.DefaultStepHeight = 18
 ENT.StandingStepHeight = ENT.DefaultStepHeight * 1 -- used in crouch toggle in motionoverrides
 ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
@@ -70,7 +119,7 @@ ENT.DoMetallicDamage = false
 ENT.DontShootThroughProps = true -- only attack if MASK_SHOT is clear
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_POOR
 ENT.WalkSpeed = 75
-ENT.MoveSpeed = 100
+ENT.MoveSpeed = 125
 ENT.RunSpeed = 200
 ENT.AccelerationSpeed = 1500
 ENT.DeathDropHeight = 800
@@ -411,8 +460,48 @@ function ENT:DoCustomTasks( defaultTasks )
         ["movement_wait"] = defaultTasks["movement_wait"],
         ["movement_getweapon"] = defaultTasks["movement_getweapon"],
         ["movement_followtarget"] = defaultTasks["movement_followtarget"],
-        ["playercontrol_handler"] = defaultTasks["playercontrol_handler"],
         ["movement_backthehellup"] = defaultTasks["movement_backthehellup"],
+
+        ["soldier_meleeattack_handler"] = {
+            StartsOnInitialize = true, -- starts on spawn
+            OnStart = function( self, data )
+                data.NextMeleeAttack = 0
+
+            end,
+            BehaveUpdatePriority = function( self, data )
+                local myTbl = data.myTbl
+                if not myTbl.TermSoldier_CanMeleeAttack then
+                    myTbl.TaskComplete( self, "soldier_meleeattack_handler" )
+                    return
+
+                end
+
+                if not myTbl.IsSeeEnemy then return end
+                if myTbl.DistToEnemy > myTbl.TermSoldier_MeleeAttackRange * math.Rand( 1, 1.25) then return end
+
+                if data.NextMeleeAttack > CurTime() then
+                    return
+
+                end
+
+                local delay = ( myTbl.SpecialActions["TermSoldier_Melee"].ratelimit or 1 ) * 1.1
+                data.NextMeleeAttack = CurTime() + delay
+
+                if math.random( 0, 100 ) < 15 then -- dont melee attack every time
+                    return
+
+                end
+
+                myTbl.PreventShooting = true
+                timer.Simple( delay, function()
+                    if not IsValid( self ) then return end
+                    myTbl.PreventShooting = nil
+
+                end )
+                self:TakeAction( "TermSoldier_Melee" )
+
+            end,
+        },
 
         ["soldier_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
@@ -435,6 +524,7 @@ function ENT:DoCustomTasks( defaultTasks )
             TranslateActivity = function( self, data, act )
                 local myTbl = data.myTbl
 
+                if self:IsControlledByPlayer() then return end
                 if IsValid( myTbl.GetEnemy( self ) ) then return end
                 if myTbl.IsAngry( self ) then return end
                 if myTbl.TimeSinceEnemySpotted( self, myTbl ) < 4 + ( entMeta.GetCreationID( self ) % 5 ) then return end
@@ -451,6 +541,7 @@ function ENT:DoCustomTasks( defaultTasks )
         -- custom movement starter
         ["movement_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
+            StopsWhenPlayerControlled = true,
             OnStart = function( self, data )
                 if data.myTbl.HasBrains then
                     data.StartTheTask = CurTime() + math.Rand( 0.01, 0.05 ) -- wait a bit before starting this task
@@ -548,6 +639,14 @@ function ENT:DoCustomTasks( defaultTasks )
                 local toPos = myTbl.EnemyLastPos
                 if IsValid( enemy ) then
                     toPos = entMeta.GetPos( enemy )
+
+                end
+
+                coroutine_yield()
+
+                local canWep, potentialWep = self:canGetWeapon()
+                if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_approachenemy", potentialWep ) then
+                    return
 
                 end
 
@@ -1162,7 +1261,7 @@ function ENT:DoCustomTasks( defaultTasks )
         },
 
         -- let brainless npcs walk slowly towards enemy, using gotopossimple
-        ["movement_walkslowtowardsenemy"] = {
+        ["movement_walkslowtowardsenemy"] = { -- durr
             OnStart = function( self, data )
                 data.CurrentTaskGoalPos = nil
 
@@ -1180,8 +1279,17 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
+                coroutine_yield()
+
+                local canWep, potentialWep = self:canGetWeapon()
+                if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_walkslowtowardsenemy", potentialWep ) then
+                    return
+
+                end
+
+                coroutine_yield()
+
                 if not seeEnemy then
-                    coroutine_yield()
                     if not IsValid( enemy ) then
                         self:TaskComplete( "movement_walkslowtowardsenemy" )
                         myTbl.StartTask( self, "movement_handler", "durr i lost my enemy!" )
@@ -1279,11 +1387,22 @@ function ENT:DoCustomTasks( defaultTasks )
             OnStart = function( self, data )
                 data.NextReachableCheck = CurTime() + 1
                 data.CurrentTaskGoalPos = nil
+                data.LookAt = data.LookAt or self.EnemyLastPos
 
             end,
             BehaveUpdateMotion = function( self, data )
                 local myTbl = data.myTbl
                 local enemy = myTbl.GetEnemy( self )
+
+                coroutine_yield()
+
+                local canWep, potentialWep = self:canGetWeapon()
+                if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_standandshoot", potentialWep ) then
+                    return
+
+                end
+
+                coroutine_yield()
 
                 local needsNewPathGoal = not myTbl.IsSeeEnemy and not data.CurrentTaskGoalPos and IsValid( enemy )
                 if needsNewPathGoal then
@@ -1350,6 +1469,8 @@ function ENT:DoCustomTasks( defaultTasks )
                     local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
                     if sinceLastSpotted < 5 then return end
 
+                    if data.LookAt then self:LookAt( data.LookAt ) end
+
                     self:TaskComplete( "movement_standandshoot" )
                     myTbl.StartTask( self, "movement_handler", "no enemy to shoot at!" )
                     return
@@ -1390,7 +1511,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local goodEnemy
                 local enemy = myTbl.GetEnemy( self )
                 local seeEnemy = myTbl.IsSeeEnemy
-                local scaryEnemy 
+                local scaryEnemy
                 local clearOrBreakable = myTbl.NothingOrBreakableBetweenEnemy
                 local enemysShoot = myTbl.LastEnemyShootPos
                 local enemysNav
@@ -1561,7 +1682,7 @@ function ENT:DoCustomTasks( defaultTasks )
                             myTbl.StartTask( self, "movement_shootfromcover", "my buddy found an enemy, im gonna shoot them from here!" )
 
                         else
-                            myTbl.StartTask( self, "movement_standandshoot", "durr my buddy found an enemy and i can see them!" )
+                            myTbl.StartTask( self, "movement_standandshoot", { LookAt = lastInterceptPos + self:GetViewOffset() }, "durr my buddy found an enemy and i can see them!" )
 
                         end
                         return

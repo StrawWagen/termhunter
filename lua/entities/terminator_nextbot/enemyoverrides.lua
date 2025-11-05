@@ -1078,11 +1078,12 @@ function ENT:GetOtherHuntersProbableEntrance()
     end
 end
 
-function ENT:SaveSoundHint( source, valuable, emitter )
+function ENT:SaveSoundHint( source, valuable, emitter, dangerous )
     local soundHint = {}
     soundHint.emitter = emitter
     soundHint.source = source
     soundHint.valuable = valuable
+    soundHint.dangerous = dangerous
     soundHint.time = CurTime()
 
     self.lastHeardSoundHint = soundHint
@@ -1481,16 +1482,16 @@ end
 do
     local dynamicallyLagCompensating = {}
 
-    function ENT:InitializeLagCompensation()
+    function ENT:InitializeLagCompensation( myTbl )
         if game.SinglePlayer() then return end
-        if self.IsFodder then
+        if myTbl.IsFodder then
             dynamicallyLagCompensating[self] = false
-            self:CallOnRemove( "term_cleanupdynamic_lagcomp", function()
+            entMeta.CallOnRemove( self, "term_cleanupdynamic_lagcomp", function()
                 dynamicallyLagCompensating[self] = nil
 
             end )
         else
-            self:SetLagCompensated( true )
+            entMeta.SetLagCompensated( self, true )
 
         end
     end

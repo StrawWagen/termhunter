@@ -2,6 +2,8 @@ AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 include("shared.lua")
 
+local entMeta = FindMetaTable("Entity")
+
 --[[-------------------------------------------------------
 	NEXTBOT Settings
 --]]-------------------------------------------------------
@@ -100,60 +102,66 @@ local defaultModel = "models/player/kleiner.mdl"
 	Initialize our bot
 --]]------------------------------------
 function ENT:Initialize()
-	self:IsNPCHackRegister()
+	local myTbl = entMeta.GetTable( self )
+	entMeta.SetModel( self, defaultModel ) -- kliener of doom
 
-	self:SetModel( defaultModel ) -- kliener of doom
-	self:SetSolidMask(self.SolidMask)
-	self:SetCollisionGroup(COLLISION_GROUP_PLAYER)
+	myTbl.IsNPCHackRegister( self )
 
-	local spawnHealth = self.SpawnHealth
+	self:SetSolidMask( myTbl.SolidMask )
+	entMeta.SetCollisionGroup( self, COLLISION_GROUP_PLAYER )
+
+	local spawnHealth = myTbl.SpawnHealth
 	if isfunction( spawnHealth ) then
 		spawnHealth = spawnHealth()
 
 	end
-	self:SetMaxHealth( spawnHealth )
-	self:SetHealth( self:GetMaxHealth() )
+	entMeta.SetMaxHealth( self, spawnHealth )
+	entMeta.SetHealth( self, spawnHealth )
 
-	self:AddFlags(FL_OBJECT)
+	entMeta.AddFlags( self, FL_OBJECT ) -- make npcs see us
 
-	self.BehaveInterval = 0
-	self.m_Path = Path("Follow")
-	self.m_PathPos = Vector()
-	self.m_PathOptions = {}
-	self.m_NavArea = navmesh.GetNearestNavArea(self:GetPos())
-	self.m_Capabilities = 0
-	self.m_ClassRelationships = {}
-	self.m_EntityRelationships = {}
-	self.m_EnemiesMemory = {}
-	self.m_FootstepFoot = false
-	self.m_FootstepTime = CurTime()
-	self.m_LastMoveTime = CurTime()
-	self.m_FallSpeed = 0
-	self.m_TaskList = {}
-	self.m_ActiveTasks = {}
-	self.m_Stuck = false
-	self.m_StuckTime = CurTime()
-	self.m_StuckTime2 = 0
-	self.m_StuckPos = self:GetPos()
-	self.m_HullType = HULL_HUMAN
-	self.m_DuckHullType = HULL_TINY
-	self.m_PitchAim = 0
-	self.m_Conditions = {}
-	self.m_PathUpdatesDemanded = 0
+	local ct = CurTime()
+	local pos = entMeta.GetPos( self )
 
-	self.loco:SetGravity(self.DefaultGravity)
-	self.loco:SetAcceleration(self.AccelerationSpeed)
-	self.loco:SetDeceleration(self.DecelerationSpeed)
-	self.loco:SetStepHeight(self.StepHeight)
-	self.loco:SetJumpHeight(self.JumpHeight)
-	self.loco:SetDeathDropHeight(self.DeathDropHeight)
+	myTbl.BehaveInterval = 0
+	myTbl.m_Path = Path("Follow")
+	myTbl.m_PathPos = Vector()
+	myTbl.m_PathOptions = {}
+	myTbl.m_NavArea = navmesh.GetNearestNavArea(pos)
+	myTbl.m_Capabilities = 0
+	myTbl.m_ClassRelationships = {}
+	myTbl.m_EntityRelationships = {}
+	myTbl.m_EnemiesMemory = {}
+	myTbl.m_FootstepFoot = false
+	myTbl.m_FootstepTime = ct
+	myTbl.m_LastMoveTime = ct
+	myTbl.m_FallSpeed = 0
+	myTbl.m_TaskList = {}
+	myTbl.m_ActiveTasks = {}
+	myTbl.m_Stuck = false
+	myTbl.m_StuckTime = ct
+	myTbl.m_StuckTime2 = 0
+	myTbl.m_StuckPos = pos
+	myTbl.m_HullType = HULL_HUMAN
+	myTbl.m_DuckHullType = HULL_TINY
+	myTbl.m_PitchAim = 0
+	myTbl.m_Conditions = {}
+	myTbl.m_PathUpdatesDemanded = 0
 
-	self:SetupCollisionBounds()
-	self:ReloadWeaponData()
-	self:SetDesiredEyeAngles(self:GetAngles())
+	local loco = myTbl.loco
+	loco:SetGravity( myTbl.DefaultGravity )
+	loco:SetAcceleration( myTbl.AccelerationSpeed )
+	loco:SetDeceleration( myTbl.DecelerationSpeed )
+	loco:SetStepHeight( myTbl.StepHeight )
+	loco:SetJumpHeight( myTbl.JumpHeight )
+	loco:SetDeathDropHeight( myTbl.DeathDropHeight )
+
+	myTbl.SetupCollisionBounds( self, myTbl )
+	myTbl.ReloadWeaponData( self )
+	myTbl.SetDesiredEyeAngles( self, entMeta.GetAngles( self ) )
 	self:SetupDefaultCapabilities()
 
-	self:AddCallback("PhysicsCollide",self.PhysicsObjectCollide)
+	entMeta.AddCallback( self, "PhysicsCollide", myTbl.PhysicsObjectCollide )
 end
 
 --[[------------------------------------

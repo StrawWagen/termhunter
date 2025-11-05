@@ -335,13 +335,14 @@ end
 	Arg1: 
 	Ret1: 
 --]]------------------------------------
-function ENT:SetupCollisionBounds()
-	local data = self:IsCrouching() and self.CrouchCollisionBounds or self.CollisionBounds
+function ENT:SetupCollisionBounds( myTbl )
+	myTbl = myTbl or entMeta.GetTable( self )
+	local data = myTbl.GetCrouching( self ) and myTbl.CrouchCollisionBounds or myTbl.CollisionBounds
+
+	entMeta.SetCollisionBounds( self, data[1], data[2] )
 	
-	self:SetCollisionBounds(data[1],data[2])
-	
-	if self:PhysicsInitShadow(false,false) then
-		self:GetPhysicsObject():SetMass(self.MyPhysicsMass)
+	if entMeta.PhysicsInitShadow( self, false, false) then
+		entMeta.GetPhysicsObject( self ):SetMass( myTbl.MyPhysicsMass )
 	end
 end
 

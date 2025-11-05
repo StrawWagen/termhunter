@@ -20,6 +20,7 @@ local SwingSound = Sound( "WeaponFrag.Throw" )
 local HitSound = Sound( "Flesh.ImpactHard" )
 
 SWEP.Primary = {
+    Automatic = true,
     Ammo = "None",
     ClipSize = -1,
     DefaultClip = -1,

@@ -1,7 +1,3 @@
--- todo
--- intercepting
--- patrolling 
-
 AddCSLuaFile()
 
 ENT.DefaultWeapon = {
@@ -10,7 +6,7 @@ ENT.DefaultWeapon = {
 }
 
 ENT.DefaultSidearms = {
-    "weapon_frag",
+    { "weapon_manhack_term", "", "", },
 }
 
 ENT.Base = "terminator_nextbot_csoldier"
@@ -20,7 +16,7 @@ ENT.Spawnable = false -- dont show up in entity spawn category
 
 if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
     list.Set( "NPC", "terminator_nextbot_cmetro", {
-        Name = "Metro-Police",
+        Name = "Combine Metro-Police",
         Class = "terminator_nextbot_cmetro",
         Category = "Terminator Nextbot",
         Weapons = ENT.DefaultWeapon,
@@ -41,12 +37,12 @@ ENT.ThreshMulIfDueling = 3 -- CoroutineThresh is multiplied by this amount if we
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
 ENT.IsFodder = false
 
-ENT.JumpHeight = 25
+ENT.JumpHeight = 50
 ENT.SpawnHealth = 40
 ENT.AimSpeed = 300
 ENT.WalkSpeed = 75
-ENT.MoveSpeed = 125
-ENT.RunSpeed = 250
+ENT.MoveSpeed = 100
+ENT.RunSpeed = 175
 
 ENT.HasBrains = false
 

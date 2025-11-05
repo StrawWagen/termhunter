@@ -10,7 +10,7 @@ end
 SWEP.PrintName = "#HL2_Pulse_Rifle"
 SWEP.Spawnable = false
 SWEP.Author = "Shadow Bonnie (RUS)"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.ViewModel = "models/weapons/v_irifle.mdl"
 SWEP.WorldModel = "models/weapons/w_irifle.mdl"
@@ -45,6 +45,7 @@ end
 
 local MAX_TRACE_LENGTH	= 56756
 local vec3_origin		= vector_origin
+local skAR2DamageCvar 	= GetConVar( "sk_plr_dmg_ar2" )
 
 function SWEP:PrimaryAttack()
 	if !self:CanPrimaryAttack() then return end
@@ -58,7 +59,7 @@ function SWEP:PrimaryAttack()
 		Spread = vec3_origin,
 		Distance = MAX_TRACE_LENGTH,
 		AmmoType = self:GetPrimaryAmmoType(),
-		Damage = 8,
+		Damage = skAR2DamageCvar:GetInt(),
 		Force = 1,
 		Attacker = owner,
 		TracerName = "AR2Tracer",

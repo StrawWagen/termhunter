@@ -4,7 +4,7 @@ SWEP.Base = "weapon_frag_term"
 SWEP.PrintName = "#HL2_Slam"
 SWEP.Spawnable = false
 SWEP.Author = "straw wagen"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.WorldModel = "models/weapons/w_slam.mdl"
 SWEP.Weight = terminator_Extras.GoodWeight
@@ -26,6 +26,8 @@ function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end
 
     local owner = self:GetOwner()
+    if owner:IsControlledByPlayer() then return true end
+
     local holdType = self.HoldType
     if holdType == "slam" and owner.IsSeeEnemy then
         self.HoldType = "melee"

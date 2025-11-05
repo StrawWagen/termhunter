@@ -7,12 +7,15 @@ local entMeta = FindMetaTable("Entity")
 	Initialize our bot
 --]]------------------------------------
 function ENT:Initialize()
-	self.m_TaskList = {}
-	self.m_ActiveTasks = {}
-	self.m_ActiveTasksID = {}
+	local myTbl = entMeta.GetTable( self )
+	myTbl.SetupSpecialActions( self, myTbl )
 
-	self:SetupTaskList(self.m_TaskList)
-	self:SetupTasks()
+	myTbl.m_TaskList = {}
+	myTbl.m_ActiveTasks = {}
+	myTbl.m_ActiveTasksID = {}
+
+	myTbl.SetupTaskList( self, myTbl.m_TaskList )
+	myTbl.SetupTasks( self )
 end
 
 --[[------------------------------------

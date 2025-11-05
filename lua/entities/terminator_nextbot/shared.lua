@@ -18,7 +18,180 @@ include( "sharedextras.lua" )
 -- these need to be shared
 include( "compatibilityhacks.lua" )
 
+
 ENT.isTerminatorHunterBased = true -- used to see if ent is an actual terminator
+
+
+local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
+ENT.ARNOLD_MODEL = ARNOLD_MODEL
+
+local mdlVar = CreateConVar( "termhunter_modeloverride", ARNOLD_MODEL, FCVAR_ARCHIVE, "Override the terminator nextbot's spawned-in model. Model needs to be rigged for player movement" )
+
+local function termModel()
+    local model = ARNOLD_MODEL
+    if mdlVar then
+        local varModel = mdlVar:GetString()
+        if varModel and util.IsValidModel( varModel ) then
+            model = varModel
+        end
+    end
+    return model
+
+end
+
+if not termModel() then
+    RunConsoleCommand( "termhunter_modeloverride", ARNOLD_MODEL )
+
+end
+
+local fovDefault = 95
+local fovVar = CreateConVar( "termhunter_fovoverride", -1, FCVAR_ARCHIVE, "Override the terminator's FOV, -1 for default, ( " .. fovDefault .. ")", -1, fovDefault, -1, 180 )
+local fovCached
+
+local function fovVarThink()
+    local valRaw = fovVar:GetInt()
+    if valRaw <= -1 then
+        fovCached = fovDefault
+
+    else
+        fovCached = valRaw
+
+    end
+    for _, ent in ents.Iterator() do
+        if ent.isTerminatorHunterBased and ent.Term_FOV and ent.AutoUpdateFOV then
+            ent.Term_FOV = fovCached
+
+        end
+    end
+end
+
+fovVarThink()
+
+cvars.AddChangeCallback( "termhunter_fovoverride", function()
+    fovVarThink()
+
+end )
+
+
+local healthVar = CreateConVar( "termhunter_health", -1, FCVAR_ARCHIVE, "Override the terminator's health, -1 for default, ( " .. terminator_Extras.healthDefault .. " )", -1, 99999999 )
+
+local function healthFunc()
+    local valRaw = healthVar:GetInt()
+    if valRaw <= -1 then
+        return terminator_Extras.healthDefault -- defined in sh_terminator_funcs
+
+    else
+        return valRaw
+
+    end
+end
+
+-- config vars
+-- see sh_terminator_funcs.lua for terminator_Extras.baseCoroutineThresh
+ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides.lua 
+
+ENT.ThreshMulIfDueling = nil -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
+ENT.ThreshMulIfClose = nil -- if we're closer than DuelEnemyDist * 2
+ENT.MaxPathingIterations = 30000 -- set this to like 30000 if you dont care about a specific bot having perfect ( read, expensive ) paths
+
+ENT.TERM_FISTS = "weapon_terminatorfists_term" -- bot's innate melee weapon it will pull out to conquer obstacles
+ENT.DefaultWeapon = nil -- weapon to spawn with, nil for fists
+ENT.DefaultSidearms = nil -- sidearms to spawn with
+ENT.CanHolsterWeapons = true
+ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if the enemy is unreachable or lethal in melee
+ENT.CanFindWeaponsOnTheGround = true -- set to false to force bots to only use weapons they spawn with
+
+ENT.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
+
+ENT.SpawnHealth = healthFunc
+ENT.HealthRegen = nil -- health regen per interval
+ENT.HealthRegenInterval = nil -- time between health regens
+ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG the bot is immune to
+ENT.DoMetallicDamage = true -- terminator model damage logic
+ENT.Term_BloodColor = BLOOD_COLOR_RED
+
+-- custom values for the nextbot base to use
+ENT.JumpHeight = 70 * 3.5 -- a multiple of default ( 70 )
+ENT.Term_Leaps = nil -- enables leaping towards enemy, leaping along paths
+
+ENT.DefaultStepHeight = 18
+-- allow us to have different step height when couching/standing
+-- stops bot from sticking to ceiling with big step height
+-- see crouch toggle in motionoverrides
+ENT.StandingStepHeight = ENT.DefaultStepHeight * 1.5
+ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
+ENT.StepHeight = ENT.StandingStepHeight
+ENT.PathGoalToleranceFinal = 50
+ENT.CanUseLadders = true
+ENT.CanSwim = false
+ENT.BreathesAir = false
+ENT.BreathesWater = false
+
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_PERFECT
+ENT.AimSpeed = 480
+ENT.WalkSpeed = 130
+ENT.MoveSpeed = 300
+ENT.RunSpeed = 550 -- bit faster than players... in a straight line
+ENT.AccelerationSpeed = 3000
+ENT.DeathDropHeight = 2000 -- not afraid of heights
+ENT.LastEnemySpotTime = 0
+ENT.InformRadius = 20000 -- how far away can we share info with "allies"
+ENT.AwarenessCheckRange = 1500 -- used by weapon searching too if wep search radius is <= this
+
+ENT.CanUseStuff = true -- flatly stops this bot :Use()-ing stuff.
+ENT.JudgesEnemies = true -- dynamically ignore enemies if they aren't taking damage?
+ENT.IsFodder = nil -- enables optimisations for enemies you want to spawn in hordes, where each enemy won't matter as much, such as disabling mapwide player spotting, sharing unreachable areas, etc
+ENT.IsStupid = nil -- enables optimisations/simplifications for zombie, animal type enemies
+ENT.HasBrains = true -- enables less optimisations, mostly used by ents based on this
+
+ENT.TakesFallDamage = true
+ENT.HeightToStartTakingDamage = ENT.JumpHeight
+ENT.FallDamagePerHeight = 0.05
+
+ENT.FriendlyFireMul = 1 -- how much to mul friendly fire damage dealt to us
+ENT.FistDamageMul = 4
+ENT.ThrowingForceMul = 1000 -- speed we throw crowbars, this is the overcharged one so it's 1k
+
+ENT.Term_FOV = nil -- set this on your bot to make it not use the default fovCached
+ENT.duelEnemyTimeoutMul = 1
+ENT.CloseEnemyDistance = 75 -- bot ignores enemy priority if enemy is this close
+
+ENT.AutoUpdateFOV = true
+
+-- translated to TERM_MODEL
+ENT.Models = { "terminator" }
+
+ENT.ReallyStrong = true
+ENT.ReallyHeavy = true
+ENT.MetallicMoveSounds = true
+
+ENT.Term_FootstepTiming = "timed" -- supported timings, "timed" and "perfect", see footsteps.lua
+ENT.Term_FootstepMode = "human" -- supported modes, "human" and "custom"
+--[[ ENT.Term_FootstepSound = { -- sound that's played if Term_FootstepMode is "custom"
+    path = "custom.wav",
+    pitch = 200, -- pitch of the sound
+    volume = 0.1, -- volume of the sound
+    lvl = 99, -- lvl of the sound
+} --]]
+ENT.FootstepClomping = true
+ENT.Term_FootstepIgnorePAS = false -- for showpiece npcs, PAS can be all screwed on dedicated multiplayer with really loud sounds
+ENT.Term_BaseMsBetweenSteps = 400
+ENT.Term_FootstepMsReductionPerUnitSpeed = 0.6
+
+-- enable/disable spokenlines logic
+ENT.CanSpeak = false
+
+-- enable/disable hearing things
+ENT.CanHearStuff = true
+
+ENT.DuelEnemyDist = 700 -- dist to move from flank or follow enemy, to duel enemy
+
+
+ENT.IsWraith = nil -- enable wraith cloaking logic
+--[[
+ENT.NotSolidWhenCloaked = true
+--]]
+
 
 if CLIENT then
     language.Add( "terminator_nextbot", ENT.PrintName )
@@ -58,6 +231,8 @@ elseif SERVER then
     include( "spokenlines.lua" )
     -- footsteps, why are these so complicated
     include( "footsteps.lua" )
+    -- optional wraith cloaking logic, only activates if .IsWraith is true
+    include( "wraithcloaking.lua" )
 
     AddCSLuaFile( "cl_ragdolldeaths.lua" )
 
@@ -1200,9 +1375,8 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
     end
 end
 
-function ENT:BehaviourThink( myTbl )
+function ENT:ShootblockerThink( myTbl )
     myTbl.LastShootBlocker = false
-    if myTbl.IsControlledByPlayer( self, myTbl ) then return end
     if myTbl.DisableBehaviour( self, myTbl ) then return end
 
     local filter = { self, myTbl.GetEnemy( self ) }
@@ -2626,173 +2800,6 @@ function ENT:SetupDefaultCapabilities()
     self:CapabilitiesAdd(CAP_MOVE_JUMP)
 end
 
-
-
-local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
-ENT.ARNOLD_MODEL = ARNOLD_MODEL
-
-local mdlVar = CreateConVar( "termhunter_modeloverride", ARNOLD_MODEL, FCVAR_ARCHIVE, "Override the terminator nextbot's spawned-in model. Model needs to be rigged for player movement" )
-
-local function termModel()
-    local model = ARNOLD_MODEL
-    if mdlVar then
-        local varModel = mdlVar:GetString()
-        if varModel and util.IsValidModel( varModel ) then
-            model = varModel
-        end
-    end
-    return model
-
-end
-
-if not termModel() then
-    RunConsoleCommand( "termhunter_modeloverride", ARNOLD_MODEL )
-
-end
-
-local fovDefault = 95
-local fovVar = CreateConVar( "termhunter_fovoverride", -1, FCVAR_ARCHIVE, "Override the terminator's FOV, -1 for default, ( " .. fovDefault .. ")", -1, fovDefault, -1, 180 )
-local fovCached
-
-local function fovVarThink()
-    local valRaw = fovVar:GetInt()
-    if valRaw <= -1 then
-        fovCached = fovDefault
-
-    else
-        fovCached = valRaw
-
-    end
-    for _, ent in ents.Iterator() do
-        if ent.isTerminatorHunterBased and ent.Term_FOV and ent.AutoUpdateFOV then
-            ent.Term_FOV = fovCached
-
-        end
-    end
-end
-
-fovVarThink()
-
-cvars.AddChangeCallback( "termhunter_fovoverride", function()
-    fovVarThink()
-
-end )
-
-
-local healthVar = CreateConVar( "termhunter_health", -1, FCVAR_ARCHIVE, "Override the terminator's health, -1 for default, ( " .. terminator_Extras.healthDefault .. " )", -1, 99999999 )
-
-local function healthFunc()
-    local valRaw = healthVar:GetInt()
-    if valRaw <= -1 then
-        return terminator_Extras.healthDefault -- defined in sh_terminator_funcs
-
-    else
-        return valRaw
-
-    end
-end
-
--- config vars
--- see sh_terminator_funcs.lua for terminator_Extras.baseCoroutineThresh
-ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides.lua 
-
-ENT.ThreshMulIfDueling = nil -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
-ENT.ThreshMulIfClose = nil -- if we're closer than DuelEnemyDist * 2
-ENT.MaxPathingIterations = 30000 -- set this to like 30000 if you dont care about a specific bot having perfect ( read, expensive ) paths
-
-ENT.TERM_FISTS = "weapon_terminatorfists_term" -- bot's innate melee weapon it will pull out to conquer obstacles
-ENT.DefaultWeapon = nil -- weapon to spawn with, nil for fists
-ENT.DefaultSidearms = nil -- sidearms to spawn with
-ENT.CanHolsterWeapons = true
-ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if the enemy is unreachable or lethal in melee
-ENT.CanFindWeaponsOnTheGround = true -- set to false to force bots to only use weapons they spawn with
-
-ENT.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
-
-ENT.SpawnHealth = healthFunc
-ENT.HealthRegen = nil -- health regen per interval
-ENT.HealthRegenInterval = nil -- time between health regens
-ENT.term_DMG_ImmunityMask = nil -- bitmask of DMG the bot is immune to
-ENT.DoMetallicDamage = true -- terminator model damage logic
-ENT.Term_BloodColor = BLOOD_COLOR_RED
-
--- custom values for the nextbot base to use
-ENT.JumpHeight = 70 * 3.5 -- a multiple of default ( 70 )
-ENT.Term_Leaps = nil -- enables leaping towards enemy, leaping along paths
-
-ENT.DefaultStepHeight = 18
--- allow us to have different step height when couching/standing
--- stops bot from sticking to ceiling with big step height
--- see crouch toggle in motionoverrides
-ENT.StandingStepHeight = ENT.DefaultStepHeight * 1.5
-ENT.CrouchingStepHeight = ENT.DefaultStepHeight * 0.9
-ENT.StepHeight = ENT.StandingStepHeight
-ENT.PathGoalToleranceFinal = 50
-ENT.CanUseLadders = true
-ENT.CanSwim = false
-ENT.BreathesAir = false
-ENT.BreathesWater = false
-
-ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_PERFECT
-ENT.AimSpeed = 480
-ENT.WalkSpeed = 130
-ENT.MoveSpeed = 300
-ENT.RunSpeed = 550 -- bit faster than players... in a straight line
-ENT.AccelerationSpeed = 3000
-ENT.DeathDropHeight = 2000 -- not afraid of heights
-ENT.LastEnemySpotTime = 0
-ENT.InformRadius = 20000 -- how far away can we share info with "allies"
-ENT.AwarenessCheckRange = 1500 -- used by weapon searching too if wep search radius is <= this
-
-ENT.CanUseStuff = true -- flatly stops this bot :Use()-ing stuff.
-ENT.JudgesEnemies = true -- dynamically ignore enemies if they aren't taking damage?
-ENT.IsFodder = nil -- enables optimisations for enemies you want to spawn in hordes, where each enemy won't matter as much, such as disabling mapwide player spotting, sharing unreachable areas, etc
-ENT.IsStupid = nil -- enables optimisations/simplifications for zombie, animal type enemies
-ENT.HasBrains = true -- enables less optimisations, mostly used by ents based on this
-
-ENT.TakesFallDamage = true
-ENT.HeightToStartTakingDamage = ENT.JumpHeight
-ENT.FallDamagePerHeight = 0.05
-
-ENT.FriendlyFireMul = 1 -- how much to mul friendly fire damage dealt to us
-ENT.FistDamageMul = 4
-ENT.ThrowingForceMul = 1000 -- speed we throw crowbars, this is the overcharged one so it's 1k
-
-ENT.Term_FOV = nil -- set this on your bot to make it not use the default fovCached
-ENT.duelEnemyTimeoutMul = 1
-ENT.CloseEnemyDistance = 75 -- bot ignores enemy priority if enemy is this close
-
-ENT.AutoUpdateFOV = true
-
--- translated to TERM_MODEL
-ENT.Models = { "terminator" }
-
-ENT.ReallyStrong = true
-ENT.ReallyHeavy = true
-ENT.MetallicMoveSounds = true
-
-ENT.Term_FootstepTiming = "timed" -- supported timings, "timed" and "perfect", see footsteps.lua
-ENT.Term_FootstepMode = "human" -- supported modes, "human" and "custom"
---[[ ENT.Term_FootstepSound = { -- sound that's played if Term_FootstepMode is "custom"
-    path = "custom.wav",
-    pitch = 200, -- pitch of the sound
-    volume = 0.1, -- volume of the sound
-    lvl = 99, -- lvl of the sound
-} --]]
-ENT.FootstepClomping = true
-ENT.Term_FootstepIgnorePAS = false -- for showpiece npcs, PAS can be all screwed on dedicated multiplayer with really loud sounds
-ENT.Term_BaseMsBetweenSteps = 400
-ENT.Term_FootstepMsReductionPerUnitSpeed = 0.6
-
-
--- enable/disable spokenlines logic
-ENT.CanSpeak = false
-
--- enable/disable hearing things
-ENT.CanHearStuff = true
-
-ENT.DuelEnemyDist = 700 -- dist to move from flank or follow enemy, to duel enemy
-
 -- all other relationships are created by MakeFeud in enemyoverrides when something damages us
 -- means bot viciously attacks enemies that can hurt it
 -- while ignoring harmless stuff, like seagulls
@@ -2857,9 +2864,15 @@ function ENT:Initialize()
     -- internal stuff, don't edit unless you know what you're doing!
     -- use additionalInitialize for your own entities based off this
 
-    BaseClass.Initialize( self )
-
     local myTbl = self:GetTable()
+
+    -- inject this before we gobble class tasks
+    if myTbl.IsWraith then
+        myTbl.InitializeWraith( self, myTbl )
+
+    end
+
+    BaseClass.Initialize( self )
 
     local myPos = self:GetPos()
 
@@ -2960,9 +2973,11 @@ function ENT:Initialize()
 
     myTbl.InitializeCollisionBounds( self, scale )
 
-    myTbl.InitializeLagCompensation( self )
+    myTbl.InitializeLagCompensation( self, myTbl )
 
-    if isnumber( myTbl.HasBrains ) then -- it's a random chance
+    myTbl.SetupSpecialActions( self, myTbl )
+
+    if isnumber( myTbl.HasBrains ) then -- can be bool or num for random chance
         myTbl.HasBrains = math.random( 1, 100 ) <= myTbl.HasBrains
 
     end
@@ -3023,8 +3038,10 @@ end
 
 function ENT:DoDefaultTasks()
     self.TaskList = {
+        -- find, lose, manage enemies. 
         ["enemy_handler"] = {
             StartsOnInitialize = true,
+            StopsWhenPlayerControlled = true,
             OnKillEnemy = function( self, data ) -- do an enemy search NOW if we're not fodder!
                 if data.myTbl.IsFodder then return end
                 data.UpdateEnemies = CurTime()
@@ -3389,14 +3406,18 @@ function ENT:DoDefaultTasks()
                 coroutine_yield()
 
             end,
-            StartControlByPlayer = function( self, data, ply )
-                self:TaskFail( "enemy_handler" )
+            StartControlByPlayer = function( self, data )
+                local myTbl = data.myTbl
+                myTbl.IsSeeEnemy = true -- for stuff that relies on this being true, eg weapons
+                myTbl.NothingOrBreakableBetweenEnemy = true -- try disabling this, and using the hl2 rpg override, it checks it!
+
             end,
         },
+        -- look at enemies, barrels next to them, and shoot!
+        -- manage TERM_FISTS state
         ["shooting_handler"] = {
             StartsOnInitialize = true,
-            OnStart = function( self, data )
-            end,
+            StopsWhenPlayerControlled = true,
             BehaveUpdatePriority = function( self, data, interval )
                 coroutine_yield()
 
@@ -3521,10 +3542,14 @@ function ENT:DoDefaultTasks()
                 coroutine_yield()
 
             end,
-            StartControlByPlayer = function( self, data, ply )
-                self:TaskFail( "shooting_handler" )
+            StartControlByPlayer = function( self, data )
+                data.myTbl.PreventShooting = nil
+
             end,
         },
+        -- manage a cache of entities around us
+        -- very ratelimited on fodder enemies
+        -- but an extremely useful cache to dip into, overall
         ["awareness_handler"] = {
             StartsOnInitialize = true,
             BehaveUpdatePriority = function( self, data, interval )
@@ -3535,7 +3560,11 @@ function ENT:DoDefaultTasks()
                 end
             end,
         },
-        ["reallystuck_handler"] = { -- it's really stuck!!!!!!!
+        -- it's really stuck!!!!!!!
+        -- background stuck check
+        -- tracks bot's position, if it's under a displacement
+        -- resets all motion tasks if necessary!
+        ["reallystuck_handler"] = {
             StartsOnInitialize = true,
             OnStart = function( self, data )
                 data.historicPositions = {}
@@ -3807,6 +3836,7 @@ function ENT:DoDefaultTasks()
                 end
             end,
         },
+        -- tell our buddies on the same .isTerminatorHunterChummy "team", in a radius of .InformRadius, about our shared enemies!
         ["inform_handler"] = {
             StartsOnInitialize = true,
             OnStart = function( self, data )
@@ -3949,14 +3979,7 @@ function ENT:DoDefaultTasks()
 
             end
         },
-        ["playercontrol_handler"] = {
-            StartsOnInitialize = true,
-            StopControlByPlayer = function( self, data, ply )
-                self:StartTask( "enemy_handler", nil, "begin" )
-                self:StartTask( "movement_handler", nil, "begin" )
-                self:StartTask( "shooting_handler", nil, "begin" )
-            end,
-        },
+        -- wait in one spot for a set amount of time!
         ["movement_wait"] = {
             OnStart = function( self, data )
                 data.time = CurTime() + ( data.time or math.Rand( 0.1, 0.2 ) )
@@ -3969,17 +3992,22 @@ function ENT:DoDefaultTasks()
                 end
             end,
         },
-        ["movement_waitforenemy"] = { -- cute helper task
-            OnStart = function( self, data )
-            end,
+        -- do nothing at all until we see an enemy!
+        -- basically an ambush task
+        ["movement_waitforenemy"] = {
             BehaveUpdateMotion = function( self, data, interval )
+                if not self.IsSeeEnemy then return end
+
                 self.term_WaitingForEnemy = nil
                 self:StartTask( "movement_handler", nil, "spotted enemy!" )
 
             end,
         },
+        -- generic "idle" state task
+        -- tasks will shunt the brain here if they don't have any specific behaviour they want the bot to do next
         ["movement_handler"] = {
             StartsOnInitialize = true,
+            StopsWhenPlayerControlled = true,
             BehaveUpdateMotion = function( self, data, interval )
                 local myTbl = data.myTbl
                 if not myTbl.nextNewPathIsGood( self ) then
@@ -4057,7 +4085,9 @@ function ENT:DoDefaultTasks()
                 end
             end,
         },
-        ["movement_followtarget"] = { -- replicate sb advanced nextbot's followtarget task
+        -- follow behind self.Target, if it's a valid entity
+        -- tries to get within self.TargetFollowDist distance of it
+        ["movement_followtarget"] = {
             OnStart = function( self, data )
                 data.CurrentTaskGoalPos = nil
 
@@ -4111,6 +4141,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         -- gotopossimple to some position on a nearby area that's farther away from the enemy
+        -- a cheap, reliable, no A* way to get the hell out of there!
         ["movement_backthehellup"] = {
             OnStart = function( self, data )
                 local myTbl = data.myTbl
@@ -4252,6 +4283,10 @@ function ENT:DoDefaultTasks()
 
             end,
         },
+        -- bash either a specific data.object, or the first object in our awarenessBash list
+        -- this was originally gonna be a whole learning system where bots figured out entity's properties
+        -- but even the terms dont live long enough to encounter enough separate stuff
+        -- it was cool though because it laid the groundwork for alot of stuff, and them beating up random stuff can be really funny
         ["movement_bashobject"] = {
             OnStart = function( self, data )
                 if not IsValid( data.object ) then
@@ -4277,7 +4312,6 @@ function ENT:DoDefaultTasks()
                 end
             end,
             BehaveUpdateMotion = function( self, data, interval )
-
                 if not IsValid( aBashingFrenzyTerminator ) and #self:GetNearbyAllies() >= 2 then
                     -- global var!!!
                     aBashingFrenzyTerminator = self
@@ -4406,6 +4440,8 @@ function ENT:DoDefaultTasks()
 
             end,
         },
+        -- try and understand an unknown entity by beating it up
+        -- most stuff is hardcoded now, like barrels and slams, but this system works sorta ok enough to be worth keeping
         ["movement_understandobject"] = {
             OnStart = function( self, data )
                 data.object = self.awarenessUnknown[1]
@@ -4590,6 +4626,7 @@ function ENT:DoDefaultTasks()
 
             end,
         },
+        -- go to, and pick up a specific weapon
         ["movement_getweapon"] = {
             OnStart = function( self, data )
 
@@ -4827,6 +4864,7 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
+        -- follow a sound we heard, then investigate the area
         ["movement_followsound"] = {
             OnStart = function( self, data )
                 if not self.isUnstucking then
@@ -5023,181 +5061,166 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
+        -- search around an area for our enemy
+        -- very thorough search
         ["movement_search"] = {
             OnStart = function( self, data )
-                --debugoverlay.Cross( self:GetPos(), 50,1, Color(255,255,255), true )
-
-                data.searchRadius = data.searchRadius or 4000
+                data.searchRadius = data.searchRadius or 3000
                 data.searchWant = data.searchWant or 50
                 data.time = data.time or 0
                 data.doneSearchesNearby = data.doneSearchesNearby or 0
-
-                --print( "Search!" .. data.searchWant .. " " .. data.searchRadius )
-                local toPick = { data.searchCenter, self.EnemyLastPosOffsetted, self:GetPos() }
-                local pickedSearchCenter
-                for index = 1, table.Count( toPick ) do
-                    local picked = toPick[ index ]
-                    if isvector( picked ) then
-                        pickedSearchCenter = picked
-                        break
-
-                    end
-                end
-                local needsToDoANearbySearch = data.searchCenter and not data.searchedNearCenter and data.searchWant > 0
-
-                -- focus search on where a "hint" was, or first operation, focus our search on where the code says we should be
-                -- added so bot always checks the center at least once
-                if needsToDoANearbySearch then
-                    -- snap it to the navmesh
-                    local result = terminator_Extras.getNearestPosOnNav( data.searchCenter )
-                    if result and result.pos then
-                        --debugoverlay.Cross( result.pos, 100, 10, Color( 255,255,0 ), true )
-                        pickedSearchCenter = result.pos
-                        data.searchCenter = result.pos
-
-                    end
-                end
-
-                local _
-                local checkNav
-
-                data.nextForcedSearch = CurTime() + 25
-                data.searchWant = data.searchWant + -1
-                data.time = CurTime() + data.time
-
-                local scoreData = {}
-                scoreData.blockRadiusEnd = true
-                scoreData.searchRadius = data.searchRadius
-                scoreData.searchCenter = pickedSearchCenter
-                scoreData.canDoUnderWater = self:isUnderWater()
-                scoreData.decreasingScores = {}
-                scoreData.self = self
-                scoreData.walkedAreas = self.walkedAreas
-                scoreData.walkedAreaTimes = self.walkedAreas
-
-                local checkSpot
-                local checkCenter
-
-                local scoreFunction = function( scoreData, area1, area2 )
-                    local localSelf = scoreData.self
-                    if not localSelf:areaIsReachable( area2 ) then return 0 end
-                    if area2:IsBlocked() then return 0 end
-
-                    local score = scoreData.decreasingScores[area1:GetID()] or 10000
-                    local area2sId = area2:GetID()
-
-                    if not scoreData.canDoUnderWater and area2:IsUnderwater() then
-                        score = 1
-
-                    end
-                    -- cant jump back up
-                    local jumpHeight = scoreData.self.loco:GetMaxJumpHeight()
-                    local heightDiff = area1:ComputeAdjacentConnectionHeightChange( area2 )
-                    if heightDiff < -jumpHeight * 1.5 then
-                        score = 1
-
-                    elseif heightDiff > jumpHeight then
-                        return 1
-
-                    end
-
-                    -- search parts of the map we haven't seen yet
-                    local timeSince = 1
-                    if scoreData.walkedAreas[area2sId] then
-                        local time = scoreData.self.walkedAreaTimes[area2sId]
-                        timeSince = math.abs( time - CurTime() )
-
-                    end
-
-                    if not localSelf.SearchCheckedNavs[area2sId] then
-                        local hidingSpots = area2:GetHidingSpots( 1 )
-                        for _, spot in ipairs( hidingSpots ) do
-                            local myShootPos = localSelf:GetShootPos()
-                            local spotOffsetted = spot + plus25Z
-                            if not util.IsInWorld( spotOffsetted ) then continue end -- corrupt navarea
-                            if terminator_Extras.PosCanSeeComplex( myShootPos, spotOffsetted, localSelf ) then
-                                localSelf.SearchCheckedNavs[area2sId] = true
-                                localSelf.SearchCheckedNavsCount = localSelf.SearchCheckedNavsCount + 1
-                                score = 100 / timeSince -- this spot makes us curious, search here
-                                break
-
-                            end
-                            local distToNew = spotOffsetted:Distance( scoreData.searchCenter )
-                            local distToOld
-                            if checkSpot then
-                                distToOld = checkSpot:Distance( scoreData.searchCenter )
-
-                            end
-                            if not checkSpot then
-                                checkSpot = spotOffsetted
-
-                            elseif distToOld and distToNew > ( distToOld + 1000 ) then -- trash search spot, we stop now
-                                return math.huge
-
-                            elseif distToNew < distToOld then
-                                checkSpot = spotOffsetted
-                                return 200 / timeSince -- makes us curious, keep checking here
-
-                            end
-                        end
-                    else
-                        score = math.min( score, 100 ) / timeSince
-
-                    end
-
-                    scoreData.decreasingScores[area2sId] = score + -1
-
-                    if needsToDoANearbySearch then
-                        score = score / area2:GetCenter():Distance( scoreData.searchCenter )
-
-                    end
-                    return score
-
-                end
-
-                yieldIfWeCan()
-
-                checkCenter, checkNav = self:findValidNavResult( scoreData, self:GetPos(), scoreData.searchRadius, scoreFunction )
-                checkSpot = checkSpot or checkCenter
-
-                if not checkSpot then
-                    yieldIfWeCan( "wait" )
-                    if needsToDoANearbySearch then
-                        data.tryAndSearchNearbyAfterwards = true
-                        return
-
-                    else
-                        -- fail on next tick
-                        data.InvalidAfterwards = true
-                        return
-
-                    end
-                end
-
-                if not IsValid( checkNav ) then
-                    yieldIfWeCan( "wait" )
-                    if needsToDoANearbySearch then
-                        data.tryAndSearchNearbyAfterwards = true
-                        return
-
-                    else
-                        data.InvalidAfterwards = true
-                        return
-
-                    end
-                end
-
-                data.hidingToCheck = checkSpot
-                data.checkNavId = checkNav:GetID()
 
             end,
             BehaveUpdateMotion = function( self, data )
                 local doneCount = data.doneCount or 0
                 local hidingToCheck = data.hidingToCheck
 
-                if not hidingToCheck then -- :clueless:
-                    data.InvalidAfterwards = true
+                if not hidingToCheck then
+                    --print( "Search!" .. data.searchWant .. " " .. data.searchRadius )
 
+                    -- determine search center
+                    local toPick = { data.searchCenter, self.EnemyLastPosOffsetted, self:GetPos() }
+                    local pickedSearchCenter
+                    for index = 1, table.Count( toPick ) do
+                        local picked = toPick[ index ]
+                        if isvector( picked ) then
+                            pickedSearchCenter = picked
+                            break
+
+                        end
+                    end
+                    local needsToDoANearbySearch = data.searchCenter and not data.searchedNearCenter and data.searchWant > 0
+
+                    -- focus search on where a "hint" was, or first operation, focus our search on where the code says we should be
+                    -- added so bot always checks the center at least once
+                    if needsToDoANearbySearch then
+                        -- snap it to the navmesh
+                        local result = terminator_Extras.getNearestPosOnNav( data.searchCenter )
+                        if result and result.pos then
+                            --debugoverlay.Cross( result.pos, 100, 10, Color( 255,255,0 ), true )
+                            pickedSearchCenter = result.pos
+                            data.searchCenter = result.pos
+
+                        end
+                    end
+
+                    local _
+                    local checkNav
+
+                    data.nextForcedSearch = CurTime() + 25
+                    data.searchWant = data.searchWant + -1
+                    data.time = CurTime() + data.time
+
+                    local scoreData = {}
+                    scoreData.blockRadiusEnd = true
+                    scoreData.searchRadius = data.searchRadius
+                    scoreData.searchCenter = pickedSearchCenter
+                    scoreData.canDoUnderWater = self:isUnderWater()
+                    scoreData.decreasingScores = {}
+                    scoreData.self = self
+                    scoreData.walkedAreas = self.walkedAreas
+                    scoreData.walkedAreaTimes = self.walkedAreas
+
+                    hidingToCheck = nil
+                    local checkCenter
+
+                    local scoreFunction = function( scoreData, area1, area2 )
+                        local localSelf = scoreData.self
+                        if not localSelf:areaIsReachable( area2 ) then return 0 end
+                        if area2:IsBlocked() then return 0 end
+
+                        local score = scoreData.decreasingScores[area1:GetID()] or 10000
+                        local area2sId = area2:GetID()
+
+                        if not scoreData.canDoUnderWater and area2:IsUnderwater() then
+                            score = 1
+
+                        end
+                        -- cant jump back up
+                        local jumpHeight = scoreData.self.loco:GetMaxJumpHeight()
+                        local heightDiff = area1:ComputeAdjacentConnectionHeightChange( area2 )
+                        if heightDiff < -jumpHeight * 1.5 then
+                            score = 1
+
+                        elseif heightDiff > jumpHeight then
+                            return 1
+
+                        end
+
+                        -- search parts of the map we haven't seen yet
+                        local timeSince = 1
+                        if scoreData.walkedAreas[area2sId] then
+                            local time = scoreData.self.walkedAreaTimes[area2sId]
+                            timeSince = math.abs( time - CurTime() )
+
+                        end
+
+                        if not localSelf.SearchCheckedNavs[area2sId] then
+                            local hidingSpots = area2:GetHidingSpots( 1 )
+                            for _, spot in ipairs( hidingSpots ) do
+                                local myShootPos = localSelf:GetShootPos()
+                                local spotOffsetted = spot + plus25Z
+                                if not util.IsInWorld( spotOffsetted ) then continue end -- corrupt navarea
+                                if terminator_Extras.PosCanSeeComplex( myShootPos, spotOffsetted, localSelf ) then
+                                    localSelf.SearchCheckedNavs[area2sId] = true
+                                    localSelf.SearchCheckedNavsCount = localSelf.SearchCheckedNavsCount + 1
+                                    score = 100 / timeSince -- this spot makes us curious, search here
+                                    break
+
+                                end
+                                local distToNew = spotOffsetted:Distance( scoreData.searchCenter )
+                                local distToOld
+                                if hidingToCheck then
+                                    distToOld = hidingToCheck:Distance( scoreData.searchCenter )
+
+                                end
+                                if not hidingToCheck then
+                                    hidingToCheck = spotOffsetted
+
+                                elseif distToOld and distToNew > ( distToOld + 1000 ) then -- trash search spot, we stop now
+                                    return math.huge
+
+                                elseif distToNew < distToOld then
+                                    hidingToCheck = spotOffsetted
+                                    return 200 / timeSince -- makes us curious, keep checking here
+
+                                end
+                            end
+                        else
+                            score = math.min( score, 100 ) / timeSince
+
+                        end
+
+                        scoreData.decreasingScores[area2sId] = score + -1
+
+                        if needsToDoANearbySearch then
+                            score = score / area2:GetCenter():Distance( scoreData.searchCenter )
+
+                        end
+                        return score
+
+                    end
+
+                    coroutine_yield()
+
+                    checkCenter, checkNav = self:findValidNavResult( scoreData, self:GetPos(), scoreData.searchRadius, scoreFunction )
+                    hidingToCheck = hidingToCheck or checkCenter
+
+                    coroutine_yield()
+
+                    if not hidingToCheck or not IsValid( checkNav ) then -- couldnt find anywhere to check
+                        if needsToDoANearbySearch then
+                            data.tryAndSearchNearbyAfterwards = true
+
+                        else
+                            data.InvalidAfterwards = true
+
+                        end
+                    else
+                        data.hidingToCheck = hidingToCheck
+                        data.checkNavId = checkNav:GetID()
+
+                    end
                 end
 
                 if data.InvalidAfterwards and data.doneSearchesNearby < 5 then
@@ -5458,6 +5481,7 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
+        -- run off like a headless chicken, searching spots we come across along the way
         ["movement_searchlastdir"] = {
             OnStart = function( self, data )
                 data.expiryTime = CurTime() + 10
@@ -5468,7 +5492,12 @@ function ENT:DoDefaultTasks()
 
                 if data.Want <= 0 then
                     data.InvalidAfterwards = true
-                else
+
+                end
+            end,
+            BehaveUpdateMotion = function( self, data )
+                local searchPos = data.searchPos
+                if not data.searchPos then
                     local scoreData = {}
                     scoreData.canDoUnderWater = self:isUnderWater()
                     scoreData.self = self
@@ -5497,21 +5526,24 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    local searchPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 2000, 3500 ), scoreFunction )
+                    searchPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 2000, 3500 ), scoreFunction )
                     --debugoverlay.Cross( searchPos, 150, 10, Color( 255,255,255 ), true )
                     if not searchPos then
                         data.InvalidAfterwards = true
-                        return
 
+                    else
+                        self:SetupPathShell( searchPos )
+
+                        if not self:primaryPathIsValid() then
+                            data.InvalidAfterwards = true
+
+                        else
+                            data.searchPos = searchPos
+
+                        end
                     end
-
-                    self:SetupPathShell( searchPos )
-
-                    if self:primaryPathIsValid() then return end
-                    data.InvalidAfterwards = true
                 end
-            end,
-            BehaveUpdateMotion = function( self, data )
+
                 if data.InvalidAfterwards then
                     if self.IsSeeEnemy then
                         self:EnemyAcquired( "movement_searchlastdir" )
@@ -5607,6 +5639,8 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
+        -- stare deeply into the soul of our enemy
+        -- and walk slowly towards them
         ["movement_watch"] = {
             OnStart = function( self, data )
                 self:InvalidatePath( "watching enemy, killing old path" )
@@ -5997,6 +6031,8 @@ function ENT:DoDefaultTasks()
                 return true
             end,
         },
+        -- stalk the enemy, keep a wide berth between us and them
+        -- basically orbits them, and goes in for the kill if we end up behind them.
         ["movement_stalkenemy"] = {
             OnStart = function( self, data )
                 --print( "stalkstart" )
@@ -6005,155 +6041,157 @@ function ENT:DoDefaultTasks()
                 data.distMul = data.distMul or 1
                 data.stalksSinceLastSeen = 0
 
-                local myPos = self:GetPos()
-                local enemy = self:GetEnemy()
-                local tooDangerousToApproach = self:EnemyIsLethalInMelee( enemy )
-                local enemyPos = self:GetLastEnemyPosition( enemy ) or data.lastKnownStalkPos or self:GetPos()
-                if not enemyPos then
-                    data.InvalidAfterwards = true
-                    return
-
-                end
-
-                local enemyDir = data.lastKnownStalkDir or self:GetForward()
-                local enemyDis = data.lastKnownStalkDist or Distance2D( enemyPos, myPos ) or 1000
-
-                yieldIfWeCan()
-
-                if IsValid( enemy ) then
-                    enemyDir = enemy:GetForward()
-
-                    if data.forcedOrbitDist then
-                        enemyDis = data.forcedOrbitDist
-
-                    elseif self.IsSeeEnemy then
-                        enemyDis = Distance2D( myPos, enemyPos )
-
-                    end
-                end
-
-                local oldBearing = data.bearingAdded
-                -- increment the "behind enemy" check, for big open maps where we never get a chance to be hidden.
-                if oldBearing then
-                    local step = 1
-                    if self:IsReallyAngry() then
-                        step = 5
-
-                    elseif self:IsAngry() then
-                        step = 2
-
-                    end
-
-                    data.bearingAdded = math.Clamp( data.bearingAdded + -step, -80, 0 )
-
-                else
-                    data.bearingAdded = 0
-
-                end
-
-                self:InvalidatePath( "new stalking path" )
-
-                local hp = self:Health()
-                local maxHp = self:GetMaxHealth()
-
-                local result = terminator_Extras.getNearestPosOnNav( enemyPos )
-
-                local enemyOnNav = IsValid( result.area )
-                if enemyPos then
-                    local minEnemyDist = 0
-                    if tooDangerousToApproach then
-                        minEnemyDist = math.max( self.DistToEnemy * 0.75, 500 )
-
-                    end
-
-                    enemyDis = math.Clamp( enemyDis, minEnemyDist, math.huge )
-
-                    local distAddedByKiller = self:DistAddedByKillerEnemy( enemy )
-
-                    local innerBoundary = math.Clamp( enemyDis + -300, 0, math.huge ) + distAddedByKiller
-                    local outerBoundary = innerBoundary + 1000 + distAddedByKiller
-                    local hardInnerBoundary = math.Clamp( enemyDis + -1000, minEnemyDist, math.huge ) + distAddedByKiller
-                    local hardOuterBoundary = innerBoundary + 2000 + distAddedByKiller
-                    local enemyArea = result.area
-                    local enemyAreaCenter = enemyOnNav and enemyArea:GetCenter() or enemyPos
-
-                    if myPos:DistToSqr( enemyAreaCenter ) > hardOuterBoundary^2 and self:areaIsReachable( enemyArea ) then
-                        self:TaskFail( "movement_stalkenemy" )
-                        self:StartTask( "movement_flankenemy", { Time = 0.2 }, "got too far, i'll just close in" )
+            end,
+            BehaveUpdateMotion = function( self, data )
+                if not ( data.InvalidAfterwards or data.stalkPos ) then
+                    local myPos = self:GetPos()
+                    local enemy = self:GetEnemy()
+                    local tooDangerousToApproach = self:EnemyIsLethalInMelee( enemy )
+                    local enemyPos = self:GetLastEnemyPosition( enemy ) or data.lastKnownStalkPos or self:GetPos()
+                    if not enemyPos then
+                        data.InvalidAfterwards = true
                         return
 
                     end
 
-                    local scoreData = {}
-                    scoreData.lethalCloseRange = tooDangerousToApproach
-                    scoreData.hateVisible = hp < maxHp * 0.5
-                    scoreData.enemyArea = enemyArea
-                    scoreData.enemyAreaCenter = enemyAreaCenter
-                    scoreData.innerBoundary = innerBoundary
-                    scoreData.outerBoundary = outerBoundary
-                    scoreData.hardInnerBoundary = hardInnerBoundary
-                    scoreData.hardOuterBoundary = hardOuterBoundary
-                    scoreData.lastStalkFromPos = data.lastStalkFromPos or myPos
-                    scoreData.stalkStartPos = myPos
-                    scoreData.unreachableAreasCached = self.unreachableAreas
+                    local enemyDir = data.lastKnownStalkDir or self:GetForward()
+                    local enemyDis = data.lastKnownStalkDist or Distance2D( enemyPos, myPos ) or 1000
 
-                    scoreData.lowestHeightAllowed = math.min( scoreData.enemyAreaCenter.z, myPos.z )
-                    --debugoverlay.Cross( scoreData.lastStalkFromPos, 10, 20, color_white, true )
+                    yieldIfWeCan()
 
-                    scoreData.canGoUnderwater = self:isUnderWater()
+                    if IsValid( enemy ) then
+                        enemyDir = enemy:GetForward()
 
-                    -- find area to my left or right, relative to enemy, basically circle the enemy 
-                    local scoreFunction = function( scoreData, area1, area2 )
-                        if area2:IsBlocked() then return 0 end
-                        if not area2:IsConnected( area1 ) then return 0 end
+                        if data.forcedOrbitDist then
+                            enemyDis = data.forcedOrbitDist
 
-                        local area2sId = area2:GetID()
-                        if scoreData.unreachableAreasCached[ area2sId ] then return 0 end
+                        elseif self.IsSeeEnemy then
+                            enemyDis = Distance2D( myPos, enemyPos )
 
-                        local area2Center = area2:GetCenter()
-                        local distanceTravelled = DistToSqr2D( area2Center, scoreData.lastStalkFromPos )
-                        local wrongDirection = area2Center:DistToSqr( scoreData.lastStalkFromPos ) < area2Center:DistToSqr( scoreData.stalkStartPos )
-                        local score = distanceTravelled
-                        local areaDistanceToEnemy2 = DistToSqr2D( area2Center, scoreData.enemyAreaCenter )
-                        local tooClose = SqrDistLessThan( areaDistanceToEnemy2, scoreData.innerBoundary )
-                        local tooFar = SqrDistGreaterThan( areaDistanceToEnemy2, scoreData.outerBoundary )
-                        local breakingLightRing = tooClose or tooFar
-                        local bigTooClose = SqrDistLessThan( areaDistanceToEnemy2, scoreData.hardInnerBoundary )
-                        local bigTooFar = SqrDistGreaterThan( areaDistanceToEnemy2, scoreData.hardOuterBoundary )
-                        local breakingHardRing = bigTooFar or bigTooClose
-                        local heightChange = math.abs( area2:ComputeAdjacentConnectionHeightChange( area1 ) )
+                        end
+                    end
 
-                        if heightChange > self.loco:GetMaxJumpHeight() then
-                            return 0
+                    local oldBearing = data.bearingAdded
+                    -- increment the "behind enemy" check, for big open maps where we never get a chance to be hidden.
+                    if oldBearing then
+                        local step = 1
+                        if self:IsReallyAngry() then
+                            step = 5
+
+                        elseif self:IsAngry() then
+                            step = 2
 
                         end
 
-                        if not IsValid( scoreData.enemyArea ) then return math.huge end
+                        data.bearingAdded = math.Clamp( data.bearingAdded + -step, -80, 0 )
 
-                        if enemyOnNav and not area2:IsCompletelyVisible( scoreData.enemyArea ) then
-                            score = score^ 1.45
+                    else
+                        data.bearingAdded = 0
 
-                        elseif scoreData.hateVisible then
-                            score = score^0.1
+                    end
 
-                        end
+                    self:InvalidatePath( "new stalking path" )
 
-                        if self.walkedAreas[area2sId] then
-                            score = score^0.85
+                    local hp = self:Health()
+                    local maxHp = self:GetMaxHealth()
 
-                        end
-                        if area2:IsUnderwater() and not scoreData.canGoUnderwater then
-                            score = score^0.08
+                    local result = terminator_Extras.getNearestPosOnNav( enemyPos )
 
-                        end
-                        if wrongDirection then
-                            -- you know what's really cool? NOT going where we just were!
-                            score = score / ( score * 10000 )
+                    local enemyOnNav = IsValid( result.area )
+                    if enemyPos then
+                        local minEnemyDist = 0
+                        if tooDangerousToApproach then
+                            minEnemyDist = math.max( self.DistToEnemy * 0.75, 500 )
 
                         end
 
-                        if breakingHardRing then
-                            if bigTooClose then
+                        enemyDis = math.Clamp( enemyDis, minEnemyDist, math.huge )
+
+                        local distAddedByKiller = self:DistAddedByKillerEnemy( enemy )
+
+                        local innerBoundary = math.Clamp( enemyDis + -300, 0, math.huge ) + distAddedByKiller
+                        local outerBoundary = innerBoundary + 1000 + distAddedByKiller
+                        local hardInnerBoundary = math.Clamp( enemyDis + -1000, minEnemyDist, math.huge ) + distAddedByKiller
+                        local hardOuterBoundary = innerBoundary + 2000 + distAddedByKiller
+                        local enemyArea = result.area
+                        local enemyAreaCenter = enemyOnNav and enemyArea:GetCenter() or enemyPos
+
+                        if myPos:DistToSqr( enemyAreaCenter ) > hardOuterBoundary^2 and self:areaIsReachable( enemyArea ) then
+                            self:TaskFail( "movement_stalkenemy" )
+                            self:StartTask( "movement_flankenemy", { Time = 0.2 }, "got too far, i'll just close in" )
+                            return
+
+                        end
+
+                        local scoreData = {}
+                        scoreData.lethalCloseRange = tooDangerousToApproach
+                        scoreData.hateVisible = hp < maxHp * 0.5
+                        scoreData.enemyArea = enemyArea
+                        scoreData.enemyAreaCenter = enemyAreaCenter
+                        scoreData.innerBoundary = innerBoundary
+                        scoreData.outerBoundary = outerBoundary
+                        scoreData.hardInnerBoundary = hardInnerBoundary
+                        scoreData.hardOuterBoundary = hardOuterBoundary
+                        scoreData.lastStalkFromPos = data.lastStalkFromPos or myPos
+                        scoreData.stalkStartPos = myPos
+                        scoreData.unreachableAreasCached = self.unreachableAreas
+
+                        scoreData.lowestHeightAllowed = math.min( scoreData.enemyAreaCenter.z, myPos.z )
+                        --debugoverlay.Cross( scoreData.lastStalkFromPos, 10, 20, color_white, true )
+
+                        scoreData.canGoUnderwater = self:isUnderWater()
+
+                        -- find area to my left or right, relative to enemy, basically circle the enemy 
+                        local scoreFunction = function( scoreData, area1, area2 )
+                            if area2:IsBlocked() then return 0 end
+                            if not area2:IsConnected( area1 ) then return 0 end
+
+                            local area2sId = area2:GetID()
+                            if scoreData.unreachableAreasCached[ area2sId ] then return 0 end
+
+                            local area2Center = area2:GetCenter()
+                            local distanceTravelled = DistToSqr2D( area2Center, scoreData.lastStalkFromPos )
+                            local wrongDirection = area2Center:DistToSqr( scoreData.lastStalkFromPos ) < area2Center:DistToSqr( scoreData.stalkStartPos )
+                            local score = distanceTravelled
+                            local areaDistanceToEnemy2 = DistToSqr2D( area2Center, scoreData.enemyAreaCenter )
+                            local tooClose = SqrDistLessThan( areaDistanceToEnemy2, scoreData.innerBoundary )
+                            local tooFar = SqrDistGreaterThan( areaDistanceToEnemy2, scoreData.outerBoundary )
+                            local breakingLightRing = tooClose or tooFar
+                            local bigTooClose = SqrDistLessThan( areaDistanceToEnemy2, scoreData.hardInnerBoundary )
+                            local bigTooFar = SqrDistGreaterThan( areaDistanceToEnemy2, scoreData.hardOuterBoundary )
+                            local breakingHardRing = bigTooFar or bigTooClose
+                            local heightChange = math.abs( area2:ComputeAdjacentConnectionHeightChange( area1 ) )
+
+                            if heightChange > self.loco:GetMaxJumpHeight() then
+                                return 0
+
+                            end
+
+                            if not IsValid( scoreData.enemyArea ) then return math.huge end
+
+                            if enemyOnNav and not area2:IsCompletelyVisible( scoreData.enemyArea ) then
+                                score = score^ 1.45
+
+                            elseif scoreData.hateVisible then
+                                score = score^0.1
+
+                            end
+
+                            if self.walkedAreas[area2sId] then
+                                score = score^0.85
+
+                            end
+                            if area2:IsUnderwater() and not scoreData.canGoUnderwater then
+                                score = score^0.08
+
+                            end
+                            if wrongDirection then
+                                -- you know what's really cool? NOT going where we just were!
+                                score = score / ( score * 10000 )
+
+                            end
+
+                            if breakingHardRing and bigTooClose then
                                 if scoreData.lethalCloseRange then
                                     score = score / ( score * 10000 )
 
@@ -6161,75 +6199,75 @@ function ENT:DoDefaultTasks()
                                     score = score^0.4
 
                                 end
-                            elseif bigTooFar then
+                            elseif breakingHardRing and bigTooFar then
+                                score = score^0.2
+
+                            elseif breakingLightRing then
+                                if tooClose then
+                                    score = score^0.9
+
+                                elseif tooFar then
+                                    score = score^0.8
+
+                                end
+                            end
+                            if area2Center.z < scoreData.lowestHeightAllowed + -100 then
+                                score = score^0.08
+
+                            end
+                            if heightChange > self.loco:GetStepHeight() * 2 then
                                 score = score^0.2
 
                             end
-                        elseif breakingLightRing then
-                            if tooClose then
-                                score = score^0.9
 
-                            elseif tooFar then
-                                score = score^0.8
+                            --debugoverlay.Text( area2Center, tostring( math.Round( score, 2 ) ), 1, false )
+
+                            return score
+
+                        end
+
+                        yieldIfWeCan()
+
+                        data.stalkPos = self:findValidNavResult( scoreData, self:GetPos(), math.Clamp( self.DistToEnemy * 2, 1000, math.Rand( 5000, 7000 ) ), scoreFunction )
+
+                        yieldIfWeCan()
+
+                        if data.stalkPos then
+                            --debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
+                            if enemyOnNav then
+                                -- build path left or right, weight it to never get too close to enemy aswell.
+                                self:SetupFlankingPath( data.stalkPos, result.area, self.DistToEnemy * 0.8 )
+
+                            else
+                                self:SetupPathShell( data.stalkPos )
 
                             end
                         end
-                        if area2Center.z < scoreData.lowestHeightAllowed + -100 then
-                            score = score^0.08
-
-                        end
-                        if heightChange > self.loco:GetStepHeight() * 2 then
-                            score = score^0.2
-
-                        end
-
-                        --debugoverlay.Text( area2Center, tostring( math.Round( score, 2 ) ), 1, false )
-
-                        return score
-
                     end
 
-                    yieldIfWeCan()
+                    if self:primaryPathIsValid() then
+                        local stalksSinceLastSeen
 
-                    local stalkPos = self:findValidNavResult( scoreData, self:GetPos(), math.Clamp( self.DistToEnemy * 2, 1000, math.Rand( 5000, 7000 ) ), scoreFunction )
-
-                    yieldIfWeCan()
-
-                    if stalkPos then
-                        --debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
-                        if enemyOnNav then
-                            -- build path left or right, weight it to never get too close to enemy aswell.
-                            self:SetupFlankingPath( stalkPos, result.area, self.DistToEnemy * 0.8 )
+                        if self.IsSeeEnemy then
+                            stalksSinceLastSeen = 0
 
                         else
-                            self:SetupPathShell( stalkPos )
+                            stalksSinceLastSeen = data.stalksSinceLastSeen or 0
+                            stalksSinceLastSeen = stalksSinceLastSeen + 1
 
                         end
+
+                        data.stalksSinceLastSeen = stalksSinceLastSeen
+                        data.lastKnownStalkPos = enemyPos
+                        data.lastKnownStalkDir = enemyDir
+                        data.lastKnownStalkDist = enemyDis
+                        data.lastStalkFromPos = myPos
+                        return
                     end
-                end
+                    data.InvalidAfterwards = true
 
-                if self:primaryPathIsValid() then
-                    local stalksSinceLastSeen
+                end -- end path building
 
-                    if self.IsSeeEnemy then
-                        stalksSinceLastSeen = 0
-
-                    else
-                        stalksSinceLastSeen = data.stalksSinceLastSeen or 0
-                        stalksSinceLastSeen = stalksSinceLastSeen + 1
-
-                    end
-
-                    data.stalksSinceLastSeen = stalksSinceLastSeen
-                    data.lastKnownStalkPos = enemyPos
-                    data.lastKnownStalkDir = enemyDir
-                    data.lastKnownStalkDist = enemyDis
-                    data.lastStalkFromPos = myPos
-                    return
-                end
-                data.InvalidAfterwards = true
-            end,
-            BehaveUpdateMotion = function( self, data )
                 local exit = nil
                 local valid = nil
 
@@ -6599,45 +6637,50 @@ function ENT:DoDefaultTasks()
                 data.KilledEnemy = true
             end,
         },
+        -- path towards the enemy, without taking the shortest route
         ["movement_flankenemy"] = {
-            OnStart = function( self, data )
-                -- wait!
-                self:YieldUntilNextNewPath()
-
-                local enemy = self:GetEnemy()
-                local bearingToMeAbs = self:enemyBearingToMeAbs()
-                local enemySeesMe = bearingToMeAbs < 70
-
-                if not IsValid( enemy ) then
-                    data.InvalidAfterwards = true
-                    return
-                end
-                local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
-
-                local flankAroundPos = enemyPos
-                local flankBubble
-
-                local otherHuntersHalfwayPoint = self:GetOtherHuntersProbableEntrance()
-                if otherHuntersHalfwayPoint then
-                    flankAroundPos = otherHuntersHalfwayPoint
-                    flankBubble = self:GetPos():Distance( otherHuntersHalfwayPoint ) * 0.7
-
-                end
-                local result = terminator_Extras.getNearestPosOnNav( flankAroundPos )
-
-                if enemyPos and self:areaIsReachable( result.area ) then
-                    -- flank em!
-                    self:SetupFlankingPath( enemyPos, result.area, flankBubble )
-                    yieldIfWeCan()
-
-                end
-                if self:primaryPathIsValid() then
-                    self.PreventShooting = ( not enemySeesMe and self.WasHidden ) and not enemy.isTerminatorHunterKiller
-                    return
-                end
-                data.InvalidAfterwards = true
-            end,
             BehaveUpdateMotion = function( self, data )
+                if not ( data.InvalidAfterwards or data.setupPath ) then
+                    -- wait!
+                    coroutine_yield("wait")
+
+                    local enemy = self:GetEnemy()
+                    local bearingToMeAbs = self:enemyBearingToMeAbs()
+                    local enemySeesMe = bearingToMeAbs < 70
+
+                    if not IsValid( enemy ) then
+                        data.InvalidAfterwards = true
+                        return
+                    end
+                    local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
+
+                    local flankAroundPos = enemyPos
+                    local flankBubble
+
+                    local otherHuntersHalfwayPoint = self:GetOtherHuntersProbableEntrance()
+                    if otherHuntersHalfwayPoint then
+                        flankAroundPos = otherHuntersHalfwayPoint
+                        flankBubble = self:GetPos():Distance( otherHuntersHalfwayPoint ) * 0.7
+
+                    end
+                    local result = terminator_Extras.getNearestPosOnNav( flankAroundPos )
+
+                    if enemyPos and self:areaIsReachable( result.area ) then
+                        -- flank em!
+                        self:SetupFlankingPath( enemyPos, result.area, flankBubble )
+                        yieldIfWeCan()
+
+                    end
+                    if self:primaryPathIsValid() then
+                        data.setupPath = true
+                        self.PreventShooting = ( not enemySeesMe and self.WasHidden ) and not enemy.isTerminatorHunterKiller
+
+                    else
+                        data.InvalidAfterwards = true
+
+                    end
+                end
+
                 local exit = nil
                 local keepHidden = nil
                 local duelEnemyDistInt = self.DuelEnemyDist
@@ -6747,6 +6790,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         -- make sure that bot goes to specific positions, eg, valuable sounds, old enemy positions
+        -- basically the bot going "oh crap, did i leave the stove on?"
         ["movement_approachforcedcheckposition"] = {
             OnStart = function( self, data )
                 --print( "forcedcheck!" )
@@ -6838,6 +6882,7 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
+        -- approach the last known enemy position
         ["movement_approachlastseen"] = {
             OnStart = function( self, data )
                 data.approachAfter = CurTime() + 0.5
@@ -6928,6 +6973,7 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
+        -- path directly towards the enemy
         ["movement_followenemy"] = {
             OnStart = function( self, data )
                 if not self.isUnstucking then
@@ -7056,6 +7102,7 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
+        -- shoot the enemy, or punch them to death
         ["movement_duelenemy_near"] = {
             OnStart = function( self, data )
                 data.duelQuitCount = self.duelQuitCount or 0
@@ -7490,61 +7537,68 @@ function ENT:DoDefaultTasks()
                 data.PathStart = self:GetPos()
                 data.Want = data.Want + -1
 
-                local canDoUnderWater = self:isUnderWater()
-                local wanderPos = nil
-                local myNavArea = self:GetCurrentNavArea()
-
-                if not IsValid( myNavArea ) then
-                    data.InvalidateAfterwards = true
-                    return
-                end
-
-                --normal path
-                local Dir = data.Dir or self:GetForward()
-                local scoreData = {}
-                scoreData.canDoUnderWater = canDoUnderWater
-                scoreData.self = self
-                scoreData.forward = Dir:Angle()
-                scoreData.startArea = myNavArea
-                scoreData.startPos = scoreData.startArea:GetCenter()
-
-                local scoreFunction = function( scoreData, area1, area2 )
-                    local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
-                    local score = area2:GetCenter():DistToSqr( scoreData.startPos ) * math.Rand( 0.8, 1.4 )
-                    if scoreData.self.walkedAreas[area2:GetID()] then
-                        return 1
-                    end
-                    if not area2:IsPotentiallyVisible( scoreData.startArea ) then
-                        score = score * 2
-                    end
-                    if not scoreData.canDoUnderWater and area2:IsUnderwater() then
-                        score = score * 0.01
-                    end
-                    if dropToArea > self.loco:GetMaxJumpHeight() then
-                        score = score * 0.01
-                    end
-
-                    --debugoverlay.Text( area2:GetCenter(), tostring( math.Round( math.sqrt( score ) ) ), 8 )
-
-                    return score
-
-                end
-
-                wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 3000, 4000 ), scoreFunction )
-
-                if wanderPos then
-                    self:SetupPathShell( wanderPos )
-
-                    if not self:primaryPathIsValid() then
-                        data.InvalidateAfterwards = true
-                        return
-                    end
-                else
-                    data.InvalidateAfterwards = true
-                    return
-                end
             end,
             BehaveUpdateMotion = function( self, data )
+                if not ( data.InvalidateAfterwards or data.setupPath ) then
+                    local canDoUnderWater = self:isUnderWater()
+                    local wanderPos = nil
+                    local myNavArea = self:GetCurrentNavArea()
+
+                    if not IsValid( myNavArea ) then
+                        data.InvalidateAfterwards = true
+                        return
+
+                    end
+
+                    --normal path
+                    local Dir = data.Dir or self:GetForward()
+                    local scoreData = {}
+                    scoreData.canDoUnderWater = canDoUnderWater
+                    scoreData.self = self
+                    scoreData.forward = Dir:Angle()
+                    scoreData.startArea = myNavArea
+                    scoreData.startPos = scoreData.startArea:GetCenter()
+
+                    local scoreFunction = function( scoreData, area1, area2 )
+                        local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
+                        local score = area2:GetCenter():DistToSqr( scoreData.startPos ) * math.Rand( 0.8, 1.4 )
+                        if scoreData.self.walkedAreas[area2:GetID()] then
+                            return 1
+                        end
+                        if not area2:IsPotentiallyVisible( scoreData.startArea ) then
+                            score = score * 2
+                        end
+                        if not scoreData.canDoUnderWater and area2:IsUnderwater() then
+                            score = score * 0.01
+                        end
+                        if dropToArea > self.loco:GetMaxJumpHeight() then
+                            score = score * 0.01
+                        end
+
+                        --debugoverlay.Text( area2:GetCenter(), tostring( math.Round( math.sqrt( score ) ) ), 8 )
+
+                        return score
+
+                    end
+
+                    wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 3000, 4000 ), scoreFunction )
+
+                    if wanderPos then
+                        self:SetupPathShell( wanderPos )
+
+                        if not self:primaryPathIsValid() then
+                            data.InvalidateAfterwards = true
+
+                        else
+                            data.setupPath = true
+
+                        end
+                    else
+                        data.InvalidateAfterwards = true
+
+                    end
+                end
+
                 local result = self:ControlPath2( not self.IsSeeEnemy )
 
                 local canWep, potentialWep = self:canGetWeapon()
@@ -7577,19 +7631,19 @@ function ENT:DoDefaultTasks()
                     self:TaskComplete( "movement_inertia" )
                     self:StartTask( "movement_understandobject", nil, "im curious" )
 
-                elseif data.Want > 0 then
-                    if result == true then
+                elseif result == true then
+                    if data.Want > 0 then
                         self:TaskComplete( "movement_inertia" )
                         self:StartTask( "movement_inertia", { Want = data.Want, Dir = terminator_Extras.dirToPos( data.PathStart, self:GetPos() ) }, "i still want to wander" )
 
-                    else
+                    elseif ( data.Want or 0 ) <= 0 then -- no want, end the inertia
                         self:TaskComplete( "movement_inertia" )
-                        self:StartTask( "movement_inertia", { Want = data.Want, Dir = -self:GetForward() }, "i want to wander behind me" )
+                        self:StartTask( "movement_biginertia", { Want = 20 }, "im bored of small wandering" )
 
                     end
-                elseif ( data.Want or 0 ) <= 0 then -- no want, end the inertia
-                    self:TaskComplete( "movement_inertia" )
-                    self:StartTask( "movement_biginertia", { Want = 20 }, "im bored of small wandering" )
+                elseif not self:primaryPathIsValid() then
+                    self:TaskFail( "movement_inertia" )
+                    self:StartTask( "movement_inertia", { Want = data.Want, Dir = -self:GetForward() }, "my path failed, ill try wandering behind me" )
 
                 end
             end,
@@ -7603,137 +7657,150 @@ function ENT:DoDefaultTasks()
         -- complex wander, preserves areas already explored, makes bot cross entire map pretty much
         ["movement_biginertia"] = {
             OnStart = function( self, data )
-                -- wait!
-                self:YieldUntilNextNewPath()
-
                 if not isnumber( data.Want ) then
                     data.Want = 30
                 end
                 data.PathStart = self:GetPos()
                 data.Want = data.Want + -1
+
                 -- continue, or start where we left off, or don't throw errors
                 data.beenAreas = data.beenAreas or self.bigInertiaPreserveBeenAreas or {}
+                self.bigInertiaPreserveBeenAreas = nil -- gobble it up
 
-                self.bigInertiaPreserveBeenAreas = nil
+            end,
 
-                local canDoUnderWater = self:isUnderWater()
-                local wanderPos = nil
-                local myNavArea = self:GetCurrentNavArea()
+            -- gives up on self.bigInertiaPreserveBeenAreas if we know for a fact that the enemy has moved
+            BehaveUpdateMotion = function( self, data )
+                if not data.setupPath then
+                    -- wait!
+                    self:YieldUntilNextNewPath()
 
-                if not IsValid( myNavArea ) then
-                    self:TaskFail( "movement_biginertia" )
-                    self:StartTask( "movement_wait", nil, "i dont know where i am" )
-                    return
-                end
+                    local canDoUnderWater = self:isUnderWater()
+                    local wanderPos = nil
+                    local myNavArea = self:GetCurrentNavArea()
 
-                local foundSomewhereNotBeen = nil
-                local anotherHuntersPos = self:GetOtherHuntersProbableEntrance()
-
-                --normal path
-                local dir = data.dir or self:GetForward()
-                dir = -dir
-                local scoreData = {}
-                scoreData.canDoUnderWater = canDoUnderWater
-                scoreData.self = self
-                scoreData.forward = dir:Angle()
-                scoreData.startArea = myNavArea
-                scoreData.startPos = scoreData.startArea:GetCenter()
-                scoreData.beenAreas = data.beenAreas
-                if anotherHuntersPos then
-                    scoreData.doSpreadOut = true
-                    scoreData.spreadOutAvoidAreas = {}
-                    local areasFound = navmesh.Find( anotherHuntersPos, 1500, 100, 100 )
-
-                    for _, currArea in ipairs( areasFound ) do
-                        scoreData.spreadOutAvoidAreas[currArea:GetID()] = true
-
-                    end
-                end
-
-                local scoreFunction = function( scoreData, area1, area2 ) -- this is the function that determines the score of a navarea
-                    local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
-                    local area2sCenter = area2:GetCenter()
-                    local score = area2sCenter:DistToSqr( scoreData.startPos ) * math.Rand( 0.8, 1.4 )
-
-                    if dropToArea > self.loco:GetJumpHeight() then
-                        return 0
-
-                    end
-                    local area2sId = area2:GetID()
-
-                    if scoreData.beenAreas[area2sId] then -- avoid already been areas
-                        score = score * 0.0001
-                    else
-                        foundSomewhereNotBeen = true
-                    end
-                    -- dont group up!
-                    if scoreData.doSpreadOut and scoreData.spreadOutAvoidAreas[area2sId] then
-                        score = score * 0.001
-                    end
-                    -- go forward
-                    if math.abs( terminator_Extras.BearingToPos( scoreData.startPos, scoreData.forward, area2sCenter, scoreData.forward ) ) < 22.5 then
-                        score = score^1.5
-                    end
-                    if not scoreData.canDoUnderWater and area2:IsUnderwater() then
-                        score = score * 0.001
-                    end
-                    if math.abs( dropToArea ) > 100 then
-                        score = score * 0.001
-                    end
-
-                    --debugoverlay.Text( area2sCenter, tostring( math.Round( score ) ), 8, false )
-
-                    return score
-
-                end
-
-                wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 5000, 6000 ), scoreFunction )
-
-                if foundSomewhereNotBeen == nil then
-                    data.beenAreas = nil
-                    local fails = data.fails or 0
-                    if self.IsSeeEnemy then
-                        self:EnemyAcquired( "movement_biginertia" )
-
-                    elseif not self:IsMeleeWeapon( self:GetWeapon() ) and self:GetWeaponRange() > 2000 then
+                    if not IsValid( myNavArea ) then
                         self:TaskFail( "movement_biginertia" )
-                        self:StartTask( "movement_perch", nil, "i ran out of places, and i have a real weapon" )
-
-                    elseif fails < 10 then
-                        self:TaskFail( "movement_biginertia" )
-                        yieldIfWeCan( "wait" )
-
-                        self:StartTask( "movement_biginertia", { fails = fails + 1 }, "i ran out of unreached spots, going back" )
-
-                    else
-                        self.overrideVeryStuck = true
-                        self:TaskFail( "movement_biginertia" )
-                        self:StartTask( "movement_handler", nil, "my biginertia ended up in a death spiral" )
+                        self:StartTask( "movement_wait", nil, "i dont know where i am" )
+                        return
 
                     end
 
-                elseif wanderPos then
-                    self:SetupPathShell( wanderPos )
+                    local foundSomewhereNotBeen = nil
+                    local anotherHuntersPos = self:GetOtherHuntersProbableEntrance()
 
-                    if not self:primaryPathIsValid() then
-                        self:TaskFail( "movement_biginertia" )
-                        self:StartTask( "movement_wait", nil, "i couldnt make a path" )
-                        if self:AreaIsOrphan( myNavArea, true ) then -- uh oh
-                            self.overrideVeryStuck = true
+                    --normal path
+                    local dir = data.dir or self:GetForward()
+                    dir = -dir
+                    local scoreData = {}
+                    scoreData.canDoUnderWater = canDoUnderWater
+                    scoreData.self = self
+                    scoreData.forward = dir:Angle()
+                    scoreData.startArea = myNavArea
+                    scoreData.startPos = scoreData.startArea:GetCenter()
+                    scoreData.beenAreas = data.beenAreas
+                    if anotherHuntersPos then
+                        scoreData.doSpreadOut = true
+                        scoreData.spreadOutAvoidAreas = {}
+                        local areasFound = navmesh.Find( anotherHuntersPos, 1500, 100, 100 )
+
+                        for _, currArea in ipairs( areasFound ) do
+                            scoreData.spreadOutAvoidAreas[currArea:GetID()] = true
 
                         end
-                        self.bigInertiaPreserveBeenAreas = data.beenAreas
+                    end
+
+                    local scoreFunction = function( scoreData, area1, area2 ) -- this is the function that determines the score of a navarea
+                        local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
+                        local area2sCenter = area2:GetCenter()
+                        local score = area2sCenter:DistToSqr( scoreData.startPos ) * math.Rand( 0.8, 1.4 )
+
+                        if dropToArea > self.loco:GetJumpHeight() then
+                            return 0
+
+                        end
+                        local area2sId = area2:GetID()
+
+                        if scoreData.beenAreas[area2sId] then -- avoid already been areas
+                            score = score * 0.0001
+                        else
+                            foundSomewhereNotBeen = true
+                        end
+                        -- dont group up!
+                        if scoreData.doSpreadOut and scoreData.spreadOutAvoidAreas[area2sId] then
+                            score = score * 0.001
+                        end
+                        -- go forward
+                        if math.abs( terminator_Extras.BearingToPos( scoreData.startPos, scoreData.forward, area2sCenter, scoreData.forward ) ) < 22.5 then
+                            score = score^1.5
+                        end
+                        if not scoreData.canDoUnderWater and area2:IsUnderwater() then
+                            score = score * 0.001
+                        end
+                        if math.abs( dropToArea ) > 100 then
+                            score = score * 0.001
+                        end
+
+                        --debugoverlay.Text( area2sCenter, tostring( math.Round( score ) ), 8, false )
+
+                        return score
 
                     end
-                else
-                    self:TaskFail( "movement_biginertia" )
-                    self:StartTask( "movement_search", nil, "i couldnt find somewhere to wander to" ) -- just do something!
-                    self.bigInertiaPreserveBeenAreas = data.beenAreas
 
+                    wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 5000, 6000 ), scoreFunction )
+
+                    if foundSomewhereNotBeen == nil then
+                        data.beenAreas = nil
+                        local fails = data.fails or 0
+                        if self.IsSeeEnemy then
+                            self:EnemyAcquired( "movement_biginertia" )
+                            return
+
+                        elseif not self:IsMeleeWeapon( self:GetWeapon() ) and self:GetWeaponRange() > 2000 then
+                            self:TaskFail( "movement_biginertia" )
+                            self:StartTask( "movement_perch", nil, "i ran out of places, and i have a real weapon" )
+                            return
+
+                        elseif fails < 10 then
+                            self:TaskFail( "movement_biginertia" )
+                            yieldIfWeCan( "wait" )
+
+                            self:StartTask( "movement_biginertia", { fails = fails + 1 }, "i ran out of unreached spots, going back" )
+                            return
+
+                        else
+                            self.overrideVeryStuck = true
+                            self:TaskFail( "movement_biginertia" )
+                            self:StartTask( "movement_handler", nil, "my biginertia ended up in a death spiral" )
+                            return
+
+                        end
+
+                    elseif wanderPos then
+                        self:SetupPathShell( wanderPos )
+
+                        if not self:primaryPathIsValid() then
+                            self:TaskFail( "movement_biginertia" )
+                            self:StartTask( "movement_wait", nil, "i couldnt make a path" )
+                            if self:AreaIsOrphan( myNavArea, true ) then -- uh oh
+                                self.overrideVeryStuck = true
+
+                            end
+                            self.bigInertiaPreserveBeenAreas = data.beenAreas
+                            return
+
+                        else
+                            data.setupPath = true
+
+                        end
+                    else
+                        self:TaskFail( "movement_biginertia" )
+                        self:StartTask( "movement_search", nil, "i couldnt find somewhere to wander to" ) -- just do something!
+                        self.bigInertiaPreserveBeenAreas = data.beenAreas
+                        return
+
+                    end
                 end
-            end,
-            BehaveUpdateMotion = function( self, data )
-                -- gives up on self.bigInertiaPreserveBeenAreas if we know for a fact that the enemy has moved
 
                 local want = data.Want or 0
                 local canWep, potentialWep = self:canGetWeapon()
@@ -7771,14 +7838,6 @@ function ENT:DoDefaultTasks()
                     if result ~= nil then
                         local myPos = self:GetPos()
                         local pathStart = data.PathStart
-                        if not myPos or not pathStart then
-                            self:TaskFail( "movement_biginertia" )
-                            self:StartTask( "movement_handler", nil, "AAAAAAA" )
-                            self.overrideVeryStuck = true
-                            error( tostring( myPos ) .. " " .. tostring( pathStart ) .. " " .. tostring( self ) .. " You got the special funny error! Congrats!" )
-                            return
-
-                        end
                         local potentiallyBeenAreas = navmesh.Find( pathStart, myPos:Distance( pathStart ), self.loco:GetStepHeight() * 2, self.loco:GetStepHeight() )
 
                         for _, potentiallyBeenArea in ipairs( potentiallyBeenAreas ) do
@@ -7834,6 +7893,7 @@ function ENT:DoDefaultTasks()
             end,
         },
         -- enemy dependant, stand totally still and shoot them
+        -- basically sniping behaviour
         ["movement_camp"] = {
             OnStart = function( self, data )
                 local enemy = self:GetEnemy()
@@ -7888,7 +7948,7 @@ function ENT:DoDefaultTasks()
 
                 end
                 data.StartedShotAt = data.ItShotMe( self )
- 
+
             end,
             BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
@@ -8122,7 +8182,8 @@ function ENT:DoDefaultTasks()
             end,
         },
 
-        -- find 2 functions
+        -- place hardcoded "trap" weapons
+        -- needs these 2 functions on wep's table ( see 'weapon_slam_term' for example )
             -- wep.termPlace_ScoringFunc -- takes navarea and returns value, higher value for better placement
             -- wep.termPlace_PlacingFunc -- returns pos that terminator should aim at before primary attacking
 
@@ -8298,6 +8359,7 @@ function ENT:DoDefaultTasks()
 
             end,
         },
+        -- find somewhere to snipe from
         ["movement_perch"] = {
             OnStart = function( self, data )
                 data.perchRadius = data.perchRadius or 8000
@@ -8454,7 +8516,7 @@ function ENT:DoDefaultTasks()
                                     centers[area] = area:GetCenter()
 
                                 else
-                                    return 
+                                    return
 
                                 end
                             end
@@ -8564,7 +8626,9 @@ function ENT:DoDefaultTasks()
 
             end,
         },
-        ["movement_intercept"] = { -- activates when alerted of enemy by our buddy
+        -- close in on an enemy someone on our .isTerminatorHunterChummy "team" spotted
+        -- lots of flanking and checks to make sure bots come in from all angles
+        ["movement_intercept"] = {
             OnStart = function( self, data )
                 if not self.isUnstucking then
                     self:InvalidatePath( "intercepting enemy, killing old path" )

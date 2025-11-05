@@ -7,8 +7,8 @@ end
 SWEP.Base = "weapon_crowbar_term"
 SWEP.PrintName = "#HL2_Frag"
 SWEP.Spawnable = false
-SWEP.Author = "Shadow Bonnie (RUS)"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Author = "StrawWagen"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_stunstick.mdl"
 SWEP.WorldModel = "models/weapons/w_stunbaton.mdl"
@@ -27,6 +27,7 @@ SWEP.MinForceMul = 1
 
 function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end
+    if IsValid( self:GetOwner() ) and self:GetOwner():IsControlledByPlayer() then return true end
     if not terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     return true

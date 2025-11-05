@@ -18,7 +18,11 @@ local pairs = pairs
 local CurTime = CurTime
 
 local printTasks
-hook.Add( "InitPostEntity", "getprinttasks", function()
+if GetConVar( "term_debugtasks" ) then
+    printTasks = GetConVar( "term_debugtasks" ):GetBool()
+
+end
+hook.Add( "InitPostEntity", "getprinttasks_behaviouroverrides", function()
     printTasks = GetConVar( "term_debugtasks" ):GetBool()
 
 end )
@@ -27,16 +31,22 @@ cvars.AddChangeCallback( "term_debugtasks", function( _, _, newValue )
 
 end, "TerminatorDebugTasks_LastYield" )
 
+-- demand path updates for 2 movement coroutine completions
+-- otherwise bot would just mosey along with :Approaches, not actually checking if it should jump, or update the current path segment
 function ENT:DemandPathUpdates( myTbl )
-    myTbl.m_PathUpdatesDemanded = 2 -- demand path updates for 2 movement coroutine completions
+    myTbl.m_PathUpdatesDemanded = 2
 
 end
 
+-- used in StopMoving stuff
+-- prevents bot from doing queued cheap updates
 function ENT:RejectPathUpdates( myTbl )
-    myTbl.m_PathUpdatesDemanded = 0 -- stop demanding path updates
+    myTbl.m_PathUpdatesDemanded = 0
 
 end
 
+-- kill the motion coroutine
+-- useful when teleporting bots a far distance, cause they could be in the middle of calculating some shorter setpos
 function ENT:RestartMotionCoroutine( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
@@ -81,6 +91,13 @@ function ENT:BehaveUpdate( interval )
         myTbl.UpdatePhysicsObject( self )
         myTbl.HandlePathRemovedWhileOnladder( self )
 
+        local threads = myTbl.BehaviourThreads
+        if not threads then
+            threads = {}
+            myTbl.BehaviourThreads = threads
+
+        end
+
         local ply = myTbl.GetControlPlayer( self )
         if IsValid( ply ) then -- not optimizing this
             -- Sending current weapon clips data
@@ -98,18 +115,16 @@ function ENT:BehaveUpdate( interval )
             -- Calling behavior think for player control
             self:BehaviourPlayerControlThink( ply )
 
+            if not threads.playerControlCor then
+                threads.playerControlCor = {
+                    cor = coroutine_create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
+
+                }
+            end
             -- Calling task callbacks
-            self:RunTask( "PlayerControlUpdate", interval, ply )
 
             myTbl.m_ControlPlayerOldButtons = myTbl.m_ControlPlayerButtons
         else
-            -- Calling behaviour with coroutine type
-            local threads = myTbl.BehaviourThreads
-            if not threads then
-                threads = {}
-                myTbl.BehaviourThreads = threads
-
-            end
 
             if not threads.priorityCor then
                 threads.priorityCor = {
@@ -272,7 +287,7 @@ end
 local costThisTick = 0
 local lastTick = CurTime()
 local probablyLagging = 60 -- shared path yield budget every bot gets. mitigates freezes from multiple bots pathing at once.
-local budgetEveryoneGets = 1 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
+local budgetEveryoneGets = 3 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
 local budgetAddIfNear = 2 -- if bot near enemy, gets this many more path yields 
 local budetAddIfNextTo = 5 -- next to, this many more
 local nearDist = 3000
@@ -416,9 +431,10 @@ end
 
 -- do enemy handling ( looking around, finding enemies, shooting ) asynced to the movement coroutine
 function ENT:BehaviourPriorityCoroutine( myTbl )
-    -- do shoot blocking thinking
+    -- update drowning, speaking, etc
     myTbl.TermThink( self, myTbl )
-    myTbl.BehaviourThink( self, myTbl )
+    -- do shootblocker checks
+    myTbl.ShootblockerThink( self, myTbl )
 
     -- Calling task callbacks
     myTbl.RunTask( self, "BehaveUpdatePriority" )
@@ -436,6 +452,19 @@ function ENT:BehaviourMotionCoroutine( myTbl )
 
     -- Calling task callbacks
     myTbl.RunTask( self, "BehaveUpdateMotion" )
+
+    coroutine_yield( "done" )
+
+end
+
+function ENT:BehaviourPlayerControlCoroutine( myTbl )
+
+    -- update drowning, speaking, etc
+    myTbl.TermThink( self, myTbl )
+    myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
+
+    -- Calling task callbacks
+    myTbl.RunTask( self, "PlayerControlUpdate", ply )
 
     coroutine_yield( "done" )
 

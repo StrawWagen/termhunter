@@ -1,25 +1,106 @@
 AddCSLuaFile()
 
 if CLIENT then
+    local function getVelocityDelta( ent, entTbl )
+        local currPos = ent:WorldSpaceCenter()
+        local currTime = CurTime()
+        local oldPos = entTbl._OldVelocityPos
+        local oldTime = entTbl._LastVelCheckTime
+        entTbl._OldVelocityPos = currPos
+        entTbl._LastVelCheckTime = currTime
+
+        if not ( oldPos and oldTime ) then return end
+
+        local deltaTime = math.abs( currTime - oldTime )
+
+        local vel = currPos - oldPos
+        vel = vel / deltaTime -- anchors vel to time, wont blow up when there's lag or anything
+
+        return vel
+    end
+
     killicon.AddFont( "weapon_crowbar_term", "HL2MPTypeDeath", "1", Color( 255, 80, 0 ) )
+
+    local airSoundPath = "ambient/levels/canals/windmill_wind_loop1.wav"
+
+    net.Receive( "terminator_crowbar_airrushingsound", function()
+        local thrown = net.ReadEntity()
+        if not IsValid( thrown ) then return end
+
+        local airSound = CreateSound( thrown, airSoundPath )
+        airSound:SetSoundLevel( 90 )
+        airSound:PlayEx( 1, 150 )
+        local timerName = "terminator_thrown_manage_sound_" .. thrown:GetCreationID()
+
+        thrown:CallOnRemove( "terminator_stopwhooshsound", function() thrown:StopSound( airSoundPath ) end )
+
+        local StopAirSound = function( fade )
+            timer.Remove( timerName )
+            if not IsValid( thrown ) then return end
+            thrown:StopSound( airSoundPath, fade and 2 or nil )
+
+            if not IsValid( thrown.tracer ) then return end
+            SafeRemoveEntityDelayed( thrown.tracer, 0.2 )
+        end
+
+        local noVelFailures = 0
+
+        timer.Create( timerName, 0, 0, function()
+            if not IsValid( thrown ) then StopAirSound() return end
+            if not airSound:IsPlaying() then StopAirSound() return end
+            if thrown:IsDormant() then StopAirSound( true ) return end -- went out of PVS
+
+            local velPosBased = getVelocityDelta( thrown, thrown:GetTable() )
+            if not velPosBased then
+                noVelFailures = noVelFailures + 1
+                if noVelFailures > 5 then StopAirSound( true ) end
+                return
+
+            end
+
+            velPosBased = velPosBased:Length()
+
+            local pitch = velPosBased / 10
+            local volume = velPosBased / 1500
+            if pitch < 10 then
+                noVelFailures = noVelFailures + 1
+                if noVelFailures > 5 then StopAirSound( true ) end
+                return
+
+            end
+
+            noVelFailures = 0
+            airSound:ChangePitch( pitch )
+            airSound:ChangeVolume( volume )
+
+            if not IsValid( thrown.tracer ) then return end
+            thrown.tracer:SetPos( thrown:GetPos() )
+
+        end )
+    end )
+else
+    util.AddNetworkString( "terminator_crowbar_airrushingsound" )
+
 end
 
 SWEP.PrintName = "#HL2_Crowbar"
 SWEP.Spawnable = false
-SWEP.Author = "Straw"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Author = "StrawWagen"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_crowbar.mdl"
 SWEP.WorldModel = "models/weapons/w_crowbar.mdl"
 SWEP.Weight = terminator_Extras.GoodWeight + -2
 
 SWEP.Primary = {
+    Automatic = true,
     Ammo = "None",
-    ClipSize = 1,
-    DefaultClip = 1,
+    ClipSize = -1,
+    DefaultClip = -1,
 }
 
 SWEP.Secondary = {
+    Automatic = true,
     Ammo = "None",
     ClipSize = -1,
     DefaultClip = -1,
@@ -53,6 +134,8 @@ function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end
 
     local owner = self:GetOwner()
+    if owner:IsControlledByPlayer() then return true end
+
     if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     if not owner.NothingOrBreakableBetweenEnemy then return end
@@ -192,6 +275,8 @@ hook.Add( "EntityTakeDamage", "STRAW_terminatorHunter_crowbarCorrectTheAttacker"
     local inflic = damage:GetInflictor()
     if not IsValid( inflic ) then return end
     if not IsValid( target ) then return end -- sharpness dealing damage to world
+    if target == inflic then return end -- sharpness, again
+
     if not inflic.isTerminatorHunterCrowbar then return end
     for _ = 1, 2 do
         target:EmitSound( "weapons/crowbar/crowbar_impact" .. math.random( 1, 2 ) .. ".wav", 80, math.random( 60,100 ), 0.75, CHAN_STATIC )
@@ -218,35 +303,42 @@ function SWEP:Equip()
 
 end
 
-local airSoundPath = "ambient/levels/canals/windmill_wind_loop1.wav"
-
 function SWEP:DoFlyingSound( thrown, direction, force )
     local filterAll = RecipientFilter()
     filterAll:AddAllPlayers()
 
-    if force > 200000 then
+    if force > 200000 then -- SONIC BOOM
         util.ScreenShake( self:GetOwner():WorldSpaceCenter(), 5, 20, 0.2, 3000, true, filterAll )
         local owner = self:GetOwner()
-        for _, ent in ipairs( ents.FindByClass( "player" ) ) do
-            if ent:IsPlayer() then
-                local dist = owner:GetPos():Distance( ent:GetPos() )
-                if dist > 8000 then return end
-                local distInverted = ( 8000 - dist ) + 4000
-                timer.Simple( dist / 8000, function()
-                    if not IsValid( ent ) then return end
-                    if not IsValid( owner ) then return end
-                    if not IsValid( thrown ) then return end
-                    local filterJustEnt = RecipientFilter()
-                    filterJustEnt:AddPlayer( ent )
-                    util.ScreenShake( owner:WorldSpaceCenter(), 40, 20, 0.2, 4000, true, filterJustEnt )
-                    util.ScreenShake( ent:WorldSpaceCenter(), 40, 20, 0.2, 3000, true, filterJustEnt )
-                    ent:EmitSound( "npc/sniper/sniper1.wav", 130, 80, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
-                    owner:EmitSound( "npc/sniper/echo1.wav", 100, 60, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
-                    if not thrown.isTerminatorHunterCrowbar then return end
-                    thrown:EmitSound( "weapons/crowbar/crowbar_impact" .. math.random( 1, 2 ) .. ".wav", 75, math.random( 40, 60 ), 0.75, CHAN_STATIC, nil, nil, filterJustEnt )
 
-                end )
-            end
+        for _, ent in ipairs( ents.FindByClass( "player" ) ) do
+            if not ent:IsPlayer() then continue end
+            local dist = owner:GetPos():Distance( ent:GetPos() )
+
+            if dist > 8000 then return end
+            local distInverted = ( 8000 - dist ) + 4000
+
+            timer.Simple( dist / 8000, function()
+                if not IsValid( ent ) then return end
+                if not IsValid( owner ) then return end
+                if not IsValid( thrown ) then return end
+
+                local filterJustEnt = RecipientFilter()
+                filterJustEnt:AddPlayer( ent )
+
+                util.ScreenShake( owner:WorldSpaceCenter(), 40, 20, 0.2, 4000, true, filterJustEnt )
+                util.ScreenShake( ent:WorldSpaceCenter(), 40, 20, 0.2, 3000, true, filterJustEnt )
+                ent:EmitSound( "npc/sniper/sniper1.wav", 130, 80, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
+                owner:EmitSound( "npc/sniper/echo1.wav", 100, 60, distInverted / 8000, CHAN_STATIC, 0, 0, filterJustEnt )
+
+                net.Start( "terminator_crowbar_airrushingsound", true )
+                    net.WriteEntity( thrown )
+                net.Send( ent )
+
+                if not thrown.isTerminatorHunterCrowbar then return end
+                thrown:EmitSound( "weapons/crowbar/crowbar_impact" .. math.random( 1, 2 ) .. ".wav", 75, math.random( 40, 60 ), 0.75, CHAN_STATIC, nil, nil, filterJustEnt )
+
+            end )
         end
 
         local tracer = ents.Create( "env_spritetrail" )
@@ -262,38 +354,11 @@ function SWEP:DoFlyingSound( thrown, direction, force )
 
         thrown.tracer = tracer
 
+    else
+        net.Start( "terminator_crowbar_airrushingsound", true )
+            net.WriteEntity( thrown )
+        net.Send( filterAll )
     end
-
-    local airSound = CreateSound( thrown, airSoundPath, filterAll )
-    airSound:SetSoundLevel( 90 )
-    airSound:PlayEx( 1, 150 )
-    local timerName = "terminator_thrown_manage_sound_" .. thrown:GetCreationID()
-
-    thrown:CallOnRemove( "terminator_stopwhooshsound", function() thrown:StopSound( airSoundPath ) end )
-
-    local StopAirSound = function()
-        timer.Remove( timerName )
-        if not IsValid( thrown ) then return end
-        thrown:StopSound( airSoundPath )
-
-        if not IsValid( thrown.tracer ) then return end
-        SafeRemoveEntityDelayed( thrown.tracer, 0.2 )
-    end
-
-    timer.Create( timerName, 0, 0, function()
-        if not IsValid( thrown ) then StopAirSound() return end
-        if not airSound:IsPlaying() then StopAirSound() return end
-        local vel = thrown:GetVelocity():Length()
-        local pitch = vel / 10
-        local volume = vel / 1500
-        if pitch < 10 then StopAirSound() return end
-        airSound:ChangePitch( pitch )
-        airSound:ChangeVolume( volume )
-
-        if not IsValid( thrown.tracer ) then return end
-        thrown.tracer:SetPos( thrown:GetPos() )
-
-    end )
 end
 
 function SWEP:OwnerChanged()

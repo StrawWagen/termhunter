@@ -220,3 +220,20 @@ function permaPrintTable( ... ) -- ditto
     PrintTable( ... )
 
 end
+
+local LocalToWorld = LocalToWorld
+
+function terminator_Extras.DrawInHand( wep, posOffset, angOffset )
+    local owner = wep:GetOwner()
+    if IsValid( owner ) and owner:GetActiveWeapon() == wep then
+        local attachId = owner:LookupAttachment( "anim_attachment_RH" )
+        if attachId <= 0 then return end
+        local attachTbl = owner:GetAttachment( attachId )
+        local posOffsetW, angOffsetW = LocalToWorld( posOffset, angOffset, attachTbl.Pos, attachTbl.Ang )
+        wep:SetPos( posOffsetW )
+        wep:SetAngles( angOffsetW )
+
+        wep:SetupBones()
+
+    end
+end

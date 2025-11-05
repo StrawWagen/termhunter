@@ -7,8 +7,8 @@ end
 SWEP.Base = "weapon_crowbar_term"
 SWEP.PrintName = "#HL2_StunBaton"
 SWEP.Spawnable = false
-SWEP.Author = "Shadow Bonnie (RUS)"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Author = "StrawWagen"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_stunstick.mdl"
 SWEP.WorldModel = "models/weapons/w_stunbaton.mdl"

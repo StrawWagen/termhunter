@@ -9,8 +9,8 @@ ENT.DefaultWeapon = {
 }
 
 ENT.DefaultSidearms = {
-    { "weapon_frag", "weapon_pistol" },
-    "weapon_shotgun",
+    { "weapon_frag", "weapon_frag", "weapon_pistol", },
+    { "weapon_shotgun", "", "" },
 }
 
 ENT.Base = "terminator_nextbot_csoldier"
@@ -20,7 +20,7 @@ ENT.Spawnable = false -- dont show up in entity spawn category
 
 if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
     list.Set( "NPC", "terminator_nextbot_celitesoldier", {
-        Name = "Elite Combine Soldier",
+        Name = "Combine Soldier Elite",
         Class = "terminator_nextbot_celitesoldier",
         Category = "Terminator Nextbot",
         Weapons = ENT.DefaultWeapon,
@@ -41,12 +41,12 @@ ENT.ThreshMulIfDueling = 3 -- CoroutineThresh is multiplied by this amount if we
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
 ENT.IsFodder = false
 
-ENT.JumpHeight = 55
+ENT.JumpHeight = 75
 ENT.SpawnHealth = 125
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_GOOD
 ENT.WalkSpeed = 75
-ENT.MoveSpeed = 115
-ENT.RunSpeed = 225
+ENT.MoveSpeed = 130
+ENT.RunSpeed = 215
 
 ENT.isTerminatorHunterChummy = "combine"
 ENT.DuelEnemyDist = 1250

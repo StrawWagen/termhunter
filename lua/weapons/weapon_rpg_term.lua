@@ -8,8 +8,8 @@ end
 
 SWEP.PrintName = "#HL2_RPG"
 SWEP.Spawnable = false
-SWEP.Author = "Shadow Bonnie (RUS)"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Author = "StrawWagen"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_rpg.mdl"
 SWEP.WorldModel = "models/weapons/w_rocket_launcher.mdl"
@@ -47,6 +47,8 @@ end
 
 function SWEP:CanPrimaryAttack()
     local owner = self:GetOwner()
+    if owner:IsControlledByPlayer() then return true end
+
     if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     if not owner.EnemiesVehicle and not owner.NothingOrBreakableBetweenEnemy then return end
@@ -105,7 +107,11 @@ function SWEP:CreateMissile( _, owner )
         end
         local missileTargetPos = nil
         local ownerShootPos
-        if owner and owner.GetEnemy and IsValid( owner:GetEnemy() ) then
+        if owner and owner:IsControlledByPlayer() then
+            ownerShootPos = owner:GetShootPos()
+            missileTargetPos = owner:GetEyeTrace().HitPos
+
+        elseif owner and owner.GetEnemy and IsValid( owner:GetEnemy() ) then
             local enemy = owner:GetEnemy()
             ownerShootPos = owner:GetShootPos()
             local enemysPos = enemy:GetPos()
@@ -120,6 +126,7 @@ function SWEP:CreateMissile( _, owner )
                 endpos = enemysPos,
                 mask = MASK_BLOCKLOS,
                 filter = missile.traceFilter,
+
             }
             local missilelasertrace = util.TraceLine( traceData )
             missileTargetPos = missilelasertrace.HitPos

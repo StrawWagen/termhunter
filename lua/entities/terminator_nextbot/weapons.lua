@@ -152,11 +152,13 @@ function ENT:GiveDefaultWeapons()
         for _, sidearm in ipairs( self.DefaultSidearms ) do
             if istable( sidearm ) then
                 sidearm = sidearm[math.random( 1, #sidearm )]
+                if not sidearm or sidearm == "" then continue end
 
             end
             local sidearmEnt = ents.Create( sidearm )
             sidearmEnt:SetPos( myPos )
             sidearmEnt:Spawn()
+            sidearmEnt.terminator_PropertyOf = self
             self:HolsterWeap( sidearmEnt )
 
         end
@@ -229,7 +231,7 @@ end
     Name: NEXTBOT:SetupWeapon
     Desc: Makes bot hold this weapon.
     Arg1: Weapon | wep | Weapon to hold.
-    Ret1: Weapon | Parented weapon. If give weapon is engine weapon, then this will be lua analog. Returns nil if failed to setup.
+    Ret1: Weapon | Parented weapon. If there's a lua analog for a class ( engine weapon, special case weapon ), creates and uses the analog. Returns nil if failed to setup.
 --]]------------------------------------
 function ENT:SetupWeapon( wep )
 
@@ -274,8 +276,8 @@ function ENT:SetupWeapon( wep )
         actwep:AddEffects( EF_BONEMERGE )
         actwep:SetTransmitWithParent( true )
 
-        actwep:SetClip1( wep:Clip1() )
-        actwep:SetClip2( wep:Clip2() )
+        actwep:SetClip1( math.Clamp( wep:Clip1(), 0, actwep:GetMaxClip1() ) )
+        actwep:SetClip2( math.Clamp( wep:Clip2(), 0, actwep:GetMaxClip2() ) )
 
         hook.Add( "Think", actwep, function()
             wepMeta.SetClip1( wep, wepMeta.Clip1( actwep ) )
@@ -601,40 +603,46 @@ function ENT:CanWeaponPrimaryAttack( myTbl, wep, wepsTbl )
 
     end
     if dontImmiediatelyFire > CurTime() and not ( myTbl.IsReallyAngry( self ) and entMeta.Health( self ) <= entMeta.GetMaxHealth( self ) * 0.25 ) then
-        return false
+        return false, "dontImmiediatelyFire"
 
     end
 
-    if myTbl.IsReloadingWeapon then return false end
+    if myTbl.IsReloadingWeapon then return false, "IsReloadingWeapon" end
 
     wep = wep or myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
-    if not IsValid( wep ) then return false end
+    if not IsValid( wep ) then return false, "InvalidWeapon" end
 
     wepsTbl = wepsTbl or entMeta.GetTable( wep )
-    if wepsTbl.terminator_NeedsEnemy and not IsValid( myTbl.GetEnemy( self ) ) then return false end
+    if wepsTbl.terminator_NeedsEnemy and not IsValid( myTbl.GetEnemy( self ) ) then return false, "terminator_NeedsEnemy" end
 
-    if wep:GetMaxClip1() > 0 and wep:Clip1() <= 0 then return false end -- needs reload
+    if wep:GetMaxClip1() > 0 and wep:Clip1() <= 0 then return false, "NeedsReload" .. wep:Clip1() .. " " .. wep:GetMaxClip1() end -- needs reload
 
     local canShoot = nil
+    local cantShootReason = "Can attack!"
 
     -- xpcall because we need to pass self
     local successful = ProtectedCall( function() -- no MORE ERRORS!
         local nextShoot = myTbl.AssumeWeaponNextShootTime( self, myTbl, wep, wepsTbl ) or 0
 
-        if not wep then canShoot = false return end
-        if nextShoot > CurTime() then canShoot = false return end
+        if not wep then canShoot = false cantShootReason = "InvalidWeapon" return end
+        if nextShoot > CurTime() then canShoot = false cantShootReason = "AssumedNextShoot" return end
 
         -- weapon_base CanPrimaryAttack just checks if there's ammo and sets the next fire to 0.2s in the future
         -- doesn't actually get if nextPrimaryFire is now, only checks ammo!
         -- so we gotta ignore it if it's weapon_base's CanPrimaryAttack
-        if wepsTbl.CanPrimaryAttack and wepsTbl.CanPrimaryAttack ~= weapon_base.CanPrimaryAttack and not wepsTbl.CanPrimaryAttack( wep ) then canShoot = false return end
+        if wepsTbl.CanPrimaryAttack and wepsTbl.CanPrimaryAttack ~= weapon_base.CanPrimaryAttack and not wepsTbl.CanPrimaryAttack( wep ) then
+            canShoot = false
+            cantShootReason = "CanPrimaryAttack"
+            return
+
+        end
 
         canShoot = true
 
     end )
     myTbl.HateBuggyWeapon( self, wep, successful )
 
-    return canShoot
+    return canShoot, cantShootReason
 
 end
 
@@ -648,10 +656,11 @@ function ENT:WeaponPrimaryAttack()
     local myTbl = entMeta.GetTable( self )
     local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
     local wepsTbl = entMeta.GetTable( wep )
-    if myTbl.CanWeaponPrimaryAttack( self, myTbl, wep, wepsTbl ) ~= true then return end
+    if myTbl.CanWeaponPrimaryAttack( self, myTbl, wep, wepsTbl ) ~= true then return false, "CanWeaponPrimaryAttack" end
 
     local data = self.m_WeaponData.Primary
     local isSetupProperly = isfunction( wep.GetNPCBurstSettings ) and isfunction( wep.GetNPCRestTimes )
+    local fireType = "NONE"
 
     local successful = ProtectedCall( function() -- cant be too safe here
 
@@ -660,6 +669,7 @@ function ENT:WeaponPrimaryAttack()
             --print( "npcshoot_primary" )
             local successfulShoot = ProtectedCall( function() wep:NPCShoot_Primary( self:GetShootPos(), self:GetAimVector() ) end )
             self:HateBuggyWeapon( wep, successfulShoot )
+            fireType = "NPCShoot_Primary"
 
             if myTbl.ShouldWeaponAttackUseBurst( self, wep ) then
                 local bmin, bmax, frate = wep:GetNPCBurstSettings()
@@ -689,9 +699,11 @@ function ENT:WeaponPrimaryAttack()
 
         elseif wep.NPCShoot_Primary and wep.NPC_TimeUntilFire then -- VJ BASE!
             self:fakeVjBaseWeaponFiring( wep )
+            fireType = "fakeVjBaseWeaponFiring"
 
         elseif IsValid( wep ) then
             wep:PrimaryAttack()
+            fireType = "PrimaryAttack"
 
         end
     end )
@@ -700,9 +712,11 @@ function ENT:WeaponPrimaryAttack()
         wepsTbl.term_LastFire = CurTime()
         wepsTbl.terminator_FiredBefore = true
         self:RunTask( "OnAttack" )
-        return true
+        return true, "Fired" .. "_" .. fireType
 
     end
+    return false, "HatedBuggyWeapon"
+
 end
 
 --[[------------------------------------
@@ -1241,12 +1255,13 @@ function ENT:canGetWeapon()
         local rand = math.random( 1, 100 )
 
         local weapWeight = wepDat.weight or 0
-        if ( newWeap.worksWithoutSightline or ( analogsData and analogsData.worksWithoutSightline ) ) then
+        if newWeap.worksWithoutSightline or ( analogsData and analogsData.worksWithoutSightline ) then
             local sinceSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
-            if ( not IsValid( self:GetEnemy() ) or myTbl.IsSeeEnemy ) then
+            local enemy = self:GetEnemy()
+            if not IsValid( enemy ) or not enemy:Alive() or myTbl.IsSeeEnemy then
                 weapWeight = weapWeight * 0.1 -- if we see the enemy, we dont need this weapon rn
 
-            elseif sinceSpotted < 4 then -- mayyybe consider using it
+            elseif sinceSpotted < 2 then -- mayyybe consider using it
                 weapWeight = weapWeight * sinceSpotted / 20
 
             else -- ok time to flush them out

@@ -240,6 +240,12 @@ function ENT:DoWeaponHacks( wep )
     local max = 100 -- dont let anything funny happen!
     local doneCount = 0
 
+    local defaultClip = wep.Primary and wep.Primary.DefaultClip or nil
+    if defaultClip and defaultClip > wep:GetMaxClip1() and wep:GetMaxClip1() > 0 then -- dumb bug, defaultClip gives them extra ammo but somehow it ends up blowing up clip1
+        wep:SetClip1( wep:GetMaxClip1() )
+
+    end
+
     while wepsTable and doneCount < max do
         doneCount = doneCount + 1
 

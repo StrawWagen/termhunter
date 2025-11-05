@@ -220,6 +220,7 @@ function ENT:Use( user )
     end
     permaPrint( "lastShootType", self.lastShootingType )
     permaPrint( "lastPathKillReason", self.lastPathInvalidateReason )
+    permaPrint( "lastLadderLeaveReason", self.lastLadderLeaveStack )
     permaPrint( "lastYield", self.lastYieldLocation )
 
 end
@@ -316,11 +317,12 @@ ENT.MyClassTask = {
 --]]
 
 -- handles adding class tasks
--- DO NOT OVERRIDE THIS ONE, OVERRIDE THE SetupClassTask ABOVE INSTEAD
--- searches entire base class tree, setting up the class task of every class in the tree
+-- DO NOT OVERRIDE THIS ONE, OVERRIDE THE ENT.MyClassTask ABOVE INSTEAD
+-- searches entire base class tree, setting up the ENT.MyClassTask of every class in the tree
 -- DO NOT OVERRIDE THESE
 function ENT:DoClassTask( myTbl )
     local sentsToDo = myTbl.GetAllBaseClasses( self, myTbl )
+    sentsToDo[ #sentsToDo + 1 ] = myTbl -- add our own class too
 
     for _, sentTbl in ipairs( sentsToDo ) do
         local classTask = sentTbl.MyClassTask
@@ -336,36 +338,6 @@ function ENT:DoClassTask( myTbl )
 
     end
 end
--- DO NOT OVERRIDE THESE, you can if you want, just adds spaghetti
-function ENT:GetAllBaseClasses( myTbl )
-    local fullTree = {}
-
-    local reachedRoot = false
-    local currClassName = myTbl.ClassName
-    local currBaseSent = scripted_ents.GetStored( currClassName ).t
-    local extent = 0
-    while not reachedRoot do
-        extent = extent + 1
-        if extent > 100 then -- you never know
-            break
-
-        end
-        if currBaseSent.Base == currClassName then
-            reachedRoot = true
-            break
-
-        end
-
-        fullTree[#fullTree + 1] = currBaseSent
-
-        currClassName = currBaseSent.Base
-        currBaseSent = scripted_ents.GetStored( currClassName ).t -- the next base class
-
-    end
-
-    return fullTree
-
-end
 
 --[[------------------------------------
     Name: ENT:SetupTasks
@@ -377,8 +349,8 @@ end
 function ENT:SetupTasks( myTbl )
     myTbl.DoDefaultTasks( self ) -- terminator tasks, so everything can use the same enemy handler, shooting handler, etc
 
-    myTbl.DoCustomTasks( self, myTbl.TaskList )
-    myTbl.DoClassTask( self, myTbl )
+    myTbl.DoCustomTasks( self, myTbl.TaskList ) -- override terminator tasks, create a new brain
+    myTbl.DoClassTask( self, myTbl ) -- adds class-specific behaviour for every class in the baseclass tree
 
     local taskListStatic = myTbl.m_TaskList
     for k,v in pairs( myTbl.TaskList ) do

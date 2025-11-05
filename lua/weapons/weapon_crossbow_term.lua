@@ -6,8 +6,8 @@ end
 
 SWEP.PrintName = "#HL2_Crossbow"
 SWEP.Spawnable = false
-SWEP.Author = "Shadow Bonnie (RUS)"
-SWEP.Purpose = "Should only be used internally by advanced nextbots!"
+SWEP.Author = "StrawWagen"
+SWEP.Purpose = "Should only be used internally by term nextbots!"
 
 SWEP.ViewModel = "models/weapons/c_crossbow.mdl"
 SWEP.WorldModel = "models/weapons/w_crossbow.mdl"
@@ -35,6 +35,7 @@ end
 function SWEP:CanPrimaryAttack()
 
     local owner = self:GetOwner()
+    if owner:IsControlledByPlayer() then return true end
     if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     if not owner.NothingOrBreakableBetweenEnemy then return end

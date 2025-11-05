@@ -754,6 +754,14 @@ function ENT:ShouldCrouch( myTbl )
             return true
         end
 
+        local myPos = self:GetPos()
+        local myScale = self:GetModelScale()
+
+        if not canFitSimple( myPos, myScale ) then
+            return true
+
+        end
+
         return false
     else
         if myTbl.overrideCrouch and myTbl.overrideCrouch > CurTime() then return true end
@@ -2574,6 +2582,20 @@ function ENT:EnterLadder()
 
 end
 
+local printTasks
+if GetConVar( "term_debugtasks" ) then
+    printTasks = GetConVar( "term_debugtasks" ):GetBool()
+
+end
+hook.Add( "InitPostEntity", "getprinttasks_motionoverrides", function()
+    printTasks = GetConVar( "term_debugtasks" ):GetBool()
+
+end )
+cvars.AddChangeCallback( "term_debugtasks", function( _, _, newValue )
+    printTasks = tobool( newValue )
+
+end, "TerminatorDebugTasks_Laddering" )
+
 function ENT:ExitLadder( exit, recalculate )
     local pos
     if isvector( exit ) then
@@ -2588,6 +2610,11 @@ function ENT:ExitLadder( exit, recalculate )
 
     self:InvalidatePath( "i exited a ladder" )
     self.terminator_HandlingLadder = nil
+
+    if printTasks then
+        self.lastLadderLeaveStack = debug.traceback()
+
+    end
 
     --debugoverlay.Cross( pos, 100, 1, color_white, true )
     if recalculate then
@@ -3510,6 +3537,7 @@ local defaultHeight = 72
 local defaultViewOffsetNudge = 8
 local defaultCrouchHeight = 43
 local defaultCrouchViewOffsetNudge = 11
+local defaultDriveViewOffset = Vector( -70, 10, 5 ) -- camera offset when driving bot
 
 function ENT:InitializeCollisionBounds( mdlScale )
     mdlScale = mdlScale or self:GetModelScale()
@@ -3540,13 +3568,16 @@ function ENT:InitializeCollisionBounds( mdlScale )
 
     -- proper view offsets for GetShootPos
     local maxsZ = self.CollisionBounds[2].z * mdlScale
-    local viewOffsetFromMaxs = ( maxsZ / defaultHeight ) * ( defaultViewOffsetNudge * mdlScale )
+    local viewOffsetFromMaxs = ( maxsZ / defaultHeight ) * ( defaultViewOffsetNudge / mdlScale )
     local viewOffset = math.Round( maxsZ + -viewOffsetFromMaxs )
     self:SetViewOffset( Vector( 0, 0, viewOffset ) )
 
     local maxsZCrouch = self.CrouchCollisionBounds[2].z * mdlScale
-    local crouchViewOffsetFromMaxs = ( maxsZCrouch / defaultCrouchHeight ) * ( defaultCrouchViewOffsetNudge * mdlScale )
+    local crouchViewOffsetFromMaxs = ( maxsZCrouch / defaultCrouchHeight ) * ( defaultCrouchViewOffsetNudge / mdlScale )
     local crouchViewOffset = math.Round( maxsZCrouch + -crouchViewOffsetFromMaxs )
     self:SetCrouchViewOffset( Vector( 0, 0, crouchViewOffset ) )
+
+    local sizeScale = ( maxsZ + -self.CollisionBounds[1].z ) / defaultHeight
+    self:SetControlCameraOffset( defaultDriveViewOffset * sizeScale )
 
 end
