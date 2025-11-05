@@ -287,13 +287,13 @@ end
 local costThisTick = 0
 local lastTick = CurTime()
 local probablyLagging = 60 -- shared path yield budget every bot gets. mitigates freezes from multiple bots pathing at once.
-local budgetEveryoneGets = 3 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
+local budgetEveryoneGets = 2 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
 local budgetAddIfNear = 2 -- if bot near enemy, gets this many more path yields 
-local budetAddIfNextTo = 5 -- next to, this many more
+local budgetAddIfNextTo = 5 -- next to, this many more
 local nearDist = 3000
-local nextToDist = 550
+local nextToDist = 650
 if game.IsDedicated() then
-    budgetEveryoneGets = 2
+    budgetEveryoneGets = 3
 
 end
 
@@ -385,7 +385,7 @@ function ENT:Think()
             elseif result == "pathing" then
                 local budgetIGet = budgetEveryoneGets
                 if distToEnem < nextToDist then
-                    budgetIGet = budgetIGet + budetAddIfNextTo
+                    budgetIGet = budgetIGet + budgetAddIfNextTo
 
                 elseif distToEnem < nearDist then
                     budgetIGet = budgetIGet + budgetAddIfNear
@@ -433,6 +433,9 @@ end
 function ENT:BehaviourPriorityCoroutine( myTbl )
     -- update drowning, speaking, etc
     myTbl.TermThink( self, myTbl )
+
+    coroutine_yield()
+
     -- do shootblocker checks
     myTbl.ShootblockerThink( self, myTbl )
 

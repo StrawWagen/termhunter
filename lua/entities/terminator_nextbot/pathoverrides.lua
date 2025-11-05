@@ -1033,6 +1033,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     end
 
     while not table_IsEmpty( opened ) do
+        yieldIfWeCan()
         local bestScore = 0
         local bestArea = nil
 

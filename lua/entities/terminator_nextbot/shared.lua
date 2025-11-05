@@ -2814,19 +2814,35 @@ end
 
 function ENT:TermThink( myTbl ) -- inside coroutine :)
     myTbl.AdditionalThink( self, myTbl )
+    local fodder = myTbl.IsFodder
+    if fodder then
+        coroutine_yield()
+    end
     if myTbl.CanSpeak then
+        if fodder then
+            coroutine_yield()
+        end
         myTbl.SpokenLinesThink( self, myTbl )
 
     end
     if myTbl.HealthRegen then
+        if fodder then
+            coroutine_yield()
+        end
         myTbl.HealthRegenThink( self )
 
     end
     if myTbl.DrowningThink then
+        if fodder then
+            coroutine_yield()
+        end
         myTbl.DrowningThink( self, myTbl )
 
     end
     if not myTbl.loco:IsOnGround( myTbl.loco ) then
+        if fodder then
+            coroutine_yield()
+        end
         local swimming, waterLevel = myTbl.IsSwimming( self, myTbl )
         if swimming then
             myTbl.HandleSwimming( self, myTbl, waterLevel )

@@ -325,7 +325,7 @@ function ENT:StuckCheck( myTbl )
     end
 end
 
-local function TryStuck( self, endPos, t, tr )
+local function TryStuck( self, endPos, t, tr, yieldable )
     -- check if we can fit
     t.start = endPos
     t.endpos = endPos
@@ -333,6 +333,8 @@ local function TryStuck( self, endPos, t, tr )
     util.TraceHull( t )
 
     if not tr.Hit then
+        if yieldable then coroutine_yield() end
+
         -- simple check to see if we're going through something to get there
         local centerOffset = entMeta.OBBCenter( self )
         local traceStruct = {
@@ -349,6 +351,8 @@ local function TryStuck( self, endPos, t, tr )
         local clearPath = traceRes.StartSolid or not traceRes.Hit
 
         if clearPath then
+            if yieldable then coroutine_yield() end
+
             self:SetPosNoTeleport( endPos )
             self.loco:ClearStuck()
 
@@ -398,6 +402,7 @@ function ENT:OnStuck()
 
     local w = b2.x-b1.x
     local yieldable = coroutine_running()
+    local fodder = myTbl.IsFodder
 
     for z = 0, w * 1.2, w * 0.2 do
         if yieldable then coroutine_yield() end
@@ -405,17 +410,21 @@ function ENT:OnStuck()
             if yieldable then coroutine_yield() end
             for y = 0, w * 1.2, w * 0.2 do
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, y, z ),     t, tr ) then return end
-                if TryStuck( self, pos + Vector( -x, y, z ),    t, tr ) then return end
+                if TryStuck( self, pos + Vector( x, y, z ),     t, tr, yieldable ) then return end
+                if yieldable and fodder then coroutine_yield() end
+                if TryStuck( self, pos + Vector( -x, y, z ),    t, tr, yieldable ) then return end
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, -y, z ),    t, tr ) then return end
-                if TryStuck( self, pos + Vector( -x, -y, z ),   t, tr ) then return end
+                if TryStuck( self, pos + Vector( x, -y, z ),    t, tr, yieldable ) then return end
+                if yieldable and fodder then coroutine_yield() end
+                if TryStuck( self, pos + Vector( -x, -y, z ),   t, tr, yieldable ) then return end
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, y, -z ),    t, tr ) then return end
-                if TryStuck( self, pos + Vector( -x, y, -z ),   t, tr ) then return end
+                if TryStuck( self, pos + Vector( x, y, -z ),    t, tr, yieldable ) then return end
+                if yieldable and fodder then coroutine_yield() end
+                if TryStuck( self, pos + Vector( -x, y, -z ),   t, tr, yieldable ) then return end
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, -y, -z ),   t, tr ) then return end
-                if TryStuck( self, pos + Vector( -x, -y, -z ),  t, tr ) then return end
+                if TryStuck( self, pos + Vector( x, -y, -z ),   t, tr, yieldable ) then return end
+                if yieldable and fodder then coroutine_yield() end
+                if TryStuck( self, pos + Vector( -x, -y, -z ),  t, tr, yieldable ) then return end
 
             end
         end
@@ -904,11 +913,18 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
     end )
 
+    local fodder = self.IsFodder
+
     local cur = CurTime()
 
     -- lots of traces ahead, use caching please!
     local nextCache = self.nextBringUsTowardsCache or 0
     if nextCache > cur and self.cachedBringUsTowards then return self.cachedBringUsTowards end
+
+    if fodder then
+        coroutine_yield()
+
+    end
 
     local cacheTime = 0.8
 
@@ -936,6 +952,11 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
     local dirResult = util.TraceHull( dirConfig )
     --debugoverlay.Line( startPos, dirResult.HitPos, 5, color_white, true )
+
+    if fodder then
+        coroutine_yield()
+
+    end
 
     if dirResult.Hit then
 
@@ -974,6 +995,11 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
             end
 
+            if fodder then
+                coroutine_yield()
+
+            end
+
             local offsetScale = math.log( traceDist, 10 ) * 150
 
             random1:Random( -1, 1 )
@@ -989,6 +1015,11 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
             local diff = ( newStartPos.z - startPos.z )
             if diff > jumpHeight then
                 newStartPos.z = newStartPos.z + ( jumpHeight - diff )
+
+            end
+
+            if fodder then
+                coroutine_yield()
 
             end
 
@@ -1023,10 +1054,18 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
             dirConfig.start = newStartPos
             dirConfig.endpos = newEndPos
 
+            coroutine_yield()
+
             dirResult = util.TraceHull( dirConfig )
             --debugoverlay.Line( newStartPos, dirResult.HitPos, 5, color_white, true )
 
+            coroutine_yield()
+
             if not dirResult.Hit and not self:ClearOrBreakable( startPos, newStartPos ) then
+                if fodder then
+                    coroutine_yield()
+
+                end
                 if doBigTraces then
                     traceDist = traceDist + 2
 
@@ -1037,6 +1076,8 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
                 continue
 
             end
+
+            coroutine_yield()
 
             local currScore
 
@@ -1059,6 +1100,8 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
                 end
                 -- only do the trace check if this is a contender for the best fraction
                 if currScore > bestScore then
+                    coroutine_yield()
+
                     -- if there's a doorway, start picking ones that only go through the doorway
                     local isATrulyClearTrace = self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround )
                     if isATrulyClearTrace or wasAClearBestScore then
@@ -1089,6 +1132,8 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
         if not bestHitPosition then return nil, true end
 
+        coroutine_yield()
+
         local clear = self:ClearOrBreakable( bestHitPosition, aheadPosOffGround )
         -- best fraction doesnt get us there
         if not bestFraction or ( bestScore < 0.35 ) or not clear then
@@ -1098,6 +1143,10 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
         local timeTaken = cur - startTime
         cacheTime = cacheTime + timeTaken
+        if fodder then
+            cacheTime = cacheTime * 2
+
+        end
 
         self.nextBringUsTowardsCache = cur + cacheTime
 
@@ -1105,6 +1154,10 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
         return bestFraction
 
     else
+        if fodder then
+            cacheTime = cacheTime * 2
+
+        end
         self.nextBringUsTowardsCache = cur + cacheTime
         self.cachedBringUsTowards = dirResult.HitPos
         return dirResult.HitPos
@@ -1959,8 +2012,13 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
                     --debugoverlay.Cross( bitFurtherAheadSegment.pos, 10, 5, color_white, true )
 
+
                     local reverseOffs = -dir * 15
+
+                    if isFodder then coroutine_yield() end
                     local goodPosToGoto, wasNothingGreat = self:PosThatWillBringUsTowards( myPos + reverseOffs + vec_up15, bitFurtherAheadSegment.pos )
+                    if isFodder then coroutine_yield() end
+
                     myTbl.m_PathJump = true
                     myTbl.m_PathObstacleAvoidPos = goodPosToGoto
                     myTbl.m_PathObstacleAvoidTarget = bitFurtherAheadSegment.pos
@@ -1978,7 +2036,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                     local _, segDropdownBottom = self:GetNextPathArea( aheadArea, 1 )
                     local segAfterTheDrop = segDropdownBottom or aheadSegment
 
+                    if isFodder then coroutine_yield() end
                     local dropdownClearPos = self:PosThatWillBringUsTowards( myPos + vec_up15, segAfterTheDrop.pos )
+                    if isFodder then coroutine_yield() end
 
                     if not dropdownClearPos or wasNothingGreat then
                         -- speed up the connection flagging unstucker, we cant get thru here
