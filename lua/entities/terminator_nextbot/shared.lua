@@ -3254,11 +3254,8 @@ function ENT:DoDefaultTasks()
                         end
                     end
 
-                    if fodder then
-                        coroutine_yield()
-                        if not IsValid( newEnemy ) then return end
-
-                    end
+                    coroutine_yield()
+                    if not IsValid( newEnemy ) then return end
 
                     data.ResetVisVariables() -- reset right before we figure this out
 
@@ -3268,10 +3265,7 @@ function ENT:DoDefaultTasks()
                     myTbl.IsSeeEnemy = isSeeEnemy
                     myTbl.EnemiesVehicle = IsValid( theirCar ) and theirCar
 
-                    if fodder then
-                        coroutine_yield()
-
-                    end
+                    coroutine_yield()
 
                     if isSeeEnemy then
                         local nothinOrBreakable, _, hitNothing = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
