@@ -391,6 +391,12 @@ local regionsQueue = {}
 local isPatching = false
 hook.Remove( "Think", "PatchThinkHook" )
 
+local noNavTextures = {
+    ["tools/toolsnodraw"] = true,
+    ["halflife/black"] = true,
+    ["tools/toolsblack"] = true,
+}
+
 local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
     local voxelsKey = vecAsKey( voxel )
     if not util_IsInWorld( voxel ) then
@@ -449,7 +455,8 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     if not initialResult.Hit then return end
     closedVoxels[vecAsKey( voxel )] = true
 
-    if initialResult.HitTexture == "TOOLS/TOOLSNODRAW" then return end -- dont place outside of maps
+    local hitTexLower = string.lower( initialResult.HitTexture )
+    if noNavTextures[hitTexLower] then return end -- dont place outside of maps
     if initialResult.HitSky then return end -- dont place on skybox, probably an "endless" pit
 
     -- slope check

@@ -441,6 +441,7 @@ function ENT:BehaviourPriorityCoroutine( myTbl )
 
     -- Calling task callbacks
     myTbl.RunTask( self, "BehaveUpdatePriority" )
+    myTbl.RunTask( self, "Think" )
 
     coroutine_yield( "done" )
 
@@ -468,6 +469,7 @@ function ENT:BehaviourPlayerControlCoroutine( myTbl )
 
     -- Calling task callbacks
     myTbl.RunTask( self, "PlayerControlUpdate", ply )
+    myTbl.RunTask( self, "Think" )
 
     coroutine_yield( "done" )
 
