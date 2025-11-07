@@ -97,7 +97,8 @@ function ENT:ProcessFootsteps( myTbl )
         for _, foot in ipairs( feetBones ) do
             local footBone = entMeta.LookupBone( self, foot )
             if not footBone then
-                ErrorNoHaltWithStack( "Perfect footstepping ENT.PerfectFootsteps_FeetBones tbl, with invalid bone: " .. foot .. " for " .. self:GetClass() )
+                myTbl.Term_FootstepTiming = "timed" -- no err spam pls
+                ErrorNoHaltWithStack( "Perfect footstepping ENT.PerfectFootsteps_FeetBones tbl, with invalid bone: " .. foot .. " for " .. self:GetClass() .. "\nA custom model could be causing this!" )
                 return
 
             end
