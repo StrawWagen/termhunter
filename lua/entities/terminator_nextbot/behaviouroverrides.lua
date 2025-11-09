@@ -187,6 +187,19 @@ function ENT:BehaveUpdate( interval )
                 }
             end
         end
+    else
+        local threads = myTbl.BehaviourThreads
+        if not threads then
+            threads = {}
+            myTbl.BehaviourThreads = threads
+
+        end
+        if not threads.disabledCor then
+            threads.disabledCor = {
+                cor = coroutine_create( function( self, myTbl ) myTbl.DisabledBehaviourCoroutine( self, myTbl ) end ),
+
+            }
+        end
     end
 
     myTbl.SetupGesturePosture( self )
@@ -461,14 +474,22 @@ function ENT:BehaviourMotionCoroutine( myTbl )
 
 end
 
+-- call stuff while controlled by players
 function ENT:BehaviourPlayerControlCoroutine( myTbl )
-
     -- update drowning, speaking, etc
     myTbl.TermThink( self, myTbl )
     myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
 
     -- Calling task callbacks
     myTbl.RunTask( self, "PlayerControlUpdate", ply )
+    myTbl.RunTask( self, "Think" )
+
+    coroutine_yield( "done" )
+
+end
+
+-- make sure Think callback is always called
+function ENT:DisabledBehaviourCoroutine( myTbl )
     myTbl.RunTask( self, "Think" )
 
     coroutine_yield( "done" )

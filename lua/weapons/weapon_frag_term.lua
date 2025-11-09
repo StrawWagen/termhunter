@@ -27,7 +27,7 @@ SWEP.MinForceMul = 1
 
 function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end
-    if IsValid( self:GetOwner() ) and self:GetOwner():IsControlledByPlayer() then return true end
+    if IsValid( self:GetOwner() ) and self:GetOwner().IsControlledByPlayer and self:GetOwner():IsControlledByPlayer() then return true end
     if not terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
 
     return true
