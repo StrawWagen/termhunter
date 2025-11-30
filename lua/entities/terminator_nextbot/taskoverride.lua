@@ -313,6 +313,18 @@ ENT.MyClassTask = {
     OnKilled = function( self, data )
         -- do something on death
     end,
+    Think = function( self, data )
+         -- ALWAYS runs. (in a coroutine!), when controlled by ai, or controlled by player
+    end,
+    BehaveUpdateMotion = function( self, data )
+         -- runs inside the motion coroutine, best place for perf heavy stuff that can take a while
+    end,
+    BehaveUpdatePriority = function( self, data )
+        -- runs inside a less crowded coroutine, with enemy finding and other cheaper stuff
+    end,
+    PlayerControlUpdate = function( self, data )
+        -- runs only when controlled by a player
+    end,
 }
 --]]
 

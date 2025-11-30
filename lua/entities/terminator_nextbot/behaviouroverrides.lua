@@ -271,7 +271,7 @@ do
 
             local overbudgetFound = table.Count( yieldDebugWorstCosts )
             if overbudgetFound <= 0 then
-                permaPrint( "No worst overbudget yields found." )
+                permaPrint( "No overbudget yields found." )
                 return
 
             else

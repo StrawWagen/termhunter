@@ -288,15 +288,41 @@ terminator_Extras.areaIsEntirelyOverDisplacements = function( area )
     for _, position in ipairs( positions ) do
         -- if just 1 of these is not on a displacement, then return nil
         if not posIsDisplacement( position ) then return end
+
     end
     -- every corner passed the check
     return true
 
 end
 
+--[[--------------------------
+    TeleportTermTo
+    Helper that 'safely' teleports a term npc to a position, kills the coroutine so any in-progress stuff won't setpos it back
+    @param term Entity
+    @param pos Vector
+--]]--------------------------
 terminator_Extras.TeleportTermTo = function( term, pos )
     term:SetPosNoTeleport( pos )
     term:RestartMotionCoroutine()
     term:StopMoving()
+
+end
+
+--[[--------------------------
+    recipFilterAllTargetablePlayers
+    Returns a recipient filter with all players who are targetable (not flagged as notarget)
+    @return RecipientFilter
+--]]--------------------------
+terminator_Extras.recipFilterAllTargetablePlayers = function()
+    local targetablePlayers = {}
+    for _, ply in player.Iterator() do
+        if ply:IsFlagSet( FL_NOTARGET ) then continue end
+        table.insert( targetablePlayers, ply )
+
+    end
+
+    local filter = RecipientFilter()
+    filter:AddPlayers( targetablePlayers )
+    return filter
 
 end

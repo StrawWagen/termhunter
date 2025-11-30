@@ -173,12 +173,12 @@ function ENT:SetupSpecialActions( myTbl ) -- same system as ENT:DoClassTask
 end
 
 --[[------------------------------------
-    NEXTBOT:TakeAction
-    Run an action, either from player driving or AI logic
-    arg1: string | actionName | Name of action to take, must exist in ENT.SpecialActions
-    arg2: driveController | driveController | Optional optimisation, controller driving the bot if any
+    NEXTBOT:CanTakeAction
+    Check if bot can take the specified action right now
+    arg1: string | actionName | Name of action to check
+    ret1: bool | canTake | True if bot can take the action
 --]]------------------------------------
-function ENT:TakeAction( actionName, driveController )
+function ENT:CanTakeAction( actionName )
     local actionData = self.SpecialActions[actionName]
     if not actionData then return end
     if not ( actionData.svAction or actionData.clAction ) then return end
@@ -189,14 +189,46 @@ function ENT:TakeAction( actionName, driveController )
         local lastTime = self.m_LastActionTimes[actionName] or 0
         if CurTime() - lastTime < ratelimt then return end
 
-        self.m_LastActionTimes[actionName] = CurTime()
+    end
+
+    local uses = actionData.uses
+    if uses then
+        self.m_ActionUsesRemaining = self.m_ActionUsesRemaining or {}
+        local usesLeft = self.m_ActionUsesRemaining[actionName] or uses
+        if usesLeft <= 0 then return end
 
     end
+    return true
+
+end
+
+--[[------------------------------------
+    NEXTBOT:TakeAction
+    Run an action, either from player driving or AI logic
+    arg1: string | actionName | Name of action to take, must exist in ENT.SpecialActions
+    arg2: driveController | driveController | Optional optimisation, controller driving the bot if any
+--]]------------------------------------
+function ENT:TakeAction( actionName, driveController )
+    if not self:CanTakeAction( actionName ) then return end
+    local actionData = self.SpecialActions[actionName]
 
     driveController = driveController or self.Term_PlayerDriveController
     local driver
     if driveController then
         driver = driveController.Player
+
+    end
+
+    if actionData.ratelimit then
+        self.m_LastActionTimes = self.m_LastActionTimes or {}
+        self.m_LastActionTimes[actionName] = CurTime()
+
+    end
+
+    local uses = actionData.uses
+    if uses then
+        local usesLeft = self.m_ActionUsesRemaining[actionName] or uses
+        self.m_ActionUsesRemaining[actionName] = usesLeft - 1
 
     end
 

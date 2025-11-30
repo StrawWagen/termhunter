@@ -230,7 +230,11 @@ terminator_WeaponHacks = {
             self:term_OldPrimaryAttack()
 
         end
-    end
+    end,
+    astw2_base = function( self )
+        self.NextPrimaryFire = 0
+
+    end,
 }
 
 -- get stuff in nested 

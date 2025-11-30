@@ -142,7 +142,7 @@ function ENT:BehaviourPlayerControlThink(ply)
         end
     end
 
-    if self:ControlPlayerKeyPressed( IN_JUMP ) then
+    if self:OnGround() and self:ControlPlayerKeyPressed( IN_JUMP ) then
         self:Jump( self.JumpHeight )
     end
 

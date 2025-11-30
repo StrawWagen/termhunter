@@ -1305,11 +1305,14 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 coroutine_yield()
 
-                local needsNewPathGoal = not data.CurrentTaskGoalPos or entMeta.GetPos( self ):Distance( data.CurrentTaskGoalPos ) < 25
+                local needsNewPathGoal = not data.CurrentTaskGoalPos
+                needsNewPathGoal = needsNewPathGoal or entMeta.GetPos( self ):Distance( data.CurrentTaskGoalPos ) < 35
+
                 if needsNewPathGoal then
                     coroutine_yield()
                     local areasToCheck = myNav:GetAdjacentAreas()
-                    local areasAlreadyAdded = { myNav = true }
+                    areasToCheck[#areasToCheck + 1] = myNav
+                    local areasAlreadyAdded = {}
                     for _, area in ipairs( areasToCheck ) do
                         areasAlreadyAdded[area] = true
 
@@ -1366,7 +1369,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 if data.CurrentTaskGoalPos then
                     coroutine_yield()
-                    myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 15 )
+                    myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 1 )
 
                 end
             end,

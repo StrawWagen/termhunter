@@ -1613,6 +1613,23 @@ function ENT:shootAt( endPos, blockShoot, angTolerance )
 
 end
 
+function ENT:isLookingAt( endpos, angTolerance )
+    angTolerance = angTolerance or 11.25
+    local myTbl = entMeta.GetTable( self )
+    local myShoot = myTbl.GetShootPos( self )
+    local dir = endpos - myShoot
+
+    dir:Normalize()
+
+    local dot = math.Clamp( myTbl.GetAimVector( self, myTbl ):Dot( dir ), 0, 1 )
+    local ang = math.deg( math.acos( dot ) )
+
+    if ang <= angTolerance then
+        return true
+
+    end
+end
+
 -- easy alias for shootAt, just looks at the endpos
 function ENT:justLookAt( endpos )
     self:shootAt( endpos, true )
@@ -2892,7 +2909,7 @@ function ENT:Initialize()
 
     local myPos = self:GetPos()
 
-    myTbl.terminator_DontImmiediatelyFire = CurTime()
+    myTbl.terminator_BlockAttacksUntil = CurTime()
     myTbl.CreateShootingTimer( self, myTbl )
 
     myTbl.DoNotDuplicate = true -- TODO; somehow fix the loco being nuked when duped
@@ -3290,7 +3307,7 @@ function ENT:DoDefaultTasks()
                             added = math.Rand( 0.9, 1.5 )
 
                         end
-                        myTbl.terminator_DontImmiediatelyFire = math.max( cur + added, myTbl.terminator_DontImmiediatelyFire )
+                        myTbl.terminator_BlockAttacksUntil = math.max( cur + added, myTbl.terminator_BlockAttacksUntil )
 
                     end
 
@@ -6896,7 +6913,7 @@ function ENT:DoDefaultTasks()
         ["movement_approachlastseen"] = {
             OnStart = function( self, data )
                 data.approachAfter = CurTime() + 0.5
-                data.dontGetWepsForASec = CurTime() + 1
+                data.dontGetWepsForASec = data.dontGetWepsForASec or CurTime() + 1
                 if not self.isUnstucking then
                     self:InvalidatePath( "approaching last seen, killing old path" )
                 end
@@ -7221,10 +7238,10 @@ function ENT:DoDefaultTasks()
                 if badEnemy then
                     data.badEnemyCounts = badEnemyCounts + 1
                     if data.badEnemyCounts > 2 or data.fightingPlayer then
+                        self:NextWeapSearch( -1 )
                         -- find weapons NOW!
                         if self:IsReallyAngry() then
                             self:understandSurroundings( data.myTbl )
-                            self:NextWeapSearch( -1 )
                             canWep, potentialWep = self:canGetWeapon()
 
                         end
@@ -7233,8 +7250,9 @@ function ENT:DoDefaultTasks()
                             return
 
                         elseif enemyIsReachable then
+                            self:NextWeapSearch( -1 )
                             self:TaskComplete( "movement_duelenemy_near" )
-                            self:StartTask( "movement_approachlastseen", nil, "my enemy wasnt engagable!" )
+                            self:StartTask( "movement_approachlastseen", { dontGetWepsForASec = 0 }, "my enemy wasnt engagable!" )
 
                         else
                             self:TaskComplete( "movement_duelenemy_near" )

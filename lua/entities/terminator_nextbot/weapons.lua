@@ -340,8 +340,7 @@ function ENT:SetupWeapon( wep )
     -- 'equip' sound
     self:EmitSound( "Flesh.Strain", 80, 160, 0.8 )
 
-    local oldFire = myTbl.terminator_DontImmiediatelyFire or 0
-    myTbl.terminator_DontImmiediatelyFire = math.max( CurTime() + math.Rand( 0.75, 1.25 ), oldFire ) -- pretend we have to get our hands around the new weapon
+    self:BlockWeaponFiringUntil( CurTime() + math.Rand( 0.75, 1.25 ) ) -- pretend we have to get our hands around the new weapon
     myTbl.terminator_FiringIsAllowed = nil -- disable ShootingTimer
     myTbl.terminator_LastFiringIsAllowed = 0 -- ditto
     myTbl.NextWeapSearch( self, 0 )
@@ -588,6 +587,13 @@ end
 
 local weapon_base = weapons.GetStored( "weapon_base" )
 
+function ENT:BlockWeaponFiringUntil( time )
+    local myTbl = entMeta.GetTable( self )
+    local oldFire = myTbl.terminator_BlockAttacksUntil or 0
+    myTbl.terminator_BlockAttacksUntil = math.max( time, oldFire )
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:CanWeaponPrimaryAttack
     Desc: Returns can bot do primary attack or not.
@@ -597,7 +603,7 @@ local weapon_base = weapons.GetStored( "weapon_base" )
 function ENT:CanWeaponPrimaryAttack( myTbl, wep, wepsTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
-    local dontImmiediatelyFire = myTbl.terminator_DontImmiediatelyFire or 0 -- blocks firing right after weapon switching
+    local dontImmiediatelyFire = myTbl.terminator_BlockAttacksUntil or 0 -- generic block, mostly used to block firing right after weapon switching
     if myTbl.IsFists( self, myTbl ) then -- fire earlier if we were pushed into using melee
         dontImmiediatelyFire = dontImmiediatelyFire - 0.1
 
