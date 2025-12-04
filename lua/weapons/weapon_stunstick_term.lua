@@ -24,6 +24,11 @@ SWEP.SpawningOffset = 50
 SWEP.ThrowForce = 25000
 SWEP.PreOverrideClass = "weapon_stunstick"
 
+SWEP.SmackDamage = 60
+SWEP.SmackSwingSound = "Weapon_StunStick.Swing"
+SWEP.SmackHitSound = "Weapon_StunStick.Melee_Hit"
+SWEP.SmackDelay = 0.5
+
 function SWEP:SwingSpawn( spawnPos )
     local new = ents.Create( "prop_physics" )
     new:SetModel( "models/weapons/w_stunbaton.mdl" )

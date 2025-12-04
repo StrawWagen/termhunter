@@ -3171,7 +3171,7 @@ function ENT:DoDefaultTasks()
                     end
                     if IsValid( pickedPlayer ) then
                         coroutine_yield()
-                        local isLinkedPlayer = pickedPlayer == myTbl.linkedPlayer
+                        local isLinkedPlayer = pickedPlayer == myTbl.linkedPlayer -- GLEE
                         local alive = entMeta.Health( pickedPlayer ) > 0
 
                         if alive and myTbl.ShouldBeEnemy( self, pickedPlayer ) and myTbl.IsInMyFov( self, pickedPlayer ) then
@@ -5840,11 +5840,11 @@ function ENT:DoDefaultTasks()
                 -- move forward if enemy moves around!
                 -- slinkAwayTime check means it only happens if enemy has looked directly at us at least once
                 if not data.Unreachable and goodEnemy and slinkAwayTime > CurTime() then
-                    local walkedInStepChance = self.walkedInStepWant or math.random( 4, 10 )
-                    local chanceInternal = walkedInStepChance * 0.1
-                    local canWalkInStep = IsValid( enemy ) and enemy:GetVelocity():Length() > self.WalkSpeed and math.Rand( 0, 100 ) < chanceInternal
+                    local walkedInStepWant = self.walkedInStepWant or math.random( 1, 4 )
+                    local walkedInStepChance = walkedInStepWant * 0.1
+                    local canWalkInStep = IsValid( enemy ) and enemy:GetVelocity():Length() > self.WalkSpeed and math.Rand( 0, 100 ) < walkedInStepChance
                     if canWalkInStep and enemyBearingToMeAbs < lookingAtLenient then
-                        self.walkedInStepWant = walkedInStepChance - 1
+                        self.walkedInStepWant = walkedInStepWant - 1
                         data.wasWalkingInStep = true
 
                     end
@@ -5860,7 +5860,7 @@ function ENT:DoDefaultTasks()
                             self.term_WatchTask_NearestDistToEnemy = self.DistToEnemy
 
                         else
-                            add = math.Rand( 0.4, 0.5 )
+                            add = math.Rand( 0.6, 1 )
                             self.term_WatchTask_NearestDistToEnemy = oldNearest + ( add * 200 )
 
                         end

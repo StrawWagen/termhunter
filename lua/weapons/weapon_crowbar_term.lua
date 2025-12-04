@@ -117,6 +117,11 @@ SWEP.ThrowForce = 28000
 SWEP.PreOverrideClass = "weapon_crowbar"
 SWEP.MinForceMul = 0
 
+SWEP.SmackDamage = 25
+SWEP.SmackSwingSound = "Weapon_Crowbar.Single"
+SWEP.SmackHitSound = "Weapon_Crowbar.Melee_HitWorld"
+SWEP.SmackDelay = 0.5
+
 function SWEP:Initialize()
     self:SetHoldType( self.HoldType )
     self:SetNextPrimaryFire( CurTime() + 1 )
@@ -136,8 +141,6 @@ function SWEP:CanPrimaryAttack()
     local owner = self:GetOwner()
     if owner:IsControlledByPlayer() then return true end
 
-    if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end
-
     if not owner.NothingOrBreakableBetweenEnemy then return end
 
     local enemy = self:GetOwner():GetEnemy()
@@ -152,18 +155,27 @@ function SWEP:CanPrimaryAttack()
 end
 
 function SWEP:CanSecondaryAttack()
-    return false
+    if self:GetNextPrimaryFire() > CurTime() then return false end
+    return true
 end
 
 function SWEP:PrimaryAttack()
     if not self:CanPrimaryAttack() then return end
 
-    self:Swing()
-    self:SetLastShootTime()
+    local shouldThrow = terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID )
+    if shouldThrow then
+        self:Swing()
+
+    else
+        self:Smack()
+
+    end
 end
 
 function SWEP:SecondaryAttack()
     if not self:CanSecondaryAttack() then return end
+    self:Smack()
+
 end
 
 function SWEP:SwingSpawn( spawnPos )
@@ -200,6 +212,7 @@ function SWEP:Swing()
     self:SetColor( invisWhite )
     SafeRemoveEntityDelayed( self, 0.3 )
     self:SetNextPrimaryFire( CurTime() + 10 )
+    self:SetNextSecondaryFire( CurTime() + 10 )
 
     self:ThrowStartSound( owner )
 
@@ -354,11 +367,44 @@ function SWEP:DoFlyingSound( thrown, direction, force )
 
         thrown.tracer = tracer
 
-    else
+    else -- below speed of sound, just play it normally
         net.Start( "terminator_crowbar_airrushingsound", true )
             net.WriteEntity( thrown )
         net.Send( filterAll )
     end
+end
+
+-- simple melee attack if there's no room to throw
+function SWEP:Smack()
+    if not SERVER then return end
+
+    local owner = self:GetOwner()
+    local _, aimVec = self:GetProjectileOffset()
+
+    self:SetNextPrimaryFire( CurTime() + self.SmackDelay )
+    self:SetNextSecondaryFire( CurTime() + self.SmackDelay )
+
+    -- Play swing sound
+    owner:EmitSound( self.SmackSwingSound, 75, math.random( 90, 110 ) )
+
+    -- Shoot an invisible bullet like the default crowbar
+    owner:FireBullets( {
+        Num = 1,
+        Src = owner:GetShootPos(),
+        Dir = aimVec,
+        Spread = vector_origin,
+        Tracer = 0,
+        Force = 1,
+        Damage = self.SmackDamage,
+        HullSize = 1,
+        Distance = self.SpawningOffset,
+        Callback = function( attacker, tr, dmginfo )
+            if tr.Hit then
+                owner:EmitSound( self.SmackHitSound, 100, math.random( 80, 100 ) )
+            end
+            dmginfo:SetDamageType( DMG_CLUB )
+        end,
+    } )
 end
 
 function SWEP:OwnerChanged()

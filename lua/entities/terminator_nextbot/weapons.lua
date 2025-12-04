@@ -661,6 +661,9 @@ end
 function ENT:WeaponPrimaryAttack()
     local myTbl = entMeta.GetTable( self )
     local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or self:GetActiveWeapon()
+
+    if not IsValid( wep ) then return false, "InvalidWeapon" end
+
     local wepsTbl = entMeta.GetTable( wep )
     if myTbl.CanWeaponPrimaryAttack( self, myTbl, wep, wepsTbl ) ~= true then return false, "CanWeaponPrimaryAttack" end
 
@@ -1013,7 +1016,9 @@ function ENT:UpdateIsFists( myTbl )
 
     local wep = myTbl.GetWeapon( self, myTbl )
     if not IsValid( wep ) then return end
-    if entMeta.GetClass( wep ) ~= myTbl.TERM_FISTS then return end
+
+    local wepsClass = entMeta.GetClass( wep )
+    if wepsClass ~= myTbl.TERM_FISTS then return end
 
     myTbl.term_IsFists = true
 
@@ -1028,6 +1033,7 @@ function ENT:DoFists()
     end
     self.terminator_NextWeaponPickup = CurTime() + 2.5
     local fists = self:Give( self.TERM_FISTS )
+    fists.terminator_IgnoreWeaponUtility = true -- i was having issues with IsFists and engine overridden weps
     self:SetupFists( fists )
 end
 

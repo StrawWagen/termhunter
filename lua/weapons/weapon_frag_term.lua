@@ -25,6 +25,11 @@ SWEP.worksWithoutSightline = true
 SWEP.PreOverrideClass = "weapon_frag"
 SWEP.MinForceMul = 1
 
+SWEP.SmackDamage = 10
+SWEP.SmackSwingSound = "Weapon_Crowbar.Single"
+SWEP.SmackHitSound = "Grenade.ImpactHard"
+SWEP.SmackDelay = 1
+
 function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end
     if IsValid( self:GetOwner() ) and self:GetOwner().IsControlledByPlayer and self:GetOwner():IsControlledByPlayer() then return true end
