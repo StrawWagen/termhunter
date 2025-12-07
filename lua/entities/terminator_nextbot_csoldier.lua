@@ -403,6 +403,8 @@ function ENT:FindANearbyRecruitingLeader( myTbl )
 
     end )
     coroutine_yield()
+    local bestLeader
+
     for _, leader in ipairs( potentialLeaders ) do
         if not IsValid( leader ) then continue end
 
@@ -507,7 +509,7 @@ function ENT:DoCustomTasks( defaultTasks )
             StartsOnInitialize = true, -- starts on spawn
             OnStart = function( self, data )
                 -- custom anim translation support
-                IdleActivity = ACT_HL2MP_IDLE_PASSIVE
+                local IdleActivity = ACT_HL2MP_IDLE_PASSIVE
                 data.passiveTranslations = {
                     [ACT_MP_STAND_IDLE]                 = IdleActivity,
                     [ACT_MP_WALK]                       = IdleActivity + 1,

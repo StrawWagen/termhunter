@@ -767,7 +767,8 @@ do
 
     function ENT:understandSurroundings( myTbl )
         myTbl = myTbl or entMeta.GetTable( self )
-        awarenessSubstantialStuff = {}
+        local awarenessSubstantialStuff = {}
+
         myTbl.awarenessSubstantialStuff = awarenessSubstantialStuff
         myTbl.awarenessUnknown = {}
         local brainy = not myTbl.IsFodder and myTbl.HasBrains
@@ -3277,7 +3278,8 @@ function ENT:DoDefaultTasks()
                     data.ResetVisVariables() -- reset right before we figure this out
 
                     local newEnemsShoot = myTbl.EntShootPos( self, newEnemy, newEnemysTbl )
-                    isSeeEnemy = myTbl.CanSeePosition( self, newEnemy, myTbl )
+                    local isSeeEnemy = myTbl.CanSeePosition( self, newEnemy, myTbl )
+
                     myTbl.DistToEnemy = vecMeta.Distance( myPos, enemyPos )
                     myTbl.IsSeeEnemy = isSeeEnemy
                     myTbl.EnemiesVehicle = IsValid( theirCar ) and theirCar
@@ -4339,9 +4341,9 @@ function ENT:DoDefaultTasks()
                 end
             end,
             BehaveUpdateMotion = function( self, data, interval )
-                if not IsValid( aBashingFrenzyTerminator ) and #self:GetNearbyAllies() >= 2 then
+                if not IsValid( terminator_Extras.aBashingFrenzyTerminator ) and #self:GetNearbyAllies() >= 2 then
                     -- global var!!!
-                    aBashingFrenzyTerminator = self
+                    terminator_Extras.aBashingFrenzyTerminator = self
                     -- automatically bash another thing after we're done with this one
                     data.frenzy = true
 
@@ -4419,7 +4421,7 @@ function ENT:DoDefaultTasks()
                     self:TaskFail( "movement_bashobject" )
                     self:StartTask( "movement_handler", nil, "nope cant bash that" )
                     if data.frenzy then
-                        aBashingFrenzyTerminator = nil
+                        terminator_Extras.aBashingFrenzyTerminator = nil
 
                     end
                     return
@@ -4435,7 +4437,7 @@ function ENT:DoDefaultTasks()
                         else
                             self:TaskComplete( "movement_bashobject" )
                             self:StartTask( "movement_handler", nil, "i bashed it" )
-                            aBashingFrenzyTerminator = nil
+                            terminator_Extras.aBashingFrenzyTerminator = nil
                             return
                         end
                     elseif canWep and self:getTheWeapon( "movement_bashobject", potentialWep ) then

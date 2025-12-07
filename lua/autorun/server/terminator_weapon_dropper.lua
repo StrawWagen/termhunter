@@ -35,7 +35,7 @@ local function setDropWeapons( ply, attacker, _ )
         local wepCount = #plysWeapons
         if wepCount <= 0 then break end
 
-        randWepIndex = math.random( 1, wepCount )
+        local randWepIndex = math.random( 1, wepCount )
         local randWep = table.remove( plysWeapons, randWepIndex )
         weapsToDrop[i] = randWep
         if randWep == plysActiveWeapon then

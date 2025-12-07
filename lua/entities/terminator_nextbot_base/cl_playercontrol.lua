@@ -18,7 +18,7 @@ local uiScaleHoris = ScrW() / 1920
 
     Use nil for the axis you don’t need.
 --]]-------------------------------------
-function sizeScaled( sizeX, sizeY )
+local function sizeScaled( sizeX, sizeY )
     if sizeX and sizeY then
         return sizeX * uiScaleHoris, sizeY * uiScaleVert
 

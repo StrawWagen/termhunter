@@ -548,7 +548,7 @@ local function eventManage( event )
     end
 end
 
-function onConcluded( event )
+local function onConcluded( event )
     local participatorCount = table.Count( event.participatingPlayers )
     if event.dedicationInfoNum and participatorCount > 0 then
         local bestDedication = 0

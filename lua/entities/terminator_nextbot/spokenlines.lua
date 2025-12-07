@@ -6,7 +6,7 @@
 local CurTime = CurTime
 
 -- helper function to get a number value from various types
-function asNumber( ent, entsTbl, var )
+local function asNumber( ent, entsTbl, var )
     if not var then return 0 end
     if isfunction( var ) then return var( ent, entsTbl ) end
 

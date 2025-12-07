@@ -534,7 +534,7 @@ do
 end
 
 do
-    coroutine_yield = coroutine.yield
+    local coroutine_yield = coroutine.yield
 
     local function processFindingEnt( self, myTbl, ent, fodder, myFov, ShouldBeEnemy, CanSeePosition, UpdateEnemyMemory, EntShootPos )
         if notEnemyCache[ ent ] then return end
@@ -1314,6 +1314,7 @@ hook.Add( "terminator_nextbot_noterms_exist", "setup_nohealthchange_reset", func
 end )
 
 local vec_up25 = Vector( 0, 0, 25 )
+local coroutine_yield = coroutine.yield
 
 function ENT:Term_LookAround( myTbl )
     local pathIsValid = myTbl.PathIsValid( self )

@@ -74,7 +74,7 @@ function ENT:ProcessFootsteps( myTbl )
         local time = myTbl.m_FootstepTime
         local nextStepTime = myTbl.GetFootstepSoundTime( self, myTbl, curSpeed )
         local imWalkin = curSpeed > myTbl.WalkSpeed * 0.5
-        timeForAStep = CurTime() - time >= nextStepTime / 1000
+        local timeForAStep = CurTime() - time >= nextStepTime / 1000
 
         if timeForAStep and imWalkin then
             myTbl.MakeFootstepSound( self, myTbl, 1, 1, entMeta.GetPos( self ), curSpeed )

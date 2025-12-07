@@ -102,6 +102,7 @@ end
 --]]------------------------------------
 function ENT:Give( wepname )
     local wep
+    local isEngineAnalog
 
     local holsteredWeps = self:GetHolsteredWeapons()
     for currHolstered, _ in pairs( holsteredWeps ) do

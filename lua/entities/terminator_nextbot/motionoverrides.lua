@@ -2596,6 +2596,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 end
                 local swimmingExitPos
                 local swimmingExitPosHigher
+                local swimmingExitPosHigherForward
                 if swimming then
                     swimmingExitPos = Vector( myPos.x, myPos.y, pos.z ) + dir * 10
                     swimmingExitPosHigher = swimmingExitPos + vector_up * 50

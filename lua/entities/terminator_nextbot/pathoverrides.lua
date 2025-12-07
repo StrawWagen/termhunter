@@ -1201,7 +1201,7 @@ local function reconstruct_path( cameFrom, goalArea )
             return false
 
         end
-        last = current.area:GetCenter()
+        --last = current.area:GetCenter()
         noCircles[currId] = true
 
         total_path_reverse[#total_path_reverse + 1] = current.area

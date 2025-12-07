@@ -74,7 +74,7 @@ terminator_Extras.dirToPos = function( startPos, endPos )
     if not startPos then return vec_zero end
     if not endPos then return vec_zero end
 
-    subtProduct = endPos - startPos
+    local subtProduct = endPos - startPos
     vecMeta.Normalize( subtProduct )
     return subtProduct
 

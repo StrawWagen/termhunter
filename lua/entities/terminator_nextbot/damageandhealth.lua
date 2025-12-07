@@ -9,7 +9,7 @@ local entMeta = FindMetaTable( "Entity" )
 function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
 end
 
-function ImmuneCheck( self, dmg )
+local function ImmuneCheck( self, dmg )
     if self:IsImmuneToDmg( dmg ) then return true end
 
     local immuneMask = self.term_DMG_ImmunityMask
@@ -476,6 +476,7 @@ function ENT:PostTookDamage( dmg )
         local currEnemy = myTbl.GetEnemy( self )
         local currEnemyPri = 0
         if IsValid( currEnemy ) then
+            local _
             _, currEnemyPri = myTbl.TERM_GetRelationship( self, myTbl, currEnemy )
 
         end
