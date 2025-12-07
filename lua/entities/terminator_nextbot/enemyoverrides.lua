@@ -223,7 +223,6 @@ do
                 local hitboxes = {}
                 local data = entsTbl.term_cachedHitboxData or nil
 
-
                 if not data then
                     for num1 = 0, sets - 1 do
                         for num2 = 0, entMeta.GetHitBoxCount( ent, num1 ) - 1 do
