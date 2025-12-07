@@ -1213,7 +1213,15 @@ function ENT:ResetWeaponSearchTimers()
 
 end
 
-local analogTblsCache = {}
+local analogTblsCache
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_analogtblscache", function()
+    analogTblsCache = {}
+
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "teardown_analogtblscache", function()
+    analogTblsCache = nil
+
+end )
 
 -- used everywhere to find weapons
 function ENT:canGetWeapon()

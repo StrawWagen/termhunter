@@ -9,13 +9,18 @@ local math = math
 terminator_Extras = terminator_Extras or {}
 terminator_Extras.listeners = terminator_Extras.listeners or {}
 
-local goodClassCache = {}
-local lastSoundLevels = {}
+local goodClassCache
+local lastSoundLevels
 
 local listenersToCleanup = {}
 
 local function cleanupListenerTbl()
-    listening = true
+    if not listening then
+        listening = true
+        goodClassCache = {}
+        lastSoundLevels = {}
+
+    end
     local listeners = terminator_Extras.listeners
     for index, curr in pairs( listeners ) do
         if listenersToCleanup[curr] or not IsValid( curr ) then
@@ -259,6 +264,7 @@ local function explosionHintThink( entity )
     if entMeta.GetClass( entity ) ~= "env_explosion" then return end
 
     timer.Simple( 0, function()
+        if not listening then return end
 
         if not IsValid( entity ) then return end
         local keys = entity:GetKeyValues()
@@ -316,6 +322,7 @@ local function soundPlayThink( name, pos, level, _, volume )
 
     local volumeAdjusted = level * volume
     timer.Simple( 0, function()
+        if not listening then return end
         handleNormalSound( nil, pos, volumeAdjusted, name )
 
     end )
@@ -372,6 +379,8 @@ local function emitSoundThink( soundDat )
     if lastSoundLevel and soundLevel < lastSoundLevel then return end-- dont spam sound info
 
     timer.Simple( 0.1, function()
+        if not listening then return end
+
         lastSoundLevels[entity] = nil
         if not IsValid( entity ) then return end
 

@@ -36,8 +36,10 @@ hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache"
     npcClassCache = {}
     nextbotClassCache = {}
     terminator_Extras.DOINGTYPECACHE = true
+
     timer.Create( "term_cache_players", 2, 0, function()
         doPlayersCache()
+
     end )
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
