@@ -380,6 +380,7 @@ local function getHeadroom( voxel, solidVoxels )
     end
     if clearCount >= headroomStand then return HEADROOM_STAND end
     if clearCount > headroomCrouch then return HEADROOM_CROUCH end
+
     return HEADROOM_NONE
 
 end
@@ -527,7 +528,6 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
         debugoverlay.Cross( pos, 5, 10, color_white, true )
 
     end
-
 end
 
 local coroutine_yield = coroutine.yield
@@ -580,13 +580,16 @@ local function patchCoroutine()
         for z = 0, sizeInZ / gridSize do -- z first
             z = z * gridSize
             coroutine_yield()
+
             for x = 0, sizeInX / gridSize do
                 x = x * gridSize
                 coroutine_yield()
+
                 for y = 0, sizeInY / gridSize do
                     y = y * gridSize
                     local voxel = Vector( smallest.x + x, smallest.y + y, smallest.z + z )
                     table.insert( openVoxelsSeq, voxel )
+
                 end
             end
         end
@@ -768,6 +771,7 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
         end
         if thread then
             local oldTime = SysTime()
+
             while math_abs( oldTime - SysTime() ) < areaPatchingRate do
                 inCoroutine = true
                 local noErrors, result = coroutine_resume( thread )
@@ -776,8 +780,8 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
                     thread = nil
                     terminator_Extras.IsLivePatching = nil
                     ErrorNoHaltWithStack( result )
-
                     break
+
                 elseif result == "wait" then -- it wants us to wait a tick
                     break
 
@@ -825,6 +829,7 @@ concommand.Add( "terminator_areapatch_here", function( ply )
     if not ply:IsSuperAdmin() then
         if ply.ChatPrint then ply:ChatPrint( "Superadmin only." ) end
         return
+
     end
 
     local tr = ply:GetEyeTrace()
@@ -842,5 +847,6 @@ concommand.Add( "terminator_areapatch_here", function( ply )
 
     if debugging and ply.ChatPrint then
         ply:ChatPrint( "Queued nav patch at eye position (grid 11.25)." )
+
     end
 end, nil, "Patch a nav region centered at your crosshair using smallSize and grid 11.25 (superadmin only)")
