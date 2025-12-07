@@ -9,6 +9,9 @@ local math = math
 terminator_Extras = terminator_Extras or {}
 terminator_Extras.listeners = terminator_Extras.listeners or {}
 
+local goodClassCache = {}
+local lastSoundLevels = {}
+
 local listenersToCleanup = {}
 
 local function cleanupListenerTbl()
@@ -25,6 +28,8 @@ local function cleanupListenerTbl()
 
     if #listeners <= 0 then
         listening = nil
+        goodClassCache = nil
+        lastSoundLevels = nil
 
     end
 end
@@ -181,6 +186,7 @@ sound._StrawTakeover_EmitHint = sound._StrawTakeover_EmitHint or sound.EmitHint
 sound.EmitHint = function( ... )
     hook.Run( "StrawSoundEmitHint", ... )
     return sound._StrawTakeover_EmitHint( ... )
+
 end
 
 local function soundHintThink( hint, pos, volume, _, owner )
@@ -228,6 +234,7 @@ util._StrawTakeover_BlastDamageInfo = util._StrawTakeover_BlastDamageInfo or uti
 util.BlastDamageInfo = function( ... )
     hook.Run( "StrawBlastDamageInfo", ... )
     return util._StrawTakeover_BlastDamageInfo( ... )
+
 end
 
 local function blastDamageInfoHintThink( dmg, damageOrigin, damageRadius )
@@ -310,6 +317,7 @@ local function soundPlayThink( name, pos, level, _, volume )
     local volumeAdjusted = level * volume
     timer.Simple( 0, function()
         handleNormalSound( nil, pos, volumeAdjusted, name )
+
     end )
 
 end
@@ -318,8 +326,6 @@ hook.Add( "StrawSoundPlayHook", "straw_termalerter_soundplayhook", function( ...
 
 
 local string_StartsWith = string.StartWith
-local goodClassCache = {}
-local lastSoundLevels = {}
 
 -- sound reading!?!??
 local function emitSoundThink( soundDat )

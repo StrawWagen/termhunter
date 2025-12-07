@@ -395,6 +395,7 @@ local noNavTextures = {
     ["tools/toolsnodraw"] = true,
     ["halflife/black"] = true,
     ["tools/toolsblack"] = true,
+
 }
 
 local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
