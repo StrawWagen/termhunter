@@ -1904,6 +1904,7 @@ function ENT:GetWeaponRange( myTbl, wep, wepTable )
     if isnumber( wepTable.Range ) then return wepTable.Range end -- generic
     if wepTable.IsMeleeWeapon and isnumber( wepTable.MeleeWeaponDistance ) then return wepTable.MeleeWeaponDistance end -- vj
     if isnumber( wepTable.HitRange ) then return wepTable.HitRange end
+    if wepTable.Primary and wepTable.Primary.Distance then return wepTable.Primary.Distance end
 
     local shotgun = string.find( entMeta.GetClass( wep ), "shotgun" )
     local spread = weapSpread( wep )
