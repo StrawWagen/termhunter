@@ -4341,6 +4341,8 @@ function ENT:DoDefaultTasks()
                 end
             end,
             BehaveUpdateMotion = function( self, data, interval )
+                local myTbl = data.myTbl
+
                 if not IsValid( terminator_Extras.aBashingFrenzyTerminator ) and #self:GetNearbyAllies() >= 2 then
                     -- global var!!!
                     terminator_Extras.aBashingFrenzyTerminator = self
@@ -4394,7 +4396,7 @@ function ENT:DoDefaultTasks()
                     if IsValid( data.object ) then
                         -- BEATUP
                         local old = SysTime()
-                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = data.myTbl.beatUpEnt( self, data.myTbl, data.object )
+                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = myTbl.beatUpEnt( self, myTbl, data.object )
                         data.gotAHitIn = data.gotAHitIn or attacked
 
                         if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
@@ -4404,7 +4406,7 @@ function ENT:DoDefaultTasks()
                         end
                         -- edge case
                         if not valid and visible then
-                            data.myTbl.GotoPosSimple( self, data.myTbl, data.object:WorldSpaceCenter(), 5 )
+                            myTbl.GotoPosSimple( self, myTbl, data.object:WorldSpaceCenter(), 5 )
                             self:Anger( 1 )
 
                         elseif not valid and not visible then
