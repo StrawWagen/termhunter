@@ -333,6 +333,7 @@ function SWEP:DoFlyingSound( thrown, direction, force )
 
             timer.Simple( dist / 8000, function()
                 if not IsValid( ent ) then return end
+                if not owner or isnumber( owner ) then return end -- ??????????????????????????????????
                 if not IsValid( owner ) then return end
                 if not IsValid( thrown ) then return end
 
