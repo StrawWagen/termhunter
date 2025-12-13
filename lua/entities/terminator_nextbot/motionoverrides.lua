@@ -429,6 +429,9 @@ function ENT:OnStuck()
             end
         end
     end
+
+    myTbl.overrideVeryStuck = true -- everything failed, let the reallystuck_handler take over
+
 end
 
 --[[------------------------------------
