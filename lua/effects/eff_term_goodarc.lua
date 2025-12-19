@@ -415,11 +415,12 @@ function EFFECT:Render()
     render.SetMaterial( BeamMaterial )
 
     -- Draw main arc
-    for i = 1, #self.Points - 1 do
-        render.DrawBeam( self.Points[i], self.Points[i + 1], width, 0, 1, col )
+    local points = self.Points
+    for i = 1, #points - 1 do
+        render.DrawBeam( points[i], points[i + 1], width, 0, 1, col )
 
         if not self.ThickCore then continue end
-        render.DrawBeam( self.Points[i], self.Points[i + 1], width * 0.3, 0, 1, coreCol )
+        render.DrawBeam( points[i], points[i + 1], width * 0.3, 0, 1, coreCol )
 
     end
 
