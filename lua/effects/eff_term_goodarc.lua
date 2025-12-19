@@ -104,7 +104,15 @@ function EFFECT:Init( data )
     if IsValid( ent ) then
         self.AttachedEnt = ent
         self.AttachStartOffset = ent:WorldToLocal( self.StartPos )
-        self.AttachEndOffset = ent:WorldToLocal( self.EndPos )
+        
+        if self.ConnectMode then
+            self.AttachEndWorld = Vector( self.EndPos )
+        else
+            self.AttachEndOffset = ent:WorldToLocal( self.EndPos )
+        end
+        
+        self.LastEntPos = ent:GetPos()
+        self.LastEntAng = ent:GetAngles()
     end
 
     self:GenerateArc()
@@ -170,11 +178,35 @@ function EFFECT:PlayElectricSound()
     end
 end
 
-function EFFECT:GenerateArc()
-    if IsValid( self.AttachedEnt ) then
-        self.StartPos = self.AttachedEnt:LocalToWorld( self.AttachStartOffset )
+function EFFECT:UpdateAttachedPositions()
+    if not IsValid( self.AttachedEnt ) then return false end
+    
+    local entPos = self.AttachedEnt:GetPos()
+    local entAng = self.AttachedEnt:GetAngles()
+    
+    local moved = false
+    if self.LastEntPos and self.LastEntAng then
+        if entPos:DistToSqr( self.LastEntPos ) > 0.1 or entAng ~= self.LastEntAng then
+            moved = true
+        end
+    end
+    
+    self.LastEntPos = entPos
+    self.LastEntAng = entAng
+    
+    self.StartPos = self.AttachedEnt:LocalToWorld( self.AttachStartOffset )
+    
+    if self.ConnectMode and self.AttachEndWorld then
+        self.EndPos = self.AttachEndWorld
+    elseif self.AttachEndOffset then
         self.EndPos = self.AttachedEnt:LocalToWorld( self.AttachEndOffset )
     end
+    
+    return moved
+end
+
+function EFFECT:GenerateArc()
+    self:UpdateAttachedPositions()
 
     local startPos = self.StartPos
     local endPos = self.EndPos
@@ -310,13 +342,26 @@ end
 function EFFECT:Think()
     if CurTime() >= self.DieTime then return false end
 
-    if self.NoFlicker then return true end
-
-    self.NextFlicker = self.NextFlicker or 0
-    if CurTime() < self.NextFlicker then return true end
-
-    self:GenerateArc()
-    self.NextFlicker = CurTime() + math.Rand( 0.015, 0.035 ) / self.FlickerMul
+    local shouldRegenerate = false
+    
+    if IsValid( self.AttachedEnt ) then
+        local entMoved = self:UpdateAttachedPositions()
+        if entMoved then
+            shouldRegenerate = true
+        end
+    end
+    
+    if not self.NoFlicker then
+        self.NextFlicker = self.NextFlicker or 0
+        if CurTime() >= self.NextFlicker then
+            shouldRegenerate = true
+            self.NextFlicker = CurTime() + math.Rand( 0.015, 0.035 ) / self.FlickerMul
+        end
+    end
+    
+    if shouldRegenerate then
+        self:GenerateArc()
+    end
 
     return true
 end
