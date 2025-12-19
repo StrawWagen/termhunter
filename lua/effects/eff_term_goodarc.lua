@@ -124,9 +124,11 @@ function EFFECT:Init( data )
             math.Clamp( col.x * 255, 0, 255 ),
             math.Clamp( col.y * 255, 0, 255 ),
             math.Clamp( col.z * 255, 0, 255 )
-         )
+        )
+
     else
         self.Color = Color( 100, 150, 255 )
+
     end
 
     -- Bright core color
@@ -134,7 +136,7 @@ function EFFECT:Init( data )
         math.min( self.Color.r + 100, 255 ),
         math.min( self.Color.g + 100, 255 ),
         math.min( self.Color.b + 100, 255 )
-     )
+    )
 
     -- Parse flags
     local flags = data:GetFlags() or 0
@@ -221,7 +223,7 @@ function EFFECT:PlayElectricSound()
 
     -- Sound at start for connect mode
     if self.ConnectMode then
-        timer.Simple(0.02, function()
+        timer.Simple( 0.02, function()
             local zapSound2 = ElectricSounds[math.random( #ElectricSounds )]
             sound.Play( zapSound2, self.StartPos, 70, pitch + 10, volume * 0.5 )
 
@@ -255,7 +257,7 @@ function EFFECT:GenerateArc()
     local right = ang:Right()
     local up = ang:Up()
 
-    self.Points = {startPos}
+    self.Points = { startPos }
 
     -- Connect mode: arc bends toward target
     if self.ConnectMode then
