@@ -1,4 +1,5 @@
 -- Customizable Lightning Arc Effect
+-- By regunkyle
 --
 -- ============================================
 -- USAGE EXAMPLE:
