@@ -425,8 +425,9 @@ function EFFECT:Render()
     end
 
     -- Draw branches
-    if not self.Branches then return end
-    for _, branch in ipairs( self.Branches ) do
+    local branches = self.Branches
+    if not branches then return end
+    for _, branch in ipairs( branches ) do
         local bWidth = width * ( branch.width or 0.5 )
         for i = 1, #branch - 1 do
             local taper = 1 - ( ( i - 1 ) / ( #branch - 1 ) ) * 0.5
