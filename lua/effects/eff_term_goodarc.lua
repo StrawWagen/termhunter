@@ -17,6 +17,8 @@
 -- fx:SetDamageType(5)                -- Branch count 0-10 (default: auto when branches enabled)
 -- fx:SetMaterialIndex(1)             -- Flicker speed multiplier (default: 1)
 -- fx:SetColor(2)                     -- Light brightness multiplier (default: 1)
+-- fx:SetAttachment(1)                -- Sound volume 0-2 (default: 1, 0 = no sound)
+-- fx:SetAngle(Angle(100, 0, 0))      -- Sound pitch in angle.p (default: 100)
 -- util.Effect("eff_term_goodarc", fx)
 --
 -- FLAGS:
@@ -26,6 +28,7 @@
 --   8  = Connect mode (arc bends toward target)
 --   16 = Thick core (adds bright center beam)
 --   32 = No flicker (static arc)
+--   64 = No sound
 --
 -- COLOR EXAMPLES:
 --   Blue (default): Vector(0.4, 0.6, 1)
@@ -51,6 +54,28 @@ local FLAG_NO_FADE = 4
 local FLAG_CONNECT = 8
 local FLAG_THICK_CORE = 16
 local FLAG_NO_FLICKER = 32
+local FLAG_NO_SOUND = 64
+
+-- Electric sound pool
+local ElectricSounds = {
+    "ambient/energy/zap1.wav",
+    "ambient/energy/zap2.wav",
+    "ambient/energy/zap3.wav",
+    "ambient/energy/zap5.wav",
+    "ambient/energy/zap6.wav",
+    "ambient/energy/zap7.wav",
+    "ambient/energy/zap8.wav",
+    "ambient/energy/zap9.wav",
+}
+
+local SparkSounds = {
+    "ambient/energy/spark1.wav",
+    "ambient/energy/spark2.wav",
+    "ambient/energy/spark3.wav",
+    "ambient/energy/spark4.wav",
+    "ambient/energy/spark5.wav",
+    "ambient/energy/spark6.wav",
+}
 
 function EFFECT:Init(data)
     self.StartPos = data:GetStart()
@@ -72,6 +97,13 @@ function EFFECT:Init(data)
     -- Light brightness multiplier
     local lightMul = data:GetColor()
     self.LightMul = (lightMul > 0) and lightMul or 1
+    
+    -- Sound settings
+    local soundVol = data:GetAttachment()
+    self.SoundVolume = (soundVol >= 0) and math.Clamp(soundVol, 0, 2) or 1
+    
+    local soundAng = data:GetAngles()
+    self.SoundPitch = (soundAng and soundAng.p > 0) and math.Clamp(soundAng.p, 50, 200) or 100
     
     -- Timing
     self.Duration = math.Clamp(0.06 * self.Scale * self.DurationMul, 0.02, 1)
@@ -112,6 +144,7 @@ function EFFECT:Init(data)
     self.ConnectMode = bit.band(flags, FLAG_CONNECT) ~= 0
     self.ThickCore = bit.band(flags, FLAG_THICK_CORE) ~= 0
     self.NoFlicker = bit.band(flags, FLAG_NO_FLICKER) ~= 0
+    self.NoSound = bit.band(flags, FLAG_NO_SOUND) ~= 0
     
     -- Branch count
     local branchCount = data:GetDamageType()
@@ -127,6 +160,11 @@ function EFFECT:Init(data)
     
     -- Generate initial arc
     self:GenerateArc()
+    
+    -- Play electric sound at end position
+    if not self.NoSound and self.SoundVolume > 0 then
+        self:PlayElectricSound()
+    end
     
     -- Dynamic light
     if not self.NoLight then
@@ -159,6 +197,29 @@ function EFFECT:Init(data)
     end
     
     self:SetRenderBoundsWS(self.StartPos, self.EndPos, Vector(1, 1, 1) * self.Jitter * 2)
+end
+
+function EFFECT:PlayElectricSound()
+    local volume = 0.3 * self.SoundVolume * math.Clamp(self.Scale, 0.5, 2)
+    local pitch = self.SoundPitch + math.random(-10, 10)
+    
+    -- Main zap sound at end position
+    local zapSound = ElectricSounds[math.random(#ElectricSounds)]
+    sound.Play(zapSound, self.EndPos, 75, pitch, volume)
+    
+    -- Additional spark sound for larger arcs
+    if self.Scale >= 1 and math.random() > 0.5 then
+        local sparkSound = SparkSounds[math.random(#SparkSounds)]
+        sound.Play(sparkSound, self.EndPos, 70, pitch + math.random(-20, 20), volume * 0.6)
+    end
+    
+    -- Sound at start for connect mode
+    if self.ConnectMode then
+        timer.Simple(0.02, function()
+            local zapSound2 = ElectricSounds[math.random(#ElectricSounds)]
+            sound.Play(zapSound2, self.StartPos, 70, pitch + 10, volume * 0.5)
+        end)
+    end
 end
 
 function EFFECT:GenerateArc()
