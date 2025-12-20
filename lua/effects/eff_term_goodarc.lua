@@ -1,3 +1,45 @@
+-- Customizable Lightning Arc Effect [GOODARC]
+-- By regunkyle
+--
+-- ============================================
+-- USAGE EXAMPLE:
+-- ============================================
+-- local fx = EffectData()
+-- fx:SetStart( startPos )               -- Start position ( required )
+-- fx:SetOrigin( endPos )                -- End position ( required )
+-- fx:SetScale( 1 )                      -- Overall scale ( default: 1 )
+-- fx:SetMagnitude( 8 )                  -- Arc segments ( default: 8 )
+-- fx:SetRadius( 20 )                    -- Arc jitter intensity ( default: 20 * scale )
+-- fx:SetNormal( Vector( 0.4, 0.6, 1 ) ) -- Color as Vector( R, G, B ) in 0-1 range
+-- fx:SetEntity( ent )                   -- Attach to entity ( optional )
+-- fx:SetFlags( 0 )                      -- Bitflags ( see below )
+-- fx:SetSurfaceProp( 1 )                -- Beam width multiplier ( default: 1 )
+-- fx:SetHitBox( 1 )                     -- Duration multiplier ( default: 1 )
+-- fx:SetDamageType( 5 )                 -- Branch count ( default: auto when branches enabled )
+-- fx:SetMaterialIndex( 1 )              -- Flicker speed multiplier ( default: 1 )
+-- fx:SetColor( 2 )                      -- Light brightness multiplier ( default: 1 )
+-- util.Effect( "eff_term_goodarc", fx )
+--
+-- FLAGS:
+--   1  = No dynamic light
+--   2  = Enable branches
+--   4  = No fade out
+--   8  = Connect mode ( arc bends toward target, end stays fixed when attached )
+--   16 = Thick core ( adds bright center beam )
+--   32 = No flicker ( static arc )
+--   64 = No sound
+--
+-- COLOR EXAMPLES:
+--   Blue ( default ): Vector( 0.4, 0.6, 1 )
+--   Red:              Vector( 1, 0.1, 0.1 )
+--   Green:            Vector( 0.1, 1, 0.1 )
+--   Cyan:             Vector( 0.1, 1, 1 )
+--   White:            Vector( 1, 1, 1 )
+--   Purple:           Vector( 0.6, 0.1, 1 )
+--   Pink:             Vector( 1, 0.4, 0.7 )
+--   Orange:           Vector( 1, 0.5, 0.1 )
+-- ============================================
+
 local BeamMaterial = CreateMaterial( "xeno/beamlightning", "UnlitGeneric", {
     ["$basetexture"] = "sprites/spotlight",
     ["$additive"] = "1",
