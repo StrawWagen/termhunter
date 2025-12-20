@@ -119,7 +119,7 @@ function ENT:KillAllTasksWith( withStr )
 
         local taskName = activeTaskDat[1]
         if string_find( taskName, withStr ) then
-            self:TaskFail( taskName )
+            self:TaskFail( taskName, "KillAllTasksWith" )
 
         end
     end
@@ -173,6 +173,9 @@ function ENT:StartTask( task, data, reason )
 
     data = data or {}
     data.taskStartTime = CurTime()
+    data.myTaskName = task
+
+    -- this might have been a mistake, really clutters the data table
     data.myTbl = myTbl -- store myTbl in data, so we can access it in task callbacks
 
     myTbl.m_ActiveTasks[task] = data
@@ -332,9 +335,8 @@ ENT.MyClassTask = {
 -- DO NOT OVERRIDE THIS ONE, OVERRIDE THE ENT.MyClassTask ABOVE INSTEAD
 -- searches entire base class tree, setting up the ENT.MyClassTask of every class in the tree
 -- DO NOT OVERRIDE THESE
-function ENT:DoClassTask( myTbl )
+function ENT:DoClassTasks( myTbl )
     local sentsToDo = myTbl.GetAllBaseClasses( self, myTbl )
-    sentsToDo[ #sentsToDo + 1 ] = myTbl -- add our own class too
 
     for _, sentTbl in ipairs( sentsToDo ) do
         local classTask = sentTbl.MyClassTask
@@ -362,7 +364,7 @@ function ENT:SetupTasks( myTbl )
     myTbl.DoDefaultTasks( self ) -- terminator tasks, so everything can use the same enemy handler, shooting handler, etc
 
     myTbl.DoCustomTasks( self, myTbl.TaskList ) -- override terminator tasks, create a new brain
-    myTbl.DoClassTask( self, myTbl ) -- adds class-specific behaviour for every class in the baseclass tree
+    myTbl.DoClassTasks( self, myTbl ) -- adds class-specific behaviour for every class in the baseclass tree
 
     local taskListStatic = myTbl.m_TaskList
     for k,v in pairs( myTbl.TaskList ) do
@@ -375,5 +377,25 @@ function ENT:SetupTasks( myTbl )
             self:StartTask( taskName, nil, "StartsOnInitialize" )
 
         end
+    end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:AddTask
+    Desc: Add a task to the bot's task list, after setup.
+    Arg1: string | taskName | Task name.
+    Arg2: table  | taskDat | Task data.
+    Ret1:
+--]]------------------------------------
+function ENT:AddTask( taskName, task )
+    local myTbl = entMeta.GetTable( self )
+    myTbl.TaskList[taskName] = task
+
+    local taskListStatic = myTbl.m_TaskList
+    taskListStatic[taskName] = task
+
+    if task.StartsOnInitialize then
+        self:StartTask( taskName, nil, "AddTask-StartsOnInitialize" )
+
     end
 end

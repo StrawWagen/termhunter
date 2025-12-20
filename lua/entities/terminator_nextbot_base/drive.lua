@@ -151,11 +151,16 @@ ENT.MySpecialActions = {
     Setup ENT.SpecialActions from ENT.MySpecialActions in class hierarchy
     Base special actions are overridden by derived class special actions
 --]]------------------------------------
-function ENT:SetupSpecialActions( myTbl ) -- same system as ENT:DoClassTask
+function ENT:SetupSpecialActions( myTbl ) -- same system as ENT:DoClassTasks
     local sentsToDo = myTbl.GetAllBaseClasses( self, myTbl )
     sentsToDo = table.Reverse( sentsToDo ) -- let higher up classes override lower ones
 
-    local specialActions = {}
+    local specialActions = myTbl.SpecialActions
+    if not myTbl.SpecialActions then
+        myTbl.SpecialActions = {}
+        specialActions = myTbl.SpecialActions
+
+    end
 
     for _, sentTbl in ipairs( sentsToDo ) do
         local mySpecialActions = sentTbl.MySpecialActions
@@ -167,9 +172,6 @@ function ENT:SetupSpecialActions( myTbl ) -- same system as ENT:DoClassTask
 
         end
     end
-
-    myTbl.SpecialActions = specialActions
-
 end
 
 --[[------------------------------------
@@ -230,6 +232,10 @@ function ENT:TakeAction( actionName, driveController )
         local usesLeft = self.m_ActionUsesRemaining[actionName] or uses
         self.m_ActionUsesRemaining[actionName] = usesLeft - 1
 
+        if IsValid( driver ) then
+            terminator_Extras.SyncDriveActions( self, driver )
+
+        end
     end
 
     if SERVER and actionData.svAction then
@@ -266,7 +272,7 @@ drive.Register( "drive_terminator_nextbot", {
         if SERVER then
             self.Entity.Term_PlayerDriveController = self
             self.Entity:StartControlByPlayer( self.Player )
-            timer.Simple( 0.5, function()
+            timer.Simple( 0.05, function()
                 if not IsValid( self.Entity ) then return end
                 if not IsValid( self.Player ) then return end
                 local drivingEnt = self.Player:GetDrivingEntity()
@@ -347,24 +353,22 @@ function terminator_Extras.SyncDriveActions( bot, ply )
     local actions = bot.SpecialActions
     if not actions then return end
 
-    local toSync
     for actionName, actionData in pairs( actions ) do
-        if not actionData.syncCommand then continue end
-        toSync = toSync or {}
-        toSync[actionName] = actionData
+        local hasUses = isnumber( actionData.uses ) and actionData.uses >= 0
+        local usesLeft = 0
+        if hasUses then
+           usesLeft = bot.m_ActionUsesRemaining and bot.m_ActionUsesRemaining[actionName] or actionData.uses
 
-    end
-
-    if not toSync then return end
-
-    for actionName, actionData in pairs( toSync ) do
+        end
         net.Start( "Term_SyncDriveActions" )
             net.WriteEntity( bot )
             net.WriteString( actionName )
             net.WriteUInt( actionData.inBind or 0, 32 )
-            net.WriteString( actionData.commandName )
+            net.WriteString( actionData.commandName or "" )
             net.WriteString( actionData.name )
-            net.WriteBool( actionData.drawHint )
+            net.WriteBool( actionData.drawHint or false )
+            net.WriteBool( hasUses )
+            net.WriteUInt( usesLeft, 32 )
         net.Send( ply )
 
     end

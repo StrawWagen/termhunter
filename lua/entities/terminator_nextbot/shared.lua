@@ -2831,7 +2831,6 @@ function ENT:AdditionalThink( _myTbl ) -- THINK stub, inside coroutine! for your
 end
 
 function ENT:TermThink( myTbl ) -- inside coroutine :)
-    myTbl.AdditionalThink( self, myTbl )
     local fodder = myTbl.IsFodder
     if fodder then
         coroutine_yield()
@@ -2900,12 +2899,6 @@ function ENT:Initialize()
 
     local myTbl = self:GetTable()
 
-    -- inject this before we gobble class tasks
-    if myTbl.IsWraith then
-        myTbl.InitializeWraith( self, myTbl )
-
-    end
-
     BaseClass.Initialize( self )
 
     local myPos = self:GetPos()
@@ -2948,10 +2941,14 @@ function ENT:Initialize()
 
     myTbl.LineOfSightMask = myTbl.LineOfSightMask or LineOfSightMask
 
-    -- end lil config
     myTbl.SetupTasks( self, myTbl )
     myTbl.RunTask( self, "OnPreCreated" )
 
+
+    if myTbl.IsWraith then
+        myTbl.InitializeWraith( self, myTbl )
+
+    end
 
     -- defaults to ENT.Models
     -- if ENT.Models is nil, or false, uses ENT.Model
@@ -2993,10 +2990,13 @@ function ENT:Initialize()
 
     -- for stuff based on this
     myTbl.AdditionalInitialize( self, myTbl )
+
     myTbl.InitializeSpeaking( self )
     myTbl.InitializeHealthRegen( self )
     myTbl.InitializeDrowning( self, myTbl )
     myTbl.InitializeListening( self, myTbl )
+    myTbl.InitializeCollisionBounds( self, scale )
+    myTbl.InitializeLagCompensation( self, myTbl )
 
     myTbl.DoHardcodedRelations( self )
 
@@ -3004,10 +3004,6 @@ function ENT:Initialize()
         myTbl.MyPhysicsMass = 5000
 
     end
-
-    myTbl.InitializeCollisionBounds( self, scale )
-
-    myTbl.InitializeLagCompensation( self, myTbl )
 
     myTbl.SetupSpecialActions( self, myTbl )
 
@@ -3067,7 +3063,6 @@ function ENT:Initialize()
 
         end
     end )
-
 end
 
 function ENT:DoDefaultTasks()

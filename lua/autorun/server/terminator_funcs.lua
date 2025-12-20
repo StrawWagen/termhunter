@@ -256,6 +256,21 @@ local function getFloorTr( pos )
 end
 terminator_Extras.getFloorTr = getFloorTr
 
+
+local bigPositiveZ = Vector( 0, 0, 3000 )
+local function getSkyTr( pos )
+    local traceDat = {
+        mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
+        start = pos,
+        endpos = pos + bigPositiveZ
+    }
+
+    local trace = util.TraceLine( traceDat )
+    return trace
+
+end
+terminator_Extras.getSkyTr = getSkyTr
+
 --[[--------------------------
     posIsDisplacement
     Checks if the position is on a displacement.

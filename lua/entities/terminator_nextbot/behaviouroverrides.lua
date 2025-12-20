@@ -446,6 +446,7 @@ end
 function ENT:BehaviourPriorityCoroutine( myTbl )
     -- update drowning, speaking, etc
     myTbl.TermThink( self, myTbl )
+    myTbl.AdditionalThink( self, myTbl )
 
     coroutine_yield()
 
@@ -478,6 +479,7 @@ end
 function ENT:BehaviourPlayerControlCoroutine( myTbl )
     -- update drowning, speaking, etc
     myTbl.TermThink( self, myTbl )
+    myTbl.AdditionalThink( self, myTbl )
     myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
 
     -- Calling task callbacks
@@ -491,6 +493,7 @@ end
 -- make sure Think callback is always called
 function ENT:DisabledBehaviourCoroutine( myTbl )
     myTbl.RunTask( self, "Think" )
+    myTbl.AdditionalThink( self, myTbl )
 
     coroutine_yield( "done" )
 

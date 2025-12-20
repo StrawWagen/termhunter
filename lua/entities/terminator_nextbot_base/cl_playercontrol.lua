@@ -158,6 +158,11 @@ local validBinds = {
     [IN_ALT2]          = "+alt2",
 }
 
+local function validStr( str )
+    if not str then return end
+    if str == "" then return end
+    return true
+end
 
 -- convert IN_ bitflag to full command, eg IN_JUMP -> "+jump"
 -- if commandName, and inBind, treat display both as a combo
@@ -167,7 +172,7 @@ local function resolveDriveActionBinding( actionData )
     local inBind = actionData.inBind
     local inBindCmd = inBind and validBinds[inBind] or nil
     if not inBindCmd then
-        if commandName then
+        if validStr( commandName ) then
             return string.upper( commandName ), true
 
         else
@@ -176,7 +181,7 @@ local function resolveDriveActionBinding( actionData )
         end
     end
 
-    if commandName then
+    if validStr( commandName ) then
         inBindCmd = inBindCmd .. " & " .. string.upper( commandName )
 
     end
@@ -205,6 +210,7 @@ local function drawSpecialActions( bot )
             key = keyName,
             bound = isBound,
             name = data.name or "?",
+            uses = data.actionHasUses and data.actionUsesLeft or nil,
             --desc = data.desc, todo, not useful yet
         }
     end
@@ -220,8 +226,12 @@ local function drawSpecialActions( bot )
     local y = 0
     for i = 1, #lines do
         local l = lines[i]
-        local suffix = ( not l.bound and " NOT BOUND" ) or ""
-        local text = "[" .. l.key .. suffix .. "] " .. l.name
+        local notBoundYap = ( not l.bound and " NOT BOUND" ) or ""
+        local text = "[" .. l.key .. notBoundYap .. "] "
+        text = text .. l.name
+        if l.uses ~= nil then
+            text = text .. " (" .. tostring( l.uses ) .. " left)"
+        end
         local col = l.bound and isBoundColor or unboundColor
 
         -- heavier pseudo-outline shadow for readability on mixed backgrounds
@@ -303,39 +313,20 @@ end
 function ENT:SetupCLDrivingHooks()
     local toTeardown = {}
 
-    local commandNames = {}
-    local commandCombos = {}
-    local commandSvActions = {}
-    local commandClActions = {}
-    -- setup commandName stuff
-    for name, actionData in pairs( self.SpecialActions ) do
-        if not actionData.commandName then continue end
-
-        commandNames[actionData.commandName] = name
-        commandSvActions[name] = isfunction( actionData.svAction )
-
-        if actionData.inBind then
-            commandCombos[name] = actionData.inBind
-
-        end
-
-        if not actionData.clAction then continue end
-        commandClActions[name] = actionData.clAction
-
-    end
-
     toTeardown[#toTeardown + 1] = "PlayerBindPress"
     hook.Add( "PlayerBindPress", "Term_CLDriving", function( ply, bind, pressed, code )
-        local commandName = commandNames[bind]
+        if not self.commandNames then return end -- wait...
+
+        local commandName = self.commandNames[bind]
         if not commandName then return end
 
-        if commandCombos[commandName] and not ply:KeyDown( commandCombos[commandName] ) then return end -- it needs both down
+        if self.commandCombos[commandName] >= IN_ATTACK and not ply:KeyDown( self.commandCombos[commandName] ) then print( bind ) return end -- it needs both down
 
-        if commandClActions[commandName] then
-            commandClActions[commandName]( self, ply, pressed, code )
+        if self.commandClActions[commandName] then
+            self.commandClActions[commandName]( self, ply, pressed, code )
 
         end
-        if commandSvActions[commandName] then
+        if self.commandSvActions[commandName] then
             net.Start( "Term_DriveAction" )
                 net.WriteEntity( self )
                 net.WriteString( commandName )
@@ -388,7 +379,6 @@ function ENT:SetupCLDrivingHooks()
 end
 
 -- sync us up to actions only defined on server
--- activated if SpecialActions[x].syncCommand = true
 net.Receive( "Term_SyncDriveActions", function( len )
     local ent = net.ReadEntity()
     if not IsValid( ent ) then return end
@@ -399,11 +389,19 @@ net.Receive( "Term_SyncDriveActions", function( len )
     local actionCommandName = net.ReadString() -- console command that triggers this
     local actionName = net.ReadString() -- display name
     local actionDraw = net.ReadBool() -- whether to draw in HUD hints
+    local actionHasUses = net.ReadBool()
+    local actionUsesLeft = net.ReadUInt( 32 )
 
     local drivingEnt = LocalPlayer():IsDrivingEntity()
     if not drivingEnt then return end
 
-    ent.SpecialActions = ent.SpecialActions or {}
+    local specialActions = ent.SpecialActions
+    if not specialActions then
+        specialActions = {}
+        ent.SpecialActions = specialActions
+        ent:SetupCLDrivingHooks()
+
+    end
     local currAction = ent.SpecialActions[actionId] or {}
 
     currAction.inBind = actionInBind ~= "" and tonumber( actionInBind ) or nil
@@ -411,9 +409,29 @@ net.Receive( "Term_SyncDriveActions", function( len )
     currAction.name = actionName
     currAction.drawHint = actionDraw
     currAction.svAction = function() return end -- always a server action if we're being told about it
+    currAction.actionHasUses = actionHasUses
+    currAction.actionUsesLeft = actionUsesLeft
 
     ent.SpecialActions[actionId] = currAction
 
-    ent:SetupCLDrivingHooks()
+    ent.commandNames = {}
+    ent.commandCombos = {}
+    ent.commandSvActions = {}
+    ent.commandClActions = {}
+    -- setup commandName stuff
+    for name, actionData in pairs( ent.SpecialActions ) do
+        if not actionData.commandName then continue end
 
+        ent.commandNames[actionData.commandName] = name
+        ent.commandSvActions[name] = isfunction( actionData.svAction )
+
+        if actionData.inBind then
+            ent.commandCombos[name] = actionData.inBind
+
+        end
+
+        if not actionData.clAction then continue end
+        ent.commandClActions[name] = actionData.clAction
+
+    end
 end )

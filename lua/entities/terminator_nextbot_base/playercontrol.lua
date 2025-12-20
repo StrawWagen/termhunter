@@ -143,7 +143,13 @@ function ENT:BehaviourPlayerControlThink(ply)
     end
 
     if self:OnGround() and self:ControlPlayerKeyPressed( IN_JUMP ) then
-        self:Jump( self.JumpHeight )
+        if self:ControlPlayerKeyDown( IN_DUCK ) then
+            self:Jump( self.JumpHeight / 4 )
+
+        else
+            self:Jump( self.JumpHeight )
+
+        end
     end
 
     if self:HasWeapon() then

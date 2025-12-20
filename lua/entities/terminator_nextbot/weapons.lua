@@ -1163,6 +1163,7 @@ function ENT:SetupEyeAngles( myTbl )
     entMeta.SetAngles( self, Angle( 0, angy, 0 ) )
 
     myTbl.m_PitchAim = angp
+    myTbl.SetAimPitch( self, angp )
     entMeta.SetPoseParameter( self, "aim_pitch", self.m_PitchAim + punch.p )
     entMeta.SetPoseParameter( self, "aim_yaw", punch.y )
 

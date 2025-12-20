@@ -22,12 +22,12 @@ ENT.wraithTerm_CloakDecidingTask = function( self, data ) end -- override the de
 --]]
 
 function ENT:InitializeWraith( myTbl )
-    self.wraithTerm_NextHidingSwap = 0
-    self.wraithTerm_NextAttack = 0
-    self.wraithTerm_IsCloaked = false
+    myTbl.wraithTerm_NextHidingSwap = 0
+    myTbl.wraithTerm_NextAttack = 0
+    myTbl.wraithTerm_IsCloaked = false
 
-    self.MySpecialActions = self.MySpecialActions or {}
-    self.MySpecialActions["wraithcloaking"] = {
+    myTbl.SpecialActions = myTbl.SpecialActions or {}
+    myTbl.SpecialActions["wraithcloaking"] = {
         inBind = IN_SPEED, -- combo
         commandName = "+reload", -- sprint and reload combo
         name = "Cloak/Uncloak",
@@ -41,11 +41,12 @@ function ENT:InitializeWraith( myTbl )
     }
 
     -- so every wraith can have different logic for hiding
-    local cloakDecidingFunc = self.wraithTerm_CloakDecidingTask or function( self, data )
+    local cloakDecidingFunc = myTbl.wraithTerm_CloakDecidingTask or function( self, data )
+        local dMyTbl = data.myTbl
         local speedSqr = self:GetCurrentSpeedSqr()
         local enem = self:GetEnemy()
         local doHide = IsValid( enem ) or speedSqr > 80^2
-        local enemDist = self.DistToEnemy
+        local enemDist = dMyTbl.DistToEnemy
         if doHide and speedSqr < 85^1 then
             doHide = false
 
@@ -57,19 +58,25 @@ function ENT:InitializeWraith( myTbl )
 
         self:DoHiding( doHide )
 
-        if self.wraithTerm_IsCloaked and math.Rand( 0, 100 ) < 0.5 then
+        if dMyTbl.wraithTerm_IsCloaked and math.Rand( 0, 100 ) < 0.5 then
             self:CloakedMatFlicker()
 
         end
     end
 
-    self.MyClassTask = self.MyClassTask or {}
     -- BehaveUpdatePriority doesn't run when being driven by ply
-    self.MyClassTask["BehaveUpdatePriority"] = cloakDecidingFunc
+    local cloakTask = {
+        StartsOnInitialize = true,
+        BehaveUpdatePriority = cloakDecidingFunc,
+    }
 
-    if self.NotSolidWhenCloaked == nil then self.NotSolidWhenCloaked = true end
-    self.FlickerBarelyVisibleMat = myTbl.FlickerBarelyVisibleMat or "effects/combineshield/comshieldwall3"
-    self.FlickerInvisibleMat = myTbl.FlickerInvisibleMat or "effects/combineshield/comshieldwall"
+    self:AddTask( "wraithcloaking_handler", cloakTask )
+
+    -- set as false to disable non-solid when cloaked
+    if myTbl.NotSolidWhenCloaked == nil then myTbl.NotSolidWhenCloaked = true end
+
+    myTbl.FlickerBarelyVisibleMat = myTbl.FlickerBarelyVisibleMat or "effects/combineshield/comshieldwall3"
+    myTbl.FlickerInvisibleMat = myTbl.FlickerInvisibleMat or "effects/combineshield/comshieldwall"
 
     function self:CloakedMatFlicker()
         local toApply = { self }
@@ -81,7 +88,7 @@ function ENT:InitializeWraith( myTbl )
             if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
 
             if IsValid( ent ) then
-                ent:SetMaterial( self.FlickerBarelyVisibleMat )
+                ent:SetMaterial( myTbl.FlickerBarelyVisibleMat )
 
             end
         end
@@ -97,7 +104,7 @@ function ENT:InitializeWraith( myTbl )
                 if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
 
                 if IsValid( ent ) then
-                    ent:SetMaterial( self.FlickerInvisibleMat )
+                    ent:SetMaterial( myTbl.FlickerInvisibleMat )
 
                 end
             end
