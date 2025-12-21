@@ -128,6 +128,7 @@ function EFFECT:Init( data )
     else
         self.Color = defaultBeamColor
         self.CoreColor = defaultBeamCoreColor
+
     end
 
     local flags = data:GetFlags() or 0
@@ -146,13 +147,15 @@ function EFFECT:Init( data )
     if IsValid( ent ) then
         self.AttachedEnt = ent
         self.AttachStartOffset = ent:WorldToLocal( self.StartPos )
-        
+
         if self.ConnectMode then
             self.AttachEndWorld = Vector( self.EndPos )
+
         else
             self.AttachEndOffset = ent:WorldToLocal( self.EndPos )
+
         end
-        
+
         self.LastEntPos = ent:GetPos()
         self.LastEntAng = ent:GetAngles()
     end
@@ -161,6 +164,7 @@ function EFFECT:Init( data )
 
     if not self.NoSound and self.SoundVolume > 0 then
         self:PlayElectricSound()
+
     end
 
     if not self.NoLight then
@@ -175,6 +179,7 @@ function EFFECT:Init( data )
             dlight.B = self.Color.b
             dlight.Brightness = math.min( 1.25 * self.Scale * self.LightMul, 5 )
             dlight.DieTime = self.DieTime + 0.1
+
         end
 
         if self.ConnectMode then
@@ -188,6 +193,7 @@ function EFFECT:Init( data )
                 dlight2.B = self.Color.b
                 dlight2.Brightness = math.min( 0.75 * self.Scale * self.LightMul, 3 )
                 dlight2.DieTime = self.DieTime + 0.1
+
             end
         end
     end
@@ -197,6 +203,7 @@ function EFFECT:Init( data )
     renderBoundsVector.y = jitterPadding
     renderBoundsVector.z = jitterPadding
     self:SetRenderBoundsWS( self.StartPos, self.EndPos, renderBoundsVector )
+
 end
 
 function EFFECT:PlayElectricSound()
@@ -209,6 +216,7 @@ function EFFECT:PlayElectricSound()
     if self.Scale >= 1 and math.random() > 0.5 then
         local sparkSound = SparkSounds[math.random( #SparkSounds )]
         sound.Play( sparkSound, self.EndPos, 70, pitch + math.random( -20, 20 ), volume * 0.6 )
+
     end
 
     if self.ConnectMode then
@@ -216,34 +224,36 @@ function EFFECT:PlayElectricSound()
         timer.Simple( 0.02, function()
             local zapSound2 = ElectricSounds[math.random( #ElectricSounds )]
             sound.Play( zapSound2, startPos, 70, pitch + 10, volume * 0.5 )
+
         end )
     end
 end
 
 function EFFECT:UpdateAttachedPositions()
     if not IsValid( self.AttachedEnt ) then return false end
-    
+
     local entPos = self.AttachedEnt:GetPos()
     local entAng = self.AttachedEnt:GetAngles()
-    
+
     local moved = false
-    if self.LastEntPos and self.LastEntAng then
-        if entPos:DistToSqr( self.LastEntPos ) > 0.1 or entAng ~= self.LastEntAng then
-            moved = true
-        end
+    if self.LastEntPos and self.LastEntAng and ( entPos:DistToSqr( self.LastEntPos ) > 0.1 or entAng ~= self.LastEntAng ) then
+        moved = true
+
     end
-    
+
     self.LastEntPos = entPos
     self.LastEntAng = entAng
-    
+
     self.StartPos = self.AttachedEnt:LocalToWorld( self.AttachStartOffset )
-    
+
     if self.ConnectMode and self.AttachEndWorld then
         self.EndPos = self.AttachEndWorld
+
     elseif self.AttachEndOffset then
         self.EndPos = self.AttachedEnt:LocalToWorld( self.AttachEndOffset )
+
     end
-    
+
     return moved
 end
 
@@ -259,6 +269,7 @@ function EFFECT:GenerateArc()
         self.Points = { startPos, endPos }
         self.Branches = nil
         return
+
     end
 
     direction:Normalize()
@@ -287,6 +298,7 @@ function EFFECT:GenerateArc()
             local offsetX = math.Rand( -1, 1 ) * self.Jitter * falloff * 0.7
             local offsetY = math.Rand( -1, 1 ) * self.Jitter * falloff * 0.7
             self.Points[#self.Points + 1] = basePos + right1 * offsetX + up1 * offsetY
+
         end
 
         self.Points[#self.Points + 1] = midPoint
@@ -304,6 +316,7 @@ function EFFECT:GenerateArc()
             local offsetX = math.Rand( -1, 1 ) * self.Jitter * falloff * 0.7
             local offsetY = math.Rand( -1, 1 ) * self.Jitter * falloff * 0.7
             self.Points[#self.Points + 1] = basePos + right2 * offsetX + up2 * offsetY
+
         end
     else
         for i = 1, self.Segments - 1 do
@@ -313,6 +326,7 @@ function EFFECT:GenerateArc()
             local offsetX = math.Rand( -1, 1 ) * self.Jitter * falloff
             local offsetY = math.Rand( -1, 1 ) * self.Jitter * falloff
             self.Points[#self.Points + 1] = basePos + right * offsetX + up * offsetY
+
         end
     end
 
@@ -320,8 +334,10 @@ function EFFECT:GenerateArc()
 
     if self.DoBranches and #self.Points >= 4 then
         self:GenerateBranches( direction, length )
+
     else
         self.Branches = nil
+
     end
 end
 
@@ -357,6 +373,7 @@ function EFFECT:GenerateBranches( mainDir, mainLength )
             local jitter = self.Jitter * 0.5 * ( 1 - t * 0.7 )
             pos = pos + bRight * math.Rand( -1, 1 ) * jitter + bUp * math.Rand( -1, 1 ) * jitter
             branch[#branch + 1] = pos
+
         end
 
         branch.width = math.Rand( 0.4, 0.7 )
@@ -373,10 +390,12 @@ function EFFECT:GenerateBranches( mainDir, mainLength )
                 local pos = subStart + subDir * subLen * t
                 pos = pos + VectorRand() * self.Jitter * 0.3 * ( 1 - t )
                 subBranch[#subBranch + 1] = pos
+
             end
 
             subBranch.width = branch.width * 0.5
             self.Branches[#self.Branches + 1] = subBranch
+
         end
     end
 end
@@ -385,24 +404,27 @@ function EFFECT:Think()
     if CurTime() >= self.DieTime then return false end
 
     local shouldRegenerate = false
-    
+
     if IsValid( self.AttachedEnt ) then
         local entMoved = self:UpdateAttachedPositions()
         if entMoved then
             shouldRegenerate = true
+
         end
     end
-    
+
     if not self.NoFlicker then
         self.NextFlicker = self.NextFlicker or 0
         if CurTime() >= self.NextFlicker then
             shouldRegenerate = true
             self.NextFlicker = CurTime() + math.Rand( 0.015, 0.035 ) / self.FlickerMul
+
         end
     end
-    
+
     if shouldRegenerate then
         self:GenerateArc()
+
     end
 
     return true
@@ -455,6 +477,7 @@ function EFFECT:Render()
 
             if thickCore then
                 render.DrawBeam( branch[i], branch[i + 1], bWidth * taper * 0.3, 0, 1, renderCoreCol )
+
             end
         end
     end
