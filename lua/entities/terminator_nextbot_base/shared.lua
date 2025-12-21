@@ -49,8 +49,10 @@ AddNetworkVar("Int",1,"WeaponClip2")
 AddNetworkVar("Int",2,"WeaponMaxClip1")
 AddNetworkVar("Int",3,"WeaponMaxClip2")
 
+AddNetworkVar("Float",0,"AimPitch")
+
 -- View punch data
-AddNetworkVar("Float",0,"ViewPunchTime")
+AddNetworkVar("Float",1,"ViewPunchTime")
 AddNetworkVar("Angle",0,"ViewPunchAngle")
 
 AddNetworkVar("Vector",0,"ViewOffset") -- shootpos offset from bot's origin
@@ -64,17 +66,13 @@ AddNetworkVar("Vector",2,"ControlCameraOffset") -- offset of camera when player 
     Ret1: Angle | Eye angles.
 --]]------------------------------------
 function ENT:GetEyeAngles()
-    local pitch = self:GetPoseParameter("aim_pitch")
-
+    local pitch = self:GetAimPitch()
     if CLIENT then
-        local pitchid = self:LookupPoseParameter("aim_pitch")
+        local oldPitch = self.m_OldPitch or pitch
+        pitch = Lerp( 0.1, oldPitch, pitch ) -- lerp ugly jerky crosshair when driving bot
+        self.m_OldPitch = pitch
 
-        if pitchid != -1 then
-            pitch = math.Remap( pitch, 0, 1, self:GetPoseParameterRange( pitchid ) )
-
-        end
     end
-
     local ang = self:GetAngles()
     ang.p = pitch
 
@@ -160,6 +158,7 @@ function ENT:GetAllBaseClasses( myTbl )
     while not reachedRoot do
         extent = extent + 1
         if extent > 100 then -- you never know
+            error( "huh, i did know..." )
             break
 
         end
