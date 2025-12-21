@@ -381,7 +381,8 @@ function EFFECT:GenerateBranches( mainDir, mainLength )
 
         if branchSegs >= 3 and math.random() > 0.5 then
             local subStart = branch[2]
-            local subDir = ( VectorRand() + branchDir * 0.1 ):GetNormalized()
+            local subDir = VectorRand() + branchDir * 0.1
+            subDir:Normalize()
             local subLen = branchLen * math.Rand( 0.3, 0.5 )
 
             local subBranch = { subStart }
