@@ -4,21 +4,21 @@
 -- ============================================
 -- USAGE EXAMPLE:
 -- ============================================
--- local fx = EffectData()
--- fx:SetStart( startPos )               -- Start position ( required )
--- fx:SetOrigin( endPos )                -- End position ( required )
--- fx:SetScale( 1 )                      -- Overall scale ( default: 1 )
--- fx:SetMagnitude( 8 )                  -- Arc segments ( default: 8 )
--- fx:SetRadius( 20 )                    -- Arc jitter intensity ( default: 20 * scale )
--- fx:SetNormal( Vector( 0.4, 0.6, 1 ) ) -- Color as Vector( R, G, B ) in 0-1 range
--- fx:SetEntity( ent )                   -- Attach to entity ( optional )
--- fx:SetFlags( 0 )                      -- Bitflags ( see below )
--- fx:SetSurfaceProp( 1 )                -- Beam width multiplier ( default: 1 )
--- fx:SetHitBox( 1 )                     -- Duration multiplier ( default: 1 )
--- fx:SetDamageType( 5 )                 -- Branch count ( default: auto when branches enabled )
--- fx:SetMaterialIndex( 1 )              -- Flicker speed multiplier ( default: 1 )
--- fx:SetColor( 2 )                      -- Light brightness multiplier ( default: 1 )
--- util.Effect( "eff_term_goodarc", fx )
+-- local effect = EffectData()
+-- effect:SetStart( startPos )               -- Start position ( required )
+-- effect:SetOrigin( endPos )                -- End position ( required )
+-- effect:SetScale( 1 )                      -- Overall scale ( default: 1 )
+-- effect:SetMagnitude( 8 )                  -- Arc segments ( default: 8 )
+-- effect:SetRadius( 20 )                    -- Arc jitter intensity ( default: 20 * scale )
+-- effect:SetNormal( Vector( 0.4, 0.6, 1 ) ) -- Color as Vector( R, G, B ) in 0-1 range
+-- effect:SetEntity( ent )                   -- Attach to entity ( optional )
+-- effect:SetFlags( 0 )                      -- Bitflags ( see below )
+-- effect:SetSurfaceProp( 1 )                -- Beam width multiplier ( default: 1 )
+-- effect:SetHitBox( 1 )                     -- Duration multiplier ( default: 1 )
+-- effect:SetDamageType( 5 )                 -- Branch count ( default: auto when branches enabled )
+-- effect:SetMaterialIndex( 1 )              -- Flicker speed multiplier ( default: 1 )
+-- effect:SetColor( 2 )                      -- Light brightness multiplier ( default: 1 )
+-- util.Effect( "eff_term_goodarc", effect )
 --
 -- FLAGS:
 --   1  = No dynamic light
