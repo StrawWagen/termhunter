@@ -39,6 +39,8 @@ function ENT:InvalidatePath( reason )
     if not path:IsValid() then return end
     path:Invalidate()
 
+    self.term_ExpensivePath = nil
+
     self.term_cancelPathGen = true
 
     self.m_PathObstacleGoal = nil
@@ -216,64 +218,71 @@ end
 
 end--]]
 
-local transientAreaCached = {}
-local nextTransientAreaCaches = {}
-local belowOffset = Vector( 0, 0, -45 )
-local hull = Vector( 5, 5, 1 )
+local table_insert = table.insert
 
-function ENT:transientAreaPathable( area, areasId )
-    local nextCache = nextTransientAreaCaches[areasId] or 0
-    if nextCache > CurTime() then return transientAreaCached[areasId] end
-    nextTransientAreaCaches[areasId] = CurTime() + math.Rand( 0.5, 1 )
+local transientAreaPathable
 
-    local toCheckPositions = {}
-    local center = area:GetCenter()
-    table.insert( toCheckPositions, center )
+do
+    local transientAreaCached = {}
+    local nextTransientAreaCaches = {}
+    local belowOffset = Vector( 0, 0, -45 )
+    local hull = Vector( 5, 5, 1 )
 
-    for cornerInd = 0, 3 do
-        local corner = area:GetCorner( cornerInd )
-        local dirToCenter = terminator_Extras.dirToPos( corner, center )
-        local cornerOffsetted = corner + dirToCenter * 12.5
+    transientAreaPathable = function( _, area, areasId )
+        local nextCache = nextTransientAreaCaches[areasId] or 0
+        if nextCache > CurTime() then return transientAreaCached[areasId] end
+        nextTransientAreaCaches[areasId] = CurTime() + math.Rand( 0.5, 1 )
 
-        table.insert( toCheckPositions, cornerOffsetted )
+        local toCheckPositions = {}
+        local center = area:GetCenter()
+        table_insert( toCheckPositions, center )
 
-    end
+        for cornerInd = 0, 3 do
+            local corner = area:GetCorner( cornerInd )
+            local dirToCenter = terminator_Extras.dirToPos( corner, center )
+            local cornerOffsetted = corner + dirToCenter * 12.5
 
-    local traceData = {
-        mask = MASK_SOLID,
-        mins = -hull,
-        maxs = hull,
-
-    }
-    local hits = 0
-    local misses = 0
-    local lastChecked
-    for _, currPos in ipairs( toCheckPositions ) do
-        -- simple check for already traced positions.
-        if lastChecked and currPos:DistToSqr( lastChecked ) < 25 then continue end -- 25 is 5^2 
-        lastChecked = currPos
-
-        traceData.start = currPos
-        traceData.endpos = currPos + belowOffset
-
-        local traceRes = util.TraceHull( traceData )
-        if ( traceRes.Hit and traceRes.HitNormal:Dot( vector_up ) > 0.65 ) or traceRes.StartSolid then
-            hits = hits + 1
-
-        else
-            misses = misses + 1
+            table_insert( toCheckPositions, cornerOffsetted )
 
         end
+
+        local traceData = {
+            mask = MASK_SOLID,
+            mins = -hull,
+            maxs = hull,
+
+        }
+        local hits = 0
+        local misses = 0
+        local lastChecked
+        for _, currPos in ipairs( toCheckPositions ) do
+            -- simple check for already traced positions.
+            if lastChecked and currPos:DistToSqr( lastChecked ) < 25 then continue end -- 25 is 5^2 
+            lastChecked = currPos
+
+            traceData.start = currPos
+            traceData.endpos = currPos + belowOffset
+
+            local traceRes = util.TraceHull( traceData )
+            if ( traceRes.Hit and traceRes.HitNormal:Dot( vector_up ) > 0.65 ) or traceRes.StartSolid then
+                hits = hits + 1
+
+            else
+                misses = misses + 1
+
+            end
+        end
+
+        local isTraversable = hits >= 2 and misses < hits / 6
+        --debugoverlay.Text( center, tostring( hits ) .. " " .. tostring( misses ), 5 )
+        transientAreaCached[areasId] = isTraversable
+
+        return isTraversable
+
     end
-
-    local isTraversable = hits >= 2 and misses < hits / 6
-    --debugoverlay.Text( center, tostring( hits ) .. " " .. tostring( misses ), 5 )
-    transientAreaCached[areasId] = isTraversable
-
-    return isTraversable
-
 end
 
+ENT.transientAreaPathable = transientAreaPathable
 
 local badConnections = {}
 local lastBadFlags = {}
@@ -469,23 +478,18 @@ local vecMeta = FindMetaTable( "Vector" )
 local GetID = navMeta.GetID
 local LaddGetID = ladMeta.GetID
 
-terminator_Extras.DOING_CORRIDORAREAS = terminator_Extras.DOING_CORRIDORAREAS or nil 
+terminator_Extras.DOING_CORRIDORAREAS = terminator_Extras.DOING_CORRIDORAREAS or nil
 local inCorridorAreas = nil -- save areas that were valid a* paths, and biast bots to use them, makes pathing faster by letting bots confidently traverse old valid paths
 local corridorExpireTimes = nil
 
-if terminator_Extras.DOING_CORRIDORAREAS then
-    inCorridorAreas = {}
-    corridorExpireTimes = {}
-
-end
-
-hook.Add( "terminator_nextbot_oneterm_exists", "corridorareas_optimisation", function()
+local function startCounting()
     inCorridorAreas = {}
     corridorExpireTimes = {}
     terminator_Extras.DOING_CORRIDORAREAS = true
 
     timer.Create( "terminator_cleanupcorridor", 30, 0, function()
         local cur = CurTime()
+        print( "countBefore", table.Count( inCorridorAreas ) )
         for area, expireTime in pairs( corridorExpireTimes ) do
             if expireTime < cur then
                 inCorridorAreas[area] = nil
@@ -493,7 +497,18 @@ hook.Add( "terminator_nextbot_oneterm_exists", "corridorareas_optimisation", fun
 
             end
         end
+        print( "countAfter", table.Count( inCorridorAreas ) )
     end )
+end
+
+if terminator_Extras.DOING_CORRIDORAREAS then -- auto re fresh
+    startCounting()
+
+end
+
+hook.Add( "terminator_nextbot_oneterm_exists", "corridorareas_optimisation", function()
+    startCounting()
+
 end )
 
 hook.Add( "terminator_nextbot_noterms_exist", "corridorareas_optimisation", function()
@@ -504,71 +519,78 @@ hook.Add( "terminator_nextbot_noterms_exist", "corridorareas_optimisation", func
 
 end )
 
-local function addToCorridor( corridor )
+local function addToCorridor( corridor, timeAdd )
     local cur = CurTime()
     for _, area in ipairs( corridor ) do
+        debugoverlay.Cross( area:GetCenter(), 10, 10, Color( 255, 0, 0), true )
         inCorridorAreas[area] = true
-        corridorExpireTimes[area] = cur + 60
+        corridorExpireTimes[area] = cur + math.random( 15, 25 ) -- dont hold onto these for long, it's gonna get outdated fast
 
     end
 end
 
--- scoreKeeper
-
-function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist )
+function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connDist )
     local toAreasId = GetID( toArea )
     local cost = connDist
     local laddering
 
     if ladder and IsValid( ladder ) then
-        if not myTbl.CanUseLadders then return -1 end
+        if not locoData.canUseLadders then return -1 end
 
         laddering = true
         -- ladders are kinda dumb
         -- avoid if we can
         cost = ladMeta.GetLength( ladder ) * 2
         cost = cost + 400
+
     end
+
+    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT ) -- dont yield as pathing in here
+    if not IsValid( fromArea ) then return -1 end
+    if not IsValid( toArea ) then return -1 end
 
     cost = badConnectionCost( getConnId( GetID( fromArea ), toAreasId ), cost )
 
     if laddering then return cost end
 
-    local additionalCost = myTbl.pathAreasAdditionalCost[ toAreasId ]
+    local additionalCost = locoData.pathAreasAdditionalCost[ toAreasId ]
     if additionalCost then
         cost = cost * additionalCost
-        --debugoverlay.Cross( toArea:GetCenter(), 10, 10, color_white, true )
 
     end
 
     local attributes = navMeta.GetAttributes( toArea )
     local crouching
 
-    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not myTbl.transientAreaPathable( self, toArea, toAreasId ) then return -1 end
+    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not transientAreaPathable( nil, toArea, toAreasId ) then return -1 end
 
-    local hunterIsFlanking = myTbl.hunterIsFlanking
-    local flankingIsReallyAngry = myTbl.flankingIsReallyAngry
+    local hunterIsFlanking = locoData.hunterIsFlanking
+    local flankingIsReallyAngry = locoData.flankingIsReallyAngry
 
     if band( attributes, NAV_MESH_CROUCH ) ~= 0 then
         crouching = true
         if hunterIsFlanking then
             -- vents?
             cost = cost * 0.5
+
         else
             -- its cool when they crouch so dont punish it much
             cost = cost * 1.1
+
         end
     end
 
     if band( attributes, NAV_MESH_OBSTACLE_TOP ) ~= 0 then
         if navMeta.HasAttributes( fromArea, NAV_MESH_OBSTACLE_TOP ) then
             cost = cost * 4
+
         else
             cost = cost * 1.5 -- these usually look goofy
+
         end
     end
 
-    coroutine_yield() -- dont yield as pathing in here
+    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end
 
@@ -579,40 +601,54 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
         -- generator often makes small 1x1 areas with this attribute, on very complex terrain
         if band( attributes, NAV_MESH_NO_MERGE ) ~= 0 then
             cost = cost * 4
+
         else
             cost = cost * 1.25
-        end
-    end
-    if sizeX > 151 and sizeY > 151 and not hunterIsFlanking then --- mmm very simple terrain
-        cost = cost * 0.75
 
-    elseif sizeX > 76 and sizeY > 76 then -- this makes us prefer paths thru simple terrain, it's cheaper!
-        cost = cost * 0.9
+        end
+    elseif sizeX > 151 and sizeY > 151 and not hunterIsFlanking then -- this makes us prefer paths thru simple terrain, it's cheaper!
+        cost = cost * 0.7
 
     end
 
     if band( attributes, NAV_MESH_AVOID ) ~= 0 then
         cost = cost * 20
+
     end
 
     if navMeta.IsUnderwater( toArea ) then
+        if not locoData.canSwim then
+            cost = cost * 4
+
+        end
         cost = cost * 2
-    end
-
-    if inCorridorAreas[toArea] then
-        cost = cost * 0.5 -- this area was part of some other bot's valid path, so it probably goes somewhere useful
-        --debugoverlay.Cross( toArea:GetCenter(), 10, 10, Color( 0, 255, 0 ), true )
 
     end
 
-    coroutine_yield()
+    if inCorridorAreas[toArea] then -- this area was part of some other bot's valid path, so it probably goes somewhere useful
+        if hunterIsFlanking then -- let the flanking weights still steer us 
+            cost = cost * 0.5
+
+        elseif not locoData.isFodder then
+            cost = cost * 0.25
+
+        else -- lean on this system HARD for fodder bots
+            cost = cost * 0.1
+
+        end
+    end
+
+    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end
 
     local deltaZ = navMeta.ComputeAdjacentConnectionHeightChange( fromArea, toArea )
-    local myLoco = myTbl.loco
-    local stepHeight = locoMeta.GetStepHeight( myLoco )
-    local jumpHeight = locoMeta.GetJumpHeight( myLoco )
+
+    local stepHeight = locoData.stepHeight
+    local jumpHeight = locoData.jumpHeight
+
+    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
+
     if deltaZ >= stepHeight then
         if deltaZ >= jumpHeight then return -1 end
         if deltaZ > stepHeight * 4 then
@@ -644,7 +680,7 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
             cost = cost * 10
 
         end
-    elseif not flankingIsReallyAngry and deltaZ <= -locoMeta.GetDeathDropHeight( myLoco ) then
+    elseif not flankingIsReallyAngry and deltaZ <= -locoData.deathDropHeight then
         cost = cost * 50000
 
     elseif not flankingIsReallyAngry and deltaZ <= -jumpHeight then
@@ -676,11 +712,12 @@ function ENT:NavMeshPathCostGenerator( myTbl, toArea, fromArea, ladder, connDist
         end
     end
 
-    coroutine_yield()
+    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end
 
     return cost
+
 end
 
 function ENT:FloodMarkAsUnreachable( startArea )
@@ -763,7 +800,6 @@ function ENT:SetupPathShell( endpos, isUnstuck )
     if not isvector( endpos ) then return nil, "blocked2" end
     if self.isUnstucking and not isUnstuck then return nil, "blocked3" end
 
-    self.term_ExpensivePath = nil
     local endArea = terminator_Extras.getNearestPosOnNav( endpos )
 
     local reachable = self:areaIsReachable( endArea.area )
@@ -797,7 +833,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         local after = SysTime()
 
         local cost = ( after - before )
-        if cost > 2 then -- yeesh!
+        if cost > 0.75 then -- yeesh!
             self.term_ExpensivePath = true
 
         end
@@ -917,7 +953,6 @@ local inf = math.huge
 local ipairs = ipairs
 local isnumber = isnumber
 local table_remove = table.remove
-local table_insert = table.insert
 local table_Random = table.Random
 
 -- helper func for findValidNavResult
@@ -1182,7 +1217,7 @@ local function reconstruct_path( cameFrom, goalArea )
     while cameFrom[currId] do
         count = count + 1
         if count >= 25 and count % 15 == 14 then -- only yield for long paths
-            coroutine_yield( "pathing" )
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
         end
         local current = cameFrom[currId]
@@ -1233,11 +1268,11 @@ local newUnreachableClass
 local newUnreachables = 0
 
 -- actually finds the paths, on coroutine
--- theoretically possible to use this without a term, but you will need to supply a scoreKeeper, see ENT:NavMeshPathCostGenerator
+-- theoretically possible to use this without a term, but you will need to supply a NavMeshPathCostGenerator, see ENT:NavMeshPathCostGenerator
 
 -- returns... | area, final goal | table, area corridor | bool, if we got there | string, debug status
 
-function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKeeper )
+function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshPathCostGenerator )
     if not IsValid( startArea ) or not IsValid( goalArea ) then return nil, nil, false, "fail1" end -- FAIL
     if startArea == goalArea then return goalArea, { startArea, goalArea }, true, "succeed3" end -- already there
 
@@ -1257,6 +1292,21 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
     local costsSoFar = { [startAreasId] = 0 }
     local costsToEnd = { [startAreasId] = areaDistToPos( startArea, goal ) }
 
+    NavMeshPathCostGenerator = NavMeshPathCostGenerator or myTbl.NavMeshPathCostGenerator
+
+    local locoData = {
+        canUseLadders = myTbl.CanUseLadders,
+        pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost,
+        hunterIsFlanking = myTbl.hunterIsFlanking,
+        flankingIsReallyAngry = myTbl.flankingIsReallyAngry,
+        stepHeight = locoMeta.GetStepHeight( myTbl.loco ),
+        jumpHeight = locoMeta.GetJumpHeight( myTbl.loco ),
+        deathDropHeight = locoMeta.GetDeathDropHeight( myTbl.loco ),
+        canSwim = myTbl.CanSwim,
+        isFodder = fodder,
+
+    }
+
     while #openedSequential > 0 do
         if myTbl.term_cancelPathGen then return goalArea, nil, false, "fail2.5" end
 
@@ -1267,7 +1317,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
             end
         end
-        coroutine_yield( "pathing" ) -- so corotine manager knows we're pathing
+        coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING ) -- so corotine manager knows we're pathing
 
         local smallestCost = inf
         local bestId
@@ -1284,7 +1334,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
         removeFrom( bestId, openedSequential, opened )
         addTo( bestId, closedSequential, closed )
 
-        coroutine_yield( "pathing" )
+        coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
         local bestArea = navmesh.GetNavAreaByID( bestId )
         if not IsValid( bestArea ) then -- we are in a coroutine, this can happen
@@ -1329,20 +1379,15 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
 
         for _, neighborDat in ipairs( adjacentDatas ) do
             currExtent = currExtent + 1
-            coroutine_yield( "pathing" )
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
             local neighbor = neighborDat.area
             if not IsValid( neighbor ) then continue end -- can happen when navmesh is being edited
 
             local neighborsId = GetID( neighbor )
-            if fodder then
-                coroutine_yield( "pathing" )
-                if not IsValid( neighbor ) then continue end
-                if not IsValid( bestArea ) then continue end
-            end
             -- NavMeshPathCostGenerator
-            local neighborsCost = scoreKeeper( neighbor, bestArea, neighborDat.ladder, neighborDat.dist )
-            if fodder then coroutine_yield( "pathing" ) end
+            local neighborsCost = NavMeshPathCostGenerator( me, locoData, neighbor, bestArea, neighborDat.ladder, neighborDat.dist )
+            if fodder then coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING ) end
 
             local neighborsCostSoFar = costSoFar + neighborsCost
 
@@ -1356,7 +1401,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
             elseif cannotTraverse then -- cant go this way
                 addTo( neighborsId, closedSequential, closed ) -- mark as closed
                 costsSoFar[neighborsId] = costSoFar * 1000 -- blow up the cost, so any valid retraces are very confident going back over this
-                coroutine_yield( "pathing" )
+                coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
                 continue
 
             end
@@ -1364,6 +1409,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
             local goodRetrace = wasTackled and ourCameFrom and ourCameFrom.id ~= neighborsId and neighborsCostSoFar <= costsSoFar[neighborsId]
 
             if wasTackled and not goodRetrace then
+                coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
                 continue
 
             else
@@ -1373,7 +1419,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, scoreKee
                 removeFrom( neighborsId, closedSequential, closed )
                 addTo( neighborsId, openedSequential, opened )
                 cameFrom[ neighborsId ] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
-                coroutine_yield( "pathing" )
+                coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
             end
         end
@@ -1437,11 +1483,12 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
 
 end
 
-local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
+local function AstarCompute( path, me, myTbl, goal, goalArea )
     local startArea = me:GetCurrentNavArea()
     --debugoverlay.Line( startArea:GetCenter(), goal, 5, Color( 0, 255, 0 ), true )
+
     local start = SysTime()
-    local newGoalArea, areaCorridor, wasGood, _debugMsg = Astar( me, myTbl, startArea, goal, goalArea, scoreKeeper )
+    local newGoalArea, areaCorridor, wasGood, _debugMsg = Astar( me, myTbl, startArea, goal, goalArea )
     local timeTaken = SysTime() - start
 
     if not areaCorridor then
@@ -1507,7 +1554,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea, scoreKeeper )
 
     end
 
-    if timeTaken > 2 or ( IsValid( startArea ) and startArea:GetCenter():Distance( goal ) > 1000 ) then
+    if timeTaken > 2 or #areaCorridor > 500 then
         coroutine_yield()
         addToCorridor( areaCorridor ) -- let future bots confidently traverse this valid path corridor
 
@@ -1570,11 +1617,6 @@ function ENT:SetupPath( pos, endArea )
 
     end
 
-    local function scoreKeeper( area, from, ladder, connDist )
-        return myTbl.NavMeshPathCostGenerator( self, myTbl, area, from, ladder, connDist )
-
-    end
-
     coroutine_yield()
 
     local path = Path( "Follow" )
@@ -1585,7 +1627,7 @@ function ENT:SetupPath( pos, endArea )
 
     myTbl.m_PathPos = pos
 
-    local computed, wasGood, _status = AstarCompute( path, self, myTbl, pos, endArea, scoreKeeper )
+    local computed, wasGood, _status = AstarCompute( path, self, myTbl, pos, endArea )
     --print( self:GetCreationID(), "AstarCompute", computed, wasGood, _status )
 
     coroutine_yield()

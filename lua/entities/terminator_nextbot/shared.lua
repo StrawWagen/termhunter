@@ -372,12 +372,6 @@ local function getUsefulPositions( area )
 end
 
 local coroutine_yield = coroutine.yield
-local coroutine_running = coroutine.running
-local function yieldIfWeCan( reason )
-    if not coroutine_running() then return end
-    coroutine_yield( reason )
-
-end
 -- util funcs end
 
 -- detect small areas that don't have incoming connections! stops huuuuge lagspikes on big maps
@@ -1449,7 +1443,7 @@ end
 
 function ENT:YieldUntilNextNewPath()
     while not self:nextNewPathIsGood() do
-        yieldIfWeCan( "wait" )
+        coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
     end
 end
@@ -1751,11 +1745,11 @@ function ENT:beatUpEnt( myTbl, ent, unstucking )
 
     if newPath and not unstucking then
         if myTbl.term_ExpensivePath then -- lagging the session
-            yieldIfWeCan( "wait" )
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
             return -- invalid
 
         elseif not myTbl.nextNewPathIsGood( self ) then -- just not ready, sill valid, wait
-            yieldIfWeCan( "wait" )
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
             return true
 
         end
@@ -2576,7 +2570,7 @@ function ENT:SimpleSearchNearbyAreas( myPos, myShootPos )
     local max = 25
     for ind, area in ipairs( walkedAreas ) do
         if ind > max then break end
-        yieldIfWeCan()
+        coroutine_yield()
         if not IsValid( area ) then continue end
 
         local areasId = area:GetID()
@@ -2592,7 +2586,7 @@ function ENT:SimpleSearchNearbyAreas( myPos, myShootPos )
         elseif not checked then
             local seen = 0
             for _, spot in ipairs( hidingSpots ) do
-                yieldIfWeCan()
+                coroutine_yield()
                 local spotOffsetted = spot + plus25Z
                 local inFov = PosIsInFov( self, myAng, myPos, spotOffsetted, myFov )
                 if inFov and terminator_Extras.PosCanSeeComplex( myShootPos, spotOffsetted, self ) then
@@ -2625,7 +2619,7 @@ function ENT:EnemyIsReachable()
     return self:areaIsReachable( enemyNavArea )
 
 end
-    
+
 
 -- did we already try, and fail, to path there?
 function ENT:areaIsReachable( area )
@@ -3771,7 +3765,7 @@ function ENT:DoDefaultTasks()
                         local bestDist = math.huge
                         for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do -- try and find a good freedomPos
                             if area == nearestNavArea then continue end
-                            yieldIfWeCan()
+                            coroutine_yield()
                             if not IsValid( area ) then continue end
 
                             local areasCenter = area:GetCenter()
@@ -3908,7 +3902,7 @@ function ENT:DoDefaultTasks()
                     if not IsValid( data.NeedsToDoInform.enemy ) then return end -- outdated
 
                     for _, ally in ipairs( self:GetNearbyAllies() ) do
-                        yieldIfWeCan()
+                        coroutine_yield()
                         if not IsValid( ally ) then continue end
                         ally:RunTask( "InformReceive", data.NeedsToDoInform )
 
@@ -4703,7 +4697,7 @@ function ENT:DoDefaultTasks()
                         end )
                     end
 
-                    yieldIfWeCan()
+                    coroutine_yield()
 
                     if IsValid( data2.Wep ) and not IsValid( data2.Wep:GetParent() ) then
                         data2.Wep.blockWeaponNoticing = CurTime() + 2.5 -- this wep was invalid!
@@ -4818,7 +4812,7 @@ function ENT:DoDefaultTasks()
                         if result and IsValid( result.area ) then
                             self:SetupFlankingPath( wepsPos, result.area, self.DistToEnemy * 0.8 )
                             data.wasAValidPath = true
-                            yieldIfWeCan()
+                            coroutine_yield()
 
                         end
                     end
@@ -4971,7 +4965,7 @@ function ENT:DoDefaultTasks()
                                 local flankBubble = myPos:Distance( otherHuntersHalfwayPoint ) * 0.7
                                 -- create path, avoid simplest path
                                 self:SetupFlankingPath( soundPos, result.area, flankBubble )
-                                yieldIfWeCan()
+                                coroutine_yield()
 
                             end
                         end
@@ -4984,7 +4978,7 @@ function ENT:DoDefaultTasks()
                             end
                         else
                             self:SetupPathShell( soundPos )
-                            yieldIfWeCan()
+                            coroutine_yield()
 
                         end
                         if not self:primaryPathIsValid() then
@@ -5267,7 +5261,7 @@ function ENT:DoDefaultTasks()
                     return
 
                 elseif data.tryAndSearchNearbyAfterwards then
-                    yieldIfWeCan( "wait" )
+                    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                     local rand2DOffset = VectorRand()
                     rand2DOffset.z = 0.1
@@ -5295,7 +5289,7 @@ function ENT:DoDefaultTasks()
                     --print( rand2DOffset )
                     --debugoverlay.Cross( newSearchCenter, 100, 10, Color( 255,255,0 ), true )
 
-                    yieldIfWeCan( "wait" )
+                    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                     self:TaskFail( "movement_search" )
                     self:StartTask( "movement_search", {
@@ -5373,7 +5367,7 @@ function ENT:DoDefaultTasks()
                 end
 
                 local canGet, potentialWep = self:canGetWeapon()
-                yieldIfWeCan()
+                coroutine_yield()
 
                 -- all done!
                 if searchWantInternal <= 0 then
@@ -5608,7 +5602,7 @@ function ENT:DoDefaultTasks()
                     self:SimpleSearchNearbyAreas( myPos, myShootPos )
 
                 end
-                yieldIfWeCan()
+                coroutine_yield()
 
                 local result = self:ControlPath2( not self.IsSeeEnemy )
                 local newSearch = result or data.expiryTime < CurTime()
@@ -6083,7 +6077,7 @@ function ENT:DoDefaultTasks()
                     local enemyDir = data.lastKnownStalkDir or self:GetForward()
                     local enemyDis = data.lastKnownStalkDist or Distance2D( enemyPos, myPos ) or 1000
 
-                    yieldIfWeCan()
+                    coroutine_yield()
 
                     if IsValid( enemy ) then
                         enemyDir = enemy:GetForward()
@@ -6252,11 +6246,11 @@ function ENT:DoDefaultTasks()
 
                         end
 
-                        yieldIfWeCan()
+                        coroutine_yield()
 
                         data.stalkPos = self:findValidNavResult( scoreData, self:GetPos(), math.Clamp( self.DistToEnemy * 2, 1000, math.Rand( 5000, 7000 ) ), scoreFunction )
 
-                        yieldIfWeCan()
+                        coroutine_yield()
 
                         if data.stalkPos then
                             --debugoverlay.Cross( stalkPos, 40, 5, Color( 255, 255, 0 ), true )
@@ -6297,7 +6291,7 @@ function ENT:DoDefaultTasks()
                 local exit = nil
                 local valid = nil
 
-                yieldIfWeCan()
+                coroutine_yield()
 
                 local enemy = self:GetEnemy()
                 local myPos = self:GetPos()
@@ -6308,7 +6302,7 @@ function ENT:DoDefaultTasks()
                 local enemyNav = terminator_Extras.getNearestPosOnNav( enemyPos ).area
                 local reachable = self:areaIsReachable( enemyNav )
 
-                yieldIfWeCan()
+                coroutine_yield()
 
                 if data.InvalidAfterwards then
                     if self.IsSeeEnemy then
@@ -6403,7 +6397,7 @@ function ENT:DoDefaultTasks()
                 local enemySeesDestination
                 local enemySeesMiddle
 
-                yieldIfWeCan()
+                coroutine_yield()
 
                 if IsValid( pathEndNav ) and IsValid( enemyNav ) then
                     local enemOffsetted = enemyPos + vecFiftyZ
@@ -6469,11 +6463,11 @@ function ENT:DoDefaultTasks()
                 local unholstering = potentialWep and potentialWep:GetParent() == self
                 local hiddenOrUnholstering = self.IsSeeEnemy or unholstering
 
-                yieldIfWeCan()
+                coroutine_yield()
 
                 local result = self:ControlPath2( not self.IsSeeEnemy and self.WasHidden )
 
-                yieldIfWeCan()
+                coroutine_yield()
 
                 -- weap
                 if canGetWeap and hiddenOrUnholstering and self:getTheWeapon( "movement_stalkenemy", potentialWep, "movement_stalkenemy" ) then
@@ -6578,7 +6572,7 @@ function ENT:DoDefaultTasks()
                     self.PreventShooting = nil
 
                 elseif valid then -- keep stalking
-                    yieldIfWeCan()
+                    coroutine_yield()
                     self.PreventShooting = true
                     local myHp = self:Health()
                     local myMaxHp = self:GetMaxHealth()
@@ -6668,7 +6662,7 @@ function ENT:DoDefaultTasks()
             BehaveUpdateMotion = function( self, data )
                 if not ( data.InvalidAfterwards or data.setupPath ) then
                     -- wait!
-                    coroutine_yield("wait")
+                    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                     local enemy = self:GetEnemy()
                     local bearingToMeAbs = self:enemyBearingToMeAbs()
@@ -6694,7 +6688,7 @@ function ENT:DoDefaultTasks()
                     if enemyPos and self:areaIsReachable( result.area ) then
                         -- flank em!
                         self:SetupFlankingPath( enemyPos, result.area, flankBubble )
-                        yieldIfWeCan()
+                        coroutine_yield()
 
                     end
                     if self:primaryPathIsValid() then
@@ -6845,7 +6839,7 @@ function ENT:DoDefaultTasks()
 
                     local posOnNav = snappedResult.pos
 
-                    yieldIfWeCan()
+                    coroutine_yield()
 
                     -- BOX IT IN
                     local otherHuntersHalfwayPoint = self:GetOtherHuntersProbableEntrance()
@@ -6939,7 +6933,7 @@ function ENT:DoDefaultTasks()
                         flankBubble = math.Clamp( flankBubble, 0, 3000 )
                         self:AddAreasToAvoid( self.hazardousAreas, 50 )
                         self:SetupFlankingPath( posOnNav, snappedResult.area, flankBubble )
-                        yieldIfWeCan()
+                        coroutine_yield()
                         if not self:primaryPathIsValid() then data.Unreachable = true return end
 
                     else
@@ -6949,7 +6943,7 @@ function ENT:DoDefaultTasks()
 
                     end
                 end
-                yieldIfWeCan()
+                coroutine_yield()
 
                 local result = self:ControlPath2( not self.IsSeeEnemy )
                 -- get WEAP
@@ -7037,7 +7031,7 @@ function ENT:DoDefaultTasks()
                     if splitUpResult and self:areaIsReachable( splitUpResult.area ) then
                         -- flank em!
                         self:SetupFlankingPath( enemyPos, splitUpResult.area, splitUpBubble )
-                        yieldIfWeCan()
+                        coroutine_yield()
 
                     end
                     -- cant flank
@@ -7629,11 +7623,11 @@ function ENT:DoDefaultTasks()
                 local result = self:ControlPath2( not self.IsSeeEnemy )
 
                 local canWep, potentialWep = self:canGetWeapon()
-                yieldIfWeCan()
+                coroutine_yield()
 
                 if data.InvalidateAfterwards then
                     self:TaskFail( "movement_inertia" )
-                    yieldIfWeCan( "wait" )
+                    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                     self:StartTask( "movement_biginertia", nil, "i couldnt find somewhere to wander" )
                     return
@@ -7790,7 +7784,7 @@ function ENT:DoDefaultTasks()
 
                         elseif fails < 10 then
                             self:TaskFail( "movement_biginertia" )
-                            yieldIfWeCan( "wait" )
+                            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                             self:StartTask( "movement_biginertia", { fails = fails + 1 }, "i ran out of unreached spots, going back" )
                             return
@@ -8474,7 +8468,7 @@ function ENT:DoDefaultTasks()
                         end
 
                         for _, checkPos in ipairs( checkPositions ) do
-                            yieldIfWeCan()
+                            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
                             checkPos = checkPos + plus25Z
                             local dat = {
                                 start = checkPos,
@@ -8531,7 +8525,7 @@ function ENT:DoDefaultTasks()
 
                         data.bestPosSoFar = bestPos
                         local earlyQuit = data.earlyQuitIfSeen and self.IsSeeEnemy
-                        yieldIfWeCan()
+                        coroutine_yield()
 
                         if data.lastPerchSortedPos ~= bestPos and data.nextPerchSort < CurTime() then
                             data.lastPerchSortedPos = bestPos
@@ -8735,13 +8729,13 @@ function ENT:DoDefaultTasks()
                     end
 
                     local flankResult = terminator_Extras.getNearestPosOnNav( flankAroundPos )
-                    yieldIfWeCan()
+                    coroutine_yield()
 
                     --debugoverlay.Cross( interceptResult.pos, 100, 5, color_white, true )
 
                     if IsValid( flankResult.area ) then
                         self:SetupFlankingPath( gotoResult.pos, flankResult.area, flankBubble )
-                        yieldIfWeCan()
+                        coroutine_yield()
                         if self:primaryPathIsValid() then
                             data.lastInterceptDistance2 = currDist2
 
@@ -8751,7 +8745,7 @@ function ENT:DoDefaultTasks()
                     -- flank failed, normal path!
                     if not self:primaryPathIsValid() then
                         self:SetupPathShell( gotoResult.pos )
-                        yieldIfWeCan()
+                        coroutine_yield()
 
                     end
                     if not self:primaryPathIsValid() then

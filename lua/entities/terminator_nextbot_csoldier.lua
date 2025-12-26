@@ -555,7 +555,7 @@ function ENT:DoCustomTasks( defaultTasks )
             end,
             BehaveUpdateMotion = function( self, data )
                 while data.StartTheTask > CurTime() do
-                    coroutine_yield( "wait" )
+                    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                 end
                 local myTbl = data.myTbl
@@ -1672,7 +1672,7 @@ function ENT:DoCustomTasks( defaultTasks )
             end,
             BehaveUpdateMotion = function( self, data )
                 while data.StartTheTask > CurTime() do
-                    coroutine_yield( "wait" )
+                    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                 end
                 local myTbl = data.myTbl
@@ -1804,7 +1804,7 @@ function ENT:DoCustomTasks( defaultTasks )
             end,
             BehaveUpdateMotion = function( self, data )
                 while data.StartTheTask > CurTime() do
-                    coroutine_yield( "wait" )
+                    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                 end
                 local myTbl = data.myTbl

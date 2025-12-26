@@ -17,6 +17,16 @@ local math = math
 local pairs = pairs
 local CurTime = CurTime
 
+-- masks
+local BOT_COROUTINE_RESULTS = {
+    DONE = 1, -- end and teardown this thread
+    WAIT = 2, -- wait until next think
+    PATHING = 4, -- let us get put in the pathing budget queue
+    PATHING_DONTWAIT = 8, -- still a pathing yield, but dont count towards the budget, added for debugging
+
+}
+terminator_Extras.BOT_COROUTINE_RESULTS = BOT_COROUTINE_RESULTS
+
 local printTasks
 if GetConVar( "term_debugtasks" ) then
     printTasks = GetConVar( "term_debugtasks" ):GetBool()
@@ -57,7 +67,7 @@ function ENT:RestartMotionCoroutine( myTbl )
     if not motionCor then return end
 
     threads.motionCor.cor = coroutine_create( function()
-        coroutine_yield( "done" )
+        coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
     end )
 end
 
@@ -210,6 +220,7 @@ end
 -- debuggers for finding yields that need TLC
 local yieldDebugTotalCosts
 local yieldDebugWorstCosts
+local yieldDebugPathCosts
 local debugging = false
 
 do
@@ -217,10 +228,12 @@ do
         if debugging then
             yieldDebugTotalCosts = {}
             yieldDebugWorstCosts = {}
+            yieldDebugPathCosts = {}
 
         else
             yieldDebugTotalCosts = nil
             yieldDebugWorstCosts = nil
+            yieldDebugPathCosts = nil
 
         end
     end
@@ -258,7 +271,7 @@ do
         end
         onToggleDebugging()
 
-    end, "maindebugthinker" )
+    end, "maindebugthinker_totaloverbudgetyields" )
 
     CreateConVar( "term_debug_worstoverbudgetyields", "0", FCVAR_NONE, "Prints the yields spiking performance, causing tiny freezes" )
     cvars.AddChangeCallback( "term_debug_worstoverbudgetyields", function( _, _, newVal )
@@ -293,16 +306,51 @@ do
         end
         onToggleDebugging()
 
-    end, "maindebugthinker" )
+    end, "maindebugthinker_worstoverbudgetyields" )
+
+    CreateConVar( "term_debug_pathbudget", "0", FCVAR_NONE, "Prints the total costs of every pathing yield" )
+    cvars.AddChangeCallback( "term_debug_pathbudget", function( _, _, newVal )
+        debugging = tobool( newVal )
+        if debugging then
+            permaPrint( "Starting pathing yield cost tracker.\nRun term_debug_pathbudget 0 to see results" )
+
+        else
+            if not yieldDebugPathCosts then permaPrint( "ERR: File was autorefreshed." ) return end
+
+            local overbudgetFound = table.Count( yieldDebugPathCosts )
+            if overbudgetFound <= 0 then
+                permaPrint( "No pathing yields found." )
+                return
+
+            else
+                local i = 0
+                local max = 20
+                permaPrint( "Found " .. overbudgetFound .. " pathing yields.\nOptimize the code BEFORE these lines." )
+                for currStack, value in SortedPairsByValue( yieldDebugPathCosts, true ) do
+                    i = i + 1
+                    if i > max then break end
+                    permaPrint( "-------------------------" )
+                    permaPrint( "Total cost: " .. value .. "\n", currStack )
+
+                end
+                permaPrint( "-------------------------" )
+
+            end
+            yieldDebugWorstCosts = nil
+
+        end
+        onToggleDebugging()
+
+    end, "maindebugthinker_pathbudget" )
 end
 
 
-local costThisTick = 0
-local lastTick = CurTime()
+local costThisTick = 0 -- total path yields used this tick
 local probablyLagging = 60 -- shared path yield budget every bot gets. mitigates freezes from multiple bots pathing at once.
 local budgetEveryoneGets = 2 -- but we let every bot get at least this many patch yields per think, otherwise they stand still forever.
 local budgetAddIfNear = 2 -- if bot near enemy, gets this many more path yields 
 local budgetAddIfNextTo = 5 -- next to, this many more
+local lastTick = CurTime()
 local nearDist = 3000
 local nextToDist = 650
 if game.IsDedicated() then
@@ -362,6 +410,7 @@ function ENT:Think()
         local oldTime = SysTime()
         local myCostThisTick = 0
         local wasBusy
+        local oldTimePathDebug
 
         while thread do
             local cost = SysTime() - oldTime
@@ -383,6 +432,24 @@ function ENT:Think()
             doneSomething = true
             wasBusy = true -- did we have a normal yield?
             local noErrors, result = coroutine_resume( thread, self, myTbl )
+
+            if debugging then
+                if result and ( result == BOT_COROUTINE_RESULTS.PATHING or result == BOT_COROUTINE_RESULTS.PATHING_DONTWAIT ) then
+                    if not oldTimePathDebug then
+                        oldTimePathDebug = SysTime()
+
+                    else
+                        local stack = debug.traceback( thread )
+                        yieldDebugPathCosts[stack] = ( yieldDebugPathCosts[stack] or 0 ) + ( SysTime() - oldTimePathDebug )
+                        oldTimePathDebug = SysTime()
+
+                    end
+                else
+                    oldTimePathDebug = nil
+
+                end
+            end
+
             if noErrors == false then
                 local stack = debug.traceback( thread )
                 threads[index] = nil
@@ -391,11 +458,11 @@ function ENT:Think()
                 wasBusy = false
                 break
 
-            elseif result == "wait" then
+            elseif result == BOT_COROUTINE_RESULTS.WAIT then
                 wasBusy = false
                 break
 
-            elseif result == "pathing" then
+            elseif result == BOT_COROUTINE_RESULTS.PATHING then
                 local budgetIGet = budgetEveryoneGets
                 if distToEnem < nextToDist then
                     budgetIGet = budgetIGet + budgetAddIfNextTo
@@ -412,7 +479,7 @@ function ENT:Think()
                 costThisTick = costThisTick + 1
                 wasBusy = false
 
-            elseif result == "done" then
+            elseif result == BOT_COROUTINE_RESULTS.DONE then
                 threads[index] = nil
                 if whenBusy then -- final whenBusy call
                     whenBusy( self, myTbl, true )
@@ -425,6 +492,9 @@ function ENT:Think()
                 wasBusy = false -- dont call whenBusy after onDone
                 break
 
+            elseif isstring( result ) then
+                local stack = debug.traceback( thread )
+                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\nUnknown yield result: " .. tostring( result ) .. "\n" .. stack .. "\n" )
             end
         end
         if whenBusy and wasBusy then
@@ -457,7 +527,7 @@ function ENT:BehaviourPriorityCoroutine( myTbl )
     myTbl.RunTask( self, "BehaveUpdatePriority" )
     myTbl.RunTask( self, "Think" )
 
-    coroutine_yield( "done" )
+    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
 end
 
@@ -471,7 +541,7 @@ function ENT:BehaviourMotionCoroutine( myTbl )
     -- Calling task callbacks
     myTbl.RunTask( self, "BehaveUpdateMotion" )
 
-    coroutine_yield( "done" )
+    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
 end
 
@@ -486,7 +556,7 @@ function ENT:BehaviourPlayerControlCoroutine( myTbl )
     myTbl.RunTask( self, "PlayerControlUpdate", ply )
     myTbl.RunTask( self, "Think" )
 
-    coroutine_yield( "done" )
+    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
 end
 
@@ -495,6 +565,6 @@ function ENT:DisabledBehaviourCoroutine( myTbl )
     myTbl.RunTask( self, "Think" )
     myTbl.AdditionalThink( self, myTbl )
 
-    coroutine_yield( "done" )
+    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
 end

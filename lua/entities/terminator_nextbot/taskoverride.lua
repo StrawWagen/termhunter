@@ -2,15 +2,6 @@ local entMeta = FindMetaTable( "Entity" )
 local isstring = isstring
 local string_find = string.find
 
-local coroutine_yield = coroutine.yield
-local coroutine_running = coroutine.running
-local function yieldIfWeCan( ... )
-    local cor = coroutine_running()
-    if not cor then return end
-    coroutine_yield( ... )
-
-end
-
 --[[------------------------------------
     Name: NEXTBOT:RunTask
     Desc: Runs active tasks callbacks with given event.
