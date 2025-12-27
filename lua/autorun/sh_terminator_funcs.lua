@@ -116,6 +116,11 @@ local nookDirections = {
 
 -- returns SMALL numbers in open areas
 -- returns BIG numbers in NOOKS, enclosed spaces
+-- arg1: pos to test
+-- arg2: distance to trace, default 800
+-- arg3: optional override directions table
+-- ret1: nook score
+-- ret2: table of all the traces, key is fraction for easy sorting, so bigger ones went further, smaller ones hit closer
 terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     local directions = overrideDirections or nookDirections
     distance = distance or 800
@@ -142,7 +147,7 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
 
         end
 
-        hits[fraction] = trace -- lol if this is 
+        hits[fraction] = trace -- lol if two of them are the same fraction
 
         local isNookScore = fraction - 1 -- so facesblocked is higher when this is in small spaces
         facesBlocked = facesBlocked + math_abs( isNookScore )

@@ -489,7 +489,6 @@ local function startCounting()
 
     timer.Create( "terminator_cleanupcorridor", 30, 0, function()
         local cur = CurTime()
-        print( "countBefore", table.Count( inCorridorAreas ) )
         for area, expireTime in pairs( corridorExpireTimes ) do
             if expireTime < cur then
                 inCorridorAreas[area] = nil
@@ -497,7 +496,6 @@ local function startCounting()
 
             end
         end
-        print( "countAfter", table.Count( inCorridorAreas ) )
     end )
 end
 
