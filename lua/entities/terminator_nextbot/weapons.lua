@@ -890,11 +890,14 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     wepsTbl = wepsTbl or entMeta.GetTable( self )
 
     if not wepsTbl then boring( wep ) return end -- ????
-    if not wep:IsWeapon() then boring( wep ) return false end
-
     local class = entMeta.GetClass( wep )
-    if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then boring( wep ) return false end
+    local isCrate = class == crateClass
+    if not isCrate then
+        if not wep:IsWeapon() then boring( wep ) return false end
 
+        if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then boring( wep ) return false end
+
+    end
 
     if wepsTbl.terminatorCrappyWeapon then boring( wep ) return false end
     if IsValid( entMeta.GetOwner( wep ) ) and not doingHolstered then return false end
@@ -910,7 +913,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
     if blockWeaponNoticing > CurTime() then return end
 
-    if class == crateClass and myTbl.TERM_FISTS then -- CRATE!
+    if isCrate and myTbl.TERM_FISTS then -- CRATE!
         local wepPos = entMeta.GetPos( wep )
         local result = terminator_Extras.getNearestPosOnNav( wepPos )
         if IsValid( result.area ) and result.pos:DistToSqr( wepPos ) < cratesMaxDistFromGround then

@@ -495,6 +495,7 @@ function ENT:Think()
             elseif isstring( result ) then
                 local stack = debug.traceback( thread )
                 ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\nUnknown yield result: " .. tostring( result ) .. "\n" .. stack .. "\n" )
+
             end
         end
         if whenBusy and wasBusy then

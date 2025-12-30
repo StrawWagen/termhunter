@@ -584,16 +584,19 @@ do
     local string_find = string.find
 
     -- i love overoptimisation
-    local notInterestingCache = {}
+    terminator_Extras.shared_notInterestingCache = {}
+    local notInterestingCache = terminator_Extras.shared_notInterestingCache
     hook.Add( "terminator_nextbot_oneterm_exists", "setup_notinterestingcache", function() -- crowdsource this between all the bots
         timer.Create( "term_cache_isnotinteresting", 30, 0, function()
-            notInterestingCache = {}
+            terminator_Extras.shared_notInterestingCache = {}
+            notInterestingCache = terminator_Extras.shared_notInterestingCache
 
         end )
     end )
     hook.Add( "terminator_nextbot_noterms_exist", "teardown_notinterestingcache", function()
         timer.Remove( "term_cache_isnotinteresting" )
-        notInterestingCache = {}
+        terminator_Extras.shared_notInterestingCache = {}
+        notInterestingCache = terminator_Extras.shared_notInterestingCache
 
     end )
 
@@ -604,6 +607,7 @@ do
     end
     local function IsValidAwareness( ent )
         if notInterestingCache[ent] then return false end
+
         if not IsValid2( ent ) then return false end
         return true
 
@@ -611,6 +615,7 @@ do
 
     function ENT:caresAbout( ent )
         if notInterestingCache[ent] then return end
+
         if not IsValidAwareness( ent ) then boring( ent ) return end
         if ent == self then return end
         if not IsValidAwareness( entMeta.GetPhysicsObject( ent ) ) then boring( ent ) return end
@@ -623,6 +628,7 @@ do
 
     function ENT:getAwarenessKey( ent )
         if notInterestingCache[ent] then return end
+
         if not IsValidAwareness( ent ) then boring( ent ) return end
         local model = entMeta.GetModel( ent )
         local class = entMeta.GetClass( ent )

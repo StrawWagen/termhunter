@@ -11,97 +11,63 @@ local blockRandomInfighting = CreateConVar( "terminator_block_random_infighting"
 local blockAllInfighting = CreateConVar( "terminator_block_infighting", 0, FCVAR_ARCHIVE, "Disable ALL infighting, even non-random infighting?" )
 
 
-local playersCache -- i love overoptimisation
-local npcClassCache
-local nextbotClassCache
+-- i love overoptimisation
+-- this cache is used to skip alot of _index calls, perf, on checking if props, static things are enemies
+terminator_Extras.enemyoverrides_notEnemyCache = {}
+local notEnemyCache = terminator_Extras.enemyoverrides_notEnemyCache
 
-terminator_Extras.DOINGTYPECACHE = terminator_Extras.DOINGTYPECACHE or nil
-local function doPlayersCache()
-    playersCache = {}
-    for _, ply in player.Iterator() do
-        playersCache[ply] = true
-
-    end
-end
-
-if terminator_Extras.DOINGTYPECACHE then -- the joys of autorefresh
-    doPlayersCache()
-    npcClassCache = {}
-    nextbotClassCache = {}
-
-end
-
-hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_playercache", function()
-    doPlayersCache()
-    npcClassCache = {}
-    nextbotClassCache = {}
-    terminator_Extras.DOINGTYPECACHE = true
-
-    timer.Create( "term_cache_players", 2, 0, function()
-        doPlayersCache()
-
-    end )
-end )
-hook.Add( "terminator_nextbot_noterms_exist", "setupshouldbeenemy_playercache", function()
-    terminator_Extras.DOINGTYPECACHE = nil
-    timer.Simple( 0, function()
-        if terminator_Extras.DOINGTYPECACHE then return end
-        timer.Remove( "term_cache_players" )
-        playersCache = nil
-        npcClassCache = nil
-        nextbotClassCache = nil
-
-    end )
-end )
-
-function ENT:IsPlyNoIndex( ent )
-    return playersCache[ent]
-
-end
-
-
--- i love overoptimisation x 2
-local notEnemyCache = {} -- this cache is used to skip alot of _index calls, perf, on checking if props, static things are enemies
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_notenemycache", function()
     timer.Create( "term_cache_isnotenemy", 5, 0, function()
-        notEnemyCache = {}
+        terminator_Extras.enemyoverrides_notEnemyCache = {}
+        notEnemyCache = terminator_Extras.enemyoverrides_notEnemyCache
 
     end )
 end )
-hook.Add( "terminator_nextbot_noterms_exist", "setup_shouldbeenemy_notenemycache", function()
+hook.Add( "terminator_nextbot_noterms_exist", "teardown_shouldbeenemy_notenemycache", function()
     timer.Remove( "term_cache_isnotenemy" )
-    notEnemyCache = {}
+    terminator_Extras.enemyoverrides_notEnemyCache = {}
+    notEnemyCache = terminator_Extras.enemyoverrides_notEnemyCache
 
 end )
 
-local function isNpcEntClass( ent, class ) -- more optimized than ent:IsNPC(), worth it to have 40+ npcs spawned
-    local cached = npcClassCache[class]
-    if cached == nil then
-        cached = ent:IsNPC()
-        npcClassCache[class] = cached
+local isNpcEnt
+local isNextbotEnt
+local isNextbotOrNpcEnt
+local isPlayer
+
+do
+    local npcMeta = FindMetaTable( "NPC" )
+    local nextbotMeta = FindMetaTable( "NextBot" )
+    local plyMeta = FindMetaTable( "Player" )
+    local getmetatable = getmetatable
+
+    isNpcEnt = function( ent ) -- BARELY more optimized than ent:IsNPC(), not really worth keeping but hey
+        return getmetatable( ent ) == npcMeta
 
     end
-    return cached
-
-end
-local function isNextbotEntClass( ent, class ) -- ditto
-    local cached = nextbotClassCache[class]
-    if cached == nil then
-        cached = ent:IsNextBot()
-        nextbotClassCache[class] = cached
+    isNextbotEnt = function( ent ) -- ditto
+        return getmetatable( ent ) == nextbotMeta
 
     end
-    return cached
 
+    isNextbotOrNpcEnt = function( ent )
+        return isNpcEnt( ent ) or isNextbotEnt( ent )
+
+    end
+    function ENT:IsNextbotOrNpcEnt( ent )
+        return isNextbotOrNpcEnt( ent )
+
+    end
+
+    isPlayer = function( ent )
+        return getmetatable( ent ) == plyMeta
+
+    end
+    function ENT:IsPlyNoIndex( ent )
+        return isPlayer( ent )
+
+    end
 end
-
-local function isNextbotOrNpcEnt( ent )
-    local class = entMeta.GetClass( ent )
-    return isNpcEntClass( ent, class ) or isNextbotEntClass( ent, class )
-
-end
-
-ENT.IsNextbotOrNpcEnt = isNextbotOrNpcEnt
 
 local fogRange
 -- from CFC's LFS fork, code by reeedox
@@ -203,10 +169,10 @@ do
         if not entsTbl and not IsValid( ent ) then return end -- entstbl is supplied if the ent is already valid, so we dont need to check
         entsTbl = entsTbl or entMeta.GetTable( ent )
 
-        local hardCache = entsTbl.term_cachedEntShootPos
-        if hardCache then return hardCache end
+        local cachedShootPos = entsTbl.term_cachedEntShootPos
+        if cachedShootPos then return cachedShootPos end
 
-        local isPly = playersCache[ent]
+        local isPly = isPlayer( ent )
         local isPlayerInVehicle = isPly and ent:InVehicle()
 
         if isPlayerInVehicle then
@@ -274,9 +240,6 @@ do
     end
 end
 
-
-local standingOffset = Vector( 0, 0, 64 )
-local crouchingOffset = Vector( 0, 0, 20 )
 -- if alpha is below this, start the seeing calcs
 local maxSeen = 150
 
@@ -304,7 +267,7 @@ local function shouldNotSeeEnemy( me, enemy ) -- return true to block seeing, fa
     if a == 255 then cacheShouldNotSee( enemy, false ) return end -- dont waste any more performance
     if a > maxSeen then cacheShouldNotSee( enemy, false ) return end
     if enemy:IsOnFire() then cacheShouldNotSee( enemy, false ) return end -- they are visible!
-    if playersCache[enemy] and enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
+    if isPlayer( enemy ) and enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
 
     local seen = math.abs( a - maxSeen )
     local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )
@@ -406,6 +369,9 @@ end
 
 ENT.IsInMyFov = IsInMyFov
 
+local FL_NOTARGET = FL_NOTARGET
+local FL_OBJECT = FL_OBJECT
+
 function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
     if notEnemyCache[ent] then return false end
 
@@ -414,24 +380,32 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     end
     local isObject = IsFlagSet( ent, FL_OBJECT )
-    local isPly = playersCache[ent]
+    local isPly = isPlayer( ent )
 
     local killer
     local krangledKiller
-    local class = entMeta.GetClass( ent )
+    local class
 
     if not ent.isTerminatorHunterKiller then
-        local interesting = isPly or isNextbotEntClass( ent, class ) or isNpcEntClass( ent, class )
+        -- the normal logic
+
+        local interesting = isPly or isNextbotEnt( ent ) or isNpcEnt( ent )
         if not isObject and not interesting then
             notEnemyCache[ent] = true
             return false
 
         end
     else
+        -- the rare logic
+
         -- if an ent has killed terminators
         -- we do more thorough checks on it!
         -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-        if not ( isPly or isNextbotEntClass( ent, class ) or isNpcEntClass( ent, class ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) or pals( self, ent ) then return false end
+        class = entMeta.GetClass( ent )
+        if not ( isPly or isNextbotEnt( ent ) or isNpcEnt( ent ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) or pals( self, ent ) then
+            return false
+
+        end
         krangledKiller = true
 
     end
@@ -445,13 +419,18 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
     end
 
+    if not class then
+        class = entMeta.GetClass( ent )
+
+    end
+
     if class == "rpg_missile" then return false end
     if class == "env_flare" then return false end
 
-    local isDeadNPC = isNpcEntClass( ent, class ) and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and entMeta.GetInternalVariable( ent, "m_takedamage" ) == 0 )
+    local isDeadNPC = isNpcEnt( ent, class ) and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and entMeta.GetInternalVariable( ent, "m_takedamage" ) == 0 )
 
     if not entsTbl.TerminatorNextBot and isDeadNPC then return false end
-    if ( entsTbl.TerminatorNextBot or not isNpcEntClass( ent, class ) ) and entMeta.Health( ent ) <= 0 then return false end
+    if ( entsTbl.TerminatorNextBot or not isNpcEnt( ent, class ) ) and entMeta.Health( ent ) <= 0 then return false end
 
     local killerNotChummy = killer and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
     local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
@@ -767,7 +746,7 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
 
         end
 
-    elseif playersCache[ent] then
+    elseif isPlayer( ent ) then
         disp = D_HT
         theirDisp = D_HT
 
@@ -823,7 +802,7 @@ function ENT:SetupRelationships( myTbl )
     for _, ent in ents.Iterator() do
         if not notEnemyCache[ent] then
             local entsTbl = ent:GetTable()
-            if not ( playersCache[ent] or isNextbotOrNpcEnt( ent ) or entsTbl.isTerminatorHunterKiller ) then
+            if not ( isPlayer( ent ) or isNextbotOrNpcEnt( ent ) or entsTbl.isTerminatorHunterKiller ) then
                 notEnemyCache[ent] = true
 
             else
@@ -838,7 +817,6 @@ function ENT:SetupRelationships( myTbl )
         timer.Simple( 0, function()
             if not IsValid( self ) then return end
             if not IsValid( ent ) then return end
-            if not playersCache then return end -- weird err
             local entsTbl = ent:GetTable()
             myTbl.SetupEntityRelationship( self, myTbl, ent, entsTbl )
 
@@ -890,14 +868,14 @@ function ENT:MakeFeud( enemy )
         end
     end
 
-    local isPly = playersCache[enemy]
+    local isPly = isPlayer( enemy )
     local priority
 
     if isPly then
         priority = 1000
         myTbl.Term_SetEntityRelationship( self, enemy, D_HT, priority ) -- hate players more than anything else
 
-    elseif isNpcEntClass( enemy, class ) or isNextbotEntClass( enemy, class ) then
+    elseif isNpcEnt( enemy, class ) or isNextbotEnt( enemy, class ) then
         priority = 100
         myTbl.Term_SetEntityRelationship( self, enemy, D_HT, priority )
 
@@ -929,126 +907,133 @@ function ENT:MakeFeud( enemy )
     end
 end
 
--- used in shouldcrouch in motionoverrides
-function ENT:HasToCrouchToSeeEnemy()
-    local enemy = self:GetEnemy()
-    local myPos = self:GetPos()
-    local decreaseRate = -1
+do
+    local standingOffset = Vector( 0, 0, 64 )
+    local crouchingOffset = Vector( 0, 0, 20 )
 
-    if self.tryCrouchingToSeeEnemy and IsValid( enemy ) then
-        local enemysPos = enemy:GetPos()
-        local nextSeeCheck = self.nextCrouchWouldSeeEnemyCheck or 0
+    -- used in shouldcrouch in motionoverrides
+    function ENT:HasToCrouchToSeeEnemy()
+        local enemy = self:GetEnemy()
+        local myPos = self:GetPos()
+        local decreaseRate = -1
 
-        if nextSeeCheck < CurTime() then
-            self.nextCrouchWouldSeeEnemyCheck = CurTime() + 0.2
+        if self.tryCrouchingToSeeEnemy and IsValid( enemy ) then
+            local enemysPos = enemy:GetPos()
+            local nextSeeCheck = self.nextCrouchWouldSeeEnemyCheck or 0
 
-            local enemysScale = enemy:GetModelScale() or 1 -- this was nil somehow
+            if nextSeeCheck < CurTime() then
+                self.nextCrouchWouldSeeEnemyCheck = CurTime() + 0.2
 
-            local enemyCheckPos = enemysPos + crouchingOffset * enemysScale
-            local standingShootPos = myPos + standingOffset * self:GetModelScale()
+                local enemysScale = enemy:GetModelScale() or 1 -- this was nil somehow
 
-            local standingSeeTraceConfig = {
-                start = standingShootPos,
-                endpos = enemyCheckPos,
-                filter = self,
-                mask = self.LineOfSightMask,
-            }
+                local enemyCheckPos = enemysPos + crouchingOffset * enemysScale
+                local standingShootPos = myPos + standingOffset * self:GetModelScale()
 
-            local standingSeeTraceResult = util.TraceLine( standingSeeTraceConfig )
-            local hitTheEnem = IsValid( standingSeeTraceResult.Entity ) and standingSeeTraceResult.Entity == enemy
-            local standingWouldSee = hitTheEnem or not standingSeeTraceResult.Hit
+                local standingSeeTraceConfig = {
+                    start = standingShootPos,
+                    endpos = enemyCheckPos,
+                    filter = self,
+                    mask = self.LineOfSightMask,
+                }
 
-            -- standing would see the enemy
-            if standingWouldSee then
-                self.shouldCrouchToSeeWeight = math.Clamp( self.shouldCrouchToSeeWeight + decreaseRate, 0, math.huge )
+                local standingSeeTraceResult = util.TraceLine( standingSeeTraceConfig )
+                local hitTheEnem = IsValid( standingSeeTraceResult.Entity ) and standingSeeTraceResult.Entity == enemy
+                local standingWouldSee = hitTheEnem or not standingSeeTraceResult.Hit
 
-                -- dont stop crouching instantly!
-                if self.shouldCrouchToSeeWeight >= 1 then
-                    return true
+                -- standing would see the enemy
+                if standingWouldSee then
+                    self.shouldCrouchToSeeWeight = math.Clamp( self.shouldCrouchToSeeWeight + decreaseRate, 0, math.huge )
 
-                else
-                    self.shouldCrouchToSeeWeight = nil
-                    self.tryCrouchingToSeeEnemy = nil
-                    return false
+                    -- dont stop crouching instantly!
+                    if self.shouldCrouchToSeeWeight >= 1 then
+                        return true
+
+                    else
+                        self.shouldCrouchToSeeWeight = nil
+                        self.tryCrouchingToSeeEnemy = nil
+                        return false
+
+                    end
+                end
+
+                local crouchingShootPos = myPos + crouchingOffset * self:GetModelScale()
+
+                local crouchSeeTraceConfig = {
+                    start = crouchingShootPos,
+                    endpos = enemyCheckPos,
+                    filter = self,
+                    mask = self.LineOfSightMask,
+                }
+
+                local crouchSeeTraceResult = util.TraceLine( crouchSeeTraceConfig )
+                local crouchHitTheEnem = IsValid( crouchSeeTraceResult.Entity ) and crouchSeeTraceResult.Entity == enemy
+                local crouchWouldSee = crouchHitTheEnem or not crouchSeeTraceResult.Hit
+
+                if crouchWouldSee ~= true then
+                    self.shouldCrouchToSeeWeight = math.Clamp( self.shouldCrouchToSeeWeight + decreaseRate, 0, math.huge )
+                    return self.shouldCrouchToSeeWeight >= 1
 
                 end
-            end
 
-            local crouchingShootPos = myPos + crouchingOffset * self:GetModelScale()
+                self.shouldCrouchToSeeWeight = 5
 
-            local crouchSeeTraceConfig = {
-                start = crouchingShootPos,
-                endpos = enemyCheckPos,
-                filter = self,
-                mask = self.LineOfSightMask,
-            }
+                return true
 
-            local crouchSeeTraceResult = util.TraceLine( crouchSeeTraceConfig )
-            local crouchHitTheEnem = IsValid( crouchSeeTraceResult.Entity ) and crouchSeeTraceResult.Entity == enemy
-            local crouchWouldSee = crouchHitTheEnem or not crouchSeeTraceResult.Hit
-
-            if crouchWouldSee ~= true then
-                self.shouldCrouchToSeeWeight = math.Clamp( self.shouldCrouchToSeeWeight + decreaseRate, 0, math.huge )
+            else
                 return self.shouldCrouchToSeeWeight >= 1
 
             end
+        end
 
-            self.shouldCrouchToSeeWeight = 5
-
-            return true
-
-        else
-            return self.shouldCrouchToSeeWeight >= 1
+        if IsValid( enemy ) and not self.IsSeeEnemy then
+            self.tryCrouchingToSeeEnemy = true
+            self.shouldCrouchToSeeWeight = 0
 
         end
     end
-
-    if IsValid( enemy ) and not self.IsSeeEnemy then
-        self.tryCrouchingToSeeEnemy = true
-        self.shouldCrouchToSeeWeight = 0
-
-    end
 end
 
-local _dirToPos = terminator_Extras.dirToPos
-local _PosCanSeeComplex = terminator_Extras.PosCanSeeComplex
-local vecUp25 = Vector( 0, 0, 25 )
+do
+    local dirToPos = terminator_Extras.dirToPos
+    local PosCanSeeComplex = terminator_Extras.PosCanSeeComplex
+    local vecUp25 = Vector( 0, 0, 25 )
 
-function ENT:AnotherHunterIsHeadingToEnemy()
-    local myEnemy = self:GetEnemy()
-    if not IsValid( myEnemy ) then return end
+    function ENT:AnotherHunterIsHeadingToEnemy()
+        local myEnemy = self:GetEnemy()
+        if not IsValid( myEnemy ) then return end
 
-    local enemysPos = myEnemy:GetPos()
-    local enemysShootPos = self:EntShootPos( myEnemy )
+        local enemysPos = myEnemy:GetPos()
+        local enemysShootPos = self:EntShootPos( myEnemy )
 
-    local otherHunters = ents.FindByClass( "terminator_nextbot*" )
-    table.Shuffle( otherHunters )
+        local otherHunters = ents.FindByClass( "terminator_nextbot*" )
+        table.Shuffle( otherHunters )
 
-    local myDirToEnemy = _dirToPos( self:GetPos(), enemysPos )
+        local myDirToEnemy = dirToPos( self:GetPos(), enemysPos )
 
-    for _, hunter in ipairs( otherHunters ) do
-        if hunter ~= self and pals( self, hunter ) and hunter:PathIsValid() then
-            -- its not being sneaky!
-            if hunter.IsSeeEnemy then continue end
+        for _, hunter in ipairs( otherHunters ) do
+            if hunter ~= self and pals( self, hunter ) and hunter:PathIsValid() then
+                -- its not being sneaky!
+                if hunter.IsSeeEnemy then continue end
 
-            local path = hunter:GetPath()
-            local pathEnd = path:GetEnd()
-            local moveSpeed = hunter.MoveSpeed
-            local distNeeded = moveSpeed * 6
+                local path = hunter:GetPath()
+                local pathEnd = path:GetEnd()
+                local moveSpeed = hunter.MoveSpeed
+                local distNeeded = moveSpeed * 6
 
-            local pathEndDistToEnemy = pathEnd:DistToSqr( enemysPos )
-            -- way too far to be going to enemy
-            if pathEndDistToEnemy > distNeeded^2 then continue end
+                local pathEndDistToEnemy = pathEnd:DistToSqr( enemysPos )
+                -- way too far to be going to enemy
+                if pathEndDistToEnemy > distNeeded^2 then continue end
 
-            -- is it coming in from another direction, or is it just going straight to enemy
-            local dirDifference = ( myDirToEnemy - _dirToPos( pathEnd, enemysPos ) ):Length()
-            if dirDifference < 0.25 and pathEndDistToEnemy > moveSpeed^2 then continue end
+                -- is it coming in from another direction, or is it just going straight to enemy
+                local dirDifference = ( myDirToEnemy - dirToPos( pathEnd, enemysPos ) ):Length()
+                if dirDifference < 0.25 and pathEndDistToEnemy > moveSpeed^2 then continue end
 
-            -- finally
-            if not _PosCanSeeComplex( pathEnd + vecUp25, enemysShootPos, { myEnemy } ) then continue end
+                -- finally
+                if not PosCanSeeComplex( pathEnd + vecUp25, enemysShootPos, { myEnemy } ) then continue end
 
-            return true
+                return true
 
+            end
         end
     end
 end
@@ -1097,7 +1082,7 @@ function ENT:validSoundHint()
 
     local emitter = hint.emitter
     if IsValid( emitter ) then
-        local interesting = emitter:IsPlayer() or isNextbotOrNpcEnt( emitter )
+        local interesting = isPlayer( emitter ) or isNextbotOrNpcEnt( emitter )
         if interesting then return true end
 
         local id = emitter:GetCreationID()
@@ -1514,17 +1499,17 @@ do
     hook.Add( "terminator_nextbot_oneterm_exists", "setup_dynamic_lagcomp", function()
         hook.Add( "terminator_spotenemy", "term_dynamic_lagcomp", function( term, newEnemy )
             if dynamicallyLagCompensating[term] == nil then return end
-            if not playersCache[newEnemy] then return end
+            if not isPlayer( newEnemy ) then return end
 
             compensate( term )
 
         end )
         hook.Add( "terminator_enemychanged", "term_dynamic_lagcomp", function( term, newEnemy, prevEnemy )
             if dynamicallyLagCompensating[term] == nil then return end
-            if playersCache[newEnemy] then
+            if isPlayer( newEnemy ) then
                 compensate( term )
 
-            elseif playersCache[prevEnemy] then
+            elseif isPlayer( prevEnemy ) then
                 unCompensate( term )
 
             end

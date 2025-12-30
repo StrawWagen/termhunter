@@ -19,6 +19,8 @@ local function cleanupListenerTbl()
         listening = true
         goodClassCache = {}
         lastSoundLevels = {}
+        terminator_Extras.terminator_alerter_goodClassCache = goodClassCache -- put in _G for profilers
+        terminator_Extras.terminator_alerter_lastSoundLevels = lastSoundLevels
 
     end
     local listeners = terminator_Extras.listeners
@@ -35,6 +37,8 @@ local function cleanupListenerTbl()
         listening = nil
         goodClassCache = nil
         lastSoundLevels = nil
+        terminator_Extras.terminator_alerter_goodClassCache = nil
+        terminator_Extras.terminator_alerter_lastSoundLevels = nil
 
     end
 end

@@ -229,8 +229,10 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
     local cacheStr = tostring( cachePos )
     if not coverposCache then
         coverposCache = {}
+        terminator_Extras.terminator_csoldier_coverposCache = coverposCache -- put in _G for profilers
         timer.Simple( 30, function()
             coverposCache = nil
+            terminator_Extras.terminator_csoldier_coverposCache = nil
 
         end )
     end

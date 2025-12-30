@@ -487,7 +487,7 @@ local function startCounting()
     corridorExpireTimes = {}
     terminator_Extras.DOING_CORRIDORAREAS = true
 
-    timer.Create( "terminator_cleanupcorridor", 30, 0, function()
+    timer.Create( "terminator_cleanupcorridor", 5, 0, function()
         local cur = CurTime()
         for area, expireTime in pairs( corridorExpireTimes ) do
             if expireTime < cur then
@@ -517,10 +517,10 @@ hook.Add( "terminator_nextbot_noterms_exist", "corridorareas_optimisation", func
 
 end )
 
-local function addToCorridor( corridor, timeAdd )
+local function addToCorridor( corridor )
     local cur = CurTime()
     for _, area in ipairs( corridor ) do
-        debugoverlay.Cross( area:GetCenter(), 10, 10, Color( 255, 0, 0), true )
+        --debugoverlay.Cross( area:GetCenter(), 10, 10, Color( 255, 0, 0), true )
         inCorridorAreas[area] = true
         corridorExpireTimes[area] = cur + math.random( 15, 25 ) -- dont hold onto these for long, it's gonna get outdated fast
 
