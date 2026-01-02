@@ -317,9 +317,9 @@ end
     @param pos Vector
 --]]--------------------------
 terminator_Extras.TeleportTermTo = function( term, pos )
-    term:SetPosNoTeleport( pos )
-    term:RestartMotionCoroutine()
-    term:StopMoving()
+    term:SetPosNoTeleport( pos ) -- set their pos without triggering clientside velocity bug
+    term:RestartMotionCoroutine() -- kill any logic that's about to set our pos
+    term:StopMoving() -- stop movement, reject path updates, start the movement_wait task
 
 end
 

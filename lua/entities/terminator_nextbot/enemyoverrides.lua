@@ -41,7 +41,7 @@ do
     local plyMeta = FindMetaTable( "Player" )
     local getmetatable = getmetatable
 
-    isNpcEnt = function( ent ) -- BARELY more optimized than ent:IsNPC(), not really worth keeping but hey
+    isNpcEnt = function( ent ) -- 2x as fast as :IsNPC(), which isnt really much faster but hey. credit to zaurzo for the method
         return getmetatable( ent ) == npcMeta
 
     end

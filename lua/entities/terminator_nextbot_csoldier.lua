@@ -701,7 +701,6 @@ function ENT:DoCustomTasks( defaultTasks )
                 local givenItAChance = data.ApproachAfter < CurTime() -- this schedule didn't JUST start.
 
                 -- get WEAP
-                local canWep, potentialWep
                 if not IsValid( myTbl.GetWeapon( self ) ) then
                     canWep, potentialWep = myTbl.canGetWeapon( self )
 

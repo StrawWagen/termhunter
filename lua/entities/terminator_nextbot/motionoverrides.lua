@@ -2934,6 +2934,11 @@ function ENT:JumpToPos( pos, height )
 
 end
 
+function ENT:IsLeaping()
+    return self.m_JumpingToPos
+
+end
+
 --[[------------------------------------
     Name: NEXTBOT:IsFalling
     Desc: Aaah, we're falling!

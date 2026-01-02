@@ -219,7 +219,8 @@ function ENT:Use( user )
 
 end
 
-function ENT:StartTask2( ... ) -- TODO: remove
+function ENT:StartTask2( ... ) -- TODO: remove, last addon that still uses this is supercop
+    --ErrorNoHaltWithStack()
     self:StartTask( ... )
 
 end
@@ -275,7 +276,7 @@ function ENT:DoCustomTasks( defaultTasks )
             BehaveUpdateMotion = function( self, data )
                 -- do something in the motion coroutine
             end,
-            OnEnd = function( self, data )
+            OnDelete = function( self, data )
                 -- when this task ends
                 -- maybe go back to movement_handler?
             end,

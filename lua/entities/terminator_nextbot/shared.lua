@@ -3455,7 +3455,7 @@ function ENT:DoDefaultTasks()
                         self:DoFists()
                         return
 
-                    elseif IsValid( enemy ) then
+                    elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
                         myTbl.shootAt( self, myTbl.LastEnemyShootPos, myTbl.PreventShooting )
                         myTbl.lastShootingType = "noWeapon"
                         return
