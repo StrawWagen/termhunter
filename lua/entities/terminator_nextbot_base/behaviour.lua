@@ -1,29 +1,3 @@
-
---[[------------------------------------
-	NEXTBOT:BehaveStart
-	Creating behaviour thread using NEXTBOT:BehaviourCoroutine. Also setups task list and default tasks.
---]]------------------------------------
-function ENT:BehaveStart()
-	self:SetupCollisionBounds()
-
-	self:SetupTaskList(self.m_TaskList)
-	self:SetupTasks()
-
-	self.BehaviourThread = coroutine.create(function() self:BehaviourCoroutine() end)
-end
-
---[[------------------------------------
-	Name: NEXTBOT:BehaviourCoroutine
-	Desc: Override this function to control bot using coroutine type.
-	Arg1: 
-	Ret1: 
---]]------------------------------------
-function ENT:BehaviourCoroutine()
-	while true do
-		coroutine.yield()
-	end
-end
-
 --[[------------------------------------
 	Name: NEXTBOT:CapabilitiesAdd
 	Desc: Adds a capability to the bot.
