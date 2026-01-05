@@ -242,3 +242,22 @@ function terminator_Extras.DrawInHand( wep, posOffset, angOffset )
 
     end
 end
+
+-- table.Add without saftey checks, without using table.insert
+function terminator_Extras.tableAdd( dest, source )
+    for _, thing in pairs( source ) do
+        dest[#dest + 1] = thing
+
+    end
+end
+
+-- simple sequential table copier
+function terminator_Extras.tableCopySimple( source )
+    local new = {}
+    for _, v in ipairs( source ) do
+        new[#new + 1] = v
+
+    end
+    return new
+
+end

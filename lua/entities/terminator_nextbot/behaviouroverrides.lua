@@ -10,7 +10,6 @@ local pathMeta = FindMetaTable( "PathFollower" )
 
 local coroutine_yield = coroutine.yield
 local coroutine_resume = coroutine.resume
-local coroutine_create = coroutine.create
 local SysTime = SysTime
 local IsValid = IsValid
 local math = math
@@ -66,8 +65,10 @@ function ENT:RestartMotionCoroutine( myTbl )
     local motionCor = threads.motionCor
     if not motionCor then return end
 
-    threads.motionCor.cor = coroutine_create( function()
+    --coroutine.killReason( threads.motionCor.cor, "RestartMotionCoroutine called" )
+    threads.motionCor.cor = coroutine.create( function()
         coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
+
     end )
 end
 
@@ -127,7 +128,7 @@ function ENT:BehaveUpdate( interval )
 
             if not threads.playerControlCor then
                 threads.playerControlCor = {
-                    cor = coroutine_create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
+                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
 
                 }
             end
@@ -135,16 +136,15 @@ function ENT:BehaveUpdate( interval )
 
             myTbl.m_ControlPlayerOldButtons = myTbl.m_ControlPlayerButtons
         else
-
             if not threads.priorityCor then
                 threads.priorityCor = {
-                    cor = coroutine_create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
+                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
 
                 }
             end
             if not threads.motionCor then
                 threads.motionCor = {
-                    cor = coroutine_create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
+                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
                     onDone = function( self, myTbl )
                         local demanded = myTbl.m_PathUpdatesDemanded
                         if demanded <= 0 then return end
@@ -206,7 +206,7 @@ function ENT:BehaveUpdate( interval )
         end
         if not threads.disabledCor then
             threads.disabledCor = {
-                cor = coroutine_create( function( self, myTbl ) myTbl.DisabledBehaviourCoroutine( self, myTbl ) end ),
+                cor = coroutine.create( function( self, myTbl ) myTbl.DisabledBehaviourCoroutine( self, myTbl ) end ),
 
             }
         end
@@ -480,6 +480,7 @@ function ENT:Think()
                 wasBusy = false
 
             elseif result == BOT_COROUTINE_RESULTS.DONE then
+                --coroutine.killReason( thread, "Coroutine finished" )
                 threads[index] = nil
                 if whenBusy then -- final whenBusy call
                     whenBusy( self, myTbl, true )
@@ -498,7 +499,7 @@ function ENT:Think()
 
             end
         end
-        if whenBusy and wasBusy then
+        if whenBusy and wasBusy then -- move us forward along our path and stuff
             whenBusy( self, myTbl )
 
         end

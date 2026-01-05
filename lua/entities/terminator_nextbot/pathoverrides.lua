@@ -538,8 +538,8 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
         laddering = true
         -- ladders are kinda dumb
         -- avoid if we can
-        cost = ladMeta.GetLength( ladder ) * 2
-        cost = cost + 400
+        cost = ladMeta.GetLength( ladder ) * 1.5
+        cost = cost + 200
 
     end
 
@@ -788,11 +788,6 @@ end
 
 function ENT:SetupPathShell( endpos, isUnstuck )
     if not endpos then ErrorNoHaltWithStack( "no endpos" ) return nil, "error1" end
-    -- block path spamming
-    -- exceptions for unstucker paths, they're VIP
-    if not isUnstuck and not self:nextNewPathIsGood() then return nil, "blocked1" end
-    self.nextNewPath = CurTime() + math.Rand( 0.05, 0.1 )
-
     coroutine_yield()
 
     if not isvector( endpos ) then return nil, "blocked2" end
@@ -839,7 +834,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         -- good path, escape here
         if computed or self:PathIsValid() then
             self.setupPath2NoNavs = nil
-            self.nextNewPath = CurTime() + math.Clamp( cost * 4, 0.1, 1 )
+            self:delayNewPaths( math.Clamp( cost * 4, 0.1, 1 ) )
 
             if not wasGood then
                 self:FloodMarkAsUnreachable( endArea.area )
@@ -945,7 +940,7 @@ local function AreaOrLadderGetCenter( areaOrLadder )
     end
 end
 
-local table_Add = table.Add
+local tableAdd = terminator_Extras.tableAdd
 local table_IsEmpty = table.IsEmpty
 local inf = math.huge
 local ipairs = ipairs
@@ -999,7 +994,8 @@ local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
             adjacents = navMeta.GetAdjacentAreas( areaOrLadder )
 
         else
-            adjacents = table_Add( navMeta.GetAdjacentAreas( areaOrLadder ), navMeta.GetLadders( areaOrLadder ) )
+            adjacents = navMeta.GetAdjacentAreas( areaOrLadder )
+            tableAdd( adjacents, navMeta.GetLadders( areaOrLadder ) )
 
         end
 
@@ -1140,7 +1136,6 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
             local adjID = AreaOrLadderGetID( adjArea )
 
             if not closed[adjID] then
-
                 local theScore = 0
                 if area.GetTop or adjArea.GetTop then
                     -- just let the algorithm pass through this
@@ -1170,8 +1165,10 @@ end
 
 
 -- try to replicate default path:Compute behaviour
-local function adjacentAreasSkippingLadders( area )
+local function adjacentAreasSkippingLadders( area, canUseLadders )
     local areaDatas = navMeta.GetAdjacentAreaDistances( area )
+
+    if not canUseLadders then return areaDatas end
 
     local ladders = navMeta.GetLadders( area )
     if #ladders > 0 then
@@ -1182,20 +1179,36 @@ local function adjacentAreasSkippingLadders( area )
 
         end
         for _, ladder in ipairs( ladders ) do
+            local ladderAlreadyDone = { [GetID( area )] = true }
             local ladderAdjacents = AreaOrLadderGetAdjacentAreas( ladder )
             for _, ladderAdj in ipairs( ladderAdjacents ) do
                 local ladderAdjID = GetID( ladderAdj )
-                if not already[ladderAdjID] then
-                    local adjacentsData = {
+                if ladderAlreadyDone[ladderAdjID] then continue end
+
+                local adjacentsData
+                if already[ladderAdjID] then
+                    for _, areaData in ipairs( areaDatas ) do
+                        if areaData.area ~= ladderAdj then continue end
+                        adjacentsData = areaData
+                        break
+                    end
+                end
+                if adjacentsData then
+                    adjacentsData.dist = ladder:GetLength()
+                    adjacentsData.ladder = ladder
+
+                else
+                    adjacentsData = {
                         area = ladderAdj,
-                        dist = vecMeta.Distance( navMeta.GetCenter( ladderAdj ), areasCenter ), -- simple distance, can change later if its a problem
+                        dist = ladder:GetLength(),
                         ladder = ladder,
                         --dir shouldnt need this
                     }
-                    table_insert( areaDatas, adjacentsData )
-                    already[ladderAdjID] = true
-
                 end
+
+                areaDatas[#areaDatas + 1] = adjacentsData
+                ladderAlreadyDone[ladderAdjID] = true
+
             end
         end
     end
@@ -1373,7 +1386,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
         end
 
 
-        local adjacentDatas = adjacentAreasSkippingLadders( bestArea )
+        local adjacentDatas = adjacentAreasSkippingLadders( bestArea, locoData.canUseLadders )
 
         for _, neighborDat in ipairs( adjacentDatas ) do
             currExtent = currExtent + 1
@@ -1472,7 +1485,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
     if fromNext == true then -- special area
         return 1
 
-    elseif fromNext == areaId then -- keep going
+    elseif fromNext == areaId then -- the good ending, keep going
         return 1
 
     end
@@ -1489,8 +1502,10 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
     local newGoalArea, areaCorridor, wasGood, _debugMsg = Astar( me, myTbl, startArea, goal, goalArea )
     local timeTaken = SysTime() - start
 
+    --print( _debugMsg )
+
     if not areaCorridor then
-        path:Invalidate() -- a* failed to find a good path, or even a compromise path
+        path:Invalidate() -- a* failed to find a good path, or even a compromise path, HARD failure
         return nil, false, "noCorridor"
 
     end
@@ -1531,7 +1546,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
         end
 
         --[[
-        yieldIfWeCan("wait")
+        coroutine_yield(terminator_Extras.BOT_COROUTINE_RESULTS.WAIT)
         local thisCenter = navMeta.GetCenter( getNavAreaOrLadderById( currId ) )
         debugoverlay.Line( last, thisCenter, 5, color_white, true )
         last = thisCenter
@@ -1670,7 +1685,7 @@ function ENT:DamagingAreas()
         if added > 10 then break end
         if not IsValid( volatile ) then continue end
         added = added + 1
-        table.Add( damagingAreas, navmesh.Find( volatile:GetPos(), 50, jumpHeight, jumpHeight ) )
+        terminator_Extras.tableAdd( damagingAreas, navmesh.Find( volatile:GetPos(), 50, jumpHeight, jumpHeight ) )
 
     end
     return damagingAreas

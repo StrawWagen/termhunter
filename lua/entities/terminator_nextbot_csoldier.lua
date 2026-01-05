@@ -1552,7 +1552,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     local potenialGoals = { enemysNav }
                     local enemyNavsConnectedAreas = enemysNav:GetIncomingConnections()
                     if #enemyNavsConnectedAreas > 0 then
-                        table.Add( potenialGoals, enemyNavsConnectedAreas )
+                        terminator_Extras.tableAdd( potenialGoals, enemyNavsConnectedAreas )
 
                     end
                     for _, area in ipairs( potenialGoals ) do

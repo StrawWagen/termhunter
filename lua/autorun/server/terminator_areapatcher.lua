@@ -270,7 +270,7 @@ local function mergeWithNeighbors( data, vecsToPlace )
 
 
         local toMergeSet = { data }
-        table.Add( toMergeSet, neighbors )
+        terminator_Extras.tableAdd( toMergeSet, neighbors )
 
         allGood, minX, maxX, minY, maxY, minZ, maxZ = getCornersIfMerged( toMergeSet )
         if not allGood then continue end

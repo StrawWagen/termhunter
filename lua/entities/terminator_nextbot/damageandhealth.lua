@@ -742,7 +742,7 @@ function ENT:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePo
     local weps = { wep }
 
     local _, holsteredWeaps = self:GetHolsteredWeapons()
-    table.Add( weps, holsteredWeaps )
+    terminator_Extras.tableAdd( weps, holsteredWeaps )
     for _, currWep in pairs( weps ) do
         if not IsValid( currWep ) then continue end
         self:HandleWeaponOnDeath( currWep, dissolving )

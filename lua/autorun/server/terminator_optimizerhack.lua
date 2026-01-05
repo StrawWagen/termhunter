@@ -20,6 +20,7 @@ local table = table
 local bit_band = bit.band
 
 terminator_Extras = terminator_Extras or {}
+local terminator_Extras = terminator_Extras
 
 local cornerIndexes = { 0,1,2,3 }
 local fiveSqared = 5^2
@@ -115,7 +116,9 @@ function terminator_Extras.navAreasCanMerge( start, next )
 
     if probablyBreakingStairs or noMergeAndNotObstacle or transient or probablyBreakingCrouch or probablyBreakingSelectiveBlock then return false, 0, NULL end
 
-    local ladders = table.Add( start:GetLadders(), next:GetLadders() )
+    -- GetLadders creates a new table, can add stuff to it
+    local ladders = start:GetLadders()
+    terminator_Extras.tableAdd( ladders, next:GetLadders() )
 
     if #ladders > 0 then return false, 0, NULL end -- dont break the ladders!
 
@@ -194,8 +197,12 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
     local connectionsToStart = GetIncomingConnections( start )
     local connectionsToNext = GetIncomingConnections( next )
 
-    local connectionsFrom       = table.Add( connectionsFromStart, connectionsFromNext )
-    local oneWayConnectionsTo   = table.Add( connectionsToStart, connectionsToNext )
+    local connectionsFrom       = terminator_Extras.tableCopySimple( connectionsFromStart )
+    terminator_Extras.tableAdd( connectionsFrom, connectionsFromNext )
+
+    local oneWayConnectionsTo = terminator_Extras.tableCopySimple( connectionsToStart )
+    terminator_Extras.tableAdd( oneWayConnectionsTo, connectionsToNext )
+
     local twoWayConnections     = {}
 
     for key, twoWayArea in ipairs( connectionsFrom ) do
@@ -233,7 +240,7 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
 
             sameCornerAsBiggestArea, newOffendingCorners = navAreaGetCloseCorners( currStartCorner, biggestArea )
 
-            offendingCorners = table.Add( offendingCorners, newOffendingCorners )
+            terminator_Extras.tableAdd( offendingCorners, newOffendingCorners )
 
         end
 

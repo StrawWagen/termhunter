@@ -80,7 +80,7 @@ function ENT:InitializeWraith( myTbl )
 
     function self:CloakedMatFlicker()
         local toApply = { self }
-        table.Add( toApply, self:GetChildren() )
+        terminator_Extras.tableAdd( toApply, self:GetChildren() )
 
         for _, ent in pairs( toApply ) do
             if not IsValid( ent ) then continue end
@@ -96,7 +96,7 @@ function ENT:InitializeWraith( myTbl )
             if not IsValid( self ) then return end
             if self:IsSolid() then return end
             toApply = { self }
-            table.Add( toApply, self:GetChildren() )
+            terminator_Extras.tableAdd( toApply, self:GetChildren() )
 
             for _, ent in pairs( toApply ) do
                 if not IsValid( ent ) then continue end
@@ -141,7 +141,7 @@ function ENT:InitializeWraith( myTbl )
             self:RemoveAllDecals()
 
             local toApply = { self }
-            table.Add( toApply, self:GetChildren() )
+            terminator_Extras.tableAdd( toApply, self:GetChildren() )
             for _, ent in pairs( toApply ) do
                 if not IsValid( ent ) then continue end
                 local entsParent = ent:GetParent()
@@ -173,7 +173,7 @@ function ENT:InitializeWraith( myTbl )
                 self:OnStuck()
 
                 local toApply = { self }
-                table.Add( toApply, self:GetChildren() )
+                terminator_Extras.tableAdd( toApply, self:GetChildren() )
                 for _, ent in pairs( toApply ) do
                     if not IsValid( ent ) then continue end
                     local entsParent = ent:GetParent()

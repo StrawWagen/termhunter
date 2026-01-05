@@ -205,7 +205,9 @@ local function drawSpecialActions( bot )
         local drawHint = data.drawHint
         if not drawHint then continue end
         if isfunction( drawHint ) and not drawHint( bot ) then continue end
+        if not ( data.commandName or data.inBind ) then continue end
         local keyName, isBound = resolveDriveActionBinding( data )
+        if not keyName then continue end
         lines[#lines + 1] = {
             key = keyName,
             bound = isBound,

@@ -89,7 +89,7 @@ function terminator_Extras.DehingeDoor( attacker, door, noCollided )
     detachAreaPortals( attacker:GetOwner(), door )
 
     local getRidOf = { door }
-    table.Add( getRidOf, door:GetChildren() )
+    terminator_Extras.tableAdd( getRidOf, door:GetChildren() )
     for _, toRid in pairs( getRidOf ) do
         toRid:SetNotSolid( true )
         toRid:SetNoDraw( true )

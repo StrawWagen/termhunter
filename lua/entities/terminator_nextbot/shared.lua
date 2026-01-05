@@ -348,7 +348,7 @@ end
 local function getUsefulPositions( area )
     local out = {}
     local center = area:GetCenter()
-    table.Add( out, area:GetHidingSpots( 8 ) )
+    terminator_Extras.tableAdd( out, area:GetHidingSpots( 8 ) )
 
     if #out >= 1 then
         return out
@@ -499,7 +499,7 @@ function ENT:EnemyIsBoxedIn()
 
     for _, ally in ipairs( allies ) do
         if not IsValid( ally ) then continue end
-        table.Add( dangerAreas, navmesh.Find( ally:GetPos(), 350, stepH, stepH ) )
+        terminator_Extras.tableAdd( dangerAreas, navmesh.Find( ally:GetPos(), 350, stepH, stepH ) )
 
     end
 
@@ -793,7 +793,7 @@ do
         if IsValidAwareness( enemy ) and brainy and myTbl.IsSeeEnemy and myTbl.DistToEnemy > AwarenessCheckRange then
             coroutine_yield()
             local enemSurroundings = ents.FindInSphere( entMeta.GetPos( enemy ), 400 ) -- shoot explosive barrels next to enemies!
-            table.Add( rawSurroundings, enemSurroundings )
+            terminator_Extras.tableAdd( rawSurroundings, enemSurroundings )
 
         end
 
@@ -868,7 +868,7 @@ do
 
         coroutine_yield()
 
-        myTbl.AdditionalUnderstand( self, substantialStuff )
+        myTbl.AdditionalUnderstand( self, awarenessSubstantialStuff )
 
     end
 end
@@ -1381,7 +1381,7 @@ function ENT:ShootblockerThink( myTbl )
     if myTbl.DisableBehaviour( self, myTbl ) then return end
 
     local filter = { self, myTbl.GetEnemy( self ) }
-    table.Add( filter, entMeta.GetChildren( self ) )
+    terminator_Extras.tableAdd( filter, entMeta.GetChildren( self ) )
 
     coroutine_yield()
 
@@ -1445,6 +1445,11 @@ function ENT:nextNewPathIsGood()
     end
 
     return true
+end
+
+function ENT:delayNewPaths( delay )
+    self.nextNewPath = CurTime() + delay
+
 end
 
 function ENT:YieldUntilNextNewPath()
@@ -3632,7 +3637,7 @@ function ENT:DoDefaultTasks()
                         end
 
                         myTbl.GotoPosSimple( self, myTbl, data.freedomGotoPosSimple, 0 )
-                        myTbl.nextNewPath = CurTime() + 0.5
+                        myTbl.delayNewPaths( self, 0.5 )
 
                     end
                 end
@@ -7596,10 +7601,10 @@ function ENT:DoDefaultTasks()
                             score = score * 2
                         end
                         if not scoreData.canDoUnderWater and area2:IsUnderwater() then
-                            score = score * 0.01
+                            score = score * 0.001
                         end
                         if dropToArea > self.loco:GetMaxJumpHeight() then
-                            score = score * 0.01
+                            score = score * 0.001
                         end
 
                         --debugoverlay.Text( area2:GetCenter(), tostring( math.Round( math.sqrt( score ) ) ), 8 )
@@ -8596,7 +8601,7 @@ function ENT:DoDefaultTasks()
                         local targetsNav = terminator_Extras.getNearestNav( data.requiredTarget )
                         if not canSee and IsValid( targetsNav ) then
                             local areas = { targetsNav }
-                            table.Add( areas, targetsNav:GetAdjacentAreas() )
+                            terminator_Extras.tableAdd( areas, targetsNav:GetAdjacentAreas() )
                             for _, area in ipairs( areas ) do
                                 if area:IsVisible( data.bestPos ) then
                                     canSee = true

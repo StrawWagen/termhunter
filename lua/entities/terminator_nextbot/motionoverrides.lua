@@ -2682,7 +2682,7 @@ function ENT:ExitLadder( exit, recalculate )
 
     --debugoverlay.Cross( pos, 100, 1, color_white, true )
     if recalculate then
-        self.nextNewPath = CurTime() + recalculate
+        self:delayNewPaths( recalculate )
 
     end
 

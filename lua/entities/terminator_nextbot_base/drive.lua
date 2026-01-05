@@ -16,6 +16,69 @@ local function SwitchToWep( bot, slotNum )
 
 end
 
+local specialActionsRequiredTypes = {
+    ["inBind"] = { TYPE_NUMBER, TYPE_NIL },
+    ["commandName"] = { TYPE_STRING, TYPE_NIL },
+    ["name"] = { TYPE_STRING },
+    ["desc"] = { TYPE_STRING },
+    ["svAction"] = { TYPE_FUNCTION, TYPE_NIL },
+    ["clAction"] = { TYPE_FUNCTION, TYPE_NIL },
+    ["ratelimit"] = { TYPE_NUMBER },
+    ["uses"] = { TYPE_NUMBER },
+    ["drawHint"] = { TYPE_BOOL, TYPE_FUNCTION },
+
+}
+
+local requiredActionKeys = {
+    "name",
+}
+
+local function validateActions( sentTbl, mySpecialActions )
+    for actionName, actionDat in pairs( mySpecialActions ) do
+        for _, reqKey in ipairs( requiredActionKeys ) do
+            if actionDat[ reqKey ] == nil then
+                local str = {
+                    "Missing required key '", reqKey,
+                    "' for special action '", actionName,
+                    "' in class '", sentTbl.ClassName,
+                    "'"
+                }
+                ErrorNoHaltWithStack( table.concat( str ) .. "\n" )
+                return false
+
+            end
+        end
+        for key, val in pairs( actionDat ) do
+            local needed = specialActionsRequiredTypes[ key ]
+            if not needed then continue end
+
+            local valType = TypeID( val )
+            local validType = false
+            for _, neededType in ipairs( needed ) do
+                if valType ~= neededType then continue end
+                validType = true
+                break
+
+            end
+            if not validType then
+                local str = {
+                    "Invalid type for special action '", actionName,
+                    "' key '", key,
+                    "' in class '", sentTbl.ClassName,
+                    "'. Expected types: ", table.concat( needed, ", " ),
+                    ", got: ", valType
+                }
+                ErrorNoHaltWithStack( table.concat( str ) .. "\n" )
+                return false
+
+            end
+        end
+    end
+    return true
+
+end
+
+
 -- actions that can be taken while driving, exit control, switch weapon, drop weapon, etc.
 -- automaically drawn while driving if drawHint is true
 -- .inBind -- IN_ bitflag for mv:KeyPressed detection
@@ -167,6 +230,9 @@ function ENT:SetupSpecialActions( myTbl ) -- same system as ENT:DoClassTasks
         if not mySpecialActions then continue end
         if table.Count( mySpecialActions ) == 0 then continue end
 
+        local valid = validateActions( sentTbl, mySpecialActions )
+        if not valid then continue end
+
         for actionName, actionData in pairs( mySpecialActions ) do
             specialActions[actionName] = actionData
 
@@ -181,7 +247,10 @@ end
     ret1: bool | canTake | True if bot can take the action
 --]]------------------------------------
 function ENT:CanTakeAction( actionName )
-    local actionData = self.SpecialActions[actionName]
+    local specialActions = self.SpecialActions
+    if not specialActions then return end -- too early, called inside Initialize
+
+    local actionData = specialActions[actionName]
     if not actionData then return end
     if not ( actionData.svAction or actionData.clAction ) then return end
 
@@ -211,8 +280,11 @@ end
     arg2: driveController | driveController | Optional optimisation, controller driving the bot if any
 --]]------------------------------------
 function ENT:TakeAction( actionName, driveController )
+    local specialActions = self.SpecialActions
+    if not specialActions then ErrorNoHaltWithStack( "BOT:TakeAction called before bot finished setting up..." ) return end -- called inside Initialize...
+
     if not self:CanTakeAction( actionName ) then return end
-    local actionData = self.SpecialActions[actionName]
+    local actionData = specialActions[actionName]
 
     driveController = driveController or self.Term_PlayerDriveController
     local driver
