@@ -18,10 +18,11 @@ local CurTime = CurTime
 
 -- masks
 local BOT_COROUTINE_RESULTS = {
-    DONE = 1, -- end and teardown this thread
+    DONE = 1, -- this thread is done for now
     WAIT = 2, -- wait until next think
     PATHING = 4, -- let us get put in the pathing budget queue
     PATHING_DONTWAIT = 8, -- still a pathing yield, but dont count towards the budget, added for debugging
+    DONE_CLEANUP = 16, -- end and teardown this thread
 
 }
 terminator_Extras.BOT_COROUTINE_RESULTS = BOT_COROUTINE_RESULTS
@@ -65,9 +66,8 @@ function ENT:RestartMotionCoroutine( myTbl )
     local motionCor = threads.motionCor
     if not motionCor then return end
 
-    --coroutine.killReason( threads.motionCor.cor, "RestartMotionCoroutine called" )
     threads.motionCor.cor = coroutine.create( function()
-        coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
+        coroutine_yield( BOT_COROUTINE_RESULTS.DONE_CLEANUP )
 
     end )
 end
@@ -97,107 +97,9 @@ function ENT:BehaveUpdate( interval )
     myTbl.ProcessFootsteps( self, myTbl )
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z
 
-    if not disable then
-        myTbl.SetupEyeAngles( self, myTbl )
-        myTbl.UpdatePhysicsObject( self )
-        myTbl.HandlePathRemovedWhileOnladder( self )
+    myTbl.SetupGesturePosture( self )
 
-        local threads = myTbl.BehaviourThreads
-        if not threads then
-            threads = {}
-            myTbl.BehaviourThreads = threads
-
-        end
-
-        local ply = myTbl.GetControlPlayer( self )
-        if IsValid( ply ) then -- not optimizing this
-            -- Sending current weapon clips data
-
-            if self:HasWeapon() then
-                local wep = self:GetActiveWeapon()
-
-                self:SetWeaponClip1( wep:Clip1() )
-                self:SetWeaponClip2( wep:Clip2() )
-                self:SetWeaponMaxClip1( wep:GetMaxClip1() )
-                self:SetWeaponMaxClip2( wep:GetMaxClip2() )
-
-            end
-
-            -- Calling behavior think for player control
-            self:BehaviourPlayerControlThink( ply )
-
-            if not threads.playerControlCor then
-                threads.playerControlCor = {
-                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
-
-                }
-            end
-            -- Calling task callbacks
-
-            myTbl.m_ControlPlayerOldButtons = myTbl.m_ControlPlayerButtons
-        else
-            if not threads.priorityCor then
-                threads.priorityCor = {
-                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
-
-                }
-            end
-            if not threads.motionCor then
-                threads.motionCor = {
-                    cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
-                    onDone = function( self, myTbl )
-                        local demanded = myTbl.m_PathUpdatesDemanded
-                        if demanded <= 0 then return end
-
-                        myTbl.m_PathUpdatesDemanded = demanded - 1
-
-                    end,
-                    whenBusy = function( self, myTbl, lastOne ) -- horrible, terrible hacks to fix equally horrible terrible visual stuttering when low CoroutineThresh bots are pathing
-                        local demanded = myTbl.m_PathUpdatesDemanded
-                        if demanded <= 0 then return end
-
-                        if myTbl.IsFodder then -- ratelimit fodder path updates
-                            local nextUpdate = myTbl.m_NextPathUpdate or 0
-                            local cur = CurTime()
-                            if nextUpdate > cur then return end
-
-                            myTbl.m_NextPathUpdate = cur + pathUpdateIntervalFodder
-
-                        end
-
-                        local path = myTbl.GetPath( self )
-                        if not path or not pathMeta.IsValid( path ) then return end
-
-                        local currSegment = pathMeta.GetCurrentGoal( path )
-                        local currType = currSegment.type
-                        local laddering = currType == 4 or currType == 5
-                        if laddering then
-                            myTbl.TermHandleLadder( self )
-                            return
-
-                        end
-
-                        local loco = myTbl.loco
-
-                        -- was setting bot's angle to their angle before the path:Update, but that was breaking prediction/velocity somehow
-                        -- this as it turns out, is the correct way to stop it from turning towards the path
-                        local oldYawRate = locoMeta.GetMaxYawRate( loco )
-                        locoMeta.SetMaxYawRate( loco, 0 )
-
-                        pathMeta.Update( path, self )
-
-                        locoMeta.SetMaxYawRate( loco, oldYawRate )
-
-                        local phys = entMeta.GetPhysicsObject( self )
-                        if IsValid( phys ) then
-                            physMeta.SetAngles( phys, angle_zero )
-
-                        end
-                    end
-                }
-            end
-        end
-    else
+    if disable then -- make sure we call the Think task callback even we're disabled
         local threads = myTbl.BehaviourThreads
         if not threads then
             threads = {}
@@ -210,10 +112,111 @@ function ENT:BehaveUpdate( interval )
 
             }
         end
+        return
+
     end
 
-    myTbl.SetupGesturePosture( self )
+    myTbl.SetupEyeAngles( self, myTbl )
+    myTbl.UpdatePhysicsObject( self )
+    myTbl.HandlePathRemovedWhileOnladder( self )
 
+    local threads = myTbl.BehaviourThreads
+    if not threads then
+        threads = {}
+        myTbl.BehaviourThreads = threads
+
+    end
+
+    local ply = myTbl.GetControlPlayer( self )
+    if IsValid( ply ) then -- being controlled, not _index optimizing this
+        -- Sending current weapon clips data
+
+        if self:HasWeapon() then
+            local wep = self:GetActiveWeapon()
+
+            self:SetWeaponClip1( wep:Clip1() )
+            self:SetWeaponClip2( wep:Clip2() )
+            self:SetWeaponMaxClip1( wep:GetMaxClip1() )
+            self:SetWeaponMaxClip2( wep:GetMaxClip2() )
+
+        end
+
+        -- Calling behavior think for player control
+        self:BehaviourPlayerControlThink( ply )
+
+        if not threads.playerControlCor then
+            print( "makePlayerControlCor" )
+            threads.playerControlCor = {
+                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
+
+            }
+        end
+        myTbl.m_ControlPlayerOldButtons = myTbl.m_ControlPlayerButtons
+
+    else
+        if not threads.priorityCor then
+            print( "makePriorityCor" )
+            threads.priorityCor = {
+                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
+
+            }
+        end
+        if not threads.motionCor then
+            print( "makeMotionCor" )
+            threads.motionCor = {
+                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
+                onDone = function( self, myTbl )
+                    local demanded = myTbl.m_PathUpdatesDemanded
+                    if demanded <= 0 then return end
+
+                    myTbl.m_PathUpdatesDemanded = demanded - 1
+
+                end,
+                whenBusy = function( self, myTbl, lastOne ) -- horrible, terrible hacks to fix equally horrible terrible visual stuttering when low CoroutineThresh bots are pathing
+                    local demanded = myTbl.m_PathUpdatesDemanded
+                    if demanded <= 0 then return end
+
+                    if myTbl.IsFodder then -- ratelimit fodder path updates
+                        local nextUpdate = myTbl.m_NextPathUpdate or 0
+                        local cur = CurTime()
+                        if nextUpdate > cur then return end
+
+                        myTbl.m_NextPathUpdate = cur + pathUpdateIntervalFodder
+
+                    end
+
+                    local path = myTbl.GetPath( self )
+                    if not path or not pathMeta.IsValid( path ) then return end
+
+                    local currSegment = pathMeta.GetCurrentGoal( path )
+                    local currType = currSegment.type
+                    local laddering = currType == 4 or currType == 5
+                    if laddering then
+                        myTbl.TermHandleLadder( self )
+                        return
+
+                    end
+
+                    local loco = myTbl.loco
+
+                    -- was setting bot's angle to their angle before the path:Update, but that was breaking prediction/velocity somehow
+                    -- this as it turns out, is the correct way to stop it from turning towards the path
+                    local oldYawRate = locoMeta.GetMaxYawRate( loco )
+                    locoMeta.SetMaxYawRate( loco, 0 )
+
+                    pathMeta.Update( path, self )
+
+                    locoMeta.SetMaxYawRate( loco, oldYawRate )
+
+                    local phys = entMeta.GetPhysicsObject( self )
+                    if IsValid( phys ) then
+                        physMeta.SetAngles( phys, angle_zero )
+
+                    end
+                end
+            }
+        end
+    end
 end
 
 
@@ -408,11 +411,13 @@ function ENT:Think()
         local onDone = threadDat.onDone
         local whenBusy = threadDat.whenBusy
         local oldTime = SysTime()
-        local myCostThisTick = 0
+        local myPathingCostThisTick = 0
         local wasBusy
         local oldTimePathDebug
 
-        while thread do
+        local done
+
+        while thread and not done do
             local cost = SysTime() - oldTime
             local overbudget = cost > thresh
             if overbudget then
@@ -450,19 +455,19 @@ function ENT:Think()
                 end
             end
 
-            if noErrors == false then
+            if noErrors == false then -- something errored in there
                 local stack = debug.traceback( thread )
                 threads[index] = nil
                 result = result or "unknown error"
-                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\n" .. result .. "\n" .. stack .. "\n" )
+                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " in " .. index .. "\n" .. result .. "\n" .. stack .. "\n" )
                 wasBusy = false
                 break
 
-            elseif result == BOT_COROUTINE_RESULTS.WAIT then
+            elseif result == BOT_COROUTINE_RESULTS.WAIT then -- all done this tick
                 wasBusy = false
                 break
 
-            elseif result == BOT_COROUTINE_RESULTS.PATHING then
+            elseif result == BOT_COROUTINE_RESULTS.PATHING then -- pathing yield, count towards global budget
                 local budgetIGet = budgetEveryoneGets
                 if distToEnem < nextToDist then
                     budgetIGet = budgetIGet + budgetAddIfNextTo
@@ -471,17 +476,15 @@ function ENT:Think()
                     budgetIGet = budgetIGet + budgetAddIfNear
 
                 end
-                if not dueling and myCostThisTick >= budgetIGet and costThisTick > probablyLagging then -- hack to stop groups of bots from nuking session perf
+                if not dueling and myPathingCostThisTick >= budgetIGet and costThisTick > probablyLagging then -- hack to stop groups of bots from nuking session perf
                     break
 
                 end
-                myCostThisTick = myCostThisTick + 1
+                myPathingCostThisTick = myPathingCostThisTick + 1
                 costThisTick = costThisTick + 1
                 wasBusy = false
 
-            elseif result == BOT_COROUTINE_RESULTS.DONE then
-                --coroutine.killReason( thread, "Coroutine finished" )
-                threads[index] = nil
+            elseif result == BOT_COROUTINE_RESULTS.DONE then -- this thread is finished
                 if whenBusy then -- final whenBusy call
                     whenBusy( self, myTbl, true )
 
@@ -491,11 +494,27 @@ function ENT:Think()
 
                 end
                 wasBusy = false -- dont call whenBusy after onDone
+                done = true
                 break
 
-            elseif isstring( result ) then
+            elseif result == BOT_COROUTINE_RESULTS.DONE_CLEANUP then -- this thread is finished, and we need to cleanup
+                threads[index] = nil
+
+                if whenBusy then -- final whenBusy call
+                    whenBusy( self, myTbl, true )
+
+                end
+                if onDone then -- tell the thread we're done
+                    onDone( self, myTbl )
+
+                end
+                wasBusy = false -- dont call whenBusy after onDone
+                done = true
+                break
+
+            elseif isstring( result ) then -- invalid yield, needs to be BOT_COROUTINE_RESULTS
                 local stack = debug.traceback( thread )
-                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. "\nUnknown yield result: " .. tostring( result ) .. "\n" .. stack .. "\n" )
+                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " for " .. index .. "\nUnknown yield result: " .. tostring( result ) .. "\n" .. stack .. "\n" )
 
             end
         end
@@ -505,68 +524,73 @@ function ENT:Think()
         end
     end
     if doneSomething then
-        entMeta.NextThink( self, CurTime() )
+        entMeta.NextThink( self, CurTime() ) -- think fast if we have threads to process
         return true
-
-    else
-        myTbl.BehaviourThreads = nil
 
     end
 end
 
 -- do enemy handling ( looking around, finding enemies, shooting ) asynced to the movement coroutine
 function ENT:BehaviourPriorityCoroutine( myTbl )
-    -- update drowning, speaking, etc
-    myTbl.TermThink( self, myTbl )
-    myTbl.AdditionalThink( self, myTbl )
+    while true do
+        -- update drowning, speaking, etc
+        myTbl.TermThink( self, myTbl )
+        myTbl.AdditionalThink( self, myTbl )
 
-    coroutine_yield()
+        coroutine_yield()
 
-    -- do shootblocker checks
-    myTbl.ShootblockerThink( self, myTbl )
+        -- do shootblocker checks
+        myTbl.ShootblockerThink( self, myTbl )
 
-    -- Calling task callbacks
-    myTbl.RunTask( self, "BehaveUpdatePriority" )
-    myTbl.RunTask( self, "Think" )
+        -- Calling task callbacks
+        myTbl.RunTask( self, "BehaveUpdatePriority" )
+        myTbl.RunTask( self, "Think" )
 
-    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
+        coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
+    end
 end
 
 -- do motion, anything super computationally expensive on this coroutine
 function ENT:BehaviourMotionCoroutine( myTbl )
-    myTbl.term_cancelPathGen = nil -- set in tasks.lua when tasks end.
+    while true do
+        myTbl.term_cancelPathGen = nil -- set in tasks.lua when tasks end.
 
-    myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
-    myTbl.WalkArea( self, myTbl ) -- mark nearby areas as walked, used for searching new unwalked areas
+        myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
+        myTbl.WalkArea( self, myTbl ) -- mark nearby areas as walked, used for searching new unwalked areas
 
-    -- Calling task callbacks
-    myTbl.RunTask( self, "BehaveUpdateMotion" )
+        -- Calling task callbacks
+        myTbl.RunTask( self, "BehaveUpdateMotion" )
 
-    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
+        coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
+    end
 end
 
 -- call stuff while controlled by players
 function ENT:BehaviourPlayerControlCoroutine( myTbl )
-    -- update drowning, speaking, etc
-    myTbl.TermThink( self, myTbl )
-    myTbl.AdditionalThink( self, myTbl )
-    myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
+    while true do
+        -- update drowning, speaking, etc
+        myTbl.TermThink( self, myTbl )
+        myTbl.AdditionalThink( self, myTbl )
+        myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
 
-    -- Calling task callbacks
-    myTbl.RunTask( self, "PlayerControlUpdate", ply )
-    myTbl.RunTask( self, "Think" )
+        -- Calling task callbacks
+        myTbl.RunTask( self, "PlayerControlUpdate", ply )
+        myTbl.RunTask( self, "Think" )
 
-    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
+        coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
+    end
 end
 
 -- make sure Think callback is always called
 function ENT:DisabledBehaviourCoroutine( myTbl )
-    myTbl.RunTask( self, "Think" )
-    myTbl.AdditionalThink( self, myTbl )
+    while true do
+        myTbl.RunTask( self, "Think" )
+        myTbl.AdditionalThink( self, myTbl )
 
-    coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
+        coroutine_yield( BOT_COROUTINE_RESULTS.DONE )
 
+    end
 end
