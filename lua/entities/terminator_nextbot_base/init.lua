@@ -280,10 +280,10 @@ function ENT:GetNPCState() return NPC_STATE_NONE end
 function ENT:AddEntityRelationship(target,disposition,priority) self:Term_SetEntityRelationship(target,disposition,priority) end
 function ENT:AddRelationship(str)
 	local explode = string.Explode(" ",str)
-	
+
 	local class = explode[1]
 	if !class then return end
-	
+
 	local d = explode[2]=="D_LI" and D_LI or explode[2]=="D_HT" and D_HT or explode[2]=="D_ER" and D_ER or explode[2]=="D_FR" and D_FR
 	local priority = tonumber(explode[3])
 
@@ -293,6 +293,8 @@ function ENT:Disposition(ent) return self:GetRelationship(ent) end
 
 
 local terms = {}
+terminator_Extras.isNpcHack_Tbl = terms
+
 local function onTermsTableUpdate()
 	local count = 0
 

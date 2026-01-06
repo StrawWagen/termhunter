@@ -184,9 +184,11 @@ function terminator_Extras.navAreasCanMerge( start, next )
 
 end
 
+local navAreasCanMerge = terminator_Extras.navAreasCanMerge
+
 function terminator_Extras.navmeshAttemptMerge( start, next )
 
-    local canMerge, newSurfaceArea = terminator_Extras.navAreasCanMerge( start, next )
+    local canMerge, newSurfaceArea = navAreasCanMerge( start, next )
 
     if canMerge ~= true then return false, 0, NULL end
 
@@ -252,6 +254,7 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
             for _, mergableOption in ipairs( connectionsFromStart ) do
                 if navAreasCanMerge( start, mergableOption ) and mergableOption ~= next then
                     mergingOptions = mergingOptions + 1
+
                 end
             end
 
