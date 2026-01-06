@@ -145,7 +145,7 @@ function ENT:BehaveUpdate( interval )
         self:BehaviourPlayerControlThink( ply )
 
         if not threads.playerControlCor then
-            print( "makePlayerControlCor" )
+            --print( "makePlayerControlCor" )
             threads.playerControlCor = {
                 cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
 
@@ -155,14 +155,14 @@ function ENT:BehaveUpdate( interval )
 
     else
         if not threads.priorityCor then
-            print( "makePriorityCor" )
+            --print( "makePriorityCor" )
             threads.priorityCor = {
                 cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
 
             }
         end
         if not threads.motionCor then
-            print( "makeMotionCor" )
+            --print( "makeMotionCor" )
             threads.motionCor = {
                 cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
                 onDone = function( self, myTbl )
