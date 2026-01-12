@@ -935,7 +935,7 @@ function ENT:GetDisrespectingEnt( myTbl )
             if hook.Run( "terminator_blocktarget", self, potentialDisrespect ) == true then continue end -- fix supercop attacking specdm players on cfcttt
             if entMeta.IsFlagSet( self, FL_NOTARGET ) then continue end
 
-            local disrespectBestPos = entMeta.NearestPoint( self, myShootPos )
+            local disrespectBestPos = entMeta.NearestPoint( potentialDisrespect, myShootPos )
             local close = SqrDistLessThan( vecMeta.DistToSqr( disrespectBestPos, myShootPos ), disrespectorRange )
             close = close or SqrDistLessThan( vecMeta.DistToSqr( disrespectBestPos, myPos ), disrespectorRange )
 
@@ -3439,6 +3439,7 @@ function ENT:DoDefaultTasks()
                     elseif IsValid( enemy ) and not ( myTbl.blockAimingAtEnemy and myTbl.blockAimingAtEnemy > CurTime() ) then
                         myTbl.shootAt( self, myTbl.LastEnemyShootPos, myTbl.PreventShooting )
                         myTbl.lastShootingType = "noWeapon"
+
                         return
 
                     else

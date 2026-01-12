@@ -241,6 +241,7 @@ end
 local yieldDebugTotalCosts
 local yieldDebugWorstCosts
 local yieldDebugPathCosts
+local yieldDebugLuaMemCosts
 local debugging = false
 
 do
@@ -249,11 +250,13 @@ do
             yieldDebugTotalCosts = {}
             yieldDebugWorstCosts = {}
             yieldDebugPathCosts = {}
+            yieldDebugLuaMemCosts = {}
 
         else
             yieldDebugTotalCosts = nil
             yieldDebugWorstCosts = nil
             yieldDebugPathCosts = nil
+            yieldDebugLuaMemCosts = nil
 
         end
     end
@@ -267,24 +270,35 @@ do
         else
             if not yieldDebugTotalCosts then permaPrint( "ERR: File was autorefreshed." ) return end
 
-            local overbudgetFound = table.Count( yieldDebugTotalCosts )
-            if overbudgetFound <= 0 then
+            local totalCostsCount = table.Count( yieldDebugTotalCosts )
+            if totalCostsCount <= 0 then
                 permaPrint( "No overbudget yields found." )
                 return
 
             else
                 local i = 0
                 local max = 20
-                permaPrint( "Found " .. overbudgetFound .. " overbudget yields. Displaying the " .. math.min( overbudgetFound, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
+                local wasOverMax = false
+                permaPrint( "Found " .. totalCostsCount .. " overbudget yields. Displaying the " .. math.min( totalCostsCount, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
+                permaPrint( "Top " .. math.min( totalCostsCount, max ) .. " results:" )
                 for currStack, value in SortedPairsByValue( yieldDebugTotalCosts, true ) do
                     i = i + 1
-                    if i > max then break end
+                    if i > max then
+                        wasOverMax = true
+                        break
+
+                    end
                     permaPrint( "-------------------------" )
                     permaPrint( "Added costs: " .. value .. "\n", currStack )
 
                 end
                 permaPrint( "-------------------------" )
+                if wasOverMax then
+                    local excludedCount = totalCostsCount - max
+                    permaPrint( excludedCount .. " results excluded..." )
+                    permaPrint( "-------------------------" )
 
+                end
             end
             yieldDebugTotalCosts = nil
 
@@ -302,24 +316,35 @@ do
         else
             if not yieldDebugWorstCosts then permaPrint( "ERR: File was autorefreshed." ) return end
 
-            local overbudgetFound = table.Count( yieldDebugWorstCosts )
-            if overbudgetFound <= 0 then
+            local overbudgetFoundCount = table.Count( yieldDebugWorstCosts )
+            if overbudgetFoundCount <= 0 then
                 permaPrint( "No overbudget yields found." )
                 return
 
             else
                 local i = 0
                 local max = 20
-                permaPrint( "Found " .. overbudgetFound .. " worst overbudget yields. Displaying the " .. math.min( overbudgetFound, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
+                local wasOverMax = false
+                permaPrint( "Found " .. overbudgetFoundCount .. " worst overbudget yields. Displaying the " .. math.min( overbudgetFoundCount, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
+                permaPrint( "Top " .. math.min( overbudgetFoundCount, max ) .. " results:" )
                 for currStack, value in SortedPairsByValue( yieldDebugWorstCosts, true ) do
                     i = i + 1
-                    if i > max then break end
+                    if i > max then
+                        wasOverMax = true
+                        break
+
+                    end
                     permaPrint( "-------------------------" )
                     permaPrint( "Worst cost: " .. value .. "\n", currStack )
 
                 end
                 permaPrint( "-------------------------" )
+                if wasOverMax then
+                    local excludedCount = overbudgetFoundCount - max
+                    permaPrint( excludedCount .. " results excluded..." )
+                    permaPrint( "-------------------------" )
 
+                end
             end
             yieldDebugWorstCosts = nil
 
@@ -337,31 +362,89 @@ do
         else
             if not yieldDebugPathCosts then permaPrint( "ERR: File was autorefreshed." ) return end
 
-            local overbudgetFound = table.Count( yieldDebugPathCosts )
-            if overbudgetFound <= 0 then
+            local yieldCostsCount = table.Count( yieldDebugPathCosts )
+            if yieldCostsCount <= 0 then
                 permaPrint( "No pathing yields found." )
                 return
 
             else
                 local i = 0
                 local max = 20
-                permaPrint( "Found " .. overbudgetFound .. " pathing yields.\nOptimize the code BEFORE these lines." )
+                local wasOverMax = false
+                permaPrint( "Found " .. yieldCostsCount .. " pathing yields.\nOptimize the code BEFORE these lines." )
+                permaPrint( "Top " .. math.min( yieldCostsCount, max ) .. " results:" )
                 for currStack, value in SortedPairsByValue( yieldDebugPathCosts, true ) do
                     i = i + 1
-                    if i > max then break end
+                    if i > max then
+                        wasOverMax = true
+                        break
+
+                    end
                     permaPrint( "-------------------------" )
                     permaPrint( "Total cost: " .. value .. "\n", currStack )
 
                 end
                 permaPrint( "-------------------------" )
+                if wasOverMax then
+                    local excludedCount = yieldCostsCount - max
+                    permaPrint( excludedCount .. " results excluded..." )
+                    permaPrint( "-------------------------" )
 
+                end
             end
-            yieldDebugWorstCosts = nil
+            yieldDebugPathCosts = nil
 
         end
         onToggleDebugging()
 
     end, "maindebugthinker_pathbudget" )
+
+    CreateConVar( "term_debug_luamem", "0", FCVAR_NONE, "Prints the yields taking up the most lua memory" )
+    cvars.AddChangeCallback( "term_debug_luamem", function( _, _, newVal )
+        debugging = tobool( newVal )
+        if debugging then
+            permaPrint( "Starting term luamem tracker.\nRun term_debug_luamem 0 to see results" )
+
+        else
+            if not yieldDebugLuaMemCosts then permaPrint( "ERR: File was autorefreshed." ) return end
+
+            local yieldDebugLuaMemCostsCount = table.Count( yieldDebugLuaMemCosts )
+            if yieldDebugLuaMemCostsCount <= 0 then
+                permaPrint( "No yields found." )
+                return
+
+            else
+                local i = 0
+                local max = 20
+                local wasOverMax = false
+                permaPrint( "Found " .. yieldDebugLuaMemCostsCount .. " yields creating garbage.\nOptimize the code BEFORE these worst yields." )
+                permaPrint( "Top " .. math.min( yieldDebugLuaMemCostsCount, max ) .. " results:" )
+                for currStack, value in SortedPairsByValue( yieldDebugLuaMemCosts, true ) do
+                    i = i + 1
+                    if i > max then
+                        wasOverMax = true
+                        break
+
+                    end
+                    permaPrint( "-------------------------" )
+                    permaPrint( "Total cost: " .. value .. "\n", currStack )
+
+                end
+                permaPrint( "-------------------------" )
+                if wasOverMax then
+                    local excludedCount = yieldDebugLuaMemCostsCount - max
+                    permaPrint( excludedCount .. " results excluded..." )
+                    permaPrint( "-------------------------" )
+
+                end
+            end
+            yieldDebugLuaMemCosts = nil
+
+        end
+        onToggleDebugging()
+
+    end, "maindebugthinker_luamem" )
+
 end
 
 
@@ -431,15 +514,25 @@ function ENT:Think()
         local myPathingCostThisTick = 0
         local wasBusy
         local oldTimePathDebug
+        local oldLuaMemDebug
+
+        if debugging then
+            oldLuaMemDebug = collectgarbage( "count" )
+
+        end
 
         local done
 
         while thread and not done do
             local cost = SysTime() - oldTime
             local overbudget = cost > thresh
+            local stack
+            if debugging or printTasks then
+                stack = debug.traceback( thread )
+
+            end
             if overbudget then
                 if debugging then
-                    local stack = debug.traceback( thread )
                     yieldDebugTotalCosts[stack] = ( yieldDebugTotalCosts[stack] or 0 ) + cost
                     yieldDebugWorstCosts[stack] = math.max( yieldDebugWorstCosts[stack] or 0, cost )
 
@@ -448,7 +541,7 @@ function ENT:Think()
 
             end
             if printTasks then
-                myTbl.lastYieldLocation = debug.traceback( thread )
+                myTbl.lastYieldLocation = stack
 
             end
             doneSomething = true
@@ -456,12 +549,16 @@ function ENT:Think()
             local noErrors, result = coroutine_resume( thread, self, myTbl )
 
             if debugging then
+                local newLuaMemDebug = collectgarbage( "count" )
+                local luaMemUsed = newLuaMemDebug - oldLuaMemDebug
+                yieldDebugLuaMemCosts[stack] = ( yieldDebugLuaMemCosts[stack] or 0 ) + luaMemUsed
+                oldLuaMemDebug = newLuaMemDebug
+
                 if result and ( result == BOT_COROUTINE_RESULTS.PATHING or result == BOT_COROUTINE_RESULTS.PATHING_DONTWAIT ) then
                     if not oldTimePathDebug then
                         oldTimePathDebug = SysTime()
 
                     else
-                        local stack = debug.traceback( thread )
                         yieldDebugPathCosts[stack] = ( yieldDebugPathCosts[stack] or 0 ) + ( SysTime() - oldTimePathDebug )
                         oldTimePathDebug = SysTime()
 
