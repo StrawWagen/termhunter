@@ -16,6 +16,18 @@ local math = math
 local pairs = pairs
 local CurTime = CurTime
 
+local aiDisabled = GetConVar( "ai_disabled" )
+function ENT:DisabledThinking()
+    return aiDisabled:GetBool()
+
+end
+
+local ignorePlayers = GetConVar( "ai_ignoreplayers" )
+function ENT:IgnoringPlayers()
+    return ignorePlayers:GetBool()
+
+end
+
 -- masks
 local BOT_COROUTINE_RESULTS = {
     DONE = 1, -- this thread is done for now
@@ -94,19 +106,22 @@ function ENT:BehaveUpdate( interval )
 
     myTbl.SetupSpeed( self, myTbl )
     myTbl.SetupMotionType( self, myTbl )
-    myTbl.ProcessFootsteps( self, myTbl )
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z
 
     myTbl.SetupGesturePosture( self )
 
-    if disable then -- make sure we call the Think task callback even we're disabled
-        local threads = myTbl.BehaviourThreads
-        if not threads then
-            threads = {}
-            myTbl.BehaviourThreads = threads
+    local threads = myTbl.BehaviourThreads
+    if not threads then
+        threads = {}
+        myTbl.BehaviourThreads = threads
 
-        end
+    end
+
+    if disable then -- make sure we call the Think task callback even if we're disabled
         if not threads.disabledCor then
+            threads.priorityCor = nil
+            threads.motionCor = nil
+            threads.playerControlCor = nil
             threads.disabledCor = {
                 cor = coroutine.create( function( self, myTbl ) myTbl.DisabledBehaviourCoroutine( self, myTbl ) end ),
 
@@ -116,16 +131,10 @@ function ENT:BehaveUpdate( interval )
 
     end
 
+    myTbl.ProcessFootsteps( self, myTbl )
     myTbl.SetupEyeAngles( self, myTbl )
     myTbl.UpdatePhysicsObject( self )
     myTbl.HandlePathRemovedWhileOnladder( self )
-
-    local threads = myTbl.BehaviourThreads
-    if not threads then
-        threads = {}
-        myTbl.BehaviourThreads = threads
-
-    end
 
     local ply = myTbl.GetControlPlayer( self )
     if IsValid( ply ) then -- being controlled, not _index optimizing this
@@ -145,7 +154,9 @@ function ENT:BehaveUpdate( interval )
         self:BehaviourPlayerControlThink( ply )
 
         if not threads.playerControlCor then
-            --print( "makePlayerControlCor" )
+            threads.priorityCor = nil
+            threads.motionCor = nil
+            threads.disabledCor = nil
             threads.playerControlCor = {
                 cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
 
@@ -154,15 +165,16 @@ function ENT:BehaveUpdate( interval )
         myTbl.m_ControlPlayerOldButtons = myTbl.m_ControlPlayerButtons
 
     else
+        local updated
         if not threads.priorityCor then
-            --print( "makePriorityCor" )
+            updated = true
             threads.priorityCor = {
                 cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
 
             }
         end
         if not threads.motionCor then
-            --print( "makeMotionCor" )
+            updated = true
             threads.motionCor = {
                 cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
                 onDone = function( self, myTbl )
@@ -215,6 +227,11 @@ function ENT:BehaveUpdate( interval )
                     end
                 end
             }
+        end
+        if updated then
+            threads.disabledCor = nil
+            threads.playerControlCor = nil
+
         end
     end
 end

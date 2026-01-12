@@ -2,6 +2,7 @@
 local entMeta = FindMetaTable( "Entity" )
 local vecMeta = FindMetaTable( "Vector" )
 local angMeta = FindMetaTable( "Angle" )
+local locoMeta = FindMetaTable( "CLuaLocomotion" )
 
 local TrFilterNoSelf = terminator_Extras.TrFilterNoSelf
 
@@ -65,7 +66,7 @@ local defaultSteppingCriteria = -0.8 -- should work on default playermodels
     Returns: None
 --]]------------------------------------
 function ENT:ProcessFootsteps( myTbl )
-    if not myTbl.loco:IsOnGround() then return end
+    if not locoMeta.IsOnGround( myTbl.loco ) then return end
 
     local curSpeed = myTbl.GetCurrentSpeed( self )
     local stepTiming = myTbl.Term_FootstepTiming or "timed" -- "timed" or "perfect"

@@ -345,32 +345,6 @@ function ENT:getBestPos( ent )
 
 end
 
-local function getUsefulPositions( area )
-    local out = {}
-    local center = area:GetCenter()
-    terminator_Extras.tableAdd( out, area:GetHidingSpots( 8 ) )
-
-    if #out >= 1 then
-        return out
-
-    end
-
-    if area:GetSizeX() > 25 and area:GetSizeY() > 25 then
-        for cornerId = 0, 3 do
-            local corner = area:GetCorner( cornerId )
-            local cornerBroughtInAbit = corner + ( terminator_Extras.dirToPos( corner, center ) * 20 )
-            table.insert( out, cornerBroughtInAbit )
-
-        end
-    else
-        table.insert( out, center )
-
-    end
-
-    return out
-
-end
-
 local coroutine_yield = coroutine.yield
 -- util funcs end
 
@@ -3349,6 +3323,8 @@ function ENT:DoDefaultTasks()
 
                     end
 
+                    myTbl.SetEnemy( self, newEnemy )
+
                     if newEnemy and newEnemy.Alive and newEnemsHealth > 0 then
                         data.EnemyPosCheatsLeft = posCheatsLeft + -1
 
@@ -3386,10 +3362,11 @@ function ENT:DoDefaultTasks()
                     end
 
                     data.HasEnemy = true
-                    myTbl.SetEnemy( self, newEnemy )
 
                 else
                     data.ResetVisVariables()
+
+                    myTbl.SetEnemy( self, NULL )
 
                     coroutine_yield()
                     if data.HasEnemy then
@@ -3406,7 +3383,6 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    myTbl.SetEnemy( self, NULL )
                     data.HasEnemy = false
 
                 end
@@ -4179,6 +4155,7 @@ function ENT:DoDefaultTasks()
                 data.DistToQuit = data.DistToQuit or myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.5
                 data.BackupUntil = data.BackupUntil or CurTime() + 2
                 data.LastSawFrom = myTbl.GetShootPos( self )
+                data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
                 myTbl.InvalidatePath( self, "we gotta back the hell up" )
 
             end,
@@ -4188,7 +4165,7 @@ function ENT:DoDefaultTasks()
                 if not IsValid( myNav ) then
                     myTbl.overrideVeryStuck = true
                     self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, "movement_handler", "i dont know where i am!" )
+                    myTbl.StartTask( self, data.AfterwardsTask, "i dont know where i am!" )
 
                     return
 
@@ -4279,7 +4256,7 @@ function ENT:DoDefaultTasks()
 
                         else
                             myTbl.TaskFail( self, "movement_backthehellup" )
-                            myTbl.StartTask( self, "movement_handler", "i can't find a good backup position!" )
+                            myTbl.StartTask( self, data.AfterwardsTask, "i can't find a good backup position!" )
                             return
 
                         end
@@ -4299,11 +4276,11 @@ function ENT:DoDefaultTasks()
 
                 if not myTbl.IsSeeEnemy and myTbl.TimeSinceEnemySpotted( self, myTbl ) > 3 then
                     self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, "movement_handler", "no more enemy to backup from" )
+                    myTbl.StartTask( self, data.AfterwardsTask, "no more enemy to backup from" )
 
                 elseif distToEnemy > data.DistToQuit then
                     self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, "movement_handler", "i got far enough from my enemy!" )
+                    myTbl.StartTask( self, data.AfterwardsTask, "i got far enough from my enemy!" )
 
                 end
             end,
@@ -8296,7 +8273,7 @@ function ENT:DoDefaultTasks()
 
                         if math.max( toPlaceArea:GetSizeX(), toPlaceArea:GetSizeY() ) > maxSize then continue end
 
-                        local checkPositions = getUsefulPositions( toPlaceArea )
+                        local checkPositions = terminator_Extras.GetUsefulAreaPerchPositions( toPlaceArea )
 
                         for _, checkPos in ipairs( checkPositions ) do
                             -- floor the pos
@@ -8459,7 +8436,7 @@ function ENT:DoDefaultTasks()
                         if #data.potentialPerchables == 0 then break end
                         local perchableArea = table.remove( data.potentialPerchables, 1 )
                         if not IsValid( perchableArea ) then continue end
-                        local checkPositions = getUsefulPositions( perchableArea )
+                        local checkPositions = terminator_Extras.GetUsefulAreaPerchPositions( perchableArea )
 
                         if preferredPos and #checkPositions > 1 then
                             local bestDist = math.huge

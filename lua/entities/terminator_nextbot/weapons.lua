@@ -881,7 +881,6 @@ end
     Arg1: Entity | wep | Entity to test. Not necessary Weapon entity.
     Ret1: bool | Can pickup or not.
 --]]------------------------------------
-
 local cratesMaxDistFromGround = 75^2
 local DistToSqr = FindMetaTable( "Vector" ).DistToSqr
 
@@ -1620,6 +1619,27 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
 
     end
 
+    timer.Simple( 0, function()
+        if not IsValid( attacker ) then return end
+        if attacker:Health() <= 0 then return end
+
+        local goneTarget = not IsValid( target )
+        if goneTarget or target:Health() <= 0 then
+            if goneTarget or ( not target.term_DamageDealtTimes or target.term_DamageDealtTimes <= 1 ) then
+                attacker:RunTask( "OnInstantKillEnemy", target ) -- target can be nil
+
+            else
+                attacker:RunTask( "OnKillEnemy", target )
+
+            end
+            target.term_DamageDealtTimes = nil
+        else
+            local old = target.term_DamageDealtTimes or 0
+            target.term_DamageDealtTimes = old + 1
+
+        end
+    end )
+
     if attacker:IsFists() then return end -- fists always work
 
     -- allow thrown crowbar + derivatives to actually get judged
@@ -1655,27 +1675,6 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
         dmgTracker.maxDistEverDamagedWith = math.max( attacker.DistToEnemy, dmgTracker.maxDistEverDamagedWith )
 
     end
-
-    timer.Simple( 0, function()
-        if not IsValid( attacker ) then return end
-        if attacker:Health() <= 0 then return end
-
-        local goneTarget = not IsValid( target )
-        if goneTarget or target:Health() <= 0 then
-            if goneTarget or ( not target.term_DamageDealtTimes or target.term_DamageDealtTimes <= 1 ) then
-                attacker:RunTask( "OnInstantKillEnemy", target ) -- target can be nil
-
-            else
-                attacker:RunTask( "OnKillEnemy", target )
-
-            end
-            target.term_DamageDealtTimes = nil
-        else
-            local old = target.term_DamageDealtTimes or 0
-            target.term_DamageDealtTimes = old + 1
-
-        end
-    end )
 end )
 
 do

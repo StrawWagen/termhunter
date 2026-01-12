@@ -149,7 +149,14 @@ end
 --]]------------------------------------
 function ENT:StartTask( task, data, reason )
     local myTbl = entMeta.GetTable( self )
-    if myTbl.IsTaskActive( self, task ) then return end
+    if myTbl.IsTaskActive( self, task ) then
+        if printTasks then
+            permaPrint( self, "tried to start already active task:", task )
+
+        end
+        return
+
+    end
 
     if isstring( data ) then -- if data is a string, it is the reason for starting the task
         reason = data
@@ -180,12 +187,14 @@ function ENT:StartTask( task, data, reason )
 
     myTbl.m_HollowEventCache = nil -- reset hollow event cache
 
+    if printTasks then
+        permaPrint( self:GetCreationID(), task, self:GetEnemy(), reason ) -- print before calling OnStart, so they're in chronological order
+
+    end
+
     myTbl.RunCurrentTask( self, task, "OnStart" )
 
-    -- additional debugging tool
     if not printTasks then return end
-    permaPrint( self:GetCreationID(), task, self:GetEnemy(), reason ) -- global
-
     if not string.find( task, "movement_" ) then return end -- only store history of movement tasks
     myTbl.taskHistory = myTbl.taskHistory or {}
 

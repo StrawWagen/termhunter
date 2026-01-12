@@ -360,6 +360,7 @@ hook.Add( "PostCleanupMap", "terminator_clear_connectionflags", function()
     lastBadFlags = {}
     superBadConnections = {}
     lastSuperBadFlags = {}
+
 end )
 
 function ENT:AddAreasToAvoid( areas, mul )
@@ -487,6 +488,7 @@ local function startCounting()
     corridorExpireTimes = {}
     terminator_Extras.DOING_CORRIDORAREAS = true
 
+    -- the corridors aren't worth keeping and using unless they're running really hot
     timer.Create( "terminator_cleanupcorridor", 5, 0, function()
         local cur = CurTime()
         for area, expireTime in pairs( corridorExpireTimes ) do
@@ -1321,7 +1323,8 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
     while #openedSequential > 0 do
         if myTbl.term_cancelPathGen then return goalArea, nil, false, "fail2.5" end
 
-        if fodder and lastNewUnreachables ~= newUnreachables then -- fodder enems share unreachable areas, so check if a buddy marked this as unreachable
+        -- fodder enems share unreachable areas, so check if a buddy marked this as unreachable
+        if fodder and lastNewUnreachables ~= newUnreachables then
             lastNewUnreachables = newUnreachables
             if newUnreachableClass == entMeta.GetClass( me ) and not myTbl.areaIsReachable( me, goalArea ) then
                 return goalArea, nil, false, "fail3"
@@ -1441,6 +1444,7 @@ end
 
 local Astar = terminator_Extras.Astar
 
+-- unreachable area sharing!
 hook.Add( "term_updateunreachableareas", "term_nouseless_fodderpaths", function( classUpdated )
     newUnreachables = newUnreachables + 1
     newUnreachableClass = classUpdated

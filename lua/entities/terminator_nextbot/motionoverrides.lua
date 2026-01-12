@@ -186,12 +186,6 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
 
 end
 
-local aiDisabled = GetConVar( "ai_disabled" )
-function ENT:DisabledThinking()
-    return aiDisabled:GetBool()
-
-end
-
 --[[------------------------------------
 Name: NEXTBOT:DisableBehaviour
 Desc: Decides should behaviour be disabled.
@@ -199,7 +193,11 @@ Arg1:
 Ret1: bool | Return true to disable.
 --]]------------------------------------
 function ENT:DisableBehaviour( myTbl )
-    return myTbl.IsPostureActive( self ) or myTbl.IsGestureActive( self, true ) or myTbl.DisabledThinking( self ) and not myTbl.IsControlledByPlayer( self, myTbl ) or myTbl.RunTask( self, "DisableBehaviour" )
+    local disabledThinking = myTbl.DisabledThinking( self ) and not myTbl.IsControlledByPlayer( self, myTbl )
+    if disabledThinking then return true end
+
+    return myTbl.IsPostureActive( self ) or myTbl.IsGestureActive( self, true ) or myTbl.RunTask( self, "DisableBehaviour" )
+
 end
 
 function ENT:PhysicallyPushEnt( ent, strength )
@@ -2907,7 +2905,7 @@ function ENT:JumpToPos( pos, height )
     local _
     _, height = myTbl.CanJumpToPos( self, myTbl, pos, height )
 
-    if not height then return end -- cant jump
+    if not height then return false end -- cant jump
 
     local curpos = entMeta.GetPos( self )
     local dir = pos - curpos
@@ -2931,6 +2929,8 @@ function ENT:JumpToPos( pos, height )
     myTbl.RunTask( self, "OnJumpToPos", pos, height )
 
     myTbl.m_JumpingToPos = true
+
+    return true
 
 end
 

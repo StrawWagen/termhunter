@@ -336,12 +336,6 @@ local function shouldNotSeeEnemy( me, enemy ) -- return true to block seeing, fa
     end
 end
 
-local ignorePlayers = GetConVar( "ai_ignoreplayers" )
-function ENT:IgnoringPlayers()
-    return ignorePlayers:GetBool()
-
-end
-
 local bearingToPos = terminator_Extras.BearingToPos
 local math_abs = math.abs
 

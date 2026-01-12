@@ -140,18 +140,33 @@ end
 --]]--------------------------
 local recentlyDied = {}
 local usingInterruptingAlive
+
+local function teardownRecentlyDied()
+    hook.Remove( "PlayerDeath", "terminatorhelpers_posIsInterruptingAlive" )
+    recentlyDied = nil
+    usingInterruptingAlive = false
+
+end
+
+local function setupRecentlyAlive()
+    hook.Add( "PlayerDeath", "terminatorhelpers_posIsInterruptingAlive", function( ply )
+        if not IsValid( ply ) then return end
+        recentlyDied[ply] = true
+        timer.Simple( 8, function() -- dont spoil it when they die
+            recentlyDied[ply] = nil
+            if table.Count( recentlyDied ) > 0 then return end
+            teardownRecentlyDied()
+
+        end )
+    end )
+    recentlyDied = {}
+    usingInterruptingAlive = true
+
+end
+
 terminator_Extras.posIsInterruptingAlive = function( pos, yieldable )
     if not usingInterruptingAlive then
-        hook.Add( "PlayerDeath", "terminatorhelpers_posIsInterupptingAlive", function( ply )
-            if not IsValid( ply ) then return end
-            recentlyDied[ply] = true
-            timer.Simple( 8, function() -- dont spoil it when they die
-                recentlyDied[ply] = nil
-
-            end )
-        end )
-        recentlyDied = {}
-        usingInterruptingAlive = true
+        setupRecentlyAlive()
 
     end
     for _, ply in player.Iterator() do
@@ -317,7 +332,7 @@ end
     @param pos Vector
 --]]--------------------------
 terminator_Extras.TeleportTermTo = function( term, pos )
-    term:SetPosNoTeleport( pos ) -- set their pos without triggering clientside velocity bug
+    term:SetPosNoTeleport( pos ) -- set their pos without triggering clientside velocity visual bug
     term:RestartMotionCoroutine() -- kill any logic that's about to set our pos
     term:StopMoving() -- stop movement, reject path updates, start the movement_wait task
 
@@ -339,5 +354,37 @@ terminator_Extras.recipFilterAllTargetablePlayers = function()
     local filter = RecipientFilter()
     filter:AddPlayers( targetablePlayers )
     return filter
+
+end
+
+--[[--------------------------
+    GetUsefulAreaPerchPositions
+    Returns a table of positions that would be good for perching, overlooking the world, in the given area.
+    @param area NavArea
+    @return table of perch positions
+--]]--------------------------
+terminator_Extras.GetUsefulAreaPerchPositions = function( area )
+    local out = {}
+    local center = area:GetCenter()
+    terminator_Extras.tableAdd( out, area:GetHidingSpots( 8 ) )
+
+    if #out >= 1 then
+        return out
+
+    end
+
+    if area:GetSizeX() > 25 and area:GetSizeY() > 25 then
+        for cornerId = 0, 3 do
+            local corner = area:GetCorner( cornerId )
+            local cornerBroughtInAbit = corner + ( terminator_Extras.dirToPos( corner, center ) * 20 )
+            table.insert( out, cornerBroughtInAbit )
+
+        end
+    else
+        table.insert( out, center )
+
+    end
+
+    return out
 
 end
