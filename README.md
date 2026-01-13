@@ -385,6 +385,7 @@ ENT.MyClassTask = {
 
 **Note:** All callbacks receive `data` as the second parameter - this is the task's data table where you can store state between calls.  
 Like storing variables on self, but for the task only.
+
 Class tasks automatically start on `ENT:Initialize()`.
 
 
