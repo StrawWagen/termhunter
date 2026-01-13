@@ -1454,31 +1454,34 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
 
     local swimming = self:IsSwimming( self:GetTable() )
 
-    for index, potentialVisible in ipairs( potentiallyVisible ) do
-        if potentialVisible then
-            if potentialVisible.z < check.z or swimming then
-                theTrace.mins = minsBelow
-                theTrace.maxs = maxsBelow
+    for index = 1, table.maxn( potentiallyVisible ) do
+        local potentialVisible = potentiallyVisible[ index ]
+        if not potentialVisible then continue end
 
-            -- be more strict with gaps when the goal is above us!
-            -- stops spam jumping into walls, legacy issue
-            else
-                theTrace.mins = minsAbove
-                theTrace.maxs = maxsAbove
+        if potentialVisible.z < check.z or swimming then
+            theTrace.mins = minsBelow
+            theTrace.maxs = maxsBelow
 
-            end
+        -- be more strict with gaps when the goal is above us!
+        -- stops spam jumping into walls, legacy issue
+        else
+            theTrace.mins = minsAbove
+            theTrace.maxs = maxsAbove
 
-            theTrace.endpos = potentialVisible
-            local result = util.TraceHull( theTrace )
-            local hitBreakable = self:hitBreakable( theTrace, result )
-            if not result.Hit or hitBreakable or result.Entity == enemy then
-                --debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
-                return potentialVisible, index, hitBreakable
+        end
 
-            else
-                --debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 1, Color( 255,255,255, 25 ) )
+        theTrace.endpos = potentialVisible
+        local result = util.TraceHull( theTrace )
+        local hitBreakable = self:hitBreakable( theTrace, result )
+        if not result.Hit or hitBreakable or result.Entity == enemy then
+            --debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
+            return potentialVisible, index, hitBreakable
 
-            end
+        else
+            --print( not result.Hit, hitBreakable, result.Entity == enemy )
+            --debugoverlay.Line( check, result.HitPos, 1, Color( 255,0,0 ), true )
+            --debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 1, Color( 255,255,255, 25 ) )
+
         end
     end
     return nil

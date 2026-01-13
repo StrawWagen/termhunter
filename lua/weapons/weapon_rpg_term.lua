@@ -107,7 +107,7 @@ function SWEP:CreateMissile( _, owner )
         end
         local missileTargetPos = nil
         local ownerShootPos
-        if owner and owner:IsControlledByPlayer() then
+        if IsValid( owner ) and owner:IsControlledByPlayer() then
             ownerShootPos = owner:GetShootPos()
             missileTargetPos = owner:GetEyeTrace().HitPos
 
