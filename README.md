@@ -1,11 +1,12 @@
 # termhunter
 Experimental Nextbot + Base.  
 Allows for very complicated custom behaviour.  
-For basing NPCs off this, it doesn't support custom animations that well, it expects player animations by default, but there is limited support for custom animations(see below for more info).
+For basing NPCs off this, it doesn't support custom animations that well, it expects player animations by default, but there is limited support for custom animations (see below for more info).
 
 Best for creating code-driven AI agents that relentlessly pursue their enemies, crouching, jumping, climbing ladders, attacking obstacles.  
 Supports optimized custom weights on pathfinding, good if you want a bot to avoid a dangerous area, avoid an obvious entrance to a room, etc.  
-Limited but functional support for custom, non-player shaped enemies, would not recommend working with this base if you've just finished a custom non-player model and want it to attack you.  
+Limited but functional support for custom, non-player shaped enemies, would not recommend working with this base if you've just finished a custom non-player model and want it to attack you.
+Includes a live navmesh generator that activates when bots are getting stuck, or their enemies are escaping into spots the default navmesh generator missed! (this can be disabled, see convars section!)
 
 
 See [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=2944078031) page for more info.
@@ -103,7 +104,8 @@ end
 The above example gives the bot zombie animations. See [Nextbot Zambies](https://github.com/StrawWagen/nextbot_zambies) for a complete implementation.
 
 **Playing animations with DoGesture:**  
-You can also play animation layers (gestures) over the bot's current animation using
+You can also play animation layers (gestures) over the bot's current animation using;
+
 `bot:DoGesture( act, speed, wait )`:
 - `act` - Activity enum (ACT_*) or sequence name string
 - `speed` - Playback rate (default 1.0, lower = slower)
@@ -388,8 +390,9 @@ Class tasks automatically start on `ENT:Initialize()`.
 
 ## ENT.MySpecialActions System
 
-The MySpecialActions system exists to be a standardized way for bots to define custom attacks, actions.
-Say you want to script, a ranged attack for your NPC, this was made as ***the*** spot for any custom attacks to be built.
+The MySpecialActions system exists to be a standardized way for bots to define custom attacks. (& more!)
+
+Say you want to script a ranged attack for your NPC, this was made as ***the*** spot for that to be built.
 
 If you make it a Special Action, that means the playercontrol system *and* the AI controller can both seamlessly use the attack. 
 
