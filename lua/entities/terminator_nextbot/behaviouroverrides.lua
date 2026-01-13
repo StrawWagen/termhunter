@@ -82,6 +82,11 @@ function ENT:RestartMotionCoroutine( myTbl )
         coroutine_yield( BOT_COROUTINE_RESULTS.DONE_CLEANUP )
 
     end )
+
+    -- just in case
+    myTbl.debug_MotionCoroutineResets = ( myTbl.debug_MotionCoroutineResets or 0 ) + 1
+    myTbl.debug_LastMotionCoroutineResetTime = CurTime()
+
 end
 
 local pathUpdateIntervalFodder = 0.1
@@ -526,40 +531,53 @@ function ENT:Think()
         while thread and not done do
             local cost = SysTime() - oldTime
             local overbudget = cost > thresh
-            local stack
+            local stackBefore
             if debugging or printTasks then
-                stack = debug.traceback( thread )
+                stackBefore = debug.traceback( thread )
 
             end
             if overbudget then
                 if debugging then
-                    yieldDebugTotalCosts[stack] = ( yieldDebugTotalCosts[stack] or 0 ) + cost
-                    yieldDebugWorstCosts[stack] = math.max( yieldDebugWorstCosts[stack] or 0, cost )
+                    yieldDebugTotalCosts[stackBefore] = ( yieldDebugTotalCosts[stackBefore] or 0 ) + cost
+                    yieldDebugWorstCosts[stackBefore] = math.max( yieldDebugWorstCosts[stackBefore] or 0, cost )
 
                 end
                 break
 
             end
             if printTasks then
-                myTbl.lastYieldLocation = stack
+                myTbl.lastYieldLocation = stackBefore
 
             end
             doneSomething = true
-            wasBusy = true -- did we have a normal yield?
+            wasBusy = true -- did we have at least 1 normal yield?
+
+            if debugging then
+                collectgarbage( "stop" )
+                oldLuaMemDebug = collectgarbage( "count" )
+
+            end
             local noErrors, result = coroutine_resume( thread, self, myTbl )
+
+            local stackAfter
+            if debugging then
+                stackAfter = debug.traceback( thread )
+
+            end
 
             if debugging then
                 local newLuaMemDebug = collectgarbage( "count" )
+                collectgarbage( "restart" )
+
                 local luaMemUsed = newLuaMemDebug - oldLuaMemDebug
-                yieldDebugLuaMemCosts[stack] = ( yieldDebugLuaMemCosts[stack] or 0 ) + luaMemUsed
-                oldLuaMemDebug = newLuaMemDebug
+                yieldDebugLuaMemCosts[stackAfter] = ( yieldDebugLuaMemCosts[stackAfter] or 0 ) + luaMemUsed
 
                 if result and ( result == BOT_COROUTINE_RESULTS.PATHING or result == BOT_COROUTINE_RESULTS.PATHING_DONTWAIT ) then
                     if not oldTimePathDebug then
                         oldTimePathDebug = SysTime()
 
                     else
-                        yieldDebugPathCosts[stack] = ( yieldDebugPathCosts[stack] or 0 ) + ( SysTime() - oldTimePathDebug )
+                        yieldDebugPathCosts[stackAfter] = ( yieldDebugPathCosts[stackAfter] or 0 ) + ( SysTime() - oldTimePathDebug )
                         oldTimePathDebug = SysTime()
 
                     end
@@ -570,10 +588,10 @@ function ENT:Think()
             end
 
             if noErrors == false then -- something errored in there
-                local stack = debug.traceback( thread )
+                stackAfter = stackAfter or debug.traceback( thread )
                 threads[index] = nil
                 result = result or "unknown error"
-                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " in " .. index .. "\n" .. result .. "\n" .. stack .. "\n" )
+                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " in " .. index .. "\n" .. result .. "\n" .. stackAfter .. "\n" )
                 wasBusy = false
                 break
 
@@ -627,8 +645,8 @@ function ENT:Think()
                 break
 
             elseif isstring( result ) then -- invalid yield, needs to be BOT_COROUTINE_RESULTS
-                local stack = debug.traceback( thread )
-                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " for " .. index .. "\nUnknown yield result: " .. tostring( result ) .. "\n" .. stack .. "\n" )
+                stackAfter = stackAfter or debug.traceback( thread )
+                ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " for " .. index .. "\nUnknown yield result: " .. tostring( result ) .. "\n" .. stackAfter .. "\n" )
 
             end
         end
@@ -649,12 +667,25 @@ function ENT:BehaviourPriorityCoroutine( myTbl )
     while true do
         -- update drowning, speaking, etc
         myTbl.TermThink( self, myTbl )
-        myTbl.AdditionalThink( self, myTbl )
-
         coroutine_yield()
 
-        -- do shootblocker checks
-        myTbl.ShootblockerThink( self, myTbl )
+        -- stub, for your convenience!
+        myTbl.AdditionalThink( self, myTbl )
+        coroutine_yield()
+
+        local nextBlockerCheck = myTbl.m_NextShootBlockerCheck or 0
+        if nextBlockerCheck < CurTime() then
+            if myTbl.IsFodder then
+                myTbl.m_NextShootBlockerCheck = CurTime() + 0.5
+
+            else
+                myTbl.m_NextShootBlockerCheck = CurTime() + 0.1
+
+            end
+            -- do shootblocker checks
+            myTbl.ShootblockerThink( self, myTbl )
+
+        end
 
         -- Calling task callbacks
         myTbl.RunTask( self, "BehaveUpdatePriority" )

@@ -1412,6 +1412,8 @@ function ENT:Term_LookAround( myTbl )
         end
         --lookAtType = "lookatpath1"
 
+        coroutine_yield()
+
         -- if we're moving slow, look at what's blocking us, or down at where we're going
         if not self:IsOnGround() or movingSlow then
             if IsValid( disrespecting ) then
@@ -1423,6 +1425,8 @@ function ENT:Term_LookAround( myTbl )
                 --lookAtType = "lookatpath2"
 
             end
+            coroutine_yield()
+
         -- look a bit ahead
         elseif lookAtPos:DistToSqr( myPos ) < 400^2 and IsValid( myArea ) then
             -- attempt to look farther ahead
@@ -1432,6 +1436,8 @@ function ENT:Term_LookAround( myTbl )
                 --lookAtType = "lookatpath3"
 
             end
+            coroutine_yield()
+
         end
     end
 

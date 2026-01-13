@@ -2463,7 +2463,12 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
     local yieldable = coroutine_running()
     if not yieldable then
-        noAdapt = true -- laggy
+        noAdapt = true -- adapting is laggy, only do it in coroutines pls
+
+    end
+
+    if yieldable then
+        coroutine_yield()
 
     end
 
@@ -2484,39 +2489,42 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
         local doJumpTowards
         local simpleClearPos
         local aboveUsJumpHeight
-        local heightDiffNeededToJump = simpleJumpMinHeight + 20
-
-        -- simple jump up to the pos
-        if zToPos > heightDiffNeededToJump and myTbl.IsAngry( self ) then
-            if yieldable then
-                coroutine_yield()
-
-            end
-            local dist2d = ( pos - myPos )
-            dist2d.z = 0
-            dist2d = dist2d:Length()
-            local scaledDiffNeededToJump = heightDiffNeededToJump * 2
-            local distExp = dist2d^1.3
-            local jumpUpDiffNeeded = distExp - scaledDiffNeededToJump
-
-            if zToPos > jumpUpDiffNeeded then
-                aboveUs = true
-                aboveUsJumpHeight = zToPos
-                pos = pos + dir * simpleJumpMinHeight
-                simpleClearPos = pos
-                if myTbl.IsReallyAngry( self ) then -- we're really angry, not gonna get it perfect!
-                    aboveUsJumpHeight = aboveUsJumpHeight + self.loco:GetJumpHeight() * math.Rand( 0.1, 0.2 )
-                    pos = pos + dir * 50
-
-                end
-            elseif myTbl.Term_Leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos then
-                doJumpTowards = true
-
-            end
-        end
 
         local onGround = myTbl.loco:IsOnGround()
+
         if onGround then
+            local heightDiffNeededToJump = simpleJumpMinHeight + 20
+
+            -- simple jump up to the pos if it's directly above us
+            if zToPos > heightDiffNeededToJump and myTbl.IsAngry( self ) then
+                if yieldable then
+                    coroutine_yield()
+
+                end
+                local dist2d = pos - myPos
+                dist2d.z = 0
+                dist2d = dist2d:Length()
+                local scaledDiffNeededToJump = heightDiffNeededToJump * 2
+                local distExp = dist2d^1.3
+                local jumpUpDiffNeeded = distExp - scaledDiffNeededToJump
+
+                if zToPos > jumpUpDiffNeeded then
+                    aboveUs = true
+                    aboveUsJumpHeight = zToPos
+                    pos = pos + dir * simpleJumpMinHeight
+                    simpleClearPos = pos
+
+                    -- if we're really angry, mess up the jump a bit in case it's getting stuck here
+                    if myTbl.IsReallyAngry( self ) then
+                        aboveUsJumpHeight = aboveUsJumpHeight + self.loco:GetJumpHeight() * math.Rand( 0.1, 0.2 )
+                        pos = pos + dir * 50
+
+                    end
+                elseif myTbl.Term_Leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos then
+                    doJumpTowards = true
+
+                end
+            end
             if yieldable then
                 coroutine_yield()
 
@@ -2588,10 +2596,15 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                     pos,
                     pos + vec_up25,
                     myTbl.jumpBlockClearPos,
-                    myPos + Vector( 0,0,myTbl.moveAlongPathJumpingHeight ),
+                    myPos + Vector( 0, 0, myTbl.moveAlongPathJumpingHeight ),
 
                 }
-                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then return end
+
+                -- in air, try to move towards pos
+                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then
+                    return
+
+                end
 
             elseif myTbl.IsSwimming( self, myTbl ) then
                 if yieldable then
@@ -2614,8 +2627,17 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                     swimmingExitPos,
 
                 }
-                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then myTbl.term_LastApproachPos = pos return end
+                -- handle swimming!
+                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then
+                    myTbl.term_LastApproachPos = pos
+                    return
 
+                end
+
+                if yieldable then
+                    coroutine_yield()
+
+                end
             end
         end
 

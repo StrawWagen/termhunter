@@ -983,11 +983,26 @@ do
     -- interacting with shootblocker START
 
     local nextbotMeta = FindMetaTable( "NextBot" )
-    local hullminFists = Vector( -20, -20, -30 )
-    local hullmaxFists = Vector( 20, 20, 30 )
+    local hullminFists = Vector( -10, -10, -20 )
+    local hullmaxFists = Vector( 10, 10, 20 )
 
     local hullminOtherwise = Vector( -5, -5, -5 )
     local hullmaxOtherwise = Vector( 5, 5, 5 )
+
+    local trOutputWorld = {}
+    local trCheckWorld = {
+        output = trOutputWorld,
+    }
+
+    local trOutputLine = {}
+    local trCheckLine = {
+        output = trOutputLine,
+    }
+
+    local trOutputHull = {}
+    local trCheckHull = {
+        output = trOutputHull,
+    }
 
     local function hullmin( ref, refTbl )
         if refTbl.IsFists and refTbl.IsFists( ref ) then
@@ -1010,57 +1025,116 @@ do
 
     function ENT:ShootBlockerWorld( myTbl, start, pos, filter )
 
-        local nextWorldBlockerCheck = myTbl.nextWorldBlockerCheck or 0
-        local readyForCheck = not myTbl.oldWorldBlocker or nextWorldBlockerCheck < CurTime()
+        trCheckWorld.start = start
+        trCheckWorld.endpos = pos
+        trCheckWorld.filter = filter
+        trCheckWorld.mask = bit.bor( MASK_SOLID_BRUSHONLY )
+        trCheckWorld.mins = hullmin( self, myTbl )
+        trCheckWorld.maxs = hullmax( self, myTbl )
+        util.TraceHull( trCheckWorld )
 
-        if not readyForCheck then return myTbl.oldWorldBlocker end
-
-        local traceStruc = {
-            start = start,
-            endpos = pos,
-            filter = filter,
-            mask = bit.bor( MASK_SOLID_BRUSHONLY ),
-            mins = hullmin( self, myTbl ),
-            maxs = hullmax( self, myTbl ),
-        }
-        local tr = util.TraceHull( traceStruc )
-
-        if tr.Hit then
+        if trOutputWorld.Hit then
             myTbl.nextWorldBlockerCheck = CurTime() + 0.1
         else
             myTbl.nextWorldBlockerCheck = CurTime() + 0.5
         end
 
-        myTbl.oldWorldBlocker = tr
+        myTbl.oldWorldBlocker = trOutputWorld
 
-        return tr
+        return trOutputWorld
     end
 
     function ENT:ShootBlocker( myTbl, start, pos, filter )
-        local traceStruc = {
-            start = start,
-            endpos = pos,
-            filter = filter,
-            mask = nextbotMeta.GetSolidMask( self ),
-        }
-        local tr = util.TraceLine( traceStruc )
-        if tr.Hit and not tr.HitWorld then return tr.Entity, tr end
+        trCheckLine.start = start
+        trCheckLine.endpos = pos
+        trCheckLine.filter = filter
+        trCheckLine.mask = nextbotMeta.GetSolidMask( self )
+
+        util.TraceLine( trCheckLine )
+
+        -- first, a trace line to see if anything is directly in front of us.
+        if trOutputLine.Hit and not trOutputLine.HitWorld then
+            --debugoverlay.Line( start, trOutputLine.HitPos, 0.5, Color( 0, 255, 0 ), true )
+            return trOutputLine.Entity, trOutputLine
+
+        end
 
         coroutine_yield()
 
-        traceStruc = {
-            start = start,
-            endpos = pos,
-            filter = filter,
-            mask = nextbotMeta.GetSolidMask( self ),
-            mins = hullmin( self, myTbl ),
-            maxs = hullmax( self, myTbl ),
-        }
-        tr = util.TraceHull( traceStruc )
+        trCheckHull.start = start
+        trCheckHull.endpos = pos
+        trCheckHull.filter = filter
+        trCheckHull.mask = nextbotMeta.GetSolidMask( self )
+        trCheckHull.mins = hullmin( self, myTbl )
+        trCheckHull.maxs = hullmax( self, myTbl )
 
-        return tr.Entity, tr
+        util.TraceHull( trCheckHull )
+
+        --if trOutputHull.Hit then
+            --debugoverlay.SweptBox( start, trOutputHull.HitPos, hullmin( self, myTbl ), hullmax( self, myTbl ), Angle( 0, 0, 0 ), 0.5, Color( 0, 255, 0 ), true )
+
+        --else
+            --debugoverlay.SweptBox( start, trOutputHull.HitPos, hullmin( self, myTbl ), hullmax( self, myTbl ), Angle( 0, 0, 0 ), 0.5, Color( 255, 0, 0 ), true )
+
+        --end
+
+        return trOutputHull.Entity, trOutputHull
 
     end
+end
+
+function ENT:ShootblockerThink( myTbl )
+    myTbl.LastShootBlocker = false
+
+    local filter = { self, myTbl.GetEnemy( self ) }
+    terminator_Extras.tableAdd( filter, entMeta.GetChildren( self ) )
+
+    local pos = myTbl.GetShootPos( self )
+    local aimVec = myTbl.GetAimVector( self, myTbl )
+
+    coroutine_yield()
+
+    local endpos1 = pos + aimVec * 150
+    local blocker, blockerTrace = myTbl.ShootBlocker( self, myTbl, pos, endpos1, filter )
+    local worldBlocker
+
+    coroutine_yield()
+
+    if not myTbl.IsFodder then
+        local endpos2 = pos + aimVec * 100
+        coroutine_yield()
+        worldBlocker = myTbl.ShootBlockerWorld( self, myTbl, pos, endpos2, filter ) or {}
+
+    end
+
+    if IsValid( blocker ) then
+        coroutine_yield()
+        myTbl.tryToOpen( self, myTbl, blocker, blockerTrace )
+
+    end
+
+    myTbl.LastShootBlocker = blocker
+
+    coroutine_yield()
+
+    local blocks = { blockerTrace, worldBlocker }
+    -- slow down bot when it has stuff in front of it
+    for _, blocked in ipairs( blocks ) do
+        if blocked and blocked.Hit and blocked.Fraction < 0.25 then
+            local fractionAsTime = math.abs( blocked.Fraction - 1 )
+            local time = math.Clamp( fractionAsTime, 0.2, 1 ) * 0.6
+            local finalTime = CurTime() + time
+            local oldTime = myTbl.nearObstacleBlockRunning or 0
+            if oldTime < finalTime then
+                myTbl.nearObstacleBlockRunning = finalTime
+
+            end
+            break
+        end
+    end
+
+    coroutine_yield()
+
 end
 
 function ENT:markAsTermUsed( ent )
@@ -1347,59 +1421,6 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
     if use then
         myTbl.Use2( self, blocker )
 
-    end
-end
-
-function ENT:ShootblockerThink( myTbl )
-    myTbl.LastShootBlocker = false
-    if myTbl.DisableBehaviour( self, myTbl ) then return end
-
-    local filter = { self, myTbl.GetEnemy( self ) }
-    terminator_Extras.tableAdd( filter, entMeta.GetChildren( self ) )
-
-    coroutine_yield()
-
-    local pos = myTbl.GetShootPos( self )
-    local aimVec = myTbl.GetAimVector( self, myTbl )
-
-    coroutine_yield()
-
-    local endpos1 = pos + aimVec * 150
-    local blocker, blockerTrace = myTbl.ShootBlocker( self, myTbl, pos, endpos1, filter )
-    local worldBlocker
-
-    coroutine_yield()
-
-    if not myTbl.IsFodder then
-        local endpos2 = pos + aimVec * 100
-        worldBlocker = myTbl.ShootBlockerWorld( self, myTbl, pos, endpos2, filter ) or {}
-
-    end
-
-    if IsValid( blocker ) and not blocker:IsWorld() then
-        coroutine_yield()
-        myTbl.tryToOpen( self, myTbl, blocker, blockerTrace )
-
-    end
-
-    myTbl.LastShootBlocker = blocker
-
-    coroutine_yield()
-
-    local blocks = { blockerTrace, worldBlocker }
-    -- slow down bot when it has stuff in front of it
-    for _, blocked in ipairs( blocks ) do
-        if blocked and blocked.Hit and blocked.Fraction < 0.25 then
-            local fractionAsTime = math.abs( blocked.Fraction - 1 )
-            local time = math.Clamp( fractionAsTime, 0.2, 1 ) * 0.6
-            local finalTime = CurTime() + time
-            local oldTime = myTbl.nearObstacleBlockRunning or 0
-            if oldTime < finalTime then
-                myTbl.nearObstacleBlockRunning = finalTime
-
-            end
-            break
-        end
     end
 end
 
@@ -2848,24 +2869,6 @@ function ENT:TermThink( myTbl ) -- inside coroutine :)
 
         end
     end
-
-    -- very helpful to find missing taskcomplete/taskfails
-    --[[
-    local doneTasks = {}
-    for task, _ in pairs( self.m_ActiveTasks ) do
-        if string.find( task, "movement_" ) then
-            table.insert( doneTasks, task )
-        end
-    end
-
-    if #doneTasks >= 2 then
-        ErrorNoHaltWithStack()
-        permaPrint( "DOUBLE!" )
-        permaPrintTable( doneTasks )
-        SafeRemoveEntityDelayed( self )
-
-    end
-    --]]
 end
 
 function ENT:AdditionalInitialize( _myTbl )

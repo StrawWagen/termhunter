@@ -1217,12 +1217,15 @@ function ENT:ResetWeaponSearchTimers()
 
 end
 
-local analogTblsCache
+terminator_Extras.weapons_analogTblsCache = terminator_Extras.weapons_analogTblsCache or {} 
+local analogTblsCache = terminator_Extras.weapons_analogTblsCache
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_analogtblscache", function()
-    analogTblsCache = {}
+    terminator_Extras.weapons_analogTblsCache = {}
+    analogTblsCache = terminator_Extras.weapons_analogTblsCache
 
 end )
 hook.Add( "terminator_nextbot_noterms_exist", "teardown_analogtblscache", function()
+    terminator_Extras.weapons_analogTblsCache = nil
     analogTblsCache = nil
 
 end )

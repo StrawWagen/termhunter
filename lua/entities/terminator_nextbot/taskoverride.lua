@@ -145,13 +145,13 @@ end
     Desc: Starts a task with given name and data.
     Arg1: string | task | Task name.
     Arg2: table | data | Task data.
-    Arg3: string | reason | Reason for starting task, used for debugging.
+    Arg3: string | reason | Reason for starting task, used for debugging, can also be passed as Arg2 if no data is needed.
 --]]------------------------------------
 function ENT:StartTask( task, data, reason )
     local myTbl = entMeta.GetTable( self )
     if myTbl.IsTaskActive( self, task ) then
         if printTasks then
-            permaPrint( self, "tried to start already active task:", task )
+            ErrorNoHaltWithStack( self, " tried to start already active task: ", task )
 
         end
         return
