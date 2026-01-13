@@ -104,7 +104,7 @@ end
 The above example gives the bot zombie animations. See [Nextbot Zambies](https://github.com/StrawWagen/nextbot_zambies) for a complete implementation.
 
 **Playing animations with DoGesture:**  
-You can also play animation layers (gestures) over the bot's current animation using;
+You can also play animation layers (gestures) over the bot's current animation using,
 
 `bot:DoGesture( act, speed, wait )`:
 - `act` - Activity enum (ACT_*) or sequence name string
@@ -424,7 +424,7 @@ ENT.MySpecialActions = {
 self:TakeAction( "Dance" )
 ```
 
-You can also check if an action can be taken:
+You can also check if an action can be taken (it might be on ratelimit?):
 ```lua
 if self:CanTakeAction( "Dance" ) then
     self:TakeAction( "Dance" )
