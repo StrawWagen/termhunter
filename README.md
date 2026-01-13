@@ -456,18 +456,18 @@ Actions in derived classes override base class actions with the same name:
 ```lua
 -- In base class
 ENT.MySpecialActions = {
-    ["UseItem"] = {
-        name = "Use",
+    ["Dance"] = {
+        name = "Dance",
         svAction = function( drive, driver, bot )
             -- Base implementation
         end,
     },
 }
 
--- In derived class - this completely replaces the base "UseItem" action
+-- In derived class - this completely replaces the base "Dance" action
 ENT.MySpecialActions = {
-    ["UseItem"] = {
-        name = "Advanced Use",
+    ["Dance"] = {
+        name = "Breakdance",
         ratelimit = 0.5,
         svAction = function( drive, driver, bot )
             -- New implementation
