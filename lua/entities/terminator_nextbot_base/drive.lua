@@ -80,15 +80,7 @@ end
 
 
 -- actions that can be taken while driving, exit control, switch weapon, drop weapon, etc.
--- automaically drawn while driving if drawHint is true
--- .inBind -- IN_ bitflag for mv:KeyPressed detection
--- .commandName -- +command string for HUD code to lookup player's bound key
--- if both of above are defined for one action, both must be pressed for action to trigger
--- .desc -- description of the action, unused for now
--- .svAction( driveController, driver, bot ) -- function run on server when action is taken
--- .clAction( driveController, driver, bot ) -- function run on client when action is taken
--- .ratelimit -- minimum time between action invocations
--- .syncCommand -- if true, forces action to be networked to clients, for non-shared setup
+-- see readme for detailed info
 ENT.MySpecialActions = {
     ["StopControlling"] = {
         inBind = IN_ZOOM,

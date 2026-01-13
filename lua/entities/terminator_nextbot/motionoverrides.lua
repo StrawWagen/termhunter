@@ -1476,7 +1476,7 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
                 return potentialVisible, index, hitBreakable
 
             else
-                --debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 1, Color( 255,255,255 ) )
+                --debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 1, Color( 255,255,255, 25 ) )
 
             end
         end
@@ -3485,7 +3485,12 @@ function ENT:TranslateActivity( act )
         return translated
 
     else
-        return myTbl.IdleActivity, false
+        local activity = myTbl.IdleActivity
+        if isfunction( activity ) then
+            activity = activity( self )
+
+        end
+        return activity, false
 
     end
 end

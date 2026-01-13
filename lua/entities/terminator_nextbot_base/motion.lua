@@ -176,8 +176,8 @@ end
 
 --[[------------------------------------
 	Name: NEXTBOT:DoGesture
-	Desc: Creates gesture animation (e.g. reload animation). Removes previous gesture.
-	Arg1: number | act | Animation to run. See ACT_* Enums.
+	Desc: Plays an animation (e.g. reload animation). Removes previous animation.
+	Arg1: number or string | act | Animation to run. See ACT_* Enums, if string, sequence name.
 	Arg2: (optional) number | speed | Playback rate.
 	Arg3: (optional) bool | wait | Should behaviour be stopped while gesture active (like DoPosture).
 	Ret1: 

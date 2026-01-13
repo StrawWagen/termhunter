@@ -32,7 +32,6 @@ function ENT:InitializeWraith( myTbl )
         commandName = "+reload", -- sprint and reload combo
         name = "Cloak/Uncloak",
         drawHint = true,
-        syncCommand = true, -- instruct server to inform client that yes this exists
 
         svAction = function( _drive, _driver, bot )
             bot:DoHiding( not bot.wraithTerm_IsCloaked )

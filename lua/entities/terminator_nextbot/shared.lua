@@ -3334,11 +3334,11 @@ function ENT:DoDefaultTasks()
                     end
 
                     if not data.HasEnemy then
-                        local sinceLastFound = cur - myTbl.LastEnemySpotTime
+                        local secondsSinceLastEnemy = cur - myTbl.LastEnemySpotTime
 
                         -- override enemy's relations to me
                         myTbl.MakeFeud( self, newEnemy )
-                        myTbl.RunTask( self, "EnemyFound", newEnemy, sinceLastFound )
+                        myTbl.RunTask( self, "EnemyFound", newEnemy, secondsSinceLastEnemy )
                         hook.Run( "terminator_spotenemy", self, newEnemy )
 
                     elseif prevEnemy ~= newEnemy then
@@ -4013,7 +4013,6 @@ function ENT:DoDefaultTasks()
         -- tasks will shunt the brain here if they don't have any specific behaviour they want the bot to do next
         ["movement_handler"] = {
             StartsOnInitialize = true,
-            StopsWhenPlayerControlled = true,
             BehaveUpdateMotion = function( self, data, interval )
                 local myTbl = data.myTbl
                 if not myTbl.nextNewPathIsGood( self ) then

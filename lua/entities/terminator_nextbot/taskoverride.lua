@@ -302,35 +302,7 @@ end
 --]]------------------------------------
 ENT.MyClassTask = nil
 
---[[
---ENT.MyClassTask example!,
-ENT.MyClassTask = {
-    OnCreated = function( self )
-        -- do something on creation, maybe set our color or a bodygroup?
-    end,
-    EnemyFound = function( self, data )
-        -- do something on enemy found, maybe play a sound
-    end,
-    EnemyLost = function( self, data )
-        -- do something else on enemy lost
-    end,
-    OnKilled = function( self, data )
-        -- do something on death
-    end,
-    Think = function( self, data )
-         -- ALWAYS runs. (in a coroutine!), when controlled by ai, or controlled by player
-    end,
-    BehaveUpdateMotion = function( self, data )
-         -- runs inside the motion coroutine, best place for perf heavy stuff that can take a while
-    end,
-    BehaveUpdatePriority = function( self, data )
-        -- runs inside a less crowded coroutine, with enemy finding and other cheaper stuff
-    end,
-    PlayerControlUpdate = function( self, data )
-        -- runs only when controlled by a player
-    end,
-}
---]]
+-- see readme for a nearly full list of possible callbacks
 
 -- handles adding class tasks
 -- DO NOT OVERRIDE THIS ONE, OVERRIDE THE ENT.MyClassTask ABOVE INSTEAD
@@ -374,6 +346,10 @@ function ENT:SetupTasks( myTbl )
     end
 
     for taskName, taskDat in pairs( self.TaskList ) do
+        if printTasks and taskDat.StopsWhenPlayerControlled and string.StartsWith( taskName, "movement_" ) then
+            print( "movement task, " .. taskName .. " initialized with unnecessary taskDat.StopsWhenPlayerControlled" )
+
+        end
         if taskDat.StartsOnInitialize then
             self:StartTask( taskName, nil, "StartsOnInitialize" )
 

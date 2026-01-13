@@ -889,13 +889,13 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     end
 
-    self:RunTask( "OnPathFail" )
-
     local failString = "extremefailure "
     if pathDestinationIsAnOrphan then
         failString = failString .. " WAS ORPHAN!"
 
     end
+
+    self:RunTask( "OnPathFail", endpos, failString )
 
     return true, failString
 
