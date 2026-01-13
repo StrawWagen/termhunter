@@ -285,7 +285,7 @@ function ENT:DoCustomTasks( defaultTasks )
             BehaveUpdateMotion = function( self, data )
                 -- do something in the motion coroutine
             end,
-            OnDelete = function( self, data )
+            OnEnd = function( self, data )
                 -- when this task ends
                 -- maybe go back to movement_handler?
             end,

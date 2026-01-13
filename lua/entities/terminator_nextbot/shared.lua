@@ -6017,7 +6017,7 @@ function ENT:DoDefaultTasks()
                 data.killCount = data.killCount + 1
 
             end,
-            OnDelete = function( self, _ )
+            OnEnd = function( self, _ )
                 local enem = self:GetEnemy()
                 -- this is over-engineered
                 if not IsValid( enem ) then return end

@@ -94,16 +94,17 @@ ENT.IdleActivityTranslations = {
 
 These entries can also be a function, eg 
 ```lua
-    ENT.IdleActivity = function( self ) 
-        return ACT_HL2MP_IDLE_ZOMBIE
-        
-    end
+ENT.IdleActivity = function( self ) 
+    return ACT_HL2MP_IDLE_ZOMBIE
+    
+end
 ```
 
 The above example gives the bot zombie animations. See [Nextbot Zambies](https://github.com/StrawWagen/nextbot_zambies) for a complete implementation.
 
 **Playing animations with DoGesture:**  
-You can also play animation layers (gestures) over the bot's current animation using `bot:DoGesture( act, speed, wait )`:
+You can also play animation layers (gestures) over the bot's current animation using
+`bot:DoGesture( act, speed, wait )`:
 - `act` - Activity enum (ACT_*) or sequence name string
 - `speed` - Playback rate (default 1.0, lower = slower)
 - `wait` - If true, blocks bot behavior/movement until gesture finishes
@@ -116,7 +117,8 @@ You'll see examples of this in the MySpecialActions section below.
 Simple way to add entity-class-specific behaviour to your custom nextbot based on termhunter.  
 Fully compatible with baseclassing - tasks from all base classes in the inheritance tree will also be added automatically.  
 
-**Important:** This is NOT for adding movement tasks. Use `ENT:DoCustomTasks` instead for complex movement behavior.
+**Important:** This is NOT for adding advanced movement tasks.
+Use `ENT:DoCustomTasks` instead for complex movement behavior.
 
 ### Usage Example
 
@@ -250,7 +252,7 @@ ENT.MyClassTask = {
 
     -- OnMightStartAttacking = function( self, data )
         -- Repeatedly called when bot is in a state where it might soon attack
-        -- Great if you want a bot to assume a position before it attacks
+        -- Great if you want a bot to raise its weapon before it attacks, etc
     -- end
     
     -- OnKillEnemy = function( self, data, victim )
@@ -309,7 +311,8 @@ ENT.MyClassTask = {
     -- end,
     
     -- DealtGoobmaDamage = function( self, data, damage, fallHeight, dealt )
-        -- Called when self.ReallyHeavy bots fall far and deal damage to stuff they landed on, or landed next to. 
+        -- Called when self.ReallyHeavy bots fall far,
+        -- and dealt 'goomba' damage to stuff they landed on, or landed next to. 
     -- end,
     
     -- OnStuck = function( self, data )
@@ -346,36 +349,49 @@ ENT.MyClassTask = {
     
     -- ALLY/TEAM CALLBACKS --
     -- OnBlockingAlly = function( self, data, ally, sinceStarted )
-        -- Called when this bot is blocking an ally's path, simple checks cause this so it isn't exhaustive
+        -- Called when this bot is blocking an ally's path.
+        -- This isn't exhaustive, expect false positives, false negatives
     -- end,
     
     -- OnBlockedByAlly = function( self, data, blocker, sinceStarted )
         -- Called when this bot is blocked by an ally
+        -- Same as above, not exhaustive
     -- end,
+
+
+    -- TASK CALLBACKS --
+    -- These are best used in custom movement tasks, etc.
+    -- Very useful when coding custom npc brains, not so useful for ClassTasks
+    
+    -- OnStart = function( self, data )
+        -- Called when the task starts, unlike OnCreated, which is called when the bot itself is :Initialized
+    -- end,
+
+    -- OnFail = function( self, data )
+        -- Called when self:TaskFail( taskName ) is ran
+    -- end,
+    
+    -- OnComplete = function( self, data )
+        -- Called when self:TaskComplete( taskName ) is ran
+    -- end,
+    
+    -- OnEnd = function( self, data )
+        -- Called when either TaskComplete or TaskFail is ran
+    -- end, 
 }
 ```
 
 **Note:** All callbacks receive `data` as the second parameter - this is the task's data table where you can store state between calls.  
-All class tasks automatically start on initialization.
+Like storing variables on self, but for the task only.
+Class tasks automatically start on `ENT:Initialize()`.
 
 
 ## ENT.MySpecialActions System
 
-Special actions allow bots to perform custom actions when specific inputs are triggered, with full support for player control and AI logic. Actions defined in derived classes override actions with the same name from base classes.
+The MySpecialActions system exists to be a standardized way for bots to define custom attacks, actions.
+Say you want to script, a ranged attack for your NPC, this was made as ***the*** spot for any custom attacks to be built.
 
-### Usage
-
-Trigger actions from code using:
-```lua
-self:TakeAction( "actionName" )
-```
-
-You can also check if an action can be taken:
-```lua
-if self:CanTakeAction( "actionName" ) then
-    self:TakeAction( "actionName" )
-end
-```
+If you make it a Special Action, that means the playercontrol system *and* the AI controller can both seamlessly use the attack. 
 
 ### Example: Dance Action
 
@@ -383,7 +399,7 @@ end
 ENT.MySpecialActions = {
     ["Dance"] = {
         inBind = IN_USE, -- IN_ Input for players driving this bot to trigger this action
-        drawHint = true, -- Show hint to player when driving bot
+        drawHint = true, -- Show hint to player when driving bot, lots of default, silent actions exist, like switching weapons, etc
         name = "Dance", -- Display name shown to player
         desc = "Makes the bot dance", -- unused for now
         ratelimit = 2, -- Minimum 2 seconds between uses
@@ -397,6 +413,19 @@ ENT.MySpecialActions = {
         end,
     },
 }
+
+```
+### Triggering actions through code
+
+```lua
+self:TakeAction( "Dance" )
+```
+
+You can also check if an action can be taken:
+```lua
+if self:CanTakeAction( "Dance" ) then
+    self:TakeAction( "Dance" )
+end
 ```
 
 ### Special Action Properties

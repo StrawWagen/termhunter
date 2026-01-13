@@ -46,7 +46,7 @@ end
 
 --[[------------------------------------
 	Name: NEXTBOT:TaskComplete
-	Desc: Calls 'OnComplete' and 'OnDelete' task callbacks and deletes task. Does nothing if given task not started.
+	Desc: Calls 'OnComplete' and 'OnEnd' task callbacks and deletes task. Does nothing if given task not started.
 	Arg1: any | task | Task name.
 	Ret1: 
 --]]------------------------------------
@@ -54,7 +54,7 @@ function ENT:TaskComplete(task)
 	if !self:IsTaskActive(task) then return end
 	
 	self:RunCurrentTask(task,"OnComplete")
-	self:RunCurrentTask(task,"OnDelete")
+	self:RunCurrentTask(task,"OnEnd")
 
 	self.m_ActiveTasks[task] = nil
 	
@@ -69,7 +69,7 @@ end
 
 --[[------------------------------------
 	Name: NEXTBOT:TaskFail
-	Desc: Calls 'OnFail' and 'OnDelete' task callbacks and deletes task. Does nothing if given task is not started.
+	Desc: Calls 'OnFail' and 'OnEnd' task callbacks and deletes task. Does nothing if given task is not started.
 	Arg1: any | task | Task name.
 	Ret1: 
 --]]------------------------------------
@@ -77,7 +77,7 @@ function ENT:TaskFail(task)
 	if !self:IsTaskActive(task) then return end
 	
 	self:RunCurrentTask(task,"OnFail")
-	self:RunCurrentTask(task,"OnDelete")
+	self:RunCurrentTask(task,"OnEnd")
 	
 	self.m_ActiveTasks[task] = nil
 
