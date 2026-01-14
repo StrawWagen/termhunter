@@ -13,4 +13,22 @@ function ENT:Overcharge()
 
     self:ReallyAnger( 999999 )
 
+    local center = self:WorldSpaceCenter()
+
+    for _ = 1, 8 do
+        local startPos = center + VectorRand() * 20
+        local endPos = center + VectorRand() * 80
+
+        local fx = EffectData()
+        fx:SetStart( startPos )
+        fx:SetOrigin( endPos )
+        fx:SetScale( 1.5 )
+        fx:SetMagnitude( 6 )
+        fx:SetRadius( 20 )
+        fx:SetNormal( Vector( 0.4, 0.6, 1 ) )
+        fx:SetDamageType( 2 )
+        fx:SetEntity( self )
+        fx:SetFlags( 0 )
+        util.Effect( "eff_term_goodarc", fx )
+    end
 end
