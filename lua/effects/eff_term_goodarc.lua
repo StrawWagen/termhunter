@@ -239,7 +239,8 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
         used[ idx ] = true
 
         local start = self.Points[ idx ]
-        local dir = ( VectorRand() + mainDir * 0.2 ):GetNormalized()
+        local dir = ( VectorRand() + mainDir * 0.2 )
+        dir:Normalize()
         local len = mainLen * math.Rand( 0.15, 0.4 )
         local segs = math.random( 2, 4 )
 
