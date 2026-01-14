@@ -5,15 +5,15 @@
 -- USAGE:
 -- ============================================
 -- local fx = EffectData()
--- fx:SetStart( startPos )               -- Start position (required)
--- fx:SetOrigin( endPos )                -- End position (required)
--- fx:SetScale( 1 )                      -- Overall scale (required)
--- fx:SetMagnitude( 8 )                  -- Arc segments (required)
--- fx:SetRadius( 20 )                    -- Arc jitter intensity (required)
--- fx:SetNormal( Vector( 0.4, 0.6, 1 ) ) -- Color as RGB 0-1 (required)
--- fx:SetDamageType( 5 )                 -- Branch count (optional, default 0)
--- fx:SetEntity( ent )                   -- Parent to entity (optional)
--- fx:SetFlags( 0 )                      -- Bitflags (optional)
+-- fx:SetStart( startPos )               -- Start position
+-- fx:SetOrigin( endPos )                -- End position
+-- fx:SetScale( 1 )                      -- Overall scale
+-- fx:SetMagnitude( 8 )                  -- Arc segments
+-- fx:SetRadius( 20 )                    -- Arc jitter intensity
+-- fx:SetNormal( Vector( 0.4, 0.6, 1 ) ) -- Color as RGB 0-1
+-- fx:SetDamageType( 5 )                 -- Branch count
+-- fx:SetEntity( ent )                   -- Parent entity
+-- fx:SetFlags( 0 )                      -- Bitflags
 -- util.Effect( "eff_term_goodarc", fx )
 --
 -- FLAGS:
@@ -77,18 +77,14 @@ function EFFECT:Init( data )
     self.Scale = data:GetScale()
     self.Segments = math.floor( data:GetMagnitude() )
     self.Jitter = data:GetRadius()
-    self.BranchCount = data:GetDamageType() or 0
+    self.BranchCount = data:GetDamageType()
 
     self.Duration = math.max( 0.06 * self.Scale, 0.02 )
     self.DieTime = CurTime() + self.Duration
 
     -- Color from normal vector
     local col = data:GetNormal()
-    if col:LengthSqr() > 0 then
-        self.Color = Color( col.x * 255, col.y * 255, col.z * 255 )
-    else
-        self.Color = Color( 100, 150, 255 )
-    end
+    self.Color = Color( col.x * 255, col.y * 255, col.z * 255 )
     self.CoreColor = Color(
         math.min( self.Color.r + 100, 255 ),
         math.min( self.Color.g + 100, 255 ),
@@ -115,7 +111,9 @@ function EFFECT:Init( data )
         end
     end
 
-    self:GenerateArc()
+    -- Initialize points (GenerateArc called in Think)
+    self.Points = { self.StartPos, self.EndPos }
+    self.NextFlicker = 0
 
     if not self.NoSound then
         self:PlaySound()
@@ -239,7 +237,7 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
         used[ idx ] = true
 
         local start = self.Points[ idx ]
-        local dir = ( VectorRand() + mainDir * 0.2 )
+        local dir = VectorRand() + mainDir * 0.2
         dir:Normalize()
         local len = mainLen * math.Rand( 0.15, 0.4 )
         local segs = math.random( 2, 4 )
@@ -261,7 +259,8 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
         -- Sub-branch
         if segs >= 3 and math.random() > 0.5 then
             local subStart = branch[ 2 ]
-            local subDir = ( VectorRand() + dir * 0.1 ):GetNormalized()
+            local subDir = VectorRand() + dir * 0.1
+            subDir:Normalize()
             local subLen = len * math.Rand( 0.3, 0.5 )
 
             local sub = { subStart }
@@ -281,7 +280,6 @@ end
 function EFFECT:Think()
     if CurTime() >= self.DieTime then return false end
 
-    self.NextFlicker = self.NextFlicker or 0
     if CurTime() >= self.NextFlicker then
         self:GenerateArc()
         self.NextFlicker = CurTime() + math.Rand( 0.015, 0.035 )
@@ -313,7 +311,7 @@ function EFFECT:Render()
     if not self.Branches then return end
 
     for _, branch in ipairs( self.Branches ) do
-        local bw = width * ( branch.width or 0.5 )
+        local bw = width * branch.width
         local segCount = #branch - 1
 
         for i = 1, segCount do
