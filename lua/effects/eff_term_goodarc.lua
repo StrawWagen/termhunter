@@ -38,6 +38,8 @@
 --   Purple: Vector( 0.6, 0.1, 1 )
 -- ============================================
 
+local math = math
+
 local BeamMaterial = CreateMaterial( "xeno/beamlightning", "UnlitGeneric", {
     ["$basetexture"] = "sprites/spotlight",
     ["$additive"] = "1",
@@ -86,6 +88,7 @@ end
 local renderCol = Color( 255, 255, 255 )
 local coreCol = Color( 255, 255, 255 )
 local vector_zero = Vector( 0, 0, 0 )
+local bit_band = bit.band
 
 function EFFECT:Init( data )
     self.StartPos = data:GetOrigin()
@@ -93,7 +96,8 @@ function EFFECT:Init( data )
     self.StartDir = data:GetNormal() -- does nothing if NO_TURN is true
     self.Scale = data:GetScale()
     self.SegmentCount = math.floor( data:GetMagnitude() )
-    self.Jitter = data:GetRadius()
+    local jitter = data:GetRadius()
+    self.Jitter = jitter
     self.BranchCount = data:GetDamageType()
 
     self.Duration = math.max( 0.06 * self.Scale, 0.02 )
@@ -110,14 +114,14 @@ function EFFECT:Init( data )
 
     -- Parse flags
     local flags = data:GetFlags()
-    self.NoLight    = bit.band( flags, NO_LIGHT ) ~= 0
-    self.NoBranches = bit.band( flags, NO_BRANCHES ) ~= 0
-    self.NoFade     = bit.band( flags, NO_FADE ) ~= 0
-    self.ParentMode = bit.band( flags, PARENT_MODE ) ~= 0
-    self.NoSound    = bit.band( flags, NO_SOUND ) ~= 0
-    self.PassWorld  = bit.band( flags, PASS_WORLD ) ~= 0
-    self.NoTurn     = bit.band( flags, NO_TURN ) ~= 0
-    self.NoDecal    = bit.band( flags, NO_DECAL ) ~= 0
+    self.NoLight    = bit_band( flags, NO_LIGHT ) ~= 0
+    self.NoBranches = bit_band( flags, NO_BRANCHES ) ~= 0
+    self.NoFade     = bit_band( flags, NO_FADE ) ~= 0
+    self.ParentMode = bit_band( flags, PARENT_MODE ) ~= 0
+    self.NoSound    = bit_band( flags, NO_SOUND ) ~= 0
+    self.PassWorld  = bit_band( flags, PASS_WORLD ) ~= 0
+    self.NoTurn     = bit_band( flags, NO_TURN ) ~= 0
+    self.NoDecal    = bit_band( flags, NO_DECAL ) ~= 0
 
     if self.StartDir == vector_zero then
         self.NoTurn = true
@@ -154,7 +158,7 @@ function EFFECT:Init( data )
 
     end
 
-    local pad = Vector( self.Jitter * 2, self.Jitter * 2, self.Jitter * 2 )
+    local pad = Vector( jitter * 2, jitter * 2, jitter * 2 )
     self:SetRenderBoundsWS( self.StartPos, self.EndPos, pad )
 
 end
@@ -181,16 +185,18 @@ end
 
 function EFFECT:CreateLight()
     local id = self:EntIndex()
+    local myColor = self.Color
+    local scale = self.Scale
 
     local light = DynamicLight( id )
     if light then
         light.Pos = self.EndPos
-        light.Size = math.min( 500 * self.Scale, 2000 )
+        light.Size = math.min( 500 * scale, 2000 )
         light.Decay = 3000
-        light.R = self.Color.r
-        light.G = self.Color.g
-        light.B = self.Color.b
-        light.Brightness = math.min( 1.25 * self.Scale, 5 )
+        light.R = myColor.r
+        light.G = myColor.g
+        light.B = myColor.b
+        light.Brightness = math.min( 1.25 * scale, 5 )
         light.DieTime = self.DieTime + 0.1
 
     end
@@ -199,12 +205,12 @@ function EFFECT:CreateLight()
         local light2 = DynamicLight( id + 4096 )
         if light2 then
             light2.Pos = self.StartPos
-            light2.Size = math.min( 300 * self.Scale, 1500 )
+            light2.Size = math.min( 300 * scale, 1500 )
             light2.Decay = 3000
-            light2.R = self.Color.r
-            light2.G = self.Color.g
-            light2.B = self.Color.b
-            light2.Brightness = math.min( 0.75 * self.Scale, 3 )
+            light2.R = myColor.r
+            light2.G = myColor.g
+            light2.B = myColor.b
+            light2.Brightness = math.min( 0.75 * scale, 3 )
             light2.DieTime = self.DieTime + 0.1
 
         end
@@ -355,9 +361,10 @@ end
 function EFFECT:GenerateBranches( mainDir, mainLen )
     local branches = {}
     local used = {}
+    local points = self.Points
 
     for _ = 1, self.BranchCount do
-        local lastValidPoint = math.max( 2, #self.Points - 2 )
+        local lastValidPoint = math.max( 2, #points - 2 )
         local branchStartPoint = math.random( 2, lastValidPoint )
 
         for _ = 1, 10 do
@@ -367,7 +374,7 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
         end
         used[ branchStartPoint ] = true
 
-        local start = self.Points[ branchStartPoint ]
+        local start = points[ branchStartPoint ]
         local branchDir = VectorRand() + mainDir * 0.2
         branchDir:Normalize()
         local len = mainLen * math.Rand( 0.15, 0.4 )
@@ -421,6 +428,8 @@ function EFFECT:Think()
 
 end
 
+local render = render
+
 function EFFECT:Render()
     if not self.SetupPoints then return end
 
@@ -431,15 +440,20 @@ function EFFECT:Render()
     local width = 8 * self.Scale * fade
     local alpha = 255 * fade
 
-    renderCol.r, renderCol.g, renderCol.b, renderCol.a = self.Color.r, self.Color.g, self.Color.b, alpha
-    coreCol.r, coreCol.g, coreCol.b, coreCol.a = self.CoreColor.r, self.CoreColor.g, self.CoreColor.b, alpha
+    local myColor = self.Color
+    local myCoreColor = self.CoreColor
+
+    renderCol.r, renderCol.g, renderCol.b, renderCol.a = myColor.r, myColor.g, myColor.b, alpha
+    coreCol.r, coreCol.g, coreCol.b, coreCol.a = myCoreColor.r, myCoreColor.g, myCoreColor.b, alpha
 
     render.SetMaterial( BeamMaterial )
 
+    local points = self.Points
+
     -- Main arc
-    for i = 1, #self.Points - 1 do
-        render.DrawBeam( self.Points[ i ], self.Points[ i + 1 ], width, 0, 1, renderCol )
-        render.DrawBeam( self.Points[ i ], self.Points[ i + 1 ], width * 0.3, 0, 1, coreCol )
+    for i = 1, #points - 1 do
+        render.DrawBeam( points[ i ], points[ i + 1 ], width, 0, 1, renderCol )
+        render.DrawBeam( points[ i ], points[ i + 1 ], width * 0.3, 0, 1, coreCol )
 
     end
 
