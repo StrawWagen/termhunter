@@ -129,10 +129,13 @@ function EFFECT:Init( data )
     if IsValid( ent ) then
         self.ParentEnt = ent
         self.StartOffset = ent:WorldToLocal( self.StartPos )
+
         if self.ParentMode then
             self.EndWorld = Vector( self.EndPos )
+
         else
             self.EndOffset = ent:WorldToLocal( self.EndPos )
+
         end
     end
 
@@ -143,14 +146,17 @@ function EFFECT:Init( data )
 
     if not self.NoSound then
         self:PlaySound()
+
     end
 
     if not self.NoLight then
         self:CreateLight()
+
     end
 
     local pad = Vector( self.Jitter * 2, self.Jitter * 2, self.Jitter * 2 )
     self:SetRenderBoundsWS( self.StartPos, self.EndPos, pad )
+
 end
 
 function EFFECT:PlaySound()
@@ -161,12 +167,14 @@ function EFFECT:PlaySound()
 
     if self.Scale >= 1 and math.random() > 0.5 then
         sound.Play( SparkSounds[ math.random( #SparkSounds ) ], self.EndPos, 70, pitch + math.random( -20, 20 ), vol * 0.6 )
+
     end
 
     if self.ParentMode then
         local pos = self.StartPos
         timer.Simple( 0.02, function()
             sound.Play( ZapSounds[ math.random( #ZapSounds ) ], pos, 70, pitch + 10, vol * 0.5 )
+
         end )
     end
 end
@@ -184,6 +192,7 @@ function EFFECT:CreateLight()
         light.B = self.Color.b
         light.Brightness = math.min( 1.25 * self.Scale, 5 )
         light.DieTime = self.DieTime + 0.1
+
     end
 
     if self.ParentMode then
@@ -197,6 +206,7 @@ function EFFECT:CreateLight()
             light2.B = self.Color.b
             light2.Brightness = math.min( 0.75 * self.Scale, 3 )
             light2.DieTime = self.DieTime + 0.1
+
         end
     end
 end
@@ -208,8 +218,10 @@ function EFFECT:UpdatePositions()
 
     if self.ParentMode then
         self.EndPos = self.EndWorld
+
     else
         self.EndPos = self.ParentEnt:LocalToWorld( self.EndOffset )
+
     end
 end
 
@@ -235,6 +247,7 @@ function EFFECT:GenerateSegmentPoints( startPos, endPos, segCount, jitterFunc, s
         -- TODO; make these configurable somehow
         blendFactor = 0.55 -- starting blend factor, bigger = turn less sharply
         blendPerSeg = -0.05 -- how much to reduce blend factor each segment
+
     end
 
     for i = 1, segCount - 1 do
@@ -250,11 +263,13 @@ function EFFECT:GenerateSegmentPoints( startPos, endPos, segCount, jitterFunc, s
             base = currentPos + potentialDir * stepSize
 
             moveDir = potentialDir
+
         else
             -- straight, cheaper and simpler
             base = startPos + dirToEnd * totalDist * t
 
             moveDir = dirToEnd
+
         end
 
         -- apply jitter perpendicular to movement direction
@@ -275,6 +290,7 @@ function EFFECT:GenerateSegmentPoints( startPos, endPos, segCount, jitterFunc, s
         -- World collision check
         if not passWorld and not isInWorld( point ) then
             return points, point, i + 1
+
         end
 
         if useCurving then
@@ -282,12 +298,15 @@ function EFFECT:GenerateSegmentPoints( startPos, endPos, segCount, jitterFunc, s
             currentDir = potentialDir
             -- turn more aggresively over time
             blendFactor = math.Clamp( blendFactor + blendPerSeg, 0, 1 )
+
         end
 
         points[ #points + 1 ] = point
+
     end
 
     return points, nil, nil
+
 end
 
 function EFFECT:GenerateArc()
@@ -299,10 +318,12 @@ function EFFECT:GenerateArc()
         self.Points = { self.StartPos, self.EndPos }
         self.Branches = nil
         return
+
     end
 
     local jitterFunc = function( t )
         return self.Jitter * math.sin( t * math.pi )
+
     end
 
     local points, hitPoint, hitSegment = self:GenerateSegmentPoints( self.StartPos, self.EndPos, self.SegmentCount, jitterFunc, self.StartDir )
@@ -314,6 +335,7 @@ function EFFECT:GenerateArc()
             local scorchStart = points[ #points ]
             local decalPath = self.Scale >= math.Rand( 1.5, 3 ) and "Scorch" or "SmallScorch"
             util.Decal( decalPath, scorchStart, self.EndPos )
+
         end
     end
 
@@ -323,8 +345,10 @@ function EFFECT:GenerateArc()
     if not self.NoBranches and self.BranchCount > 0 and #points >= 4 then
         local dirToEnd = ( self.EndPos - self.StartPos ):GetNormalized()
         self:GenerateBranches( dirToEnd, dist )
+
     else
         self.Branches = nil
+
     end
 end
 
@@ -333,16 +357,17 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
     local used = {}
 
     for _ = 1, self.BranchCount do
-        local maxIdx = math.max( 2, #self.Points - 2 )
-        local idx = math.random( 2, maxIdx )
+        local lastValidPoint = math.max( 2, #self.Points - 2 )
+        local branchStartPoint = math.random( 2, lastValidPoint )
 
         for _ = 1, 10 do
-            if not used[ idx ] then break end
-            idx = math.random( 2, maxIdx )
-        end
-        used[ idx ] = true
+            if not used[ branchStartPoint ] then break end
+            branchStartPoint = math.random( 2, lastValidPoint )
 
-        local start = self.Points[ idx ]
+        end
+        used[ branchStartPoint ] = true
+
+        local start = self.Points[ branchStartPoint ]
         local branchDir = VectorRand() + mainDir * 0.2
         branchDir:Normalize()
         local len = mainLen * math.Rand( 0.15, 0.4 )
@@ -350,6 +375,7 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
 
         local branchJitterFunc = function( t )
             return self.Jitter * 0.5 * ( 1 - t * 0.7 )
+
         end
 
         local branchEnd = start + branchDir * len
@@ -362,20 +388,24 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
             local subStart = branch[ 2 ]
             local subDir = VectorRand() + branchDir * 0.1
             subDir:Normalize()
+
             local subLen = len * math.Rand( 0.3, 0.5 )
 
             local subJitterFunc = function( t )
                 return self.Jitter * 0.3 * ( 1 - t )
+
             end
 
             local subEnd = subStart + subDir * subLen
             local sub = self:GenerateSegmentPoints( subStart, subEnd, 2, subJitterFunc, nil )
             sub.width = branch.width * 0.5
             branches[ #branches + 1 ] = sub
+
         end
     end
 
     self.Branches = branches
+
 end
 
 function EFFECT:Think()
@@ -388,6 +418,7 @@ function EFFECT:Think()
     end
 
     return true
+
 end
 
 function EFFECT:Render()
@@ -409,6 +440,7 @@ function EFFECT:Render()
     for i = 1, #self.Points - 1 do
         render.DrawBeam( self.Points[ i ], self.Points[ i + 1 ], width, 0, 1, renderCol )
         render.DrawBeam( self.Points[ i ], self.Points[ i + 1 ], width * 0.3, 0, 1, coreCol )
+
     end
 
     -- Branches
@@ -423,6 +455,7 @@ function EFFECT:Render()
             local w = bw * taper
             render.DrawBeam( branch[ i ], branch[ i + 1 ], w, 0, 1, renderCol )
             render.DrawBeam( branch[ i ], branch[ i + 1 ], w * 0.3, 0, 1, coreCol )
+
         end
     end
 end
