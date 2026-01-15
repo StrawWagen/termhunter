@@ -16,6 +16,8 @@ local Handlers = {
     nofade = function( ent, v ) ent:SetArcNoFade( v == true ) end,
     nosound = function( ent, v ) ent:SetArcNoSound( v == true ) end,
     multitarget = function( ent, v ) ent:SetArcMultiTarget( v == true ) end,
+    noturn = function( ent, v ) ent:SetArcNoTurn( v == true ) end,
+    passworld = function( ent, v ) ent:SetArcPassWorld( v == true ) end,
     color = function( ent, v )
         if istable( v ) then
             ent:SetArcColorR( math.Clamp( tonumber( v[1] ) or 100, 0, 255 ) )

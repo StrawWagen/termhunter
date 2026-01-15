@@ -5,23 +5,29 @@
 -- USAGE:
 -- ============================================
 -- local fx = EffectData()
--- fx:SetStart( startPos )               -- Start position
--- fx:SetOrigin( endPos )                -- End position
--- fx:SetScale( 1 )                      -- Overall scale
--- fx:SetMagnitude( 8 )                  -- Arc segments
--- fx:SetRadius( 20 )                    -- Arc jitter intensity
--- fx:SetNormal( Vector( 0.4, 0.6, 1 ) ) -- Color as RGB 0-1
--- fx:SetDamageType( 5 )                 -- Branch count
--- fx:SetEntity( ent )                   -- Parent entity
--- fx:SetFlags( 0 )                      -- Bitflags
+-- fx:SetOrigin( startPos )                -- Start position
+-- fx:SetStart( endPos )                    -- End position
+-- fx:SetNormal( Vector( 0, 0, 1 ) )        -- Starting direction
+-- fx:SetScale( 1 )                         -- Overall scale
+-- fx:SetMagnitude( 8 )                     -- Arc segments
+-- fx:SetRadius( 20 )                       -- Arc position jitter intensity
+-- fx:SetAngles( Angle( 102, 153, 255 ) )   -- Color
+-- fx:SetDamageType( 5 )                    -- Branch count
+-- fx:SetEntity( ent )                      -- Parent entity
+-- fx:SetFlags( 0 )                         -- Bitflags
 -- util.Effect( "eff_term_goodarc", fx )
 --
+-- IMPORTANT! every effect setting must be set! ( because of the historic effect settings bug )
+--
 -- FLAGS:
---   1  = No dynamic light
---   2  = No branches
---   4  = No fade out
---   8  = Parent mode (start follows entity, end fixed in world)
---   16 = No sound
+--   1   = No dynamic light
+--   2   = No branches
+--   4   = No fade out
+--   8   = Parent mode ( start follows entity, end fixed to world coords )
+--   16  = No sound
+--   32  = Continue through world
+--   64  = Don't turn ( always go straight towards endPos )
+--   128 = No scorch decals ( decals rely on flag 32, disabling that also disables this )
 --
 -- COLORS:
 --   Blue:   Vector( 0.4, 0.6, 1 )
@@ -40,11 +46,14 @@ local BeamMaterial = CreateMaterial( "xeno/beamlightning", "UnlitGeneric", {
 } )
 
 -- Flags
-local NO_LIGHT    = 1
-local NO_BRANCHES = 2
-local NO_FADE     = 4
-local PARENT_MODE = 8
-local NO_SOUND    = 16
+local NO_LIGHT      = 1
+local NO_BRANCHES   = 2
+local NO_FADE       = 4
+local PARENT_MODE   = 8
+local NO_SOUND      = 16
+local PASS_WORLD    = 32
+local NO_TURN       = 64
+local NO_DECAL      = 128
 
 -- Sounds
 local ZapSounds = {
@@ -67,24 +76,32 @@ local SparkSounds = {
     "ambient/energy/spark6.wav",
 }
 
+local function isInWorld( pos ) -- is the point inside the world, not in a wall?
+    local inWorld = bit.band( util.PointContents( pos ), CONTENTS_SOLID ) == 0
+    return inWorld
+
+end
+
 -- Reusable color objects
 local renderCol = Color( 255, 255, 255 )
 local coreCol = Color( 255, 255, 255 )
+local vector_zero = Vector( 0, 0, 0 )
 
 function EFFECT:Init( data )
-    self.StartPos = data:GetStart()
-    self.EndPos = data:GetOrigin()
+    self.StartPos = data:GetOrigin()
+    self.EndPos = data:GetStart()
+    self.StartDir = data:GetNormal() -- does nothing if NO_TURN is true
     self.Scale = data:GetScale()
-    self.Segments = math.floor( data:GetMagnitude() )
+    self.SegmentCount = math.floor( data:GetMagnitude() )
     self.Jitter = data:GetRadius()
     self.BranchCount = data:GetDamageType()
 
     self.Duration = math.max( 0.06 * self.Scale, 0.02 )
     self.DieTime = CurTime() + self.Duration
 
-    -- Color from normal vector
-    local col = data:GetNormal()
-    self.Color = Color( col.x * 255, col.y * 255, col.z * 255 )
+    -- Color from angle
+    local col = data:GetAngles()
+    self.Color = Color( col.x, col.y, col.z )
     self.CoreColor = Color(
         math.min( self.Color.r + 100, 255 ),
         math.min( self.Color.g + 100, 255 ),
@@ -98,6 +115,14 @@ function EFFECT:Init( data )
     self.NoFade     = bit.band( flags, NO_FADE ) ~= 0
     self.ParentMode = bit.band( flags, PARENT_MODE ) ~= 0
     self.NoSound    = bit.band( flags, NO_SOUND ) ~= 0
+    self.PassWorld  = bit.band( flags, PASS_WORLD ) ~= 0
+    self.NoTurn     = bit.band( flags, NO_TURN ) ~= 0
+    self.NoDecal    = bit.band( flags, NO_DECAL ) ~= 0
+
+    if self.StartDir == vector_zero then
+        self.NoTurn = true
+
+    end
 
     -- Entity parenting
     local ent = data:GetEntity()
@@ -113,6 +138,7 @@ function EFFECT:Init( data )
 
     -- Initialize points (GenerateArc called in Think)
     self.Points = { self.StartPos, self.EndPos }
+    self.SetupPoints = false
     self.NextFlicker = 0
 
     if not self.NoSound then
@@ -187,36 +213,116 @@ function EFFECT:UpdatePositions()
     end
 end
 
+function EFFECT:GenerateSegmentPoints( startPos, endPos, segCount, jitterFunc, startDir )
+    local points = { startPos }
+
+    local dirToEnd = endPos - startPos
+    local totalDist = dirToEnd:Length()
+    dirToEnd:Normalize()
+
+    local passWorld = self.PassWorld
+    local useCurving = startDir and not self.NoTurn
+
+    -- For curving arcs
+    local stepSize = totalDist / segCount
+    local currentPos
+    local blendFactor
+    local blendPerSeg
+    if useCurving then
+        currentPos = startPos
+        currentDir = startDir
+
+        -- TODO; make these configurable somehow
+        blendFactor = 0.55 -- starting blend factor, bigger = turn less sharply
+        blendPerSeg = -0.05 -- how much to reduce blend factor each segment
+    end
+
+    for i = 1, segCount - 1 do
+        local t = i / segCount
+        local base
+        local potentialDir
+        local moveDir
+
+        if useCurving then
+            -- blend current dir with desired dir, and step forward
+            potentialDir = ( currentDir * blendFactor ) + ( ( 1 - blendFactor ) * dirToEnd )
+            potentialDir:Normalize()
+            base = currentPos + potentialDir * stepSize
+
+            moveDir = potentialDir
+        else
+            -- straight, cheaper and simpler
+            base = startPos + dirToEnd * totalDist * t
+
+            moveDir = dirToEnd
+        end
+
+        -- apply jitter perpendicular to movement direction
+        local ang = moveDir:Angle()
+        local right, up = ang:Right(), ang:Up()
+        local rx, ry, rz = right.x, right.y, right.z
+        local ux, uy, uz = up.x, up.y, up.z
+
+        local jitter = jitterFunc( t )
+        local rightJitter = math.Rand( -jitter, jitter )
+        local upJitter = math.Rand( -jitter, jitter )
+
+        local offsetX = rx * rightJitter + ux * upJitter
+        local offsetY = ry * rightJitter + uy * upJitter
+        local offsetZ = rz * rightJitter + uz * upJitter
+        local point = Vector( base.x + offsetX, base.y + offsetY, base.z + offsetZ )
+
+        -- World collision check
+        if not passWorld and not isInWorld( point ) then
+            return points, point, i + 1
+        end
+
+        if useCurving then
+            currentPos = point
+            currentDir = potentialDir
+            -- turn more aggresively over time
+            blendFactor = math.Clamp( blendFactor + blendPerSeg, 0, 1 )
+        end
+
+        points[ #points + 1 ] = point
+    end
+
+    return points, nil, nil
+end
+
 function EFFECT:GenerateArc()
     self:UpdatePositions()
 
-    local dir = self.EndPos - self.StartPos
-    local len = dir:Length()
+    local dist = self.StartPos:Distance( self.EndPos )
 
-    if len < 1 then
+    if dist < 1 then
         self.Points = { self.StartPos, self.EndPos }
         self.Branches = nil
         return
     end
 
-    dir:Normalize()
-    local ang = dir:Angle()
-    local right, up = ang:Right(), ang:Up()
-
-    local points = { self.StartPos }
-    for i = 1, self.Segments - 1 do
-        local t = i / self.Segments
-        local base = self.StartPos + dir * len * t
-        local jit = self.Jitter * math.sin( t * math.pi )
-        local offset = right * math.Rand( -jit, jit ) + up * math.Rand( -jit, jit )
-        points[ #points + 1 ] = base + offset
+    local jitterFunc = function( t )
+        return self.Jitter * math.sin( t * math.pi )
     end
-    points[ #points + 1 ] = self.EndPos
 
+    local points, hitPoint, hitSegment = self:GenerateSegmentPoints( self.StartPos, self.EndPos, self.SegmentCount, jitterFunc, self.StartDir )
+
+    if hitPoint then
+        self.EndPos = hitPoint
+        self.SegmentCount = hitSegment
+        if not self.NoDecal then
+            local scorchStart = points[ #points ]
+            local decalPath = self.Scale >= math.Rand( 1.5, 3 ) and "Scorch" or "SmallScorch"
+            util.Decal( decalPath, scorchStart, self.EndPos )
+        end
+    end
+
+    points[ #points + 1 ] = self.EndPos
     self.Points = points
 
     if not self.NoBranches and self.BranchCount > 0 and #points >= 4 then
-        self:GenerateBranches( dir, len )
+        local dirToEnd = ( self.EndPos - self.StartPos ):GetNormalized()
+        self:GenerateBranches( dirToEnd, dist )
     else
         self.Branches = nil
     end
@@ -237,38 +343,33 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
         used[ idx ] = true
 
         local start = self.Points[ idx ]
-        local dir = VectorRand() + mainDir * 0.2
-        dir:Normalize()
+        local branchDir = VectorRand() + mainDir * 0.2
+        branchDir:Normalize()
         local len = mainLen * math.Rand( 0.15, 0.4 )
         local segs = math.random( 2, 4 )
 
-        local ang = dir:Angle()
-        local right, up = ang:Right(), ang:Up()
-
-        local branch = { start }
-        for j = 1, segs do
-            local t = j / segs
-            local base = start + dir * len * t
-            local jit = self.Jitter * 0.5 * ( 1 - t * 0.7 )
-            local offset = right * math.Rand( -jit, jit ) + up * math.Rand( -jit, jit )
-            branch[ #branch + 1 ] = base + offset
+        local branchJitterFunc = function( t )
+            return self.Jitter * 0.5 * ( 1 - t * 0.7 )
         end
+
+        local branchEnd = start + branchDir * len
+        local branch = self:GenerateSegmentPoints( start, branchEnd, segs, branchJitterFunc, nil )
         branch.width = math.Rand( 0.4, 0.7 )
         branches[ #branches + 1 ] = branch
 
         -- Sub-branch
-        if segs >= 3 and math.random() > 0.5 then
+        if segs >= 3 and math.random() > 0.5 and #branch >= 2 then
             local subStart = branch[ 2 ]
-            local subDir = VectorRand() + dir * 0.1
+            local subDir = VectorRand() + branchDir * 0.1
             subDir:Normalize()
             local subLen = len * math.Rand( 0.3, 0.5 )
 
-            local sub = { subStart }
-            for k = 1, 2 do
-                local t = k / 2
-                local base = subStart + subDir * subLen * t
-                sub[ #sub + 1 ] = base + VectorRand() * self.Jitter * 0.3 * ( 1 - t )
+            local subJitterFunc = function( t )
+                return self.Jitter * 0.3 * ( 1 - t )
             end
+
+            local subEnd = subStart + subDir * subLen
+            local sub = self:GenerateSegmentPoints( subStart, subEnd, 2, subJitterFunc, nil )
             sub.width = branch.width * 0.5
             branches[ #branches + 1 ] = sub
         end
@@ -282,6 +383,7 @@ function EFFECT:Think()
 
     if CurTime() >= self.NextFlicker then
         self:GenerateArc()
+        self.SetupPoints = true
         self.NextFlicker = CurTime() + math.Rand( 0.015, 0.035 )
     end
 
@@ -289,6 +391,8 @@ function EFFECT:Think()
 end
 
 function EFFECT:Render()
+    if not self.SetupPoints then return end
+
     local timeLeft = self.DieTime - CurTime()
     if timeLeft <= 0 then return end
 

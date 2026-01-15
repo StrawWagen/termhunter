@@ -31,6 +31,8 @@ function ENT:SetupDataTables()
     self:NetworkVar( "Bool", 3, "ArcNoFade" )
     self:NetworkVar( "Bool", 4, "ArcNoSound" )
     self:NetworkVar( "Bool", 5, "ArcMultiTarget" )
+    self:NetworkVar( "Bool", 6, "ArcNoTurn" )
+    self:NetworkVar( "Bool", 7, "ArcPassWorld" )
 
     if SERVER then
         self:SetArcScale( 1 )
@@ -49,5 +51,7 @@ function ENT:SetupDataTables()
         self:SetArcNoFade( false )
         self:SetArcNoSound( false )
         self:SetArcMultiTarget( false )
+        self:SetArcNoTurn( false )
+        self:SetArcPassWorld( false )
     end
 end

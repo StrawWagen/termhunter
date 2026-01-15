@@ -133,6 +133,8 @@ properties.Add( "arccube_settings", {
         AddToggle( toggleMenu, "No Fade", ent:GetArcNoFade(), function( v ) self:Send( ent, "nofade", v ) end )
         AddToggle( toggleMenu, "No Light", ent:GetArcNoLight(), function( v ) self:Send( ent, "nolight", v ) end )
         AddToggle( toggleMenu, "No Sound", ent:GetArcNoSound(), function( v ) self:Send( ent, "nosound", v ) end )
+        AddToggle( toggleMenu, "No Turn", ent:GetArcNoTurn(), function( v ) self:Send( ent, "noturn", v ) end )
+        AddToggle( toggleMenu, "Pass World", ent:GetArcPassWorld(), function( v ) self:Send( ent, "passworld", v ) end )
         toggleMenu:AddSpacer()
         AddToggle( toggleMenu, "Multi-Target", ent:GetArcMultiTarget(), function( v ) self:Send( ent, "multitarget", v ) end )
 

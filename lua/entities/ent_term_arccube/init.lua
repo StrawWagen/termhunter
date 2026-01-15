@@ -87,29 +87,35 @@ end
 
 function ENT:FireArc( startPos, endPos, useParentMode )
     local fx = EffectData()
-    fx:SetStart( startPos )
-    fx:SetOrigin( endPos )
+    fx:SetOrigin( startPos )
+    fx:SetStart( endPos )
     fx:SetScale( self:GetArcScale() )
     fx:SetMagnitude( self:GetArcSegments() )
     fx:SetRadius( self:GetArcJitter() )
     fx:SetDamageType( self:GetArcBranchCount() )
-    fx:SetNormal( Vector( self:GetArcColorR() / 255, self:GetArcColorG() / 255, self:GetArcColorB() / 255 ) )
+    fx:SetAngles( Angle( self:GetArcColorR(), self:GetArcColorG(), self:GetArcColorB() ) )
+    
+    -- Starting direction (arc will curve from this direction toward endPos)
+    fx:SetNormal( Vector( 0, 0, 1 ) )
+    
     fx:SetEntity( self )
 
-    -- Flags: 1=NoLight, 2=NoBranches, 4=NoFade, 8=ParentMode, 16=NoSound
+    -- Flags: 1=NoLight, 2=NoBranches, 4=NoFade, 8=ParentMode, 16=NoSound, 32=PassWorld, 64=NoTurn
     local flags = 0
     if self:GetArcNoLight() then flags = flags + 1 end
     if self:GetArcNoBranches() then flags = flags + 2 end
     if self:GetArcNoFade() then flags = flags + 4 end
     if useParentMode then flags = flags + 8 end
     if self:GetArcNoSound() then flags = flags + 16 end
+    if self:GetArcPassWorld() then flags = flags + 32 end
+    if self:GetArcNoTurn() then flags = flags + 64 end
     fx:SetFlags( flags )
 
     util.Effect( "eff_term_goodarc", fx )
 end
 
 -- Duplicator support
-local ArcProps = { "Scale", "Segments", "Jitter", "Range", "Rate", "BranchCount", "ColorR", "ColorG", "ColorB", "Mode", "Enabled", "NoLight", "NoBranches", "NoFade", "NoSound", "MultiTarget" }
+local ArcProps = { "Scale", "Segments", "Jitter", "Range", "Rate", "BranchCount", "ColorR", "ColorG", "ColorB", "Mode", "Enabled", "NoLight", "NoBranches", "NoFade", "NoSound", "MultiTarget", "NoTurn", "PassWorld" }
 
 function ENT:PreEntityCopy()
     local data = {}
