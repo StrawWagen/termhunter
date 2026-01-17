@@ -367,7 +367,8 @@ ENT.MyClassTask = {
     -- Very useful when coding custom npc brains, not so useful for ClassTasks
     
     -- OnStart = function( self, data )
-        -- Called when the task starts, unlike OnCreated, which is called when the bot itself is :Initialized
+        -- Called when the task starts
+        -- Unlike OnCreated, Which is called when the bot itself is :Initialized
     -- end,
 
     -- OnFail = function( self, data )
