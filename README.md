@@ -388,7 +388,9 @@ ENT.MyClassTask = {
 1. All callbacks receive `data` as the second parameter - this is the task's data table where you can store state between calls.  
    Like storing variables on self, but for the task only.
 2. Every class in the heirarchy has their classtask & callbacks created.
+   
    Say you make your npc play... A laughing sound in OnDamaged, all npcs based off it will laugh.
+   
    Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh!
    
 
