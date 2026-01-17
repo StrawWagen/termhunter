@@ -117,8 +117,8 @@ You'll see examples of this in the MySpecialActions section below.
 
 ## ENT.MyClassTask System
 
-Simple way to add entity-class-specific behaviour to your custom nextbot based on termhunter.  
-Fully compatible with baseclassing - tasks from all base classes in the inheritance tree will also be added automatically.  
+Simple way to add entity-class behaviour to your custom nextbot based on termhunter.  
+Interacts uniquely with baseclassing, every single class in the baseclass hierarchy gets their MyClassTask and callbacks created.
 
 **Important:** This is NOT for adding advanced movement tasks.
 Use `ENT:DoCustomTasks` instead for complex movement behavior.
@@ -392,10 +392,6 @@ ENT.MyClassTask = {
    Say you make your npc play... A laughing sound in OnDamaged, all npcs based off it will laugh.
    
    Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh!
-   
-
-
-Class tasks automatically start on `ENT:Initialize()`.
 
 
 ## ENT.MySpecialActions System
