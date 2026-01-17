@@ -1,1 +1,0 @@
-Terminator model: https://steamcommunity.com/workshop/filedetails/?id=488823530

@@ -16,7 +16,8 @@ And [Jerma985 Nextbot](https://github.com/StrawWagen/the_jerminator)
     (Flat reskins with no real custom behaviour)
 
 This project is a highly modified, optimized version of [this nextbot base](https://github.com/ShadowBonnieRUS/GMOD-SB_Advanced_Nextbots_Base)
-
+The terminator model shipped with this, comes from [this fantastic addon!](https://steamcommunity.com/workshop/filedetails/?id=488823530)
+(I only compressed some of the textures!)
 
 ## Convars
 ```
@@ -383,8 +384,14 @@ ENT.MyClassTask = {
 }
 ```
 
-**Note:** All callbacks receive `data` as the second parameter - this is the task's data table where you can store state between calls.  
-Like storing variables on self, but for the task only.
+**Notes:** 
+1. All callbacks receive `data` as the second parameter - this is the task's data table where you can store state between calls.  
+   Like storing variables on self, but for the task only.
+2. Every class in the heirarchy has their classtask & callbacks created.
+   Say you make your npc play... A laughing sound in OnDamaged, all npcs based off it will laugh.
+   Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh!
+   
+
 
 Class tasks automatically start on `ENT:Initialize()`.
 
