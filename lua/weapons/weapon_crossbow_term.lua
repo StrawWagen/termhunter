@@ -100,11 +100,10 @@ function SWEP:CreateBolt(pos,ang,damage,owner)
     bolt:SetOwner(owner)
     bolt:SetSaveValue("m_hOwnerEntity",owner)
     bolt:EmitSound(Sound("Weapon_Crossbow.BoltFly"))
-    
+
     local hookName = "term_crossbowbolt_damage_" .. tostring( bolt:GetCreationID() )
 
     hook.Add( "EntityTakeDamage", hookName, function( ent,dmg )
-        if ent != bolt then return end
         if not IsValid( bolt ) then
             hook.Remove( "EntityTakeDamage", hookName )
             return
