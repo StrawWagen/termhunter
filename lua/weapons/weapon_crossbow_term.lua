@@ -112,6 +112,8 @@ function SWEP:CreateBolt(pos,ang,damage,owner)
         local inflictor = dmg:GetInflictor()
         if inflictor != bolt then return end
 
+        dmg:SetDamagePosition( bolt:GetPos() )
+        dmg:SetDamageForce( bolt:GetVelocity() * 5 )
         dmg:SetDamage( damage )
 
     end )
