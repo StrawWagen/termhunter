@@ -121,7 +121,7 @@ Simple way to add entity-class behaviour to your custom nextbot based on termhun
 Interacts uniquely with baseclassing, every single class in the baseclass hierarchy gets their MyClassTask and callbacks created.
 
 **Important:** This is NOT for adding advanced movement tasks.
-Use `ENT:DoCustomTasks` instead for complex movement behavior.
+Use `ENT:DoCustomTasks` instead for complex movement behavior. (more info below)
 
 ### Usage Example
 
