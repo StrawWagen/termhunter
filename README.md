@@ -15,7 +15,7 @@ Check [Nextbot Zambies](https://github.com/StrawWagen/nextbot_zambies)
 And [Jerma985 Nextbot](https://github.com/StrawWagen/the_jerminator)
     (Flat reskins with no real custom behaviour)
 
-This project is a highly modified, optimized version of [this nextbot base](https://github.com/ShadowBonnieRUS/GMOD-SB_Advanced_Nextbots_Base)
+This project is a highly modified, optimized version of [this nextbot base](https://github.com/ShadowBonnieRUS/GMOD-SB_Advanced_Nextbots_Base)  
 The terminator model shipped with this, comes from [this fantastic addon!](https://steamcommunity.com/workshop/filedetails/?id=488823530)
 (I only compressed some of the textures!)
 
