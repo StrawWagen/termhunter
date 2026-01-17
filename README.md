@@ -5,8 +5,8 @@ For basing NPCs off this, it doesn't support custom animations that well, it exp
 
 Best for creating code-driven AI agents that relentlessly pursue their enemies, crouching, jumping, climbing ladders, attacking obstacles.  
 Supports optimized custom weights on pathfinding, good if you want a bot to avoid a dangerous area, avoid an obvious entrance to a room, etc.  
-Limited but functional support for custom, non-player shaped enemies, would not recommend working with this base if you've just finished a custom non-player model and want it to attack you.
-Includes a live navmesh generator that activates when bots are getting stuck, or their enemies are escaping into spots the default navmesh generator missed! (this can be disabled, see convars section!)
+Includes a live navmesh generator that activates when bots are getting stuck, or their enemies are escaping into spots the default navmesh generator missed! (this can be disabled if say, you have authored navmeshes, see convars section!)  
+Limited but functional support for custom, non-player shaped enemies, would not recommend working with this base if you've just finished a custom non-player model and want it to attack you.  
 
 
 See [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=2944078031) page for more info.
