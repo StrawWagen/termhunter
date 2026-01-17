@@ -55,13 +55,13 @@ terminator_event_debug 0/1 "Debug the terminator event system"
 cl_termevent_resetallprogress "Requests the cvars for every event, then resets them all to 0"
 cl_termevent_getallprogress "Requests the cvars for every event"
 
-Following patcher, Creates connections between navareas.
+Following patcher, Only creates connections between navareas.
 This should always be enabled, no navmesh is perfect.
 terminator_followpatcher_enable 0/1 "Patches the navmesh as players wander the map, Leads to terminators feeling smarter, following you through windows. Only runs with at least 1 bot spawned."
 terminator_followpatcher_maxplayers -1/inf "Max amount of plys to process at a time, the system always prioritizes players being actively chased. -1 for default"
 terminator_followpatcher_debug 0/1 "Debug the following patcher."
 
-Areapatcher
+Areapatcher, Creates navareas.
 Disable this if you have manually curated navmeshes, it's slightly experimental.
 terminator_areapatching_enable 0/1 "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned."
 terminator_areapatching_rate -1/1 "Max fraction of a second the area patcher can run at, -1 for default"
