@@ -3048,6 +3048,11 @@ function ENT:Initialize()
     end )
 end
 
+hook.Add( "terminator_nextbot_noterms_exist", "term_cleanup_unreachableareasforclasses", function()
+    terminator_Extras.unreachableAreasForClasses = nil
+
+end )
+
 function ENT:DoDefaultTasks()
     self.TaskList = {
         -- find, lose, manage enemies. 

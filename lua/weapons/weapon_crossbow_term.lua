@@ -101,12 +101,26 @@ function SWEP:CreateBolt(pos,ang,damage,owner)
     bolt:SetSaveValue("m_hOwnerEntity",owner)
     bolt:EmitSound(Sound("Weapon_Crossbow.BoltFly"))
     
-    hook.Add("EntityTakeDamage",bolt,function(self,ent,dmg)
-        if dmg:GetInflictor()!=self then return end
-        
-        dmg:SetDamage(damage)
-    end)
-    
+    local hookName = "term_crossbowbolt_damage_" .. tostring( bolt:GetCreationID() )
+
+    hook.Add( "EntityTakeDamage", hookName, function( ent,dmg )
+        if ent != bolt then return end
+        if not IsValid( bolt ) then
+            hook.Remove( "EntityTakeDamage", hookName )
+            return
+
+        end
+        local inflictor = dmg:GetInflictor()
+        if inflictor != bolt then return end
+
+        dmg:SetDamage( damage )
+
+    end )
+    bolt:CallOnRemove( "term_crossbowbolt_removedamageoverride", function()
+        hook.Remove( "EntityTakeDamage", hookName )
+
+    end )
+
     return bolt
 end
 
