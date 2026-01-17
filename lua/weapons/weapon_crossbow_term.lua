@@ -104,7 +104,7 @@ function SWEP:CreateBolt(pos,ang,damage,owner)
     local hookName = "term_crossbowbolt_damage_" .. tostring( bolt:GetCreationID() )
 
     hook.Add( "EntityTakeDamage", hookName, function( ent,dmg )
-        if not IsValid( bolt ) then
+        if !IsValid( bolt ) then
             hook.Remove( "EntityTakeDamage", hookName )
             return
 
