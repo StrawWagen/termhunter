@@ -319,7 +319,6 @@ function ENT:StuckCheck( myTbl )
 
             if myTbl.m_StuckTime2 >= 1 then -- changed from 5 to 1
                 self:OnStuck()
-                print( "onstuck" )
 
             end
         else

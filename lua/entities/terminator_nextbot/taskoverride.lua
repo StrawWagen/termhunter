@@ -349,7 +349,7 @@ function ENT:SetupTasks( myTbl )
 
     for taskName, taskDat in pairs( self.TaskList ) do
         if printTasks and taskDat.StopsWhenPlayerControlled and string.StartsWith( taskName, "movement_" ) then
-            print( "movement task, " .. taskName .. " initialized with unnecessary taskDat.StopsWhenPlayerControlled" )
+            ErrorNoHaltWithStack( "movement task, " .. taskName .. " initialized with unnecessary taskDat.StopsWhenPlayerControlled" )
 
         end
         if taskDat.StartsOnInitialize then

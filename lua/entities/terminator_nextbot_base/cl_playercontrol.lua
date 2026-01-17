@@ -322,7 +322,7 @@ function ENT:SetupCLDrivingHooks()
         local commandName = self.commandNames[bind]
         if not commandName then return end
 
-        if self.commandCombos[commandName] >= IN_ATTACK and not ply:KeyDown( self.commandCombos[commandName] ) then print( bind ) return end -- it needs both down
+        if self.commandCombos[commandName] >= IN_ATTACK and not ply:KeyDown( self.commandCombos[commandName] ) then return end -- it needs both down
 
         if self.commandClActions[commandName] then
             self.commandClActions[commandName]( self, ply, pressed, code )
