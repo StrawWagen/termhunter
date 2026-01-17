@@ -218,19 +218,27 @@ end
     Arg1: 
     Ret1: 
 --]]------------------------------------
-local vertOffs = Vector( 0,0,5 )
+local vertOffs = Vector( 0, 0, 5 )
 
 function ENT:StuckCheck( myTbl )
     if myTbl.DisabledThinking( self ) then return end
-    if CurTime() >= myTbl.m_StuckTime then
-        local added = math_Rand( 0.15, 0.50 )
-        myTbl.m_StuckTime = CurTime() + added
+    local myPos = entMeta.GetPos( self )
+    local cur = CurTime()
+    local intersecting
+    local moving
+
+    if cur < myTbl.m_StuckTime then return end
+    local added = math_Rand( 0.15, 0.50 )
+    myTbl.m_StuckTime = cur + added
+
+    if not util_IsInWorld( myPos ) then
+        intersecting = true
+
+    else
 
         local loco = myTbl.loco
-        local myPos = entMeta.GetPos( self )
-        local moving
 
-        if myTbl.m_StuckPos ~= myPos then
+        if myTbl.m_StuckPos ~= myPos then -- if we moved, reset all this stuff
             myTbl.m_StuckPos = myPos
             myTbl.m_StuckTime2 = 0
             moving = true
@@ -242,22 +250,21 @@ function ENT:StuckCheck( myTbl )
 
         local b1, b2 = myTbl.GetSafeCollisionBounds( self )
 
-        local sizeIncrease = 0
+        local sizeIncrease = -0.5
         local checkOrigin = myPos
 
         if not loco:IsOnGround() then
             sizeIncrease = sizeIncrease + 6
+            if vecMeta.LengthSqr( entMeta.GetVelocity( self ) ) < 5^2 then
+                sizeIncrease = sizeIncrease + 5
 
+            end
         else
-            checkOrigin = checkOrigin + vertOffs
+            checkOrigin = checkOrigin + vertOffs -- dont get stuck on irregular floors
 
         end
         if myTbl.isUnstucking then
             sizeIncrease = sizeIncrease + 1
-
-        end
-        if myTbl.GetCurrentSpeed( self ) < 5 then
-            sizeIncrease = sizeIncrease + 2
 
         end
 
@@ -289,41 +296,46 @@ function ENT:StuckCheck( myTbl )
 
         end
 
-        local hit = TraceHit( tr )
-        if hit then
+        intersecting = TraceHit( tr )
+
+        if intersecting then
             -- fix bot getting stuck running up stairs ( by not running up stairs.. )
             local mul = 1.1
             local oldWalk = myTbl.forcedShouldWalk or 0
-            myTbl.forcedShouldWalk = math.max( oldWalk + added * mul, CurTime() + added * mul )
+            myTbl.forcedShouldWalk = math.max( oldWalk + added * mul, cur + added * mul )
 
             local overrideCr = ( myTbl.overrideCrouch or 0 ) + 0.3
-            overrideCr = math.Clamp( overrideCr, 0, CurTime() + 3 )
-            myTbl.overrideCrouch = math.max( CurTime() + -1, overrideCr )
+            overrideCr = math.Clamp( overrideCr, 0, cur + 3 )
+            myTbl.overrideCrouch = math.max( cur + -1, overrideCr )
 
         end
+    end
 
-        if not moving and not myTbl.m_Stuck then
-            if hit then
-                myTbl.m_StuckTime2 = myTbl.m_StuckTime2 + math_Rand( 0.5, 0.75 )
+    local stuck = not moving
 
-                if myTbl.m_StuckTime2 >= 1 then -- changed from 5 to 1
-                    self:OnStuck()
-                    --print( "onstuck" )
+    if stuck and not myTbl.m_Stuck then
+        if intersecting then
+            myTbl.m_StuckTime2 = myTbl.m_StuckTime2 + math_Rand( 0.5, 0.75 )
 
-                end
-            else
-                myTbl.lastNotStuckPos = myPos
-                myTbl.m_StuckTime2 = 0
+            if myTbl.m_StuckTime2 >= 1 then -- changed from 5 to 1
+                self:OnStuck()
+                print( "onstuck" )
+
             end
         else
-            if not hit then
-                self:OnUnStuck()
-            end
+            myTbl.lastNotStuckPos = myPos
+            myTbl.m_StuckTime2 = 0
+
+        end
+    else
+        if not intersecting then
+            self:OnUnStuck()
+
         end
     end
 end
 
-local function TryStuck( self, endPos, t, tr, yieldable )
+local function TryStuck( self, endPos, t, tr, fodder, yieldable )
     -- check if we can fit
     t.start = endPos
     t.endpos = endPos
@@ -344,24 +356,41 @@ local function TryStuck( self, endPos, t, tr, yieldable )
             maxs = t.maxs * 0.5,
 
         }
+
+        if yieldable and fodder then coroutine_yield() end
+
         local traceRes = util.TraceHull( traceStruct )
 
+        -- allow setpos if we're inside whats blocking us, or the path is clear
         local clearPath = traceRes.StartSolid or not traceRes.Hit
 
+        if yieldable and fodder then coroutine_yield() end
+
         if clearPath then
-            if yieldable then coroutine_yield() end
 
             self:SetPosNoTeleport( endPos )
+            if yieldable and fodder then coroutine_yield() end
+
             self.loco:ClearStuck()
 
             self:OnUnStuck()
 
             return true
 
+        elseif traceRes.Hit and not traceRes.StartSolid then
+            return false, true
+
         end
     end
 
     return false
+
+end
+
+local function setAsToWorld( vec, pos, x, y, z )
+    vec.x = pos.x + x
+    vec.y = pos.y + y
+    vec.z = pos.z + z
 
 end
 
@@ -399,8 +428,15 @@ function ENT:OnStuck()
     }
 
     local w = b2.x-b1.x
+    if not util_IsInWorld( pos ) then
+        w = w * 2
+
+    end
+
     local yieldable = coroutine_running()
     local fodder = myTbl.IsFodder
+    local vec = Vector( pos.x, pos.y, pos.z )
+    local blockedOctants = {}
 
     for z = 0, w * 1.2, w * 0.2 do
         if yieldable then coroutine_yield() end
@@ -408,21 +444,68 @@ function ENT:OnStuck()
             if yieldable then coroutine_yield() end
             for y = 0, w * 1.2, w * 0.2 do
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, y, z ),     t, tr, yieldable ) then return end
+                if not blockedOctants[1] then
+                    setAsToWorld( vec, pos, x, y, z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[1] = true end
+                end
+
                 if yieldable and fodder then coroutine_yield() end
-                if TryStuck( self, pos + Vector( -x, y, z ),    t, tr, yieldable ) then return end
+                if not blockedOctants[2] then
+                    setAsToWorld( vec, pos, -x, y, z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[2] = true end
+                end
+
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, -y, z ),    t, tr, yieldable ) then return end
+                if not blockedOctants[3] then
+                    setAsToWorld( vec, pos, x, -y, z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[3] = true end
+                end
+
                 if yieldable and fodder then coroutine_yield() end
-                if TryStuck( self, pos + Vector( -x, -y, z ),   t, tr, yieldable ) then return end
+                if not blockedOctants[4] then
+                    setAsToWorld( vec, pos, -x, -y, z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[4] = true end
+                end
+
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, y, -z ),    t, tr, yieldable ) then return end
+                if not blockedOctants[5] then
+                    setAsToWorld( vec, pos, x, y, -z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[5] = true end
+                end
+
                 if yieldable and fodder then coroutine_yield() end
-                if TryStuck( self, pos + Vector( -x, y, -z ),   t, tr, yieldable ) then return end
+                if not blockedOctants[6] then
+                    setAsToWorld( vec, pos, -x, y, -z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[6] = true end
+                end
+
                 if yieldable then coroutine_yield() end
-                if TryStuck( self, pos + Vector( x, -y, -z ),   t, tr, yieldable ) then return end
+                if not blockedOctants[7] then
+                    setAsToWorld( vec, pos, x, -y, -z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[7] = true end
+                end
+
                 if yieldable and fodder then coroutine_yield() end
-                if TryStuck( self, pos + Vector( -x, -y, -z ),  t, tr, yieldable ) then return end
+                if not blockedOctants[8] then
+                    setAsToWorld( vec, pos, -x, -y, -z )
+                    local success, pathBlocked = TryStuck( self, vec, t, tr, fodder, yieldable )
+                    if success then return end
+                    if pathBlocked then blockedOctants[8] = true end
+                end
 
             end
         end

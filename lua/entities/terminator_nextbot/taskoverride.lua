@@ -196,6 +196,8 @@ function ENT:StartTask( task, data, reason )
 
     if not printTasks then return end
     if not string.find( task, "movement_" ) then return end -- only store history of movement tasks
+
+    -- yes, memory leak, never activates under normal circumstances tho, only if term_debugtasks is 1
     myTbl.taskHistory = myTbl.taskHistory or {}
 
     table.insert( myTbl.taskHistory, SysTime() .. " " .. task .. " " .. reason )

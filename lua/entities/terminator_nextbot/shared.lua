@@ -3013,6 +3013,7 @@ function ENT:Initialize()
             local canPatch = GetConVar( "terminator_areapatching_enable" ):GetBool()
             if IsValid( myCreator ) then
                 if canPatch then
+                    terminator_Extras.navPatcher_WorkingFromScratch = true
                     local msg = "NO NAVMESH FOUND! ATTEMPTING PATCH... EXPECT BAD RESULTS, ERRORS!\n!!!!!YOU should REALLY!! nav_generate a proper navmesh!!!!!"
                     myCreator:PrintMessage( HUD_PRINTCENTER, msg )
                     myCreator:PrintMessage( HUD_PRINTTALK, msg )

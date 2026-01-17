@@ -357,7 +357,8 @@ local function getHeadroom( voxel, solidVoxels )
 end
 
 -- Queue to store regions that need patching
-local regionsQueue = {}
+terminator_Extras.regionsQueue = {}
+local regionsQueue = terminator_Extras.regionsQueue
 
 -- Flag to indicate if a patching process is currently running
 local isPatching = false
@@ -785,8 +786,11 @@ local smallSize = Vector( 100, 100, 50 )
 local bigSize = Vector( 175, 175, 100 )
 local hugeSize = Vector( 500, 500, 150 )
 
+-- add 1 region to patch queue around pos, choosing size and resolution based on existing nav areas nearby
 function terminator_Extras.dynamicallyPatchPos( pos )
     if not doAreaPatching then return end
+    if #regionsQueue >= 100 then return end -- don't let this blow up!
+
     local areasInSmallSize = navmesh.FindInBox( pos + -smallSize * 1.25, pos + smallSize * 1.25 )
     if areasInSmallSize and #areasInSmallSize >= 1 then
         terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, 11.25 )

@@ -806,15 +806,21 @@ function ENT:SetupRelationships( myTbl )
         end
     end
 
-    hook.Add( "OnEntityCreated", self, function( _, ent )
+    local hookName = tostring( self ) .. "_" .. tostring( self:GetCreationID() ) .. "_relationshipsetuphook"
+    hook.Add( "OnEntityCreated", hookName, function( ent )
         if notEnemyCache[ent] then return end
         timer.Simple( 0, function()
-            if not IsValid( self ) then return end
+            if not IsValid( self ) then hook.Remove( "OnEntityCreated", hookName ) return end
             if not IsValid( ent ) then return end
             local entsTbl = ent:GetTable()
             myTbl.SetupEntityRelationship( self, myTbl, ent, entsTbl )
 
         end )
+    end )
+
+    self:CallOnRemove( "teardown_relationshipsetuphook", function()
+        hook.Remove( "OnEntityCreated", hookName )
+
     end )
 end
 

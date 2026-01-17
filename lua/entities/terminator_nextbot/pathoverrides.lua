@@ -363,6 +363,14 @@ hook.Add( "PostCleanupMap", "terminator_clear_connectionflags", function()
 
 end )
 
+hook.Add( "terminator_nextbot_noterms_exist", "clear_connectionflags_on_term_removal", function()
+    badConnections = {}
+    lastBadFlags = {}
+    superBadConnections = {}
+    lastSuperBadFlags = {}
+
+end )
+
 function ENT:AddAreasToAvoid( areas, mul )
     local myTbl = entMeta.GetTable( self )
     myTbl.pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost or {}

@@ -284,6 +284,9 @@ local function onNoArea( ply, plyTbl, beingChased, someoneWasChased ) -- ply is 
         plyTbl.term_LastPatchPos = plyPos
 
         plyTbl.term_PatchCrumbs = plyTbl.term_PatchCrumbs or {}
+        -- clamp this table, don't clamp if we're working from scratch
+        if #plyTbl.term_PatchCrumbs >= 25 and not terminator_Extras.navPatcher_WorkingFromScratch then return end
+
         table_insert( plyTbl.term_PatchCrumbs, plyPos )
 
     else
