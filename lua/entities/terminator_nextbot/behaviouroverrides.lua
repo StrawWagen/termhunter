@@ -78,8 +78,6 @@ function ENT:RestartMotionCoroutine( myTbl )
     local motionCor = threads.motionCor
     if not motionCor then return end
 
-    self:KillAllTasksWith( "movement" ) -- call OnEnd for all movement tasks
-
     threads.motionCor.cor = coroutine.create( function()
         coroutine_yield( BOT_COROUTINE_RESULTS.DONE_CLEANUP )
 
