@@ -16,6 +16,11 @@ local math = math
 local pairs = pairs
 local CurTime = CurTime
 
+hook.Add( "Terminator_CoroutineCounterStarted", "relocalize_resume", function()
+    coroutine_resume = coroutine.resume
+
+end )
+
 local aiDisabled = GetConVar( "ai_disabled" )
 function ENT:DisabledThinking()
     return aiDisabled:GetBool()
@@ -81,7 +86,7 @@ function ENT:RestartMotionCoroutine( myTbl )
     threads.motionCor.cor = coroutine.create( function()
         coroutine_yield( BOT_COROUTINE_RESULTS.DONE_CLEANUP )
 
-    end )
+    end, self:GetClass() )
 
     -- just in case
     myTbl.debug_MotionCoroutineResets = ( myTbl.debug_MotionCoroutineResets or 0 ) + 1
@@ -128,7 +133,7 @@ function ENT:BehaveUpdate( interval )
             threads.motionCor = nil
             threads.playerControlCor = nil
             threads.disabledCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.DisabledBehaviourCoroutine( self, myTbl ) end ),
+                cor = coroutine.create( function( self, myTbl ) myTbl.DisabledBehaviourCoroutine( self, myTbl ) end, self:GetClass() ),
 
             }
         end
@@ -163,7 +168,7 @@ function ENT:BehaveUpdate( interval )
             threads.motionCor = nil
             threads.disabledCor = nil
             threads.playerControlCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end ),
+                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end, self:GetClass() ),
 
             }
         end
@@ -174,14 +179,14 @@ function ENT:BehaveUpdate( interval )
         if not threads.priorityCor then
             updated = true
             threads.priorityCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end ),
+                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end, self:GetClass() ),
 
             }
         end
         if not threads.motionCor then
             updated = true
             threads.motionCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end ),
+                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end, self:GetClass() ),
                 onDone = function( self, myTbl )
                     local demanded = myTbl.m_PathUpdatesDemanded
                     if demanded <= 0 then return end
