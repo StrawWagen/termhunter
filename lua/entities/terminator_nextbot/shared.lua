@@ -3632,13 +3632,13 @@ function ENT:DoDefaultTasks()
 
                 local nextCache = data.nextCache or 0
                 if nextCache < CurTime() then -- heavy staggered checks
+                    data.nextCache = CurTime() + 1
+
                     local myPos = self:GetPos()
                     local currentNav = navmesh.GetNearestNavArea( myPos, false, 50, false, false, -2 ) -- pretty tight criteria
                     local size = 80
 
                     --debugoverlay.Cross( myPos, 10, 10, Color( 255,255,255 ), true )
-
-                    data.nextCache = CurTime() + 1
 
                     local noNav = myTbl.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
                     local doAddCount = 1
@@ -4668,8 +4668,11 @@ function ENT:DoDefaultTasks()
                         added = 5
 
                     end
-                    wep.failedWeaponPaths = failedWeaponPaths + added
-                    if wep.failedWeaponPaths > 1 then
+
+                    failedWeaponPaths = failedWeaponPaths + added
+                    wep.failedWeaponPaths = failedWeaponPaths
+
+                    if failedWeaponPaths > 1 then
                         wep.terminatorCrappyWeapon = true
 
                     end
