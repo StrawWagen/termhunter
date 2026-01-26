@@ -83,13 +83,13 @@ function ENT:InitializeWraith( myTbl )
 
         for _, ent in pairs( toApply ) do
             if not IsValid( ent ) then continue end
+            if ent:IsPlayer() then continue end -- spectating player?
+
             local entsParent = ent:GetParent()
             if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
 
-            if IsValid( ent ) then
-                ent:SetMaterial( myTbl.FlickerBarelyVisibleMat )
+            ent:SetMaterial( myTbl.FlickerBarelyVisibleMat )
 
-            end
         end
         timer.Simple( math.Rand( 0.65, 0.75 ), function()
             if not IsValid( self ) then return end
@@ -99,13 +99,13 @@ function ENT:InitializeWraith( myTbl )
 
             for _, ent in pairs( toApply ) do
                 if not IsValid( ent ) then continue end
+                if ent:IsPlayer() then continue end
+
                 local entsParent = ent:GetParent()
                 if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
 
-                if IsValid( ent ) then
-                    ent:SetMaterial( myTbl.FlickerInvisibleMat )
+                ent:SetMaterial( myTbl.FlickerInvisibleMat )
 
-                end
             end
         end )
     end
@@ -143,9 +143,12 @@ function ENT:InitializeWraith( myTbl )
             terminator_Extras.tableAdd( toApply, self:GetChildren() )
             for _, ent in pairs( toApply ) do
                 if not IsValid( ent ) then continue end
+                if ent:IsPlayer() then continue end
+
                 local entsParent = ent:GetParent()
                 if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
                 ent:DrawShadow( false )
+
                 if self.NotSolidWhenCloaked then
                     ent:SetNotSolid( true )
 
@@ -175,15 +178,18 @@ function ENT:InitializeWraith( myTbl )
                 terminator_Extras.tableAdd( toApply, self:GetChildren() )
                 for _, ent in pairs( toApply ) do
                     if not IsValid( ent ) then continue end
+                    if ent:IsPlayer() then continue end
+
                     local entsParent = ent:GetParent()
                     if ent ~= self and ( not IsValid( entsParent ) or entsParent ~= self ) then continue end
+
                     ent:DrawShadow( true )
                     ent:SetMaterial( "" )
+
                     if self.NotSolidWhenCloaked then
                         ent:SetNotSolid( false )
 
                     end
-
                 end
             end )
 
