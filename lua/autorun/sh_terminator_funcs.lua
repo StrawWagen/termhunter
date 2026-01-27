@@ -8,11 +8,14 @@ terminator_Extras.MDLSCALE_LARGE = 1.2
 terminator_Extras.baseCoroutineThresh = 0.05 -- base coroutine thresh, so you can make your bot's thresh 0.1x the default thresh or something
 
 local entMeta = FindMetaTable( "Entity" )
+local areaMeta = FindMetaTable( "CNavArea" )
 
 local IsValid = IsValid
 local table_insert = table.insert
 local bit_bor = bit.bor
 local math_abs = math.abs
+
+local vecUpOff = Vector( 0, 0, 25 )
 
 -- not localizing trace funcs
 
@@ -119,9 +122,9 @@ local nookDirections = {
 -- arg1: pos to test
 -- arg2: distance to trace, default 800
 -- arg3: optional override directions table
--- ret1: nook score
+-- ret1: nook score, 6 is fully enclosed(never happens in playable space), 0 is fully open(never happens, the floor counts too)
 -- ret2: table of all the traces, key is fraction for easy sorting, so bigger ones went further, smaller ones hit closer
-terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
+local GetNookScore = function( pos, distance, overrideDirections )
     local directions = overrideDirections or nookDirections
     distance = distance or 800
 
@@ -155,6 +158,34 @@ terminator_Extras.GetNookScore = function( pos, distance, overrideDirections )
     end
 
     return facesBlocked, hits
+
+end
+terminator_Extras.GetNookScore = GetNookScore
+
+
+-- takes area
+-- returns & caches nook score of it's center
+
+local nookScoreCache = {}
+terminator_Extras.GetAreasNookScore_nookScoreCache = nookScoreCache
+local managingCache
+
+terminator_Extras.GetAreasNookScore = function( area )
+    if not managingCache then
+        managingCache = true
+        timer.Simple( 60 * 5, function()
+            nookScoreCache = {}
+            terminator_Extras.GetAreasNookScore_nookScoreCache = nookScoreCache
+            managingCache = nil
+
+        end )
+    end
+    local cached = nookScoreCache[area]
+    if cached then return cached end
+    local score = GetNookScore( areaMeta.GetCenter( area ) + vecUpOff )
+
+    nookScoreCache[area] = score
+    return score
 
 end
 
