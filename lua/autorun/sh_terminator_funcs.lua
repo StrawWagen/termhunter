@@ -168,15 +168,15 @@ terminator_Extras.GetNookScore = GetNookScore
 
 local nookScoreCache = {}
 terminator_Extras.GetAreasNookScore_nookScoreCache = nookScoreCache
-local managingCache
+terminator_Extras.GetAreasNookScore_managingCache = terminator_Extras.GetAreasNookScore_managingCache or nil
 
 terminator_Extras.GetAreasNookScore = function( area )
-    if not managingCache then
-        managingCache = true
+    if not terminator_Extras.GetAreasNookScore_managingCache then
+        terminator_Extras.GetAreasNookScore_managingCache = true
         timer.Simple( 60 * 5, function()
             nookScoreCache = {}
             terminator_Extras.GetAreasNookScore_nookScoreCache = nookScoreCache
-            managingCache = nil
+            terminator_Extras.GetAreasNookScore_managingCache = nil
 
         end )
     end
