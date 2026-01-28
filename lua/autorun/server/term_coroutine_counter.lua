@@ -1,9 +1,9 @@
 -- credit redox for the method
 
 local function startCounter()
-    TrackedCoroutines = TrackedCoroutines or setmetatable({}, { __mode = "k" })
-    TrackedCoroutineClasses = TrackedCoroutineClasses or setmetatable({}, { __mode = "k" })
-    TrackedCoroutinesLastResumes = TrackedCoroutinesLastResumes or setmetatable({}, { __mode = "k" })
+    TrackedCoroutines = TrackedCoroutines or setmetatable( {}, { __mode = "k" } )
+    TrackedCoroutineClasses = TrackedCoroutineClasses or setmetatable( {}, { __mode = "k" } )
+    TrackedCoroutinesLastResumes = TrackedCoroutinesLastResumes or setmetatable( {}, { __mode = "k" } )
 
     local nextPrint = 0
     local SysTime = SysTime
@@ -40,28 +40,28 @@ local function startCounter()
     hook.Run( "Terminator_CoroutineCounterStarted" )
 
 end
+
 local function count()
-    -- call later:
-    collectgarbage("collect")
+    collectgarbage( "collect" )
     local cur = SysTime()
 
     local coroutineDatas = {}
-    for co, tb in pairs(TrackedCoroutines) do
+    for co, tb in pairs( TrackedCoroutines ) do
         local lastResume = TrackedCoroutinesLastResumes[co] or 0
         local sinceResumed = math.Round( cur - lastResume, 4 )
         local class = TrackedCoroutineClasses[co] or "unknown_class"
-        table.insert(coroutineDatas, { co = co, tb = tb, lastResume = lastResume, sinceResumed = sinceResumed, class = class })
+        table.insert( coroutineDatas, { co = co, tb = tb, lastResume = lastResume, sinceResumed = sinceResumed, class = class } )
 
     end
 
     local coCount = 0
     for _, coData in SortedPairsByMemberValue( coroutineDatas, "sinceResumed" ) do
         coCount = coCount + 1
-        print("last resumed " .. coData.sinceResumed .. " seconds ago:\n", coData.class, coData.co, coData.tb)
+        print( "last resumed " .. coData.sinceResumed .. " seconds ago:\n", coData.class, coData.co, coData.tb )
 
     end
 
-    print("live coroutines:", coCount)
+    print( "live coroutines:", coCount )
 
 end
 
