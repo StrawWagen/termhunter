@@ -180,10 +180,37 @@ end
 	Arg1: number or string | act | Animation to run. See ACT_* Enums, if string, sequence name.
 	Arg2: (optional) number | speed | Playback rate.
 	Arg3: (optional) bool | wait | Should behaviour be stopped while gesture active (like DoPosture).
+	Arg4: (optional) table | extraData |
+		.onGestureFinishedFunc( self ) - function called when gesture finishes.
 	Ret1: 
 --]]------------------------------------
 function ENT:DoGesture(act,speed,wait)
 	self.m_DoGesture = {act,speed or 1,wait}
+end
+
+--[[------------------------------------
+	Name: NEXTBOT:GetGestureDuration
+	Desc: Returns the duration of a gesture animation.
+	Arg1: number or string | act | Animation to check. See ACT_* Enums, if string, sequence name.
+	Arg2: (optional) number | speed | Playback rate.
+	Ret1: number | Duration of the gesture in seconds.
+--]]------------------------------------
+function ENT:GetGestureDuration( act, speed )
+	speed = speed or 1
+
+	local seqId
+	if isstring( act ) then
+		seqId = self:LookupSequence( act )
+
+	else
+		seqId = self:SelectWeightedSequence( act )
+
+	end
+
+	local duration = self:SequenceDuration( seqId )
+
+	return duration / speed
+
 end
 
 --[[------------------------------------
@@ -216,10 +243,11 @@ end
 	Ret1: 
 --]]------------------------------------
 function ENT:StopGesture()
-	if self.m_CurGesture then
-		self:RemoveGesture(self.m_CurGesture[1])
-		self.m_CurGesture = nil
-	end
+	local curGesture = self.m_CurGesture
+	if not curGesture then return end
+
+	self.m_CurGesture = nil
+	self:RemoveGesture( curGesture[1] )
 end
 
 --[[------------------------------------
@@ -229,12 +257,12 @@ end
 	Ret1: 
 --]]------------------------------------
 function ENT:StopPosture()
-	if self.m_CurPosture then
-		self.m_CurPosture = nil
-		
-		self:ResetSequenceInfo()
-		self:StartActivity(self:GetActivity())
-	end
+	local curPosture = self.m_CurPosture
+	if not curPosture then return end
+	self.m_CurPosture = nil
+
+	self:ResetSequenceInfo()
+	self:StartActivity(self:GetActivity())
 end
 
 --[[------------------------------------
@@ -264,48 +292,49 @@ end
 	Ret1: 
 --]]------------------------------------
 function ENT:SetupGesturePosture()
-	if self.m_DoGesture then
-		local act = self.m_DoGesture[1]
-		local spd = self.m_DoGesture[2]
-		local wait = self.m_DoGesture[3]
+	local newGesture = self.m_DoGesture
+	if newGesture then
+		local act = newGesture[1]
+		local spd = newGesture[2]
+		local wait = newGesture[3]
 		self.m_DoGesture = nil
 
 		self:StopGesture()
-
-		local layer
 
 		if isstring( act ) then
 			act = self:LookupSequence( act )
 			layer = self:AddGestureSequence( act )
 
 		else
-			layer = self:AddGesture( act )
+			layer = self:AddGesture( act, true )
 
 		end
 		self:SetLayerPlaybackRate(layer,spd)
 		self:SetLayerBlendIn(layer,0.2)
 		self:SetLayerBlendOut(layer,0.2)
 
-		self.m_CurGesture = { act, CurTime() + self:GetLayerDuration( layer ), wait }
+		local duration = self:GetLayerDuration( layer )
+		self.m_CurGesture = { act, CurTime() + duration, wait }
 		self.term_CachedCurrentSpeed = nil
 	end
-	
-	if self.m_DoPosture then
-		local seq = self.m_DoPosture[1]
-		local spd = self.m_DoPosture[2]
-		local autokill = self.m_DoPosture[3]
+
+	local newPosture = self.m_DoPosture
+	if newPosture then
+		local seq = newPosture[1]
+		local spd = newPosture[2]
+		local autokill = newPosture[3]
 		self.m_DoPosture = nil
-		
+
 		self:StopPosture()
-		
+
 		local len = self:SetSequence(seq)
 		self:ResetSequenceInfo()
 		self:SetCycle(0)
 		self:SetPlaybackRate( math.Clamp( spd, 0, 12 ) )
-		
+
 		self.m_CurPosture = {CurTime()+len/spd,autokill}
 	end
-	
+
 	if self.m_CurPosture and self.m_CurPosture[2] and CurTime()>self.m_CurPosture[1] then
 		self:StopPosture()
 	end
