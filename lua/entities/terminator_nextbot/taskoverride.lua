@@ -341,7 +341,7 @@ function ENT:SetupTasks( myTbl )
     myTbl.DoCustomTasks( self, myTbl.TaskList ) -- override terminator tasks, create a new brain
     myTbl.DoClassTasks( self, myTbl ) -- adds class-specific behaviour for every class in the baseclass tree
 
-    myTbl.CleanupActiveTasksOnDeath( self, myTbl )
+    myTbl.CleanupActiveTasksOnRemoval( self, myTbl )
 
     local taskListStatic = myTbl.m_TaskList
     for k,v in pairs( myTbl.TaskList ) do
