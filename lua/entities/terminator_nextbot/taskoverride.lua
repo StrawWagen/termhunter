@@ -383,7 +383,9 @@ end
 
 function ENT:CleanupActiveTasksOnRemoval( myTbl )
     self:CallOnRemove( "term_AlwaysCleanupActivetasks", function()
-        myTbl.m_ActiveTasks = {}
+        for _, data in ipairs( myTbl.m_ActiveTasks ) do
+            data.myTbl = nil
 
+        end
     end )
 end
