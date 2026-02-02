@@ -27,6 +27,8 @@ local function nextSpeakWhenSoundIsOver( ent, path, pitch )
     duration = duration / durDivisor
     ent.NextTermSpeak = CurTime() + duration
 
+    return duration
+
 end
 
 local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )
@@ -201,7 +203,7 @@ function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
     local pitch = 100 + pitShift + specificPitchShift
 
     self:EmitSound( pathIn, 76 + lvlShift, pitch, 1, CHAN_VOICE, sndFlags, dsp )
-    nextSpeakWhenSoundIsOver( self, pathIn, pitch )
+    return nextSpeakWhenSoundIsOver( self, pathIn, pitch )
 
 end
 
@@ -238,6 +240,7 @@ function ENT:Term_SpeakSentenceNow( sentenceIn, specificPitchShift )
     local durDivisor = pitch / 100
     duration = duration / durDivisor
     myTbl.NextTermSpeak = CurTime() + ( duration + additional )
+    return duration
 
 end
 
@@ -256,6 +259,11 @@ end
 function ENT:Term_ClearStuffToSay()
     self.StuffToSay = {}
     self.NextTermSpeak = 0
+
+end
+
+function ENT:Term_DontSpeakFor( time )
+    self.NextTermSpeak = CurTime() + time
 
 end
 

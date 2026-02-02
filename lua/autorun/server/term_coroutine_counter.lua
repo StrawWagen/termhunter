@@ -18,6 +18,8 @@ local function startCounter()
 
         end
 
+        hook.Run( "termDebug_CoroutineCreated", co )
+
         if nextPrint < CurTime() then
             nextPrint = CurTime() + 5
             local count = 0
@@ -57,7 +59,8 @@ local function count()
     local coCount = 0
     for _, coData in SortedPairsByMemberValue( coroutineDatas, "sinceResumed" ) do
         coCount = coCount + 1
-        print( "last resumed " .. coData.sinceResumed .. " seconds ago:\n", coData.class, coData.co, coData.tb )
+        local co = coData.co
+        print( "last resumed " .. coData.sinceResumed .. " seconds ago:\n", coData.class, co, coData.tb )
 
     end
 
@@ -67,7 +70,8 @@ end
 
 local done -- autorefresh should reset this
 
-concommand.Add( "term_countcoroutines", function()
+concommand.Add( "term_countcoroutines", function( caller )
+    if IsValid( caller ) and not caller:IsSuperAdmin() then return end -- console or superadmin only
     if not done then
         done = true
         startCounter()
