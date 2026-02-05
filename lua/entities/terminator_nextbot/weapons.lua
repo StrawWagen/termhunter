@@ -366,6 +366,16 @@ function ENT:SetupWeapon( wep )
 
     end )
 
+    --[[
+    -- debug for testing holstering
+    timer.Simple( 0.5, function()
+        permaPrint( wep:GetModelScale() )
+        if false then
+            self:DropWeapon()
+        end
+    end )
+    --]]
+
     return actwep
 
 end
