@@ -473,7 +473,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             BehaveUpdatePriority = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl = entMeta.GetTable( self )
                 if not myTbl.TermSoldier_CanMeleeAttack then
                     myTbl.TaskComplete( self, "soldier_meleeattack_handler" )
                     return
@@ -526,7 +526,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 }
             end,
             TranslateActivity = function( self, data, act )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
 
                 if self:IsControlledByPlayer() then return end
                 if IsValid( myTbl.GetEnemy( self ) ) then return end
@@ -547,7 +547,7 @@ function ENT:DoCustomTasks( defaultTasks )
             StartsOnInitialize = true, -- starts on spawn
             StopsWhenPlayerControlled = true,
             OnStart = function( self, data )
-                if data.myTbl.HasBrains then
+                if self.HasBrains then
                     data.StartTheTask = CurTime() + math.Rand( 0.01, 0.05 ) -- wait a bit before starting this task
 
                 else
@@ -560,7 +560,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                 end
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
                 local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 10 ) -- last intercept pos is valid and was set less than 10 seconds ago
                 local canWep, potentialWep = myTbl.canGetWeapon( self )
@@ -637,7 +637,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
 
                 local toPos = myTbl.EnemyLastPos
@@ -774,7 +774,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             OnDamaged = function( self, data ) -- break out of our trance!
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 if myTbl and myTbl.NothingOrBreakableBetweenEnemy and myTbl.DistToEnemy < myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.2 and myTbl.getLostHealth( self ) >= 5 then
                     self:TaskComplete( "movement_shootfromcover" )
                     myTbl.StartTask( self, "movement_backthehellup", "i'm too exposed and i got hurt!" )
@@ -782,7 +782,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
             end,
             BehaveUpdatePriority = function( self, data ) -- bit of a hack, never stand still and "just take enemy shooting us"
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 if not myTbl then return end -- ?????
                 if not myTbl.HasBrains then return end
                 if not myTbl.IsSeeEnemy then return end
@@ -814,7 +814,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local myPos = entMeta.GetPos( self )
                 local enemy = myTbl.GetEnemy( self )
                 local seeEnemy = myTbl.IsSeeEnemy
@@ -1270,7 +1270,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local myNav = myTbl.GetCurrentNavArea( self, myTbl )
                 local enemy = myTbl.GetEnemy( self )
                 local seeEnemy = myTbl.IsSeeEnemy
@@ -1377,12 +1377,12 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
             end,
             ShouldRun = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 return myTbl.DistToEnemy > myTbl.DuelEnemyDist
 
             end,
             ShouldWalk = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 if data.CurrentTaskGoalPos and self:GetRangeTo( data.CurrentTaskGoalPos ) < myTbl.MoveSpeed then return true end
                 return myTbl.DistToEnemy < myTbl.DuelEnemyDist * 0.5
 
@@ -1397,7 +1397,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
 
                 coroutine_yield()
@@ -1505,7 +1505,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             OnDamaged = function( self, data ) -- break out of our trance!
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 if myTbl and myTbl.NothingOrBreakableBetweenEnemy and myTbl.DistToEnemy < myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.5 and myTbl.getLostHealth( self ) >= 5 then
                     self:TaskComplete( "movement_shootfromcover" )
                     myTbl.StartTask( self, "movement_backthehellup", "i'm too exposed and i got hurt!" )
@@ -1513,7 +1513,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local goodEnemy
                 local enemy = myTbl.GetEnemy( self )
                 local seeEnemy = myTbl.IsSeeEnemy
@@ -1648,11 +1648,11 @@ function ENT:DoCustomTasks( defaultTasks )
         },
         ["movement_intercept"] = {
             OnStart = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 data.NextCheckIfSeeEnemy = CurTime() + 1
                 data.CurrentTaskGoalPos = nil
                 data.CheckIfWeCanJustSee = true
-                if data.myTbl.HasBrains then
+                if self.HasBrains then
                     data.StartTheTask = CurTime() + math.Rand( 0.1, 0.25 )
 
                 else
@@ -1664,7 +1664,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 if data.NextCheckIfSeeEnemy > CurTime() then return end
                 data.NextCheckIfSeeEnemy = CurTime() + math.Rand( 0.9, 1.1 )
 
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 if not myTbl.IsSeeEnemy then return end
 
                 self:TaskComplete( "movement_patrol" )
@@ -1676,7 +1676,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                 end
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
 
                 local lastInterceptPos = myTbl.lastInterceptPos
                 if lastInterceptPos and data.CheckIfWeCanJustSee then
@@ -1789,7 +1789,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 data.FanDistance = nil
                 data.NextGoalGet = 0
 
-                if data.myTbl.HasBrains then
+                if self.HasBrains then
                     data.StartTheTask = CurTime() + math.Rand( 0.1, 0.25 )
 
                 else
@@ -1808,7 +1808,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
 
                 end
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local myPos = entMeta.GetPos( self )
                 local enemy = myTbl.GetEnemy( self )
                 local seeEnemy = myTbl.IsSeeEnemy
@@ -1950,7 +1950,7 @@ function ENT:DoCustomTasks( defaultTasks )
         ["movement_patrol"] = { -- wander the map, walking around, looking for enemies.
             -- switch between following a leader for like 20s, then wandering to a random spot and looking in the distance.
             OnStart = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 data.OverrideWanderOff = 0
                 data.NotSeeCount = 0
                 data.WatchFromAreaCount = 0
@@ -1977,7 +1977,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 if data.NextCheckIfSeeEnemy > CurTime() then return end
                 data.NextCheckIfSeeEnemy = CurTime() + math.Rand( 0.9, 1.1 )
 
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 if not myTbl.IsSeeEnemy then return end
 
                 self:TaskComplete( "movement_patrol" )
@@ -1985,7 +1985,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local myPos = entMeta.GetPos( self )
                 local seeEnemy = myTbl.IsSeeEnemy
 
@@ -2194,7 +2194,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
             end,
             ShouldRun = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local followerCount = myTbl.GetFollowerCount( self, myTbl )
                 if followerCount >= 1 then return false end
 

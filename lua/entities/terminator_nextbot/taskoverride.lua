@@ -174,7 +174,7 @@ function ENT:StartTask( task, data, reason )
     data.myTaskName = task
 
     -- this might have been a mistake, really clutters the data table
-    data.myTbl = myTbl -- store myTbl in data, so we can access it in task callbacks
+    -- data.myTbl = myTbl -- store myTbl in data, so we can access it in task callbacks
 
     myTbl.m_ActiveTasks[task] = data
 
@@ -341,8 +341,6 @@ function ENT:SetupTasks( myTbl )
     myTbl.DoCustomTasks( self, myTbl.TaskList ) -- override terminator tasks, create a new brain
     myTbl.DoClassTasks( self, myTbl ) -- adds class-specific behaviour for every class in the baseclass tree
 
-    myTbl.CleanupActiveTasksOnRemoval( self, myTbl )
-
     local taskListStatic = myTbl.m_TaskList
     for k,v in pairs( myTbl.TaskList ) do
         taskListStatic[k] = v
@@ -379,15 +377,4 @@ function ENT:AddTask( taskName, task )
         self:StartTask( taskName, nil, "AddTask-StartsOnInitialize" )
 
     end
-end
-
-function ENT:CleanupActiveTasksOnRemoval( myTbl )
-    self:CallOnRemove( "term_AlwaysCleanupActivetasks", function()
-        for _, data in pairs( myTbl.m_ActiveTasks ) do
-            data.myTbl = nil
-
-        end
-        myTbl.m_ActiveTasks = {}
-
-    end )
 end

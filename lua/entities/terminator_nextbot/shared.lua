@@ -3060,12 +3060,12 @@ function ENT:DoDefaultTasks()
             StartsOnInitialize = true,
             StopsWhenPlayerControlled = true,
             OnKillEnemy = function( self, data ) -- do an enemy search NOW if we're not fodder!
-                if data.myTbl.IsFodder then return end
+                if self.IsFodder then return end
                 data.UpdateEnemies = CurTime()
 
             end,
             OnInstantKillEnemy = function( self, data ) -- ditto
-                if data.myTbl.IsFodder then return end
+                if self.IsFodder then return end
                 data.UpdateEnemies = CurTime()
 
             end,
@@ -3074,7 +3074,7 @@ function ENT:DoDefaultTasks()
                 data.HasEnemy = false
                 data.playerCheckIndex = 0
                 data.blockSwitchingEnemies = 0
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 myTbl.IsSeeEnemy = false
                 myTbl.NothingOrBreakableBetweenEnemy = false
                 myTbl.DistToEnemy = 0
@@ -3093,7 +3093,7 @@ function ENT:DoDefaultTasks()
                 if data.nextCheck > cur then return end
                 coroutine_yield()
 
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local fodder = myTbl.IsFodder
 
                 local checkAdd
@@ -3421,7 +3421,7 @@ function ENT:DoDefaultTasks()
 
             end,
             StartControlByPlayer = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 myTbl.IsSeeEnemy = true -- for stuff that relies on this being true, eg weapons
                 myTbl.NothingOrBreakableBetweenEnemy = true -- try disabling this, and using the hl2 rpg override, it checks it!
 
@@ -3435,7 +3435,7 @@ function ENT:DoDefaultTasks()
             BehaveUpdatePriority = function( self, data, interval )
                 coroutine_yield()
 
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
 
                 local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or myTbl.GetActiveWeapon( self )
@@ -3558,7 +3558,7 @@ function ENT:DoDefaultTasks()
 
             end,
             StartControlByPlayer = function( self, data )
-                data.myTbl.PreventShooting = nil
+                self.PreventShooting = nil
 
             end,
         },
@@ -3568,7 +3568,7 @@ function ENT:DoDefaultTasks()
         ["awareness_handler"] = {
             StartsOnInitialize = true,
             BehaveUpdatePriority = function( self, data, interval )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local nextAware = myTbl.term_NextAwareness or 0
                 if nextAware < CurTime() then
                     myTbl.understandSurroundings( self, myTbl )
@@ -3590,7 +3590,7 @@ function ENT:DoDefaultTasks()
                 data.nextUnstuckGotoEscape = 0
                 data.freedomGotoPosSimple = nil
                 data.nextUnderDisplacementCheck = 0
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
 
                 if myTbl.ReallyStuckDisable then -- DISABLE this for bots
                     self:TaskComplete( "reallystuck_handler", ".ReallyStuckDisable is true!" )
@@ -3604,7 +3604,7 @@ function ENT:DoDefaultTasks()
             BehaveUpdatePriority = function( self, data )
                 coroutine_yield()
 
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local fodder = myTbl.IsFodder
                 if data.freedomGotoPosSimple and data.extremeUnstucking > CurTime() then -- try and unstuck without teleporting!
                     local dist = self:GetPos():Distance2D( data.freedomGotoPosSimple )
@@ -3871,14 +3871,14 @@ function ENT:DoDefaultTasks()
                 if data.GarboInformCount >= data.MaxGarboInforms then return end
                 if sinceLastFound < 5 then return end
 
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 data.Inform( newEnemy, myTbl.EntShootPos( self, newEnemy ), self:GetPos() )
                 data.EnemyPosInform = CurTime() + math.Rand( 5, 10 )
 
             end,
             OnKilled = function( self, data, attacker, inflictor )
                 -- always inform when we die
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
                 if not ( attacker == enemy or inflictor == enemy ) then -- stealth kill, don't tell enemy, just play a sound
                     sound.EmitHint( SOUND_COMBAT, self:GetPos(), 120, 1, self )
@@ -3890,7 +3890,7 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdatePriority = function( self, data, interval )
                 if data.GarboInformCount >= data.MaxGarboInforms then return end
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
                 if not IsValid( enemy ) then return end
                 if not myTbl.IsSeeEnemy then return end
@@ -3930,7 +3930,7 @@ function ENT:DoDefaultTasks()
                 local sender = informData.sender
 
                 if not senderPos or not IsValid( enemy ) then return end
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
 
                 local lastIntercept = myTbl.lastInterceptTime
                 if lastIntercept and lastIntercept > ( CurTime() - 1 ) then return end -- dont do laggy intercept recieves too ofen
@@ -4023,7 +4023,7 @@ function ENT:DoDefaultTasks()
         ["movement_handler"] = {
             StartsOnInitialize = true,
             BehaveUpdateMotion = function( self, data, interval )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 if not myTbl.nextNewPathIsGood( self ) then
                     local enem = myTbl.GetEnemy( self )
                     if IsValid( enem ) and self:EnemyIsLethalInMelee() then
@@ -4107,7 +4107,7 @@ function ENT:DoDefaultTasks()
 
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local target = myTbl.Target
                 local targetFollowDist = myTbl.TargetFollowDist or 75
 
@@ -4143,7 +4143,7 @@ function ENT:DoDefaultTasks()
                 end
             end,
             ShouldRun = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local targetFollowDist = myTbl.TargetFollowDist or 75
                 local length = self:MyPathLength() or 0
                 return length > targetFollowDist and self:canDoRun()
@@ -4158,7 +4158,7 @@ function ENT:DoDefaultTasks()
         -- a cheap, reliable, no A* way to get the hell out of there!
         ["movement_backthehellup"] = {
             OnStart = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 data.CurrentTaskGoalPos = nil
                 data.OldDistToEnemy = self.DistToEnemy
                 data.DistToQuit = data.DistToQuit or myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.5
@@ -4169,7 +4169,7 @@ function ENT:DoDefaultTasks()
 
             end,
             BehaveUpdateMotion = function( self, data )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
                 local myNav = myTbl.GetCurrentNavArea( self, myTbl )
                 if not IsValid( myNav ) then
                     myTbl.overrideVeryStuck = true
@@ -4277,7 +4277,7 @@ function ENT:DoDefaultTasks()
 
                 if data.CurrentTaskGoalPos then
                     coroutine_yield()
-                    data.myTbl.GotoPosSimple( self, data.myTbl, data.CurrentTaskGoalPos, 5 )
+                    myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 5 )
 
                 end
 
@@ -4327,7 +4327,7 @@ function ENT:DoDefaultTasks()
                 end
             end,
             BehaveUpdateMotion = function( self, data, interval )
-                local myTbl = data.myTbl
+                local myTbl  = entMeta.GetTable( self )
 
                 if not IsValid( terminator_Extras.aBashingFrenzyTerminator ) and #self:GetNearbyAllies() >= 2 then
                     -- global var!!!
@@ -4564,7 +4564,7 @@ function ENT:DoDefaultTasks()
                     local valid, attacked, nearAndCanHit, closeAndCanHit, isClose
                     if not self.isUnstucking and IsValid( data.object ) then
                         -- UNDERSTAND
-                        valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose = self:beatUpEnt( data.myTbl, data.object )
+                        valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose = self:beatUpEnt( entMeta.GetTable( self ), data.object )
                         --print( valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose )
                         --debugoverlay.Cross( data.object:GetPos(), 100, 1, Color( 255,0,0 ), true )
                         if valid == false then
@@ -6403,7 +6403,7 @@ function ENT:DoDefaultTasks()
                     local enemOffsetted = enemyPos + vecFiftyZ
                     enemySeesDestination = terminator_Extras.PosCanSeeComplex( pathEndNav:GetCenter() + vecFiftyZ, enemOffsetted, self )
                     if self:PathIsValid() then
-                        local segments = self:getCachedPathSegments( data.myTbl )
+                        local segments = self:getCachedPathSegments( entMeta.GetTable( self ) )
                         local middleIndex = math.Round( #segments / 2 )
                         local middleSegment = segments[middleIndex]
                         if IsValid( middleSegment.area ) then
@@ -6597,7 +6597,7 @@ function ENT:DoDefaultTasks()
                     local currWep = self:GetActiveWeapon()
                     local coolWep
                     if IsValid( currWep ) then
-                        local dmgTracker = self:Term_GetDamageTrackerOf( data.myTbl, currWep )
+                        local dmgTracker = self:Term_GetDamageTrackerOf( entMeta.GetTable( self ), currWep )
                         coolWep = dmgTracker.reallyLikesThisOne or dmgTracker.noLeading
 
                     end
@@ -7059,7 +7059,7 @@ function ENT:DoDefaultTasks()
                 local currWep = self:GetActiveWeapon()
                 local coolWep
                 if IsValid( currWep ) then
-                    local dmgTracker = self:Term_GetDamageTrackerOf( data.myTbl, currWep )
+                    local dmgTracker = self:Term_GetDamageTrackerOf( entMeta.GetTable( self ), currWep )
                     coolWep = dmgTracker.reallyLikesThisOne or dmgTracker.noLeading
 
                 end
@@ -7234,7 +7234,7 @@ function ENT:DoDefaultTasks()
                         self:NextWeapSearch( -1 )
                         -- find weapons NOW!
                         if self:IsReallyAngry() then
-                            self:understandSurroundings( data.myTbl )
+                            self:understandSurroundings( entMeta.GetTable( self ) )
                             canWep, potentialWep = self:canGetWeapon()
 
                         end
@@ -7490,7 +7490,9 @@ function ENT:DoDefaultTasks()
                             --debugoverlay.Cross( gotoPos, 10, 1, Color( 255,255,0 ) )
                             --print( self, duelType )
 
-                            data.myTbl.GotoPosSimple( self, data.myTbl, gotoPos, 10 )
+                            local myTbl = entMeta.GetTable( self )
+
+                            myTbl.GotoPosSimple( self, myTbl, gotoPos, 10 )
                             if self.DistToEnemy < 100 then
                                 self:crouchToGetCloserTo( self:EntShootPos( enemy ) )
 
