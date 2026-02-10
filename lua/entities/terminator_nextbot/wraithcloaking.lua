@@ -41,7 +41,7 @@ function ENT:InitializeWraith( myTbl )
 
     -- so every wraith can have different logic for hiding
     local cloakDecidingFunc = myTbl.wraithTerm_CloakDecidingTask or function( self, data )
-        local dMyTbl = data.myTbl
+        local dMyTbl  = entMeta.GetTable( self )
         local speedSqr = self:GetCurrentSpeedSqr()
         local enem = self:GetEnemy()
         local doHide = IsValid( enem ) or speedSqr > 80^2

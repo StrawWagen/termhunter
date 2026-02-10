@@ -562,10 +562,9 @@ If you want to try anyway, your best bet is to reverse engineer those examples.
 4. They all fully utilize `ENT:StartTask( taskName, taskData or nil, taskStartReason )`
     (start reasons exist for easy debugging of logic flow with `term_debugtasks 1`, thanks [l4d2 ai design doc](https://steamcdn-a.akamaihd.net/apps/valve/2009/ai_systems_of_l4d_mike_booth.pdf))
 5. All the movement tasks start with `movement_`, because ai logic in the code expects moving tasks to start with it.
-6. They waterfall down data.myTbl for optimisation (ask around about _index optimsation for more info)
-7. They sometimes use `BehaveUpdatePriority` callbacks to bail path calculations and not just stand there when someones shooting them!
-8. They use the fickle `ENT:findValidNavResult` function to find navareas, to path to, in wandering routines, and more!
-9. they call `coroutine.yield()`... seemingly everywhere, but not too much?
+6. They sometimes use `BehaveUpdatePriority` callbacks to bail path calculations and not just stand there when someones shooting them!
+7. They use the fickle `ENT:findValidNavResult` function to find navareas, to path to, in wandering routines, and more!
+8. they call `coroutine.yield()`... seemingly everywhere, but not too much?
     (The placement of coroutine_yields is usually honed with the `term_debug_worstoverbudgetyields` and `term_debug_totaloverbudgetyields` commands)
 
 *But most importantly...*
