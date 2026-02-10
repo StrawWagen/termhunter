@@ -45,6 +45,7 @@ end
 
 local function count()
     collectgarbage( "collect" )
+    collectgarbage( "stop" )
     local cur = SysTime()
 
     local coroutineDatas = {}
@@ -56,27 +57,43 @@ local function count()
 
     end
 
+    local printed
     local coCount = 0
+    local staleCoCount = 0
     for _, coData in SortedPairsByMemberValue( coroutineDatas, "sinceResumed" ) do
         coCount = coCount + 1
         local co = coData.co
         print( "last resumed " .. coData.sinceResumed .. " seconds ago:\n", coData.class, co, coData.tb )
+        if coData.sinceResumed > 25 then
+            if luagc and not printed then
+                local references = luagc.GetReferences( co )
+                PrintTable( references )
+                printed = true
 
+            end
+            staleCoCount = staleCoCount + 1
+
+        end
     end
 
+    collectgarbage( "restart" )
+
     print( "live coroutines:", coCount )
+    print( "of which, " .. staleCoCount .. " are stale")
 
 end
 
 local done -- autorefresh should reset this
 
-concommand.Add( "term_countcoroutines", function( caller )
-    if IsValid( caller ) and not caller:IsSuperAdmin() then return end -- console or superadmin only
+concommand.Add( "term_countcoroutines", function()
     if not done then
         done = true
         startCounter()
         print("Started tracking coroutines.")
+        if luagc then
+            print( "holylib found, using luagc... this can cause crashes!" )
 
+        end
     else
         count()
 
