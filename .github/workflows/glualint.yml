@@ -9,4 +9,4 @@ jobs:
   Lint:
     uses: FPtje/GLuaFixer/.github/workflows/glualint.yml@master
     with:
-      config: "https://cfc.gg/configs/gluafixer/glualint.json"
+      config: "https://raw.githubusercontent.com/StrawWagen/termhunter/refs/heads/main/.glualint.json"
