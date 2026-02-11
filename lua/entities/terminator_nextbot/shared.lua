@@ -167,7 +167,7 @@ ENT.MetallicMoveSounds = true
 
 ENT.Term_FootstepTiming = "timed" -- supported timings, "timed" and "perfect", see footsteps.lua
 ENT.Term_FootstepMode = "human" -- supported modes, "human" and "custom"
---[[ ENT.Term_FootstepSound = { -- sound that's played if Term_FootstepMode is "custom"
+--[[ENT.Term_FootstepSound = { -- sound that's played if Term_FootstepMode is "custom"
     path = "custom.wav",
     pitch = 200, -- pitch of the sound
     volume = 0.1, -- volume of the sound
@@ -250,9 +250,9 @@ local extremeUnstucking = CreateConVar( "termhunter_doextremeunstucking", 1, FCV
 local vec_zero = Vector( 0 )
 local vectorUp = Vector( 0, 0, 1 )
 local vecFiftyZ = Vector( 0, 0, 50 )
-local negativeFiveHundredZ = Vector( 0,0,-500 )
-local plus25Z = Vector( 0,0,25 )
-local plus15Z = Vector( 0,0,15 )
+local negativeFiveHundredZ = Vector( 0, 0, -500 )
+local plus25Z = Vector( 0, 0, 25 )
+local plus15Z = Vector( 0, 0, 15 )
 
 local vecMeta = FindMetaTable( "Vector" )
 local entMeta = FindMetaTable( "Entity" )
@@ -367,12 +367,12 @@ function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
     local unConnectedAreasSequential = {}
     local unConnectedAreas = {}
     local connectedAreasSequential = {}
-    local scoreData = {}
-    scoreData.decreasingScores = {}
-    scoreData.encounteredABlockedArea = nil
-    scoreData.encounteredALadder = nil
-    scoreData.botsJumpHeight = self.loco:GetMaxJumpHeight()
-    scoreData.loopedBackAreas = loopedBackAreas
+    local scoreDataSetup = {}
+    scoreDataSetup.decreasingScores = {}
+    scoreDataSetup.encounteredABlockedArea = nil
+    scoreDataSetup.encounteredALadder = nil
+    scoreDataSetup.botsJumpHeight = self.loco:GetMaxJumpHeight()
+    scoreDataSetup.loopedBackAreas = loopedBackAreas
 
     --debugoverlay.Cross( myNav:GetCenter(), 10, 10, Color( 255, 255, 0 ), true )
 
@@ -395,7 +395,7 @@ function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
         -- good connection
         else
             -- just return early if we're in the same group
-            if not ignoreMyNav and scoreData.loopedBackAreas[ area2 ] then
+            if not ignoreMyNav and scoreData.loopedBackAreas[area2] then
                 scoreData.sameGroupAsUs = true
                 --print( "SAMEGROUP" )
                 return math.huge
@@ -422,10 +422,10 @@ function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
 
     local checkRadius = 700
 
-    local _, _, escaped = self:findValidNavResult( scoreData, potentialOrphan, checkRadius, scoreFunction, 80 )
+    local _, _, escaped = self:findValidNavResult( scoreDataSetup, potentialOrphan, checkRadius, scoreFunction, 80 )
 
     -- who cares if it's an orphan, we can get there
-    if scoreData.sameGroupAsUs then return nil, scoreData.encounteredABlockedArea end
+    if scoreDataSetup.sameGroupAsUs then return nil, scoreDataSetup.encounteredABlockedArea end
 
     local escapable = escaped
 
@@ -433,13 +433,13 @@ function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
     local isSubstantiallySized = checkedSurfaceArea > ( checkRadius^2 ) * 0.15
     local isPotentiallyPartOfWhole = lessNoWaysBackThanWaysBack and isSubstantiallySized
 
-    --print( "orphanstatus", escapable, scoreData.sameGroupAsUs, isPotentiallyPartOfWhole, isSubstantiallySized )
+    --print( "orphanstatus", escapable, scoreDataSetup.sameGroupAsUs, isPotentiallyPartOfWhole, isSubstantiallySized )
 
     -- could not confirm that it's an orphan
-    if escapable or isPotentiallyPartOfWhole then return nil, scoreData.encounteredABlockedArea end
+    if escapable or isPotentiallyPartOfWhole then return nil, scoreDataSetup.encounteredABlockedArea end
 
     -- is an orphan
-    return true, scoreData.encounteredABlockedArea
+    return true, scoreDataSetup.encounteredABlockedArea
 
 end
 
@@ -479,20 +479,20 @@ function ENT:EnemyIsBoxedIn()
 
     local areasThatAreEntrance = {}
     for _, entranceArea in ipairs( dangerAreas ) do
-        areasThatAreEntrance[ entranceArea ] = true
+        areasThatAreEntrance[entranceArea] = true
 
     end
     -- not boxed in, we're just close
-    if areasThatAreEntrance[ entranceArea ] then
+    if areasThatAreEntrance[entranceArea] then
         resetBoxedIn( self )
         return false
 
     end
 
-    local scoreData = {}
-    scoreData.hasEscape = nil
-    scoreData.decreasingScores = {}
-    scoreData.hasEscape = nil
+    local scoreDataSetup = {}
+    scoreDataSetup.hasEscape = nil
+    scoreDataSetup.decreasingScores = {}
+    scoreDataSetup.hasEscape = nil
 
     local scoreFunction = function( scoreData, area1, area2 )
         if area2:IsBlocked() then return 0 end
@@ -502,7 +502,7 @@ function ENT:EnemyIsBoxedIn()
         local area2Id = area2:GetID()
         local score = scoreData.decreasingScores[area1Id] or 10000
 
-        if areasThatAreEntrance[ area2 ] then
+        if areasThatAreEntrance[area2] then
             return 0
 
         end
@@ -515,9 +515,9 @@ function ENT:EnemyIsBoxedIn()
     end
 
     local checkRadius = 1350
-    local _, _, escaped = self:findValidNavResult( scoreData, enemy:GetPos(), checkRadius, scoreFunction, 10 )
+    local _, _, escaped = self:findValidNavResult( scoreDataSetup, enemy:GetPos(), checkRadius, scoreFunction, 10 )
 
-    local boxedIn = not escaped and not scoreData.hasEscape
+    local boxedIn = not escaped and not scoreDataSetup.hasEscape
 
     self.term_CachedIsBoxedIn = boxedIn
     resetBoxedIn( self )
@@ -1672,8 +1672,8 @@ function ENT:canHitEnt( myTbl, ent )
 
 end
 
-local crouchingOffset = Vector( 0,0,30 )
-local standingOffset = Vector( 0,0,50 )
+local crouchingOffset = Vector( 0, 0, 30 )
+local standingOffset = Vector( 0, 0, 50 )
 
 function ENT:crouchToGetCloserTo( pos )
     local myPos = self:GetPos()
@@ -1913,7 +1913,7 @@ local function HunterIsStuck( self, myTbl )
     local notMoving = myTbl.StuckPos3 and myTbl.StuckPos5
     -- laddering? check 3d dist, not 2d dist!
     if notMoving and myTbl.terminator_HandlingLadder then
-        notMoving = myPos:DistToSqr( myTbl.StuckPos3 ) < 20^2 and myPos:DistToSqr( myTbl.StuckPos5 ) < 20^2 
+        notMoving = myPos:DistToSqr( myTbl.StuckPos3 ) < 20^2 and myPos:DistToSqr( myTbl.StuckPos5 ) < 20^2
 
     elseif notMoving then
         notMoving = DistToSqr2D( myPos, myTbl.StuckPos5 ) < 20^2 and DistToSqr2D( myPos, myTbl.StuckPos3 ) < 20^2
@@ -1991,6 +1991,30 @@ function ENT:IsUnderDisplacement()
 
 end
 
+-- Helper function to flag bad connections that caused us to get stuck
+-- Also sets bot backtracking path's direction
+local function flagBadPathConnections( self, myTbl, myNav, myPos, path, scoreDataSetup )
+    local _, aheadSegment = myTbl.GetNextPathArea( self, myNav ) -- top of the jump
+    if not aheadSegment then return end
+
+    scoreDataSetup.dirToEnd = terminator_Extras.dirToPos( myPos, path:GetEnd() )
+
+    local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
+    if not currSegment then return end
+    if not IsValid( aheadSegment.area ) then return end
+
+    local dirPathGoes = myNav:ComputeDirection( aheadSegment.pos )
+    local areasInDir = myNav:GetAdjacentAreasAtSide( dirPathGoes )
+
+    for _, area in ipairs( areasInDir ) do
+        --debugoverlay.Line( myNav:GetCenter(), area:GetCenter(), 5, Color( 255, 255, 0 ), true )
+        myTbl.flagConnectionAsShit( self, myNav, area )
+    end
+    myTbl.flagConnectionAsShit( self, currSegment.area, aheadSegment.area )
+
+    --debugoverlay.Line( currSegment.area:GetCenter(), aheadSegment.area:GetCenter(), 5, Color( 255, 255, 0 ), true )
+end
+
 --do this so we can override the nextbot's current path
 function ENT:ControlPath2( AimMode )
     local myTbl = self:GetTable()
@@ -2030,41 +2054,18 @@ function ENT:ControlPath2( AimMode )
         local myNav = myTbl.GetTrueCurrentNavArea( self ) or self:GetCurrentNavArea()
         if not IsValid( myNav ) then return end --- AAAAH
 
-        local scoreData = {}
+        local scoreDataSetup = {}
 
-        scoreData.canDoUnderWater = self:isUnderWater()
-        scoreData.self = self
-        scoreData.dirToEnd = self:GetForward()
-        scoreData.bearingPos = myTbl.startUnstuckPos
+        scoreDataSetup.canDoUnderWater = self:isUnderWater()
+        scoreDataSetup.self = self
+        scoreDataSetup.dirToEnd = self:GetForward()
+        scoreDataSetup.bearingPos = myTbl.startUnstuckPos
 
         coroutine_yield()
 
         if validPath then -- we were pathing, time to flag this connection
             local path = self:GetPath()
-            local _, aheadSegment = myTbl.GetNextPathArea( self, myNav ) -- top of the jump
-            local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
-            local dirPathGoes
-            local areasInDir
-
-            if not aheadSegment then goto skipTheShitConnectionFlag end
-
-            scoreData.dirToEnd = terminator_Extras.dirToPos( myPos, path:GetEnd() )
-            if not aheadSegment or not currSegment then goto skipTheShitConnectionFlag end
-            if not IsValid( aheadSegment.area ) then goto skipTheShitConnectionFlag end
-
-            dirPathGoes = myNav:ComputeDirection( aheadSegment.pos )
-            areasInDir = myNav:GetAdjacentAreasAtSide( dirPathGoes )
-
-            for _, area in ipairs( areasInDir ) do
-                --debugoverlay.Line( myNav:GetCenter(), area:GetCenter(), 5, Color( 255, 255, 0 ), true )
-                myTbl.flagConnectionAsShit( self, myNav, area )
-
-            end
-            myTbl.flagConnectionAsShit( self, currSegment.area, aheadSegment.area )
-
-            --debugoverlay.Line( currSegment.area:GetCenter(), aheadSegment.area:GetCenter(), 5, Color( 255, 255, 0 ), true )
-
-            ::skipTheShitConnectionFlag::
+            flagBadPathConnections( self, myTbl, myNav, myPos, path, scoreDataSetup )
 
             coroutine_yield()
 
@@ -2113,7 +2114,7 @@ function ENT:ControlPath2( AimMode )
 
                 coroutine_yield()
 
-                local _, escapeArea = self:findValidNavResult( scoreData, myPos, 1000, scoreFunction )
+                local _, escapeArea = self:findValidNavResult( scoreDataSetup, myPos, 1000, scoreFunction )
                 if not IsValid( escapeArea ) then continue end
                 --debugoverlay.Cross( escapeArea:GetCenter(), 50, 100, Color( 255, 255, 0 ), true )
                 self:SetupPathShell( escapeArea:GetRandomPoint(), true )
@@ -2311,7 +2312,7 @@ function ENT:GetLockedDoorToBash()
     local doors = self.awarenessLockedDoors
 
     for _, currDoor in ipairs( doors ) do
-        local currAttempts = globalAttempts[ currDoor:GetCreationID() ] or 0
+        local currAttempts = globalAttempts[currDoor:GetCreationID()] or 0
         if currAttempts < leastAttempts then
             bestDoor = currDoor
             leastAttempts = currAttempts
@@ -2352,6 +2353,7 @@ function ENT:BashLockedDoor( currentTask )
 end
 
 -- handle spotting enemy once here, instead of differently in every single task ever
+-- returns true if task was ended
 function ENT:EnemyAcquired( currentTask )
     if not IsValid( self ) then return end -- hrm... i dont think i need to start a new task in this case
     local enemy = self:GetEnemy()
@@ -2413,17 +2415,24 @@ function ENT:EnemyAcquired( currentTask )
     local doFlank = ( lowOrRand or enemy.isTerminatorHunterKiller ) and not SqrDistLessThan( distToEnemySqr, 400 )
 
     if not seeEnemy and self.lastInterceptPos and self:interceptIfWeCan( currentTask ) then
-        -- we intercepted
+        return true
+
     elseif isBeingFooled then
         self:TaskComplete( currentTask )
         self:StartTask( "movement_watch", nil, "ea, this is gonna fool em so hard" )
+        return true
+
     elseif not seeEnemy then
         self:TaskComplete( currentTask )
         self:StartTask( "movement_approachlastseen", nil, "ea, where'd they go" )
+        return true
+
     elseif doBaitWatch then
         self:TaskComplete( currentTask )
         self:StartTask( "movement_watch", nil, "ea, another hunter will sneak up on them!" )
         self:Anger( 12 )
+        return true
+
     elseif doNormalWatch or beginFirstWatch or stillInFirstWatch then
         if beginFirstWatch then
             self.PreventShooting = true
@@ -2432,45 +2441,74 @@ function ENT:EnemyAcquired( currentTask )
         end
         self:TaskComplete( currentTask )
         self:StartTask( "movement_watch", nil, "ea, watching something" )
+        return true
+
     elseif campDangerousEnemy then
         self:TaskComplete( currentTask )
         self:StartTask( "movement_camp", nil, "ea, enemy is scary! camp them" )
+        return true
+
     elseif doCamp then
         self:TaskComplete( currentTask )
         local tolerance = self:campingTolerance()
         if tolerance > math.random( 1000, 3000 ) then
             self:StartTask( "movement_camp", { maxNoSeeing = tolerance }, "ea, camp or perch, camped because we're already in a good spot" )
+            return true
+
         else
-            self:StartTask( "movement_perch", { requiredTarget = enemPos, earlyQuitIfSeen = true, perchRadius = math.sqrt( distToEnemySqr ), distanceWeight = 0.01 }, "ea, camp or perch, perch" )
+            local perchData = {
+                requiredTarget = enemPos,
+                earlyQuitIfSeen = true,
+                perchRadius = math.sqrt( distToEnemySqr ),
+                distanceWeight = 0.01,
+            }
+            self:StartTask( "movement_perch", perchData, "ea, camp or perch, perch" )
+            return true
+
         end
     elseif canRushKiller then
         self:TaskComplete( currentTask )
+
         if self.term_DoesntFlank then
             self:StartTask( "movement_followenemy", nil, "ea, rush a killer" )
+
         else
             self:StartTask( "movement_flankenemy", nil, "ea, rush a killer" )
+
         end
         self.PreventShooting = nil
+        return true
+
     elseif tooDangerousToApproach and distToEnemySqr < self:GetRealDuelEnemyDist( entMeta.GetTable( self ) ) * 0.5 then
         self:TaskComplete( currentTask )
         self:StartTask( "movement_backthehellup", nil, "ea, we gotta back UP!" )
+        return true
+
     elseif doStalk then
         self:TaskComplete( currentTask )
         self:StartTask( "movement_stalkenemy", nil, "ea, stalk them" )
+        return true
+
     elseif doFlank then
         self:TaskComplete( currentTask )
+
         if self.term_DoesntFlank then
             self:StartTask( "movement_followenemy", nil, "ea, flank them but i dont like flanking" )
+
         else
             self:StartTask( "movement_flankenemy", nil, "ea, flank them" )
+
         end
         self.PreventShooting = nil
+        return true
+
     else
         self:TaskComplete( currentTask )
         self:StartTask( "movement_followenemy", nil, "ea, im just gonna rush them, nothing fancy" )
         self.PreventShooting = nil
+        return true
+
     end
-    return true
 end
 
 function ENT:markAsWalked( area )
@@ -2499,12 +2537,12 @@ function ENT:WalkArea( myTbl )
     if not myTbl.areaIsReachable( self, walkedArea ) and myTbl.nextUnreachableWipe < cur then -- we got somewhere unreachable, probably should reset this
         if myTbl.IsFodder then -- order the fodder enemies to rebuild the unreachable cache
             local ourClass = entMeta.GetClass( self )
-            terminator_Extras.unreachableAreasForClasses[ ourClass ] = {}
+            terminator_Extras.unreachableAreasForClasses[ourClass] = {}
 
             for _, ent in ipairs( ents.FindByClass( ourClass ) ) do
                 if ent == myTbl then continue end -- self gets a special case
 
-                ent.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
+                ent.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ourClass]
                 ent.nextUnreachableWipe = cur + 15 -- never ever ever spam this
 
             end
@@ -2526,11 +2564,11 @@ function ENT:WalkArea( myTbl )
     end
     myTbl.nextFloodMarkWalkable = cur + add
 
-    local scoreData = {}
-    scoreData.currentWalked = myTbl.walkedAreas
-    scoreData.InitialArea = walkedArea
-    scoreData.checkOrigin = myTbl.GetShootPos( self )
-    scoreData.self = self
+    local scoreDataSetup = {}
+    scoreDataSetup.currentWalked = myTbl.walkedAreas
+    scoreDataSetup.InitialArea = walkedArea
+    scoreDataSetup.checkOrigin = myTbl.GetShootPos( self )
+    scoreDataSetup.self = self
     local dist = 750
 
     local scoreFunction = function( scoreData, _, area2 )
@@ -2557,7 +2595,7 @@ function ENT:WalkArea( myTbl )
 
     end
 
-    local _ = myTbl.findValidNavResult( self, scoreData, self:GetPos(), dist, scoreFunction )
+    local _ = myTbl.findValidNavResult( self, scoreDataSetup, self:GetPos(), dist, scoreFunction )
     coroutine_yield()
 
 end
@@ -2813,9 +2851,9 @@ hook.Add( "terminator_nextbot_noterms_exist", "terminator_clear_playerstatuses",
 end )
 
 function ENT:SetupDefaultCapabilities()
-    BaseClass.SetupDefaultCapabilities(self)
+    BaseClass.SetupDefaultCapabilities( self )
 
-    self:CapabilitiesAdd(CAP_MOVE_JUMP)
+    self:CapabilitiesAdd( CAP_MOVE_JUMP )
 end
 
 -- all other relationships are created by MakeFeud in enemyoverrides when something damages us
@@ -2937,7 +2975,7 @@ function ENT:Initialize()
     local models = myTbl.Models
     local model
     if models then
-        model = models[ math.random( #models ) ]
+        model = models[math.random( #models )]
 
     end
     if not model then
@@ -3041,8 +3079,8 @@ function ENT:Initialize()
         if myTbl.IsFodder then
             local ourClass = self:GetClass()
             terminator_Extras.unreachableAreasForClasses = terminator_Extras.unreachableAreasForClasses or {}
-            terminator_Extras.unreachableAreasForClasses[ ourClass ] = terminator_Extras.unreachableAreasForClasses[ ourClass ] or {}
-            myTbl.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
+            terminator_Extras.unreachableAreasForClasses[ourClass] = terminator_Extras.unreachableAreasForClasses[ourClass] or {}
+            myTbl.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ourClass]
 
         end
     end )
@@ -3226,7 +3264,7 @@ function ENT:DoDefaultTasks()
                     elseif myTbl.forcedCheckPositions and table.Count( myTbl.forcedCheckPositions ) >= 1 then -- nuke these
                         for positionKey, position in pairs( myTbl.forcedCheckPositions ) do
                             if SqrDistLessThan( distToSqr( position, myPos ), 200 ) then
-                                myTbl.forcedCheckPositions[ positionKey ] = nil
+                                myTbl.forcedCheckPositions[positionKey] = nil
                                 break
 
                             end
@@ -3381,7 +3419,7 @@ function ENT:DoDefaultTasks()
                     if data.HasEnemy then
                         local memory, _ = myTbl.getMemoryOfObject( self, myTbl, prevEnemy )
 
-                        if prevEnemy:IsPlayer() --[[ leaving this index, its rare ]] or memory == MEMORY_WEAPONIZEDNPC then
+                        if prevEnemy:IsPlayer() --[[leaving this index, its rare]] or memory == MEMORY_WEAPONIZEDNPC then
                             -- reset searching progress!
                             myTbl.SearchCheckedNavs = myTbl.SearchBadNavAreas
                             myTbl.SearchCheckedNavsCount = 0
@@ -3631,223 +3669,222 @@ function ENT:DoDefaultTasks()
                 coroutine_yield()
 
                 local nextCache = data.nextCache or 0
-                if nextCache < CurTime() then -- heavy staggered checks
-                    data.nextCache = CurTime() + 1
+                if nextCache > CurTime() then return end -- heavy staggered checks
+                data.nextCache = CurTime() + 1
 
-                    local myPos = self:GetPos()
-                    local currentNav = navmesh.GetNearestNavArea( myPos, false, 50, false, false, -2 ) -- pretty tight criteria
-                    local size = 80
+                local myPos = self:GetPos()
+                local currentNav = navmesh.GetNearestNavArea( myPos, false, 50, false, false, -2 ) -- pretty tight criteria
+                local size = 80
 
-                    --debugoverlay.Cross( myPos, 10, 10, Color( 255,255,255 ), true )
+                --debugoverlay.Cross( myPos, 10, 10, Color( 255,255,255 ), true )
 
-                    local noNav = myTbl.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
-                    local doAddCount = 1
+                local noNav = myTbl.loco:IsOnGround() and ( not IsValid( currentNav ) or #currentNav:GetAdjacentAreas() <= 0 )
+                local doAddCount = 1
 
-                    if noNav then -- more likely to be stuck!
-                        size = size / 8
-                        doAddCount = doAddCount * 4
-                        if not terminator_Extras.IsLivePatching then
-                            self:TryGeneratingAreas()
-
-                        end
-                    end
-                    if myTbl.isUnstucking then
-                        doAddCount = doAddCount * 2
+                if noNav then -- more likely to be stuck!
+                    size = size / 8
+                    doAddCount = doAddCount * 4
+                    if not terminator_Extras.IsLivePatching then
+                        self:TryGeneratingAreas()
 
                     end
+                end
+                if myTbl.isUnstucking then
+                    doAddCount = doAddCount * 2
 
-                    if myPos then
-                        for _ = 1, doAddCount do
-                            table.insert( data.historicPositions, 1, myPos )
+                end
 
-                        end
+                if myPos then
+                    for _ = 1, doAddCount do
+                        table.insert( data.historicPositions, 1, myPos )
+
                     end
-                    if currentNav then
-                        for _ = 1, doAddCount do
-                            table.insert( data.historicNavs, 1, currentNav )
+                end
+                if currentNav then
+                    for _ = 1, doAddCount do
+                        table.insert( data.historicNavs, 1, currentNav )
 
-                        end
                     end
+                end
 
+                coroutine_yield()
+
+                local stuck = nil
+                local sortaStuck = nil
+                local overrideStuck = myTbl.overrideVeryStuck
+
+                local nextDisplacementCheck = data.nextUnderDisplacementCheck
+                if nextDisplacementCheck < CurTime() then
+                    local checkInterval = fodder and 15 or 5
+                    data.nextUnderDisplacementCheck = CurTime() + checkInterval
+                    local isUnderDisplacement, maybeUnderDisplacement = self:IsUnderDisplacement()
+
+                    if isUnderDisplacement then
+                        data.maybeUnderCount = data.maybeUnderCount + 3
+
+                    elseif maybeUnderDisplacement then
+                        data.maybeUnderCount = data.maybeUnderCount + 1
+
+                    else
+                        data.maybeUnderCount = 0
+
+                    end
+                end
+
+                local underDisplacementThresh = fodder and 3 or 6
+
+                local underDisplacement = data.maybeUnderCount >= underDisplacementThresh
+
+                if #data.historicPositions > size then -- we built up a stack of historic positions, use them to determine if we're stuck!
                     coroutine_yield()
 
-                    local stuck = nil
-                    local sortaStuck = nil
-                    local overrideStuck = myTbl.overrideVeryStuck
+                    if data.historicPositions[size + 1] then
+                        table.remove( data.historicPositions, size + 1 )
+                        table.remove( data.historicPositions, size + 1 )
 
-                    local nextDisplacementCheck = data.nextUnderDisplacementCheck
-                    if nextDisplacementCheck < CurTime() then
-                        local checkInterval = fodder and 15 or 5
-                        data.nextUnderDisplacementCheck = CurTime() + checkInterval
-                        local isUnderDisplacement, maybeUnderDisplacement = self:IsUnderDisplacement()
+                    end
+                    if data.historicNavs[size + 1] then
+                        table.remove( data.historicNavs, size + 1 )
+                        table.remove( data.historicNavs, size + 1 )
 
-                        if isUnderDisplacement then
-                            data.maybeUnderCount = data.maybeUnderCount + 3
+                    end
 
-                        elseif maybeUnderDisplacement then
-                            data.maybeUnderCount = data.maybeUnderCount + 1
+                    -- start with assuming its true
+                    stuck = true
+                    sortaStuck = true
 
-                        else
-                            data.maybeUnderCount = 0
+                    for _, historicPos in ipairs( data.historicPositions ) do
+                        local distSqr = myPos:DistToSqr( historicPos )
+                        --debugoverlay.Line( myPos, historicPos, 1, color_white, true )
+                        if SqrDistGreaterThan( distSqr, 15 ) then
+                            stuck = nil
+                            break
 
                         end
                     end
-
-                    local underDisplacementThresh = fodder and 3 or 6
-
-                    local underDisplacement = data.maybeUnderCount >= underDisplacementThresh
-
-                    if #data.historicPositions > size then -- we built up a stack of historic positions, use them to determine if we're stuck!
-                        coroutine_yield()
-
-                        if data.historicPositions[size + 1] then
-                            table.remove( data.historicPositions, size + 1 )
-                            table.remove( data.historicPositions, size + 1 )
+                    -- false if we haven't been here for x long
+                    for _, historicNav in ipairs( data.historicNavs ) do
+                        if historicNav ~= currentNav then
+                            sortaStuck = nil
+                            break
 
                         end
-                        if data.historicNavs[size + 1] then
-                            table.remove( data.historicNavs, size + 1 )
-                            table.remove( data.historicNavs, size + 1 )
-
-                        end
-
-                        -- start with assuming its true
+                    end
+                    -- instant unstuck check if we're REALLY off the navmesh
+                    if noNav and not self:PathIsValid() and not stuck and not navmesh.GetNearestNavArea( myPos, false, 200, false, false, -2 ) then
                         stuck = true
-                        sortaStuck = true
 
-                        for _, historicPos in ipairs( data.historicPositions ) do
-                            local distSqr = myPos:DistToSqr( historicPos )
-                            --debugoverlay.Line( myPos, historicPos, 1, color_white, true )
-                            if SqrDistGreaterThan( distSqr, 15 ) then
-                                stuck = nil
-                                break
+                    end
+                end
 
-                            end
-                        end
-                        -- false if we haven't been here for x long
-                        for _, historicNav in ipairs( data.historicNavs ) do
-                            if historicNav ~= currentNav then
-                                sortaStuck = nil
-                                break
+                coroutine_yield()
 
-                            end
-                        end
-                        -- instant unstuck check if we're REALLY off the navmesh
-                        if noNav and not self:PathIsValid() and not stuck and not navmesh.GetNearestNavArea( myPos, false, 200, false, false, -2 ) then
-                            stuck = true
+                if stuck or sortaStuck or underDisplacement or overrideStuck then -- i have been in the same EXACT spot for S I Z E seconds
+                    self:ReallyAnger( 60 )
+
+                    myTbl.overrideVeryStuck = nil
+                    local distToEnemy = 0
+                    local enemyPos = self:GetPos()
+                    if IsValid( self:GetEnemy() ) then
+                        distToEnemy = myTbl.DistToEnemy
+                        enemyPos = myTbl.EnemyLastPos or self:GetEnemy():GetPos()
+
+                    end
+
+                    local freedomPos
+
+                    local nearestNavArea = navmesh.GetNearestNavArea( self:GetPos(), false, 10000, false, true, 2 )
+
+                    local myShootPos = self:GetShootPos()
+                    local maxs = Vector( 1000, 1000, 1000 )
+                    local bestDist = math.huge
+                    for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do -- try and find a good freedomPos
+                        if area == nearestNavArea then continue end
+                        coroutine_yield()
+                        if not IsValid( area ) then continue end
+
+                        local areasCenter = area:GetCenter()
+
+                        if areasCenter:Distance( enemyPos ) < distToEnemy then continue end -- dont unstuck us closer to the enemy
+                        local distToMe = areasCenter:Distance( myPos )
+
+                        if not freedomPos then -- always pick some area
+                            freedomPos = areasCenter
+
+                        elseif distToMe < bestDist and area:IsVisible( myShootPos ) then -- perfect candidate, pick this one!
+                            bestDist = distToMe
+                            freedomPos = areasCenter
 
                         end
                     end
 
-                    coroutine_yield()
+                    --debugoverlay.Cross( freedomPos, 100, 20, Color( 255, 0, 0 ), true )
+                    --print( self:GetCreationID(), "bigunstuck ", stuck, sortastuck, underDisplacement, overrideStuck, noNavAndNotStaring )
 
-                    if stuck or sortaStuck or underDisplacement or overrideStuck then -- i have been in the same EXACT spot for S I Z E seconds
-                        self:ReallyAnger( 60 )
+                    local extremeStuck = underDisplacement or not freedomPos
+                    local canGotoEscape = data.nextUnstuckGotoEscape < CurTime() and data.extremeUnstucking < CurTime()
 
-                        myTbl.overrideVeryStuck = nil
-                        local distToEnemy = 0
-                        local enemyPos = self:GetPos()
-                        if IsValid( self:GetEnemy() ) then
-                            distToEnemy = myTbl.DistToEnemy
-                            enemyPos = myTbl.EnemyLastPos or self:GetEnemy():GetPos()
-
-                        end
-
-                        local freedomPos
-
-                        local nearestNavArea = navmesh.GetNearestNavArea( self:GetPos(), false, 10000, false, true, 2 )
-
-                        local myShootPos = self:GetShootPos()
-                        local maxs = Vector( 1000, 1000, 1000 )
-                        local bestDist = math.huge
-                        for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do -- try and find a good freedomPos
-                            if area == nearestNavArea then continue end
+                    -- teleports us to the unstuck position if we dont see an enemy and we've tried walking there
+                    if not myTbl.IsSeeEnemy and extremeUnstucking:GetBool() and ( extremeStuck or not canGotoEscape ) then
+                        data.extremeUnstucking = 0
+                        data.freedomGotoPosSimple = nil
+                        data.oldNavArea = nil
+                        if freedomPos then -- teleport us there
                             coroutine_yield()
-                            if not IsValid( area ) then continue end
 
-                            local areasCenter = area:GetCenter()
+                            self:SetPosNoTeleport( freedomPos )
+                            self:InvalidatePath( "i was hard unstucked! bailing path." )
+                            myTbl.loco:SetVelocity( vec_zero )
+                            myTbl.loco:ClearStuck()
 
-                            if areasCenter:Distance( enemyPos ) < distToEnemy then continue end -- dont unstuck us closer to the enemy
-                            local distToMe = areasCenter:Distance( myPos )
+                        elseif GAMEMODE.getValidHunterPos then -- GLEE specific fallback
+                            freedomPos = GAMEMODE:getValidHunterPos()
 
-                            if not freedomPos then -- always pick some area
-                                freedomPos = areasCenter
-
-                            elseif distToMe < bestDist and area:IsVisible( myShootPos ) then -- perfect candidate, pick this one!
-                                bestDist = distToMe
-                                freedomPos = areasCenter
-
-                            end
-                        end
-
-                        --debugoverlay.Cross( freedomPos, 100, 20, Color( 255, 0, 0 ), true )
-                        --print( self:GetCreationID(), "bigunstuck ", stuck, sortastuck, underDisplacement, overrideStuck, noNavAndNotStaring )
-
-                        local extremeStuck = underDisplacement or not freedomPos
-                        local canGotoEscape = data.nextUnstuckGotoEscape < CurTime() and data.extremeUnstucking < CurTime()
-
-                        -- teleports us to the unstuck position if we dont see an enemy and we've tried walking there
-                        if not myTbl.IsSeeEnemy and extremeUnstucking:GetBool() and ( extremeStuck or not canGotoEscape ) then
-                            data.extremeUnstucking = 0
-                            data.freedomGotoPosSimple = nil
-                            data.oldNavArea = nil
-                            if freedomPos then -- teleport us there
+                            if freedomPos then
                                 coroutine_yield()
 
                                 self:SetPosNoTeleport( freedomPos )
-                                self:InvalidatePath( "i was hard unstucked! bailing path." )
+                                self:InvalidatePath( "i was hard unstucked! bailing path. 2" )
+
                                 myTbl.loco:SetVelocity( vec_zero )
                                 myTbl.loco:ClearStuck()
 
-                            elseif GAMEMODE.getValidHunterPos then -- GLEE specific fallback
-                                freedomPos = GAMEMODE:getValidHunterPos()
-
-                                if freedomPos then
-                                    coroutine_yield()
-
-                                    self:SetPosNoTeleport( freedomPos )
-                                    self:InvalidatePath( "i was hard unstucked! bailing path. 2" )
-
-                                    myTbl.loco:SetVelocity( vec_zero )
-                                    myTbl.loco:ClearStuck()
-
-                                end
-                            -- only remove if its not pathing!
-                            -- set ReallyStuckNeverRemove in a bot if you never want it to be removed
-                            elseif not self:PathIsValid() and not myTbl.ReallyStuckNeverRemove then
-                                SafeRemoveEntity( self )
-
                             end
-                        -- walk to the freedomPos instead
-                        elseif data.extremeUnstucking < CurTime() then
-                            coroutine_yield()
+                        -- only remove if its not pathing!
+                        -- set ReallyStuckNeverRemove in a bot if you never want it to be removed
+                        elseif not self:PathIsValid() and not myTbl.ReallyStuckNeverRemove then
+                            SafeRemoveEntity( self )
 
-                            if not freedomPos then -- fallback
-                                local offset = VectorRand()
-                                offset = offset * Vector( 1, 1, 0.5 ) -- flatten the vec
-                                offset:Normalize()
+                        end
+                    -- walk to the freedomPos instead
+                    elseif data.extremeUnstucking < CurTime() then
+                        coroutine_yield()
 
-                                freedomPos = self:GetPos() + offset * math.random( 300, 600 )
+                        if not freedomPos then -- fallback
+                            local offset = VectorRand()
+                            offset = offset * Vector( 1, 1, 0.5 ) -- flatten the vec
+                            offset:Normalize()
 
-                            end
-
-                            data.nextUnstuckGotoEscape = CurTime() + 80 -- if the walk to freedomPos finishes, but we're still stuck, do the teleporting
-                            data.freedomGotoPosSimple = freedomPos
-                            data.extremeUnstucking = CurTime() + 10 -- try and walk to the freedomPos for this long
-                            data.oldNavArea = currentNav
-                            data.nextCache = CurTime() + 5
-
-                            self:KillAllTasksWith( "movement" ) -- jump us out of any infinite loops
-                            self:StartTask( "movement_wait", { time = 11 }, "gotta let the reallystuck handler do its thing" )
+                            freedomPos = self:GetPos() + offset * math.random( 300, 600 )
 
                         end
 
-                        data.nextUnderDisplacementCheck = 0 -- CHECK NOW!
+                        data.nextUnstuckGotoEscape = CurTime() + 80 -- if the walk to freedomPos finishes, but we're still stuck, do the teleporting
+                        data.freedomGotoPosSimple = freedomPos
+                        data.extremeUnstucking = CurTime() + 10 -- try and walk to the freedomPos for this long
+                        data.oldNavArea = currentNav
+                        data.nextCache = CurTime() + 5
 
-                        data.historicPositions = {}
-                        data.historicNavs = {}
+                        self:KillAllTasksWith( "movement" ) -- jump us out of any infinite loops
+                        self:StartTask( "movement_wait", { time = 11 }, "gotta let the reallystuck handler do its thing" )
 
                     end
+
+                    data.nextUnderDisplacementCheck = 0 -- CHECK NOW!
+
+                    data.historicPositions = {}
+                    data.historicNavs = {}
+
                 end
             end,
         },
@@ -4381,8 +4418,7 @@ function ENT:DoDefaultTasks()
 
                     if IsValid( data.object ) then
                         -- BEATUP
-                        local old = SysTime()
-                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = myTbl.beatUpEnt( self, myTbl, data.object )
+                        local valid, attacked, _nearAndCanHit, _closeAndCanHit, _isNear, isClose, visible = myTbl.beatUpEnt( self, myTbl, data.object )
                         data.gotAHitIn = data.gotAHitIn or attacked
 
                         if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
@@ -4534,7 +4570,7 @@ function ENT:DoDefaultTasks()
                     self:StartTask( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
                     return
 
-                elseif self.awarenessMemory[ self:getAwarenessKey( data.object ) ] ~= MEMORY_MEMORIZING then -- we memorized this already
+                elseif self.awarenessMemory[self:getAwarenessKey( data.object )] ~= MEMORY_MEMORIZING then -- we memorized this already
                     data.fail = true
 
                 elseif data.object:GetParent() == self then
@@ -5102,7 +5138,7 @@ function ENT:DoDefaultTasks()
                     local toPick = { data.searchCenter, self.EnemyLastPosOffsetted, self:GetPos() }
                     local pickedSearchCenter
                     for index = 1, table.Count( toPick ) do
-                        local picked = toPick[ index ]
+                        local picked = toPick[index]
                         if isvector( picked ) then
                             pickedSearchCenter = picked
                             break
@@ -5131,15 +5167,15 @@ function ENT:DoDefaultTasks()
                     data.searchWant = data.searchWant + -1
                     data.time = CurTime() + data.time
 
-                    local scoreData = {}
-                    scoreData.blockRadiusEnd = true
-                    scoreData.searchRadius = data.searchRadius
-                    scoreData.searchCenter = pickedSearchCenter
-                    scoreData.canDoUnderWater = self:isUnderWater()
-                    scoreData.decreasingScores = {}
-                    scoreData.self = self
-                    scoreData.walkedAreas = self.walkedAreas
-                    scoreData.walkedAreaTimes = self.walkedAreas
+                    local scoreDataSetup = {}
+                    scoreDataSetup.blockRadiusEnd = true
+                    scoreDataSetup.searchRadius = data.searchRadius
+                    scoreDataSetup.searchCenter = pickedSearchCenter
+                    scoreDataSetup.canDoUnderWater = self:isUnderWater()
+                    scoreDataSetup.decreasingScores = {}
+                    scoreDataSetup.self = self
+                    scoreDataSetup.walkedAreas = self.walkedAreas
+                    scoreDataSetup.walkedAreaTimes = self.walkedAreas
 
                     hidingToCheck = nil
                     local checkCenter
@@ -5223,7 +5259,7 @@ function ENT:DoDefaultTasks()
 
                     coroutine_yield()
 
-                    checkCenter, checkNav = self:findValidNavResult( scoreData, self:GetPos(), scoreData.searchRadius, scoreFunction )
+                    checkCenter, checkNav = self:findValidNavResult( scoreDataSetup, self:GetPos(), scoreDataSetup.searchRadius, scoreFunction )
                     hidingToCheck = hidingToCheck or checkCenter
 
                     coroutine_yield()
@@ -5518,15 +5554,15 @@ function ENT:DoDefaultTasks()
             BehaveUpdateMotion = function( self, data )
                 local searchPos = data.searchPos
                 if not data.searchPos then
-                    local scoreData = {}
-                    scoreData.canDoUnderWater = self:isUnderWater()
-                    scoreData.self = self
+                    local scoreDataSetup = {}
+                    scoreDataSetup.canDoUnderWater = self:isUnderWater()
+                    scoreDataSetup.self = self
 
                     local scoreFunction = function( scoreData, area1, area2 )
                         local dropToArea = area1:ComputeAdjacentConnectionHeightChange( area2 )
                         local score = math.Rand( 100, 150 )
                         if scoreData.self.walkedAreas[area2:GetID()] then
-                            local time = scoreData.self.walkedAreaTimes[ area2:GetID() ]
+                            local time = scoreData.self.walkedAreaTimes[area2:GetID()]
                             local timeSince = math.abs( time - CurTime() )
                             score = score / timeSince
 
@@ -5546,7 +5582,7 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    searchPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 2000, 3500 ), scoreFunction )
+                    searchPos = self:findValidNavResult( scoreDataSetup, self:GetPos(), math.random( 2000, 3500 ), scoreFunction )
                     --debugoverlay.Cross( searchPos, 150, 10, Color( 255,255,255 ), true )
                     if not searchPos then
                         data.InvalidAfterwards = true
@@ -6143,23 +6179,23 @@ function ENT:DoDefaultTasks()
 
                         end
 
-                        local scoreData = {}
-                        scoreData.lethalCloseRange = tooDangerousToApproach
-                        scoreData.hateVisible = hp < maxHp * 0.5
-                        scoreData.enemyArea = enemyArea
-                        scoreData.enemyAreaCenter = enemyAreaCenter
-                        scoreData.innerBoundary = innerBoundary
-                        scoreData.outerBoundary = outerBoundary
-                        scoreData.hardInnerBoundary = hardInnerBoundary
-                        scoreData.hardOuterBoundary = hardOuterBoundary
-                        scoreData.lastStalkFromPos = data.lastStalkFromPos or myPos
-                        scoreData.stalkStartPos = myPos
-                        scoreData.unreachableAreasCached = self.unreachableAreas
+                        local scoreDataSetup = {}
+                        scoreDataSetup.lethalCloseRange = tooDangerousToApproach
+                        scoreDataSetup.hateVisible = hp < maxHp * 0.5
+                        scoreDataSetup.enemyArea = enemyArea
+                        scoreDataSetup.enemyAreaCenter = enemyAreaCenter
+                        scoreDataSetup.innerBoundary = innerBoundary
+                        scoreDataSetup.outerBoundary = outerBoundary
+                        scoreDataSetup.hardInnerBoundary = hardInnerBoundary
+                        scoreDataSetup.hardOuterBoundary = hardOuterBoundary
+                        scoreDataSetup.lastStalkFromPos = data.lastStalkFromPos or myPos
+                        scoreDataSetup.stalkStartPos = myPos
+                        scoreDataSetup.unreachableAreasCached = self.unreachableAreas
 
-                        scoreData.lowestHeightAllowed = math.min( scoreData.enemyAreaCenter.z, myPos.z )
-                        --debugoverlay.Cross( scoreData.lastStalkFromPos, 10, 20, color_white, true )
+                        scoreDataSetup.lowestHeightAllowed = math.min( scoreDataSetup.enemyAreaCenter.z, myPos.z )
+                        --debugoverlay.Cross( scoreDataSetup.lastStalkFromPos, 10, 20, color_white, true )
 
-                        scoreData.canGoUnderwater = self:isUnderWater()
+                        scoreDataSetup.canGoUnderwater = self:isUnderWater()
 
                         -- find area to my left or right, relative to enemy, basically circle the enemy 
                         local scoreFunction = function( scoreData, area1, area2 )
@@ -6167,7 +6203,7 @@ function ENT:DoDefaultTasks()
                             if not area2:IsConnected( area1 ) then return 0 end
 
                             local area2sId = area2:GetID()
-                            if scoreData.unreachableAreasCached[ area2sId ] then return 0 end
+                            if scoreData.unreachableAreasCached[area2sId] then return 0 end
 
                             local area2Center = area2:GetCenter()
                             local distanceTravelled = DistToSqr2D( area2Center, scoreData.lastStalkFromPos )
@@ -6248,7 +6284,7 @@ function ENT:DoDefaultTasks()
 
                         coroutine_yield()
 
-                        data.stalkPos = self:findValidNavResult( scoreData, self:GetPos(), math.Clamp( self.DistToEnemy * 2, 1000, math.Rand( 5000, 7000 ) ), scoreFunction )
+                        data.stalkPos = self:findValidNavResult( scoreDataSetup, self:GetPos(), math.Clamp( self.DistToEnemy * 2, 1000, math.Rand( 5000, 7000 ) ), scoreFunction )
 
                         coroutine_yield()
 
@@ -6878,7 +6914,7 @@ function ENT:DoDefaultTasks()
                         self:StartTask( "movement_search", { searchWant = 5 }, "i never went anywhere in the first place" )
 
                     end
-                    self.forcedCheckPositions[ data.forcedCheckKey ] = nil
+                    self.forcedCheckPositions[data.forcedCheckKey] = nil
                 -- i see you...
                 elseif goodEnemy then
                     self:EnemyAcquired( "movement_approachforcedcheckposition" )
@@ -6886,7 +6922,7 @@ function ENT:DoDefaultTasks()
                 elseif result == true and givenItAChance then
                     self:TaskComplete( "movement_approachforcedcheckposition" )
                     self:StartTask( "movement_search", { searchWant = 60 }, "i got there but nobody's here" )
-                    self.forcedCheckPositions[ data.forcedCheckKey ] = nil
+                    self.forcedCheckPositions[data.forcedCheckKey] = nil
                     self.PreventShooting = nil
                 -- bad path
                 elseif ( self:MyPathLength() < 50 and Distance2D( self:GetPos(), self:GetPath():GetEnd() ) < 300 ) and givenItAChance then
@@ -7397,7 +7433,7 @@ function ENT:DoDefaultTasks()
 
                         -- determine where player CAN go
                         -- dont build path to somewhere behind walls
-                        local mymins,mymaxs = self:GetCollisionBounds()
+                        local mymins, mymaxs = self:GetCollisionBounds()
                         mymins = Vector( mymins.x, mymins.y, mymins.z )
                         mymaxs = Vector( mymaxs.x, mymaxs.y, mymaxs.z )
                         mymins = mymins * 0.5
@@ -7575,12 +7611,12 @@ function ENT:DoDefaultTasks()
 
                     --normal path
                     local Dir = data.Dir or self:GetForward()
-                    local scoreData = {}
-                    scoreData.canDoUnderWater = canDoUnderWater
-                    scoreData.self = self
-                    scoreData.forward = Dir:Angle()
-                    scoreData.startArea = myNavArea
-                    scoreData.startPos = scoreData.startArea:GetCenter()
+                    local scoreDataSetup = {}
+                    scoreDataSetup.canDoUnderWater = canDoUnderWater
+                    scoreDataSetup.self = self
+                    scoreDataSetup.forward = Dir:Angle()
+                    scoreDataSetup.startArea = myNavArea
+                    scoreDataSetup.startPos = scoreDataSetup.startArea:GetCenter()
 
                     local scoreFunction = function( scoreData, area1, area2 )
                         local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
@@ -7604,7 +7640,7 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 3000, 4000 ), scoreFunction )
+                    wanderPos = self:findValidNavResult( scoreDataSetup, self:GetPos(), math.random( 3000, 4000 ), scoreFunction )
 
                     if wanderPos then
                         self:SetupPathShell( wanderPos )
@@ -7715,20 +7751,20 @@ function ENT:DoDefaultTasks()
                     --normal path
                     local dir = data.dir or self:GetForward()
                     dir = -dir
-                    local scoreData = {}
-                    scoreData.canDoUnderWater = canDoUnderWater
-                    scoreData.self = self
-                    scoreData.forward = dir:Angle()
-                    scoreData.startArea = myNavArea
-                    scoreData.startPos = scoreData.startArea:GetCenter()
-                    scoreData.beenAreas = data.beenAreas
+                    local scoreDataSetup = {}
+                    scoreDataSetup.canDoUnderWater = canDoUnderWater
+                    scoreDataSetup.self = self
+                    scoreDataSetup.forward = dir:Angle()
+                    scoreDataSetup.startArea = myNavArea
+                    scoreDataSetup.startPos = scoreDataSetup.startArea:GetCenter()
+                    scoreDataSetup.beenAreas = data.beenAreas
                     if anotherHuntersPos then
-                        scoreData.doSpreadOut = true
-                        scoreData.spreadOutAvoidAreas = {}
+                        scoreDataSetup.doSpreadOut = true
+                        scoreDataSetup.spreadOutAvoidAreas = {}
                         local areasFound = navmesh.Find( anotherHuntersPos, 1500, 100, 100 )
 
                         for _, currArea in ipairs( areasFound ) do
-                            scoreData.spreadOutAvoidAreas[currArea:GetID()] = true
+                            scoreDataSetup.spreadOutAvoidAreas[currArea:GetID()] = true
 
                         end
                     end
@@ -7770,7 +7806,7 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    wanderPos = self:findValidNavResult( scoreData, self:GetPos(), math.random( 5000, 6000 ), scoreFunction )
+                    wanderPos = self:findValidNavResult( scoreDataSetup, self:GetPos(), math.random( 5000, 6000 ), scoreFunction )
 
                     if foundSomewhereNotBeen == nil then
                         data.beenAreas = nil
@@ -7865,8 +7901,8 @@ function ENT:DoDefaultTasks()
 
                         for _, potentiallyBeenArea in ipairs( potentiallyBeenAreas ) do
                             local areaId = potentiallyBeenArea:GetID()
-                            if not data.beenAreas[ areaId ] then
-                                data.beenAreas[ areaId ] = true
+                            if not data.beenAreas[areaId] then
+                                data.beenAreas[areaId] = true
                                 --debugoverlay.Text( potentiallyBeenArea:GetCenter(), "IBEEN", 20 )
 
                             end
@@ -8305,8 +8341,8 @@ function ENT:DoDefaultTasks()
                             -- ask wep for score
                             local scoreOfPos = scoringFunc( wep, self, checkPos )
 
-                            data.scoredPlaceables[ scoreOfPos ] = checkPos
-                            data.scoredAreas[ scoreOfPos ] = toPlaceArea
+                            data.scoredPlaceables[scoreOfPos] = checkPos
+                            data.scoredAreas[scoreOfPos] = toPlaceArea
 
                         end
                     end
@@ -8317,8 +8353,8 @@ function ENT:DoDefaultTasks()
 
                     else
                         data.bestPosScore = table.maxn( data.scoredPlaceables )
-                        data.bestPos = data.scoredPlaceables[ data.bestPosScore ]
-                        data.bestArea = data.scoredAreas[ data.bestPosScore ]
+                        data.bestPos = data.scoredPlaceables[data.bestPosScore]
+                        data.bestArea = data.scoredAreas[data.bestPosScore]
 
                         data.scoredPlaceables = nil
                         --debugoverlay.Text( data.bestPos, "a" .. data.bestPosScore, 10, false )
@@ -8364,7 +8400,7 @@ function ENT:DoDefaultTasks()
                         elseif result == false then
                             self:TaskFail( "movement_placeweapon" )
                             self:StartTask( "movement_placeweapon", nil, "i couldnt path to the placing spot, try again please!" )
-                            self.failedPlacingAreas[ data.bestArea:GetID() ] = true
+                            self.failedPlacingAreas[data.bestArea:GetID()] = true
 
                         else
                             data.giveUpTime = CurTime() + 1
@@ -8511,7 +8547,7 @@ function ENT:DoDefaultTasks()
                             local score = ( ( distance * 0.01 ) + zOffset * 4 ) / nookScore
                             score = score * canSeeTargetMul
 
-                            data.scoredPerchables[ score ] = checkPos
+                            data.scoredPerchables[score] = checkPos
 
                         end
 
@@ -8522,7 +8558,7 @@ function ENT:DoDefaultTasks()
                         local bestPosScore = table.maxn( data.scoredPerchables )
                         if not bestPosScore then continue end
 
-                        local bestPos = data.scoredPerchables[ bestPosScore ]
+                        local bestPos = data.scoredPerchables[bestPosScore]
                         if not bestPos then continue end
 
                         data.bestPosSoFar = bestPos
@@ -8584,7 +8620,7 @@ function ENT:DoDefaultTasks()
                     end
                 elseif not data.bestPos then
                     data.bestPosScore = table.maxn( data.scoredPerchables )
-                    data.bestPos = data.scoredPerchables[ data.bestPosScore ]
+                    data.bestPos = data.scoredPerchables[data.bestPosScore]
 
                     if data.requiredTarget and data.bestPos then
                         local _, canSeeTr = terminator_Extras.PosCanSeeComplex( data.bestPos, data.requiredTarget, self )

@@ -36,7 +36,7 @@ local requiredActionKeys = {
 local function validateActions( sentTbl, mySpecialActions )
     for actionName, actionDat in pairs( mySpecialActions ) do
         for _, reqKey in ipairs( requiredActionKeys ) do
-            if actionDat[ reqKey ] == nil then
+            if actionDat[reqKey] == nil then
                 local str = {
                     "Missing required key '", reqKey,
                     "' for special action '", actionName,
@@ -49,7 +49,7 @@ local function validateActions( sentTbl, mySpecialActions )
             end
         end
         for key, val in pairs( actionDat ) do
-            local needed = specialActionsRequiredTypes[ key ]
+            local needed = specialActionsRequiredTypes[key]
             if not needed then continue end
 
             local valType = TypeID( val )

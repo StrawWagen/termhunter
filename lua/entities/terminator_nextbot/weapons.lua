@@ -117,7 +117,7 @@ function ENT:Give( wepname )
 
         if not IsValid( wep ) then return end
 
-        isEngineAnalog = EngineAnalogs[ wepname ]
+        isEngineAnalog = EngineAnalogs[wepname]
 
         if not wep:IsScripted() and not isEngineAnalog then
             SafeRemoveEntity( wep )
@@ -240,7 +240,7 @@ function ENT:SetupWeapon( wep )
 
     local wepsClass = entMeta.GetClass( wep )
     -- Cannot hold engine weapons
-    if not wep:IsScripted() and not EngineAnalogs[ wepsClass ] then return end
+    if not wep:IsScripted() and not EngineAnalogs[wepsClass] then return end
 
     local myTbl = entMeta.GetTable( self )
 
@@ -263,8 +263,8 @@ function ENT:SetupWeapon( wep )
     self:SetActiveWeapon( wep )
 
     -- Custom lua weapon analog for engine weapon, this need to have WEAPON metatable
-    if EngineAnalogs[ wepsClass ] then
-        local actwep = ents.Create( EngineAnalogs[ wepsClass ] )
+    if EngineAnalogs[wepsClass] then
+        local actwep = ents.Create( EngineAnalogs[wepsClass] )
         actwep:SetOwner( self )
         actwep:SetParent( wep )
         actwep:Spawn()
@@ -894,7 +894,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     if not isCrate then
         if not wep:IsWeapon() then boring( wep ) return false end
 
-        if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then boring( wep ) return false end
+        if ( not wep:IsScripted() and not EngineAnalogs[class] ) then boring( wep ) return false end
 
     end
 
@@ -1266,10 +1266,10 @@ function ENT:canGetWeapon()
         if not IsValid( currWeap ) then return true, newWeap end
 
         local analogClass = wepDat.engineAnalog
-        local analogsData = analogTblsCache[ analogClass ]
+        local analogsData = analogTblsCache[analogClass]
         if analogClass and not analogsData then
             analogsData = weapons.Get( analogClass )
-            analogTblsCache[ analogClass ] = analogsData
+            analogTblsCache[analogClass] = analogsData
 
         end
 
@@ -1422,7 +1422,7 @@ function ENT:FindWeapon( myTbl )
 
     for _, potentialWeap in ipairs( found ) do
 
-        if notAWeaponCache[ potentialWeap ] then continue end
+        if notAWeaponCache[potentialWeap] then continue end
 
         local wepsTbl = entMeta.GetTable( potentialWeap )
         if not CanPickupWeapon( self, potentialWeap, false, myTbl, wepsTbl ) then continue end
@@ -1504,7 +1504,7 @@ local function getDamageTrackerOf( me, myTbl, wepOrClass )
 
     if not isstring( class ) then return end
 
-    local tracker = trackers[ class ]
+    local tracker = trackers[class]
     if not tracker then
         -- tolerance for weapons
         local bonusAttackAttempts = 30
@@ -1546,7 +1546,7 @@ local function getDamageTrackerOf( me, myTbl, wepOrClass )
             maxDistEverDamagedWith = 0,
 
         }
-        trackers[ class ] = tracker
+        trackers[class] = tracker
 
     end
     return tracker

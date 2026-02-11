@@ -29,16 +29,16 @@ terminator_Extras.SetupAnalogWeight = function( wep )
     class = string.TrimLeft( class, "weapons/" ) -- HACK HACK HACK
     class = string.TrimRight( class, "_term" ) -- HACK
 
-    local weight = terminator_Extras.EngineAnalogWeights[ class ]
+    local weight = terminator_Extras.EngineAnalogWeights[class]
     if not weight then
-        terminator_Extras.EngineAnalogWeights[ class ] = wep.Weight
-        --print( terminator_Extras.EngineAnalogWeights[ class ] )
+        terminator_Extras.EngineAnalogWeights[class] = wep.Weight
+        --print( terminator_Extras.EngineAnalogWeights[class] )
 
     end
 end
 
 terminator_Extras.OverrideWeaponWeight = function( class, newWeight )
-    terminator_Extras.EngineAnalogWeights[ class ] = newWeight
+    terminator_Extras.EngineAnalogWeights[class] = newWeight
 
 end
 

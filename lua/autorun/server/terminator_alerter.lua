@@ -160,7 +160,7 @@ local function bulletFireThink( entity, data )
     end
     local customRange = nil
     if IsValid( weap ) then
-        customRange = customRanges[ entMeta.GetClass( weap ) ]
+        customRange = customRanges[entMeta.GetClass( weap )]
 
     end
     if customRange then
