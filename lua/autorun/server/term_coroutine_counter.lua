@@ -48,12 +48,13 @@ local function count()
     collectgarbage( "stop" )
     local cur = SysTime()
 
-    local coroutineDatas = {}
+    local coroutineDatas = setmetatable( {}, { __mode = "k" } )
     for co, tb in pairs( TrackedCoroutines ) do
         local lastResume = TrackedCoroutinesLastResumes[co] or 0
         local sinceResumed = math.Round( cur - lastResume, 4 )
         local class = TrackedCoroutineClasses[co] or "unknown_class"
-        table.insert( coroutineDatas, { co = co, tb = tb, lastResume = lastResume, sinceResumed = sinceResumed, class = class } )
+        local coData = setmetatable( { co = co, tb = tb, lastResume = lastResume, sinceResumed = sinceResumed, class = class }, { __mode = "k" } )
+        table.insert( coroutineDatas, coData )
 
     end
 
