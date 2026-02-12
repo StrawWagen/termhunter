@@ -301,6 +301,21 @@ if SERVER then
 
     end
 
+    function ENT:GiveAmmo()
+        return nil
+
+    end
+
+    function ENT:GetAmmoCount()
+        return self:GetActiveWeapon():Clip1() or 0
+
+    end
+
+    function ENT:PickupObject()
+        return
+
+    end
+
     function ENT:SetArmor()
     end
 
