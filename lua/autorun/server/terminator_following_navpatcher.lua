@@ -508,13 +508,13 @@ local function navPatchSelectivelyThink()
     -- we should always patch people being chased if we can!
     for _, ply in player.Iterator() do
         local lowCount = #playersToPatch < max
-        local chasedUntil = plysCurrentlyBeingChased[ ply ]
+        local chasedUntil = plysCurrentlyBeingChased[ply]
         if not lowCount then
             break
 
         elseif chasedUntil and chasedUntil > cur then
             table_insert( playersToPatch, ply )
-            chasedPlayers[ ply ] = true
+            chasedPlayers[ply] = true
             someoneWasChased = true
 
         end
@@ -526,7 +526,7 @@ local function navPatchSelectivelyThink()
             local lowCount = #playersToPatch < max
             if not lowCount then
                 break
-            elseif not chasedPlayers[ ply ] and not ply:IsFlagSet( FL_NOTARGET ) then
+            elseif not chasedPlayers[ply] and not ply:IsFlagSet( FL_NOTARGET ) then
                 table_insert( playersToPatch, ply )
 
             end
@@ -549,7 +549,7 @@ hook.Add( "terminator_nextbot_oneterm_exists", "setup_following_navpatcher", fun
     hook.Add( "terminator_enemythink", "terminator_cacheplysbeingchased", function( _, enemy )
         if not IsValid( enemy ) then return end
         if not enemy:IsPlayer() then return end
-        plysCurrentlyBeingChased[ enemy ] = CurTime() + 5
+        plysCurrentlyBeingChased[enemy] = CurTime() + 5
 
     end )
 end )

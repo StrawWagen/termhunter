@@ -19,7 +19,7 @@ local TrFilterNoSelf = terminator_Extras.TrFilterNoSelf
 
 -- CUSTOM FOOTSTEP SOUNDS PREFAB, say you just want footsteps to play your custom sound, not player footsteps
 -- ENT.Term_FootstepMode = "custom" -- set this to custom so the bot checks the below tbl, supported modes, "human" and "custom"
---[[ ENT.Term_FootstepSound = { -- sound to play when the bot steps
+--[[ENT.Term_FootstepSound = { -- sound to play when the bot steps
     path = "npc/zombie_poison/pz_left_foot1.wav",
     pitch = 85, -- pitch of the sound
     volume = 1, -- volume of the sound

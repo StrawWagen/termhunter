@@ -10,7 +10,7 @@ end
 function ENT:IsHolsteredWeap( wep )
     if not IsValid( wep ) then return end
     local holsteredWeaps = self.m_HolsteredWeapons or {}
-    if holsteredWeaps[ wep ] then return true end
+    if holsteredWeaps[wep] then return true end
 
 end
 
@@ -24,13 +24,13 @@ function ENT:CanHolsterWeap( wep )
     -- validate slots
     for check, _ in pairs( holsteredWeps ) do
         if not IsValid( check ) then
-            holsteredWeps[ check ] = nil
+            holsteredWeps[check] = nil
 
         end
     end
     for slot, check in pairs( holsteredSlots ) do
         if not IsValid( check ) then
-            holsteredSlots[ slot ] = nil
+            holsteredSlots[slot] = nil
 
         end
     end
@@ -43,7 +43,7 @@ function ENT:CanHolsterWeap( wep )
     if not hasBoneForSlot then return false end
 
     -- already something there!
-    local alreadyThereWeap = holsteredSlots[ slot ]
+    local alreadyThereWeap = holsteredSlots[slot]
     local toEvict
     if alreadyThereWeap then
         local alreadyThereWeight = self:GetWeightOfWeapon( alreadyThereWeap )
@@ -64,13 +64,13 @@ local HOLSTER_BACK = 1
 local HOLSTER_SIDEARM = 2
 
 local bonesForSlots = {
-    [ HOLSTER_BACK ] = "ValveBiped.Bip01_Spine1",
-    [ HOLSTER_SIDEARM ] = "ValveBiped.Bip01_Spine",
+    [HOLSTER_BACK] = "ValveBiped.Bip01_Spine1",
+    [HOLSTER_SIDEARM] = "ValveBiped.Bip01_Spine",
 
 }
 
 function ENT:HasHolsterBone( slot )
-    local boneId = self:LookupBone( bonesForSlots[ slot ] )
+    local boneId = self:LookupBone( bonesForSlots[slot] )
     if not boneId then return end
     return true, boneId
 
@@ -85,16 +85,16 @@ sidearmOffset = sidearmOffset + -vector_back * 2.5 -- forwards a bit
 sidearmOffset = sidearmOffset + -vector_localUp * 5 -- down
 
 local offsetsForSlots = {
-    [ HOLSTER_BACK ] = { pos = ( vector_back * 3.5 ) + ( vector_localUp * 8 ), angOffset = Angle( 0, 7, 0 ) },
-    [ HOLSTER_SIDEARM ] = { pos = sidearmOffset, angOffset = Angle( 0, 180, 90 ) },
+    [HOLSTER_BACK] = { pos = ( vector_back * 3.5 ) + ( vector_localUp * 8 ), angOffset = Angle( 0, 7, 0 ) },
+    [HOLSTER_SIDEARM] = { pos = sidearmOffset, angOffset = Angle( 0, 180, 90 ) },
 
 }
 
 local rotationsForSizes = {
-    xy = { [ HOLSTER_BACK ] = Angle( 0, 90, 0 ), [ HOLSTER_SIDEARM ] = Angle( 90, 90, 90 ) }, -- done
+    xy = { [HOLSTER_BACK] = Angle( 0, 90, 0 ), [HOLSTER_SIDEARM] = Angle( 90, 90, 90 ) }, -- done
     xz = Angle( 0, 90, 0 ),
     yx = Angle( 0, 0, 0 ), -- done
-    yz = { [ HOLSTER_BACK ] = Angle( 90, 90, 90 ), [ HOLSTER_SIDEARM ] = Angle( 0, -80, 0 ) }, -- done, troublemaker though!
+    yz = { [HOLSTER_BACK] = Angle( 90, 90, 90 ), [HOLSTER_SIDEARM] = Angle( 0, -80, 0 ) }, -- done, troublemaker though!
     zx = Angle( 0, 0, 90 ), -- done
     zy = Angle( 0, 90, -90 ), -- done
 
@@ -157,9 +157,9 @@ function ENT:GetHolsterData( wep )
     -- no override? do the default checks
     if not rotation then
         local rotInd = thinnestIndex .. biggestIndex
-        rotation = rotationsForSizes[ rotInd ]
+        rotation = rotationsForSizes[rotInd]
         if istable( rotation ) then
-            rotation = rotation[ holsterDat.slot ]
+            rotation = rotation[holsterDat.slot]
 
         end
         --print( rotInd, thinnestIndex .. thinnestSize, biggestIndex .. biggestSize, wep:GetClass() )
@@ -168,7 +168,7 @@ function ENT:GetHolsterData( wep )
     if not rotation then return end
 
     -- SLOT offsets
-    local offsets = offsetsForSlots[ holsterDat.slot ]
+    local offsets = offsetsForSlots[holsterDat.slot]
 
     if offsets.angOffset then
         rotation = rotation + offsets.angOffset
@@ -224,13 +224,13 @@ function ENT:HolsterWeap( wep )
         self.m_HolsteredWeapons = {}
 
     end
-    self.m_HolsteredWeapons[ wep ] = true
+    self.m_HolsteredWeapons[wep] = true
 
     if not self.m_HolsteringSlots then
         self.m_HolsteringSlots = {}
 
     end
-    self.m_HolsteringSlots[ holsterDat.slot ] = wep
+    self.m_HolsteringSlots[holsterDat.slot] = wep
 
     wep:CallOnRemove( "terminator_unholsteronremove", function( removedWep, myOwner )
         if not IsValid( myOwner ) then return end
@@ -245,8 +245,8 @@ end
 
 function ENT:UnHolsterWeap( wep )
     local holsterDat = self:GetHolsterData( wep )
-    self.m_HolsteredWeapons[ wep ] = nil
-    self.m_HolsteringSlots[ holsterDat.slot ] = nil
+    self.m_HolsteredWeapons[wep] = nil
+    self.m_HolsteringSlots[holsterDat.slot] = nil
 
     wep:RemoveCallOnRemove( "terminator_unholsteronremove" )
 

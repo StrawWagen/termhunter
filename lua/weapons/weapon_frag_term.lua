@@ -124,7 +124,7 @@ function SWEP:terminatorAimingFunc()
 
     end
 
-    local result = results[ smallestKey ]
+    local result = results[smallestKey]
     self.cachedTerminatorAimingFuncResult = result
 
     return result

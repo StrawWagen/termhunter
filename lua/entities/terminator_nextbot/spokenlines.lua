@@ -72,7 +72,7 @@ function ENT:SpokenLinesThink( myTbl )
                 myTbl.term_IdleLoopingSound = nil
 
             end
-            local pickedSound = loopingSounds[ math.random( 1, #loopingSounds ) ]
+            local pickedSound = loopingSounds[math.random( 1, #loopingSounds )]
 
             local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
             local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
@@ -116,7 +116,7 @@ function ENT:SpokenLinesThink( myTbl )
         local sentence
 
         if istable( sentenceIn ) then
-            sentence = sentenceIn[ math.random( 1, #sentenceIn ) ]
+            sentence = sentenceIn[math.random( 1, #sentenceIn )]
 
         elseif isstring( sentenceIn ) then
             sentence = sentenceIn
@@ -155,7 +155,7 @@ function ENT:SpokenLinesThink( myTbl )
         local path
 
         if istable( pathIn ) then
-            path = pathIn[ math.random( 1, #pathIn ) ]
+            path = pathIn[math.random( 1, #pathIn )]
 
         elseif isstring( pathIn ) then
             path = pathIn
@@ -196,7 +196,7 @@ function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
     local dsp = asNumber( self, myTbl, myTbl.term_SoundDSP )
 
     if istable( pathIn ) then
-        pathIn = pathIn[ math.random( 1, #pathIn ) ]
+        pathIn = pathIn[math.random( 1, #pathIn )]
 
     end
 
@@ -229,7 +229,7 @@ function ENT:Term_SpeakSentenceNow( sentenceIn, specificPitchShift )
     local lvlShift = asNumber( self, myTbl, myTbl.term_SoundLevelShift )
 
     if istable( sentenceIn ) then
-        sentenceIn = sentenceIn[ math.random( 1, #sentenceIn ) ]
+        sentenceIn = sentenceIn[math.random( 1, #sentenceIn )]
     end
 
     local pitch = 100 + pitShift + specificPitchShift

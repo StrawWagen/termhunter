@@ -253,7 +253,7 @@ function ENT:DoWeaponHacks( wep )
     while wepsTable and doneCount < max do
         doneCount = doneCount + 1
 
-        local hack = terminator_WeaponHacks[ wepsTable.ClassName ]
+        local hack = terminator_WeaponHacks[wepsTable.ClassName]
         if hack then
             hack( wep )
 

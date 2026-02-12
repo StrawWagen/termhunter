@@ -6,7 +6,7 @@ local plyMeta = FindMetaTable( "Player" )
 local vecMeta = FindMetaTable( "Vector" )
 
 local IsValid = IsValid
-local negativeFiveHundredZ = Vector( 0,0,-500 )
+local negativeFiveHundredZ = Vector( 0, 0, -500 )
 local solidMask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP )
 local vec_zero = Vector( 0, 0, 0 )
 
@@ -96,7 +96,7 @@ terminator_Extras.PitchToPos = function( pos1, ang1, pos2, ang2 )
 
     local len = localPos:Length()
     if len < 0 then return 0 end
-    return rad2deg * math.asin(localPos.z / len)
+    return rad2deg * math.asin( localPos.z / len )
 
 end
 
@@ -230,7 +230,7 @@ terminator_Extras.areaIsInterruptingSomeone = function( area, areasCenter, yield
     end
 end
 
---[[ find memory leaks!
+--[[find memory leaks!
 for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
     local biggestSize = 0
     local biggestKey

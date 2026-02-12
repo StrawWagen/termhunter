@@ -523,7 +523,8 @@ function ENT:OnUnStuck()
     self.m_StuckTime = CurTime() + 1
     self.m_StuckTime2 = 0
 
-    self:RunTask("OnUnStuck")
+    self:RunTask( "OnUnStuck" )
+
 end
 
 function ENT:isUnderWater()
@@ -533,7 +534,7 @@ function ENT:isUnderWater()
 
 end
 
-local vectorPositive125Z = Vector( 0,0,125 )
+local vectorPositive125Z = Vector( 0, 0, 125 )
 
 function ENT:confinedSlope( area1, area2 )
     if not IsValid( area1 ) then return end
@@ -955,8 +956,8 @@ function ENT:CanStandAtPos( myTbl, pos, endPos )
 
 end
 
-local fivePositiveZ = Vector( 0,0,5 )
-local fiftyZOffset = Vector( 0,0,50 )
+local fivePositiveZ = Vector( 0, 0, 5 )
+local fiftyZOffset = Vector( 0, 0, 50 )
 local vector25Z = Vector( 0, 0, 25 )
 
 function ENT:BoundsAdjusted( hullSizeMul, assumeCrouch )
@@ -1011,7 +1012,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
     local cacheTime = 0.8
 
-    local b1,b2 = self:BoundsAdjusted( 0.75 )
+    local b1, b2 = self:BoundsAdjusted( 0.75 )
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
 
@@ -1202,16 +1203,16 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
                 end
             end
             if currScore then
-                potentialClearPositionsScored[ currScore ] = newStartPos
+                potentialClearPositionsScored[currScore] = newStartPos
 
-                potentialClearHitPositions[ currScore ] = dirResult.HitPos
-                potentialClearPositionFractions[ currScore ] = fractionCurr
+                potentialClearHitPositions[currScore] = dirResult.HitPos
+                potentialClearPositionFractions[currScore] = fractionCurr
                 bestScore = table.maxn( potentialClearPositionsScored )
 
             end
         end
-        local bestFraction = potentialClearPositionsScored[ bestScore ]
-        local bestHitPosition = potentialClearHitPositions[ bestScore ]
+        local bestFraction = potentialClearPositionsScored[bestScore]
+        local bestHitPosition = potentialClearHitPositions[bestScore]
 
         if not bestHitPosition then return nil, true end
 
@@ -1253,7 +1254,7 @@ local scalar = 0.75
 -- simple check, can the bot exist left/right in the direction of the goal.
 function ENT:CanStepAside( dir, goal )
     local pos = self:GetPos() + vec_up15
-    local b1,b2 = self:BoundsAdjusted( scalar )
+    local b1, b2 = self:BoundsAdjusted( scalar )
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
 
@@ -1323,7 +1324,7 @@ end
 function ENT:GetJumpBlockState( myTbl, dir, goal )
 
     local enemy = myTbl.GetEnemy( self )
-    local b1,b2 = myTbl.BoundsAdjusted( self, scalar )
+    local b1, b2 = myTbl.BoundsAdjusted( self, scalar )
     local step = myTbl.loco:GetStepHeight() * scalar
     local pos = entMeta.GetPos( self ) + vec_up15
     local cgroup = entMeta.GetCollisionGroup( self )
@@ -1537,7 +1538,7 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
     local swimming = self:IsSwimming( self:GetTable() )
 
     for index = 1, table.maxn( potentiallyVisible ) do
-        local potentialVisible = potentiallyVisible[ index ]
+        local potentialVisible = potentiallyVisible[index]
         if not potentialVisible then continue end
 
         if potentialVisible.z < check.z or swimming then
@@ -1559,7 +1560,7 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
             --debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
             return potentialVisible, index, hitBreakable
 
-        else
+        --else
             --print( not result.Hit, hitBreakable, result.Entity == enemy )
             --debugoverlay.Line( check, result.HitPos, 1, Color( 255,0,0 ), true )
             --debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 1, Color( 255,255,255, 25 ) )
@@ -3670,7 +3671,7 @@ function ENT:SetupSpeed( myTbl )
 
     speed = myTbl.RunTask( self, "ModifyMovementSpeed", speed ) or speed
 
-    myTbl.loco:SetDesiredSpeed(speed)
+    myTbl.loco:SetDesiredSpeed( speed )
     myTbl.m_Speed = speed
 end
 
@@ -3682,7 +3683,7 @@ end
 --]]------------------------------------
 function ENT:ShouldRun( myTbl )
     if myTbl.IsControlledByPlayer( self, myTbl ) then
-        if self:ControlPlayerKeyDown(IN_SPEED) then
+        if self:ControlPlayerKeyDown( IN_SPEED ) then
             return true
 
         end
@@ -3702,7 +3703,7 @@ end
 --]]------------------------------------
 function ENT:ShouldWalk( myTbl )
     if myTbl.IsControlledByPlayer( self, myTbl ) then
-        if self:ControlPlayerKeyDown(IN_WALK) then
+        if self:ControlPlayerKeyDown( IN_WALK ) then
             return true
 
         end

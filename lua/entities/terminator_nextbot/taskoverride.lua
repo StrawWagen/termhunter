@@ -183,7 +183,7 @@ function ENT:StartTask( task, data, reason )
         m_ActiveTasksNum = {}
         myTbl.m_ActiveTasksNum = m_ActiveTasksNum
     end
-    m_ActiveTasksNum[ #m_ActiveTasksNum + 1 ] = { task, data }
+    m_ActiveTasksNum[#m_ActiveTasksNum + 1] = { task, data }
 
     myTbl.m_HollowEventCache = nil -- reset hollow event cache
 
@@ -342,8 +342,8 @@ function ENT:SetupTasks( myTbl )
     myTbl.DoClassTasks( self, myTbl ) -- adds class-specific behaviour for every class in the baseclass tree
 
     local taskListStatic = myTbl.m_TaskList
-    for k,v in pairs( myTbl.TaskList ) do
-        taskListStatic[k] = v
+    for taskName, task in pairs( myTbl.TaskList ) do
+        taskListStatic[taskName] = task
 
     end
 

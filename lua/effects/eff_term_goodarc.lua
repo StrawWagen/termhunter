@@ -167,17 +167,17 @@ function EFFECT:PlaySound()
     local vol = math.Clamp( 0.3 * self.Scale, 0, 1 )
     local pitch = math.Clamp( 120 - self.Scale * 15 + math.random( -10, 10 ), 50, 200 )
 
-    sound.Play( ZapSounds[ math.random( #ZapSounds ) ], self.EndPos, 75, pitch, vol )
+    sound.Play( ZapSounds[math.random( #ZapSounds )], self.EndPos, 75, pitch, vol )
 
     if self.Scale >= 1 and math.random() > 0.5 then
-        sound.Play( SparkSounds[ math.random( #SparkSounds ) ], self.EndPos, 70, pitch + math.random( -20, 20 ), vol * 0.6 )
+        sound.Play( SparkSounds[math.random( #SparkSounds )], self.EndPos, 70, pitch + math.random( -20, 20 ), vol * 0.6 )
 
     end
 
     if self.ParentMode then
         local pos = self.StartPos
         timer.Simple( 0.02, function()
-            sound.Play( ZapSounds[ math.random( #ZapSounds ) ], pos, 70, pitch + 10, vol * 0.5 )
+            sound.Play( ZapSounds[math.random( #ZapSounds )], pos, 70, pitch + 10, vol * 0.5 )
 
         end )
     end
@@ -307,7 +307,7 @@ function EFFECT:GenerateSegmentPoints( startPos, endPos, segCount, jitterFunc, s
 
         end
 
-        points[ #points + 1 ] = point
+        points[#points + 1] = point
 
     end
 
@@ -338,14 +338,14 @@ function EFFECT:GenerateArc()
         self.EndPos = hitPoint
         self.SegmentCount = hitSegment
         if not self.NoDecal then
-            local scorchStart = points[ #points ]
+            local scorchStart = points[#points]
             local decalPath = self.Scale >= math.Rand( 1.5, 3 ) and "Scorch" or "SmallScorch"
             util.Decal( decalPath, scorchStart, self.EndPos )
 
         end
     end
 
-    points[ #points + 1 ] = self.EndPos
+    points[#points + 1] = self.EndPos
     self.Points = points
 
     if not self.NoBranches and self.BranchCount > 0 and #points >= 4 then
@@ -368,13 +368,13 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
         local branchStartPoint = math.random( 2, lastValidPoint )
 
         for _ = 1, 10 do
-            if not used[ branchStartPoint ] then break end
+            if not used[branchStartPoint] then break end
             branchStartPoint = math.random( 2, lastValidPoint )
 
         end
-        used[ branchStartPoint ] = true
+        used[branchStartPoint] = true
 
-        local start = points[ branchStartPoint ]
+        local start = points[branchStartPoint]
         local branchDir = VectorRand() + mainDir * 0.2
         branchDir:Normalize()
         local len = mainLen * math.Rand( 0.15, 0.4 )
@@ -388,11 +388,11 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
         local branchEnd = start + branchDir * len
         local branch = self:GenerateSegmentPoints( start, branchEnd, segs, branchJitterFunc, nil )
         branch.width = math.Rand( 0.4, 0.7 )
-        branches[ #branches + 1 ] = branch
+        branches[#branches + 1] = branch
 
         -- Sub-branch
         if segs >= 3 and math.random() > 0.5 and #branch >= 2 then
-            local subStart = branch[ 2 ]
+            local subStart = branch[2]
             local subDir = VectorRand() + branchDir * 0.1
             subDir:Normalize()
 
@@ -406,7 +406,7 @@ function EFFECT:GenerateBranches( mainDir, mainLen )
             local subEnd = subStart + subDir * subLen
             local sub = self:GenerateSegmentPoints( subStart, subEnd, 2, subJitterFunc, nil )
             sub.width = branch.width * 0.5
-            branches[ #branches + 1 ] = sub
+            branches[#branches + 1] = sub
 
         end
     end
@@ -452,8 +452,8 @@ function EFFECT:Render()
 
     -- Main arc
     for i = 1, #points - 1 do
-        render.DrawBeam( points[ i ], points[ i + 1 ], width, 0, 1, renderCol )
-        render.DrawBeam( points[ i ], points[ i + 1 ], width * 0.3, 0, 1, coreCol )
+        render.DrawBeam( points[i], points[i + 1], width, 0, 1, renderCol )
+        render.DrawBeam( points[i], points[i + 1], width * 0.3, 0, 1, coreCol )
 
     end
 
@@ -467,8 +467,8 @@ function EFFECT:Render()
         for i = 1, segCount do
             local taper = 1 - ( ( i - 1 ) / segCount ) * 0.5
             local w = bw * taper
-            render.DrawBeam( branch[ i ], branch[ i + 1 ], w, 0, 1, renderCol )
-            render.DrawBeam( branch[ i ], branch[ i + 1 ], w * 0.3, 0, 1, coreCol )
+            render.DrawBeam( branch[i], branch[i + 1], w, 0, 1, renderCol )
+            render.DrawBeam( branch[i], branch[i + 1], w * 0.3, 0, 1, coreCol )
 
         end
     end

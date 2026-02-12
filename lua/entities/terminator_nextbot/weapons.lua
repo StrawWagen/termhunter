@@ -20,7 +20,7 @@ local EngineAnalogs = {
 local crateClass = "item_item_crate"
 
 local EngineAnalogsReverse = {}
-for k,v in pairs( EngineAnalogs ) do EngineAnalogsReverse[v] = k end
+for k, v in pairs( EngineAnalogs ) do EngineAnalogsReverse[v] = k end
 
 termHunter_WeaponAnalogs = EngineAnalogs
 
@@ -117,15 +117,13 @@ function ENT:Give( wepname )
 
         if not IsValid( wep ) then return end
 
-        isEngineAnalog = EngineAnalogs[ wepname ]
+        isEngineAnalog = EngineAnalogs[wepname]
 
         if not wep:IsScripted() and not isEngineAnalog then
             SafeRemoveEntity( wep )
-
             return NULL
 
         end
-
         wep:Spawn()
         wep:Activate()
         wep:SetPos( self:GetPos() )
@@ -240,7 +238,7 @@ function ENT:SetupWeapon( wep )
 
     local wepsClass = entMeta.GetClass( wep )
     -- Cannot hold engine weapons
-    if not wep:IsScripted() and not EngineAnalogs[ wepsClass ] then return end
+    if not wep:IsScripted() and not EngineAnalogs[wepsClass] then return end
 
     local myTbl = entMeta.GetTable( self )
 
@@ -263,8 +261,8 @@ function ENT:SetupWeapon( wep )
     self:SetActiveWeapon( wep )
 
     -- Custom lua weapon analog for engine weapon, this need to have WEAPON metatable
-    if EngineAnalogs[ wepsClass ] then
-        local actwep = ents.Create( EngineAnalogs[ wepsClass ] )
+    if EngineAnalogs[wepsClass] then
+        local actwep = ents.Create( EngineAnalogs[wepsClass] )
         actwep:SetOwner( self )
         actwep:SetParent( wep )
         actwep:Spawn()
@@ -742,6 +740,7 @@ function ENT:CanWeaponSecondaryAttack()
     if CurTime() < wep:GetNextSecondaryFire() then return false end
 
     return true
+
 end
 
 --[[------------------------------------
@@ -755,9 +754,13 @@ function ENT:WeaponSecondaryAttack()
 
     local wep = self:GetActiveLuaWeapon()
 
-    local successful = ProtectedCall(function() wep:NPCShoot_Secondary(self:GetShootPos(),self:GetAimVector()) end)
+    local successful = ProtectedCall( function()
+        wep:NPCShoot_Secondary( self:GetShootPos(), self:GetAimVector() )
+
+    end )
     self:HateBuggyWeapon( wep, successful )
     self:DoRangeGesture()
+
 end
 
 --[[------------------------------------
@@ -769,6 +772,7 @@ end
 function ENT:DoRangeGesture()
     local act = self:TranslateActivity( ACT_MP_ATTACK_STAND_PRIMARYFIRE )
     if not act or ( isnumber( act ) and act <= 0 ) then return end
+
     local seq
     if isstring( act ) then
         seq = self:LookupSequence( act )
@@ -784,6 +788,7 @@ function ENT:DoRangeGesture()
     self:DoGesture( act )
 
     return self:SequenceDuration( seq )
+
 end
 
 --[[------------------------------------
@@ -795,11 +800,13 @@ end
 function ENT:DoReloadGesture()
     local act = self:TranslateActivity( ACT_MP_RELOAD_STAND )
     if not act or act <= 0 then return end
+
     local seq = self:SelectWeightedSequence( act )
 
     self:DoGesture( act )
 
     return self:SequenceDuration( seq )
+
 end
 
 --[[------------------------------------
@@ -841,8 +848,9 @@ end
     Arg1: number | prof | Weapon proficiency
     Ret1: 
 --]]------------------------------------
-function ENT:SetCurrentWeaponProficiency(prof)
+function ENT:SetCurrentWeaponProficiency( prof )
     self.m_WeaponProficiency = prof
+
 end
 
 --[[------------------------------------
@@ -853,6 +861,7 @@ end
 --]]------------------------------------
 function ENT:GetCurrentWeaponProficiency()
     return self.m_WeaponProficiency or WEAPON_PROFICIENCY_GOOD
+
 end
 
 --[[------------------------------------
@@ -861,8 +870,9 @@ end
     Arg1: Entity | wep | Equiped weapon. It will be not lua analog.
     Ret1: 
 --]]------------------------------------
-function ENT:OnWeaponEquip(wep)
-    self:RunTask("OnWeaponEquip",wep)
+function ENT:OnWeaponEquip( wep )
+    self:RunTask( "OnWeaponEquip", wep )
+
 end
 
 --[[------------------------------------
@@ -873,6 +883,7 @@ end
 --]]------------------------------------
 function ENT:OnWeaponDrop( wep )
     self:RunTask( "OnWeaponDrop", wep )
+
 end
 
 --[[------------------------------------
@@ -894,7 +905,7 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     if not isCrate then
         if not wep:IsWeapon() then boring( wep ) return false end
 
-        if ( not wep:IsScripted() and not EngineAnalogs[ class ] ) then boring( wep ) return false end
+        if ( not wep:IsScripted() and not EngineAnalogs[class] ) then boring( wep ) return false end
 
     end
 
@@ -957,8 +968,9 @@ end
     Arg1: Weapon | wep | Current active weapon (this will be lua analog for engine weapon).
     Ret1: bool | Can drop.
 --]]------------------------------------
-function ENT:CanDropWeaponOnDie(wep)
-    return not self:HasSpawnFlags(SF_NPC_NO_WEAPON_DROP)
+function ENT:CanDropWeaponOnDie( _wep )
+    return not self:HasSpawnFlags( SF_NPC_NO_WEAPON_DROP )
+
 end
 
 --[[------------------------------------
@@ -967,8 +979,9 @@ end
     Arg1: Weapon | wep | Current active weapon (this will be lua analog for engine weapon).
     Ret1: bool | Should use bursts.
 --]]------------------------------------
-function ENT:ShouldWeaponAttackUseBurst(wep)
+function ENT:ShouldWeaponAttackUseBurst( _wep )
     return not self:IsControlledByPlayer()
+
 end
 
 --[[------------------------------------
@@ -1001,11 +1014,25 @@ function ENT:IsMeleeWeapon( wep )
 
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:IsRangedWeapon
+    Desc: Opposite of above.
+    Arg1: (optional) Weapon | wep | 
+          Weapon to check ( this should be lua analog for engine weapon ). 
+          Defaults to active weapon.
+    Ret1: bool | Weapon is ranged weapon.
+--]]------------------------------------
 function ENT:IsRangedWeapon( wep )
     return not self:IsMeleeWeapon( wep )
 
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:IsFists
+    Desc: Returns true if bot is using TERM_FISTS ( special weapon bot will use to crack open obstacles ).
+    Arg1: (optional) Table | myTbl | _index Optimisation table.
+    Ret1: bool | is using TERM_FISTS.
+--]]------------------------------------
 function ENT:IsFists( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
@@ -1013,6 +1040,7 @@ function ENT:IsFists( myTbl )
 
 end
 
+-- INTERNAL
 function ENT:UpdateIsFists( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
     myTbl.term_IsFists = nil
@@ -1027,6 +1055,12 @@ function ENT:UpdateIsFists( myTbl )
 
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:DoFists
+    Desc: Force bot to use ENT.TERM_FISTS. 
+          Bot will drop current weapon if it has one, but only if DontDropPrimary is not set to true.
+          TERM_FISTS is expected to be a special, innate melee weapon that bot can use to conquer obstacles that are otherwise unbreakable/
+--]]------------------------------------
 function ENT:DoFists()
     if self:IsFists() then return end
     if not self.DontDropPrimary then
@@ -1038,8 +1072,10 @@ function ENT:DoFists()
     local fists = self:Give( self.TERM_FISTS )
     fists.terminator_IgnoreWeaponUtility = true -- i was having issues with IsFists and engine overridden weps
     self:SetupFists( fists )
+
 end
 
+-- INTERNAL, makes TERM_FISTS weapon respect self.FistRangeMul
 function ENT:SetupFists( fists )
     if self.FistRangeMul then
         fists.Range = fists.Range * self.FistRangeMul
@@ -1047,21 +1083,7 @@ function ENT:SetupFists( fists )
     end
 end
 
-function ENT:GiveAmmo()
-    return nil
-
-end
-
-function ENT:GetAmmoCount()
-    return self:GetActiveWeapon():Clip1() or 0
-
-end
-
-function ENT:PickupObject()
-    return
-
-end
-
+-- find weapon's spread
 local function weapSpread( wep )
     local spread = 0
 
@@ -1083,6 +1105,7 @@ local function weapSpread( wep )
 
 end
 
+-- find bullet count ( shotguns? ) 
 local function weapBulletCount( wep )
     local count = 1
     local primary = wep.Primary
@@ -1101,6 +1124,7 @@ local function weapBulletCount( wep )
 
 end
 
+-- find weapon's damage
 local function weapDamage( wep )
     local dmg = 1
     local primary = wep.Primary
@@ -1122,58 +1146,60 @@ local function weapDamage( wep )
 
 end
 
---[[------------------------------------
-    Name: NEXTBOT:SetupEyeAngles
-    Desc: (INTERNAL) Aiming bot to desired direction.
-    Arg1: 
-    Ret1: 
---]]------------------------------------
+do
+    local math_max = math.max
+    local math_min = math.min
+    local math_abs = math.abs
 
-local math_max = math.max
-local math_min = math.min
-local math_abs = math.abs
+    --[[------------------------------------
+        Name: NEXTBOT:SetupEyeAngles
+        Desc: (INTERNAL) Aiming bot to desired direction.
+        Arg1: 
+        Ret1: 
+    --]]------------------------------------
+    function ENT:SetupEyeAngles( myTbl )
+        -- old angles
+        local angp = myTbl.m_PitchAim
+        local angy = entMeta.GetAngles( self ).y
 
-function ENT:SetupEyeAngles( myTbl )
-    -- old angles
-    local angp = myTbl.m_PitchAim
-    local angy = entMeta.GetAngles( self ).y
+        -- new angles
+        local desired = myTbl.GetDesiredEyeAngles( self ) -- AddNetworkVar
+        local punch = myTbl.GetViewPunchAngles( self ) -- AddNetworkVar
 
-    -- new angles
-    local desired = myTbl.GetDesiredEyeAngles( self ) -- AddNetworkVar
-    local punch = myTbl.GetViewPunchAngles( self ) -- AddNetworkVar
+        if myTbl.IsControlledByPlayer( self, myTbl ) then
+            desired = myTbl.GetControlPlayer( self ):EyeAngles()
+        end
 
-    if myTbl.IsControlledByPlayer( self, myTbl ) then
-        desired = myTbl.GetControlPlayer( self ):EyeAngles()
+        local diffp = math.AngleDifference( desired.p, angp )
+        local diffy = math.AngleDifference( desired.y, angy )
+        local max = myTbl.BehaveInterval * myTbl.AimSpeed
+
+        diffp = diffp < 0 and math_max( -max, diffp ) or math_min( max, diffp )
+        diffy = diffy < 0 and math_max( -max, diffy ) or math_min( max, diffy )
+
+        angp = angp + diffp
+        angy = angy + diffy
+
+        -- evil, horrible rare bug
+        if math_abs( angp ) > 360 then
+            angp = 0
+
+        end
+
+        entMeta.SetAngles( self, Angle( 0, angy, 0 ) )
+
+        myTbl.m_PitchAim = angp
+        myTbl.SetAimPitch( self, angp )
+        entMeta.SetPoseParameter( self, "aim_pitch", self.m_PitchAim + punch.p )
+        entMeta.SetPoseParameter( self, "aim_yaw", punch.y )
+
+        self:SetEyeTarget( self:GetShootPos() + self:GetEyeAngles():Forward() * 100 )
+
     end
-
-    local diffp = math.AngleDifference( desired.p, angp )
-    local diffy = math.AngleDifference( desired.y, angy )
-    local max = myTbl.BehaveInterval * myTbl.AimSpeed
-
-    diffp = diffp < 0 and math_max( -max, diffp ) or math_min( max, diffp )
-    diffy = diffy < 0 and math_max( -max, diffy ) or math_min( max, diffy )
-
-    angp = angp + diffp
-    angy = angy + diffy
-
-    -- evil, horrible rare bug
-    if math_abs( angp ) > 360 then
-        angp = 0
-
-    end
-
-    entMeta.SetAngles( self, Angle( 0, angy, 0 ) )
-
-    myTbl.m_PitchAim = angp
-    myTbl.SetAimPitch( self, angp )
-    entMeta.SetPoseParameter( self, "aim_pitch", self.m_PitchAim + punch.p )
-    entMeta.SetPoseParameter( self, "aim_yaw", punch.y )
-
-    self:SetEyeTarget( self:GetShootPos() + self:GetEyeAngles():Forward() * 100 )
-
 end
 
-hook.Add( "PlayerCanPickupWeapon", "TerminatorNextBot", function( _ply,wep )
+-- dont pickup weapons in bot's hands!
+hook.Add( "PlayerCanPickupWeapon", "TerminatorNextBot", function( _ply, wep )
     -- Do not allow pickup when bot carries this weapon
     local owner = wep:GetOwner()
     if IsValid( owner ) and owner.TerminatorNextBot then
@@ -1217,7 +1243,8 @@ function ENT:ResetWeaponSearchTimers()
 
 end
 
-terminator_Extras.weapons_analogTblsCache = terminator_Extras.weapons_analogTblsCache or {} 
+-- this cache can only ever be as big as the EngineAnalogs table
+terminator_Extras.weapons_analogTblsCache = terminator_Extras.weapons_analogTblsCache or {}
 local analogTblsCache = terminator_Extras.weapons_analogTblsCache
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_analogtblscache", function()
     terminator_Extras.weapons_analogTblsCache = {}
@@ -1265,11 +1292,13 @@ function ENT:canGetWeapon()
         local currWeap = self:GetActiveWeapon()
         if not IsValid( currWeap ) then return true, newWeap end
 
+        -- get the ENT table for the engine weapon analog, if it has one
+        -- to check for special properties like "worksWithoutSightline"
         local analogClass = wepDat.engineAnalog
-        local analogsData = analogTblsCache[ analogClass ]
+        local analogsData = analogTblsCache[analogClass]
         if analogClass and not analogsData then
             analogsData = weapons.Get( analogClass )
-            analogTblsCache[ analogClass ] = analogsData
+            analogTblsCache[analogClass] = analogsData
 
         end
 
@@ -1327,8 +1356,13 @@ function ENT:canGetWeapon()
     end
 end
 
--- tells bot to get the best weapon it ever found, even if it's halfway across the map
--- used in term tasks when enemy is unreachable 
+--[[------------------------------------
+    Name: NEXTBOT:GetTheBestWeapon
+    Desc: tells bot to get the best weapon it ever found, even if it's halfway across the map
+          used in term tasks when enemy is unreachable
+    Arg1: 
+    Ret1:
+--]]------------------------------------
 function ENT:GetTheBestWeapon()
     local nextGetBest = self.term_NextNeedsAWeaponNow
     if not nextGetBest then
@@ -1352,7 +1386,14 @@ function ENT:GetTheBestWeapon()
 
 end
 
--- can find item crates too
+--[[------------------------------------
+    Name: NEXTBOT:FindWeapon
+    Desc: Finds the best weapon in range, including holstered ones. 
+          Uses a lot of factors to determine which weapon is best.
+          Caches the result, and only updates it every few seconds.
+    Arg1: Table | myTbl | _index optimisation table.
+    Ret1: Table | { wep = Entity, weight = number, range = number, isBox = bool }
+--]]------------------------------------
 function ENT:FindWeapon( myTbl )
     local searchrange = myTbl.WeaponSearchRange
     local wep
@@ -1422,7 +1463,7 @@ function ENT:FindWeapon( myTbl )
 
     for _, potentialWeap in ipairs( found ) do
 
-        if notAWeaponCache[ potentialWeap ] then continue end
+        if notAWeaponCache[potentialWeap] then continue end
 
         local wepsTbl = entMeta.GetTable( potentialWeap )
         if not CanPickupWeapon( self, potentialWeap, false, myTbl, wepsTbl ) then continue end
@@ -1486,6 +1527,14 @@ function ENT:FindWeapon( myTbl )
 
 end
 
+--[[------------------------------------
+    Name: ENT:Term_GetDamageTrackerOf
+    Desc: (INTERNAL) Gets the damage tracker table for a weapon or class. Creates it if it doesn't exist.
+    Arg1: Entity | me | Bot to get tracker for.
+    Arg2: Table | myTbl | Bot's ENT table.
+    Arg3: string|Entity | wepOrClass | Weapon or class to get tracker for.
+    Ret1: Table | Damage tracker table.
+--]]------------------------------------
 local function getDamageTrackerOf( me, myTbl, wepOrClass )
     local trackers = myTbl.term_WeaponDamageTrackers
     if not trackers then
@@ -1504,7 +1553,7 @@ local function getDamageTrackerOf( me, myTbl, wepOrClass )
 
     if not isstring( class ) then return end
 
-    local tracker = trackers[ class ]
+    local tracker = trackers[class]
     if not tracker then
         -- tolerance for weapons
         local bonusAttackAttempts = 30
@@ -1546,7 +1595,7 @@ local function getDamageTrackerOf( me, myTbl, wepOrClass )
             maxDistEverDamagedWith = 0,
 
         }
-        trackers[ class ] = tracker
+        trackers[class] = tracker
 
     end
     return tracker
@@ -1555,6 +1604,14 @@ end
 
 ENT.Term_GetDamageTrackerOf = getDamageTrackerOf
 
+--[[------------------------------------
+    Name: ENT:Term_GetTrackedDamage
+    Desc: Gets the tracked damage for a weapon or class, used to judge weapons, stop using ones that never deal any damage.
+    Arg1: Entity | me | Bot to get tracker for.
+    Arg2: Table | myTbl | Bot's ENT table.
+    Arg3: string|Entity | wepOrClass | Weapon or class to get tracker for.
+    Ret1: number | Total damage tracked for this weapon or class.
+--]]------------------------------------
 local function getTrackedDamage( me, myTbl, wepOrClass )
     local dmgTracker = getDamageTrackerOf( me, myTbl, wepOrClass )
     if not dmgTracker then return end
@@ -1565,6 +1622,15 @@ end
 
 ENT.Term_GetTrackedDamage = getTrackedDamage
 
+--[[------------------------------------
+    Name: addTrackedDamage
+    Desc: (INTERNAL) Used to update a tracker for a weapon/class upon damage event.
+    Arg1: Entity | me | Bot to add damage for.
+    Arg2: Table | myTbl | Bot's ENT table.
+    Arg3: string|Entity | wepOrClass | Weapon or class to add damage for.
+    Arg4: number | add | Amount of damage to add.
+    Ret1:
+--]]------------------------------------
 local function addTrackedDamage( me, myTbl, wepOrClass, add )
     local dmgTracker = getDamageTrackerOf( me, myTbl, wepOrClass )
     if not dmgTracker then return end
@@ -1768,8 +1834,30 @@ end
 
 local dropWeps = CreateConVar( "termhunter_dropuselessweapons", 1, FCVAR_NONE, "Detect and drop useless weapons? Does not stop bot from dropping erroring weapons" )
 
--- is a weapon not being useful?
-
+--[[------------------------------------
+    Name: ENT:JudgeWeapon
+    Desc: Evaluates weapon performance and adjusts bot behavior accordingly.
+          
+          This function implements a sophisticated weapon utility tracking system that:
+          - Tracks damage dealt vs. attack attempts to measure weapon effectiveness
+          - Records standing vs. crouching performance for future optimization
+          - Automatically drops weapons that consistently fail to deal damage
+          - Increases weight for highly effective weapons
+          - Decreases weight for underperforming weapons progressively
+          - Enables "no leading" mode if weapon underperforms with leading enabled
+          - Respects weapon ownership (won't drop default/property weapons)
+          - Skips judgment for fists, utility-ignored weapons
+          
+          The judgment system uses tolerance thresholds and bonus attack attempts that vary
+          by weapon type (melee, spread-based, etc.) to account for different firing patterns.
+          
+          Only judges when termhunter_dropuselessweapons is enabled and there is perfect 
+          visibility to the enemy (NothingOrBreakableBetweenEnemy).
+    
+    Arg1: Table | myTbl | Bot's ENT table ( _index optimization ).
+    Arg2: Entity | myWeapon | Weapon entity to judge ( can be engine or scripted weapon ).
+    Ret1: nil | No return value. Side effects include dropping weapon, adjusting weights, and updating damage tracker.
+--]]------------------------------------
 function ENT:JudgeWeapon( myTbl, myWeapon )
     if myTbl.IsFists( self, myTbl ) then return end
     if not dropWeps:GetBool() then return end -- can disable this
@@ -1847,6 +1935,16 @@ function ENT:JudgeWeapon( myTbl, myWeapon )
     end
 end
 
+--[[------------------------------------
+    Name: ENT:TryAndUseWeaponRight
+    Desc: Analyzes weapon damage tracker and crouches if weapon performs better while crouching.
+          Compares damage-per-attempt ratio between standing and crouching positions.
+          Only applies to bots with brains( optimisation ), and skips in dangerous/close-range situations.
+    Arg1: Table | myTbl | Bot's ENT table.
+    Arg2: Entity | _wep | Weapon entity ( unused parameter ).
+    Arg3: Table | dmgTracker | Damage tracker table for the weapon.
+    Ret1: nil | Sets self.overrideCrouch if crouching is determined to be more effective.
+--]]------------------------------------
 function ENT:TryAndUseWeaponRight( myTbl, _wep, dmgTracker )
     if not myTbl.HasBrains then return end -- no brains, no crouching
 
@@ -1877,7 +1975,13 @@ function ENT:TryAndUseWeaponRight( myTbl, _wep, dmgTracker )
     end
 end
 
-
+--[[------------------------------------
+    Name: ENT:WeaponIsPlacable
+    Desc: Checks if a weapon can be placed ( for tasks that involve placing weapons in the world ).
+          See slams engine override for functional example 
+    Arg1: Entity | wep | Weapon entity to check ( defaults to active weapon if not provided ).
+    Ret1: bool | True if the weapon is placable, false otherwise.
+--]]------------------------------------
 function ENT:WeaponIsPlacable( wep )
     wep = wep or self:GetWeapon()
 
@@ -1888,8 +1992,16 @@ function ENT:WeaponIsPlacable( wep )
 
 end
 
-
-
+--[[------------------------------------
+    Name: ENT:GetWeaponRange
+    Desc: Gets effective weapon range. Uses empirical combat data (maxDistEverDamagedWith) after weapon
+          has proven itself (20+ attacks, 250+ damage), otherwise falls back to weapon properties or
+          calculates from spread/bullet count. Returns math.huge for infinite range.
+    Arg1: Table | myTbl | Bot's ENT table (_index optimization).
+    Arg2: Entity | wep | Weapon entity to check (defaults to active weapon).
+    Arg3: Table | wepTable | Weapon's ENT table (optional optimization).
+    Ret1: number | Effective range in Hammer units, or math.huge for infinite range.
+--]]------------------------------------
 function ENT:GetWeaponRange( myTbl, wep, wepTable )
     myTbl = myTbl or entMeta.GetTable( self )
 

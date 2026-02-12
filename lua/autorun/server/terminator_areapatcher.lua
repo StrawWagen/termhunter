@@ -276,7 +276,7 @@ local function mergeWithNeighbors( data, vecsToPlace )
         if not allGood then continue end
 
         for _, toMerge in ipairs( neighbors ) do
-            vecsToPlace[ toMerge.key ] = nil
+            vecsToPlace[toMerge.key] = nil
 
         end
 
@@ -504,211 +504,216 @@ end
 
 local coroutine_yield = coroutine.yield
 
+local function patchThink()
+    terminator_Extras.IsLivePatching = true
+    coroutine_yield()
+
+    -- Retrieve the next region from the queue
+    local region = table.remove( regionsQueue, 1 )
+    updateGridSize( region.gridSize )
+
+    local newGenCenter = region.pos1 + region.pos2
+    newGenCenter = newGenCenter / 2
+
+    if oldGenCenter and patchTbl.gridSize < 12.5 and oldGenCenter:Distance( newGenCenter ) < ( patchTbl.gridSize * 6 ) then -- we are stuck regenerating one point, try shuffling this
+        gridOffset = math.random( -4, 4 )
+        debugPrint( "Area generation is stuck, offsetting grid by " .. gridOffset )
+
+    else
+        gridOffset = 0
+
+    end
+
+    local pos1 = VectorMin( region.pos1, region.pos2 )
+    local pos2 = VectorMax( region.pos1, region.pos2 )
+    SnapToGrid( pos1 )
+    SnapToGrid( pos2 )
+
+    oldGenCenter = newGenCenter
+
+    debugPrint( "Patching region from", pos1, "to", pos2 )
+
+    local openVoxelsSeq = {} -- spots we are yet to check
+    local closedVoxels = {} -- spots that we dont need to check
+    local solidVoxels = {} -- solid spots
+    local vecsToPlace = {} -- good spots we found
+    local headroomTbl = {} -- headroom, for simple crouching checks
+    local validatedAreas = {} -- all the areas we made this pass
+
+    local biggest = VectorMax( pos1, pos2 )
+    local smallest = VectorMin( pos1, pos2 )
+
+    local sizeInX = biggest.x - smallest.x
+    local sizeInY = biggest.y - smallest.y
+    local sizeInZ = biggest.z - smallest.z
+
+    for z = 0, sizeInZ / patchTbl.gridSize do -- z first
+        z = z * patchTbl.gridSize
+        coroutine_yield()
+
+        for x = 0, sizeInX / patchTbl.gridSize do
+            x = x * patchTbl.gridSize
+            coroutine_yield()
+
+            for y = 0, sizeInY / patchTbl.gridSize do
+                y = y * patchTbl.gridSize
+                local voxel = Vector( smallest.x + x, smallest.y + y, smallest.z + z )
+                table.insert( openVoxelsSeq, voxel )
+
+            end
+        end
+    end
+
+    debugPrint( "Total voxels to process:", #openVoxelsSeq )
+
+    -- Step 5: Process each voxel
+    while #openVoxelsSeq >= 1 do
+        local currVoxel = table.remove( openVoxelsSeq )
+        if closedVoxels[vecAsKey( currVoxel )] then continue end
+
+        coroutine_yield()
+        processVoxel( currVoxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
+        if debugging and IsValid( Entity( 1 ) ) and currVoxel:Distance( Entity( 1 ):GetPos() ) < 250 then
+            coroutine_yield( "wait" )
+
+        end
+    end
+
+    local count = table.Count( vecsToPlace )
+    debugPrint( "Placing!" )
+
+    if count >= 1 then
+        debugPrint( "Pre-merging areas..." )
+
+        local merged = true
+        while merged do
+            coroutine_yield()
+            merged = nil
+            for _, data in pairs( vecsToPlace ) do
+                coroutine_yield()
+                if mergeWithNeighbors( data, vecsToPlace ) then
+                    merged = true
+                    break
+
+                end
+            end
+        end
+
+        debugPrint( "Placing " .. count .. " navareas..." )
+
+        local justNewAreas = {}
+        local justNewAreasSeq = {}
+        for _, data in pairs( vecsToPlace ) do
+            coroutine_yield()
+            if debugging then
+                debugoverlay.Cross( data.corner1, 5, 10, Color( 0, 255, 0 ), true )
+                debugoverlay.Cross( data.corner2, 5, 10, Color( 0, 255, 0 ), true )
+
+            end
+            local newArea = navmesh.CreateNavArea( data.corner1, data.corner2 )
+            table.insert( justNewAreasSeq, newArea )
+            justNewAreas[newArea] = true
+            data.newArea = newArea
+            if data.crouch then
+                newArea:AddAttributes( NAV_MESH_CROUCH )
+
+            end
+        end
+
+        debugPrint( "Connecting placed areas..." )
+        coroutine_yield( "wait" )
+
+        local additionalSize = math_max( patchTbl.gridSize, 25 )
+        local additional = Vector( additionalSize, additionalSize, additionalSize )
+
+        for _, data in pairs( vecsToPlace ) do
+            coroutine_yield()
+            local upOff = patchTbl.upCrouch / 2
+            local newArea = data.newArea
+            local mins, maxs = navGetBounds( newArea )
+            for _, otherArea in ipairs( navmesh.FindInBox( mins + -additional, maxs + additional ) ) do
+                local trivialDist -- defaults to 5 in following navpatcher 
+                if not justNewAreas[otherArea] then
+                    trivialDist = math_max( 25, patchTbl.gridSize ) -- not a new area, allow long connections!
+
+                end
+                coroutine_yield()
+                local connectable1 = terminator_Extras.AreasAreConnectable( newArea, otherArea, upOff, trivialDist )
+                local connectable2 = terminator_Extras.AreasAreConnectable( otherArea, newArea, upOff, trivialDist )
+                if connectable1 then
+                    newArea:ConnectTo( otherArea )
+
+                end
+                if connectable2 then
+                    otherArea:ConnectTo( newArea )
+
+                end
+            end
+        end
+
+        debugPrint( "Merging placed areas..." )
+        coroutine_yield( "wait" )
+
+        merged = true
+        while merged do
+            coroutine_yield()
+            merged = nil
+            for _, area in ipairs( justNewAreasSeq ) do
+                if not IsValid( area ) then continue end
+                for _, neighbor in ipairs( area:GetAdjacentAreas() ) do
+                    merged, _, mergedArea = terminator_Extras.navmeshAttemptMerge( area, neighbor )
+                    if not merged then continue end
+
+                    table.insert( justNewAreasSeq, mergedArea )
+                    coroutine_yield( "wait" )
+                    break
+
+                end
+                if merged then
+                    break
+
+                end
+            end
+        end
+        validatedAreas = {}
+        for _, area in ipairs( justNewAreasSeq ) do
+            if IsValid( area ) then
+                table.insert( validatedAreas, area )
+
+            end
+        end
+
+        debugPrint( "checking for attributes..." )
+
+        local trStruc = {
+            filter = filterFunc,
+        }
+        local upCrouchCheck = Vector( 0, 0, 10 )
+        local endOffset = Vector( 0, 0, patchTbl.headroomStandRaw )
+        for _, area in ipairs( validatedAreas ) do
+            local areasCenter = area:GetCenter()
+            trStruc.start = areasCenter + upCrouchCheck
+            trStruc.endpos = areasCenter + endOffset
+
+            local result = util.TraceLine( trStruc )
+            if result.Hit then
+                area:AddAttributes( NAV_MESH_CROUCH )
+
+            end
+        end
+    end
+    terminator_Extras.IsLivePatching = nil
+    coroutine_yield( "waitlong" )
+
+    local areaCreatedCount = #validatedAreas
+    hook.Run( "terminator_areapatcher_doneapatch", validatedAreas, areaCreatedCount )
+
+end
+
 -- Coroutine function to handle patching regions one-by-one
 local function patchCoroutine()
     while #regionsQueue > 0 do
-        terminator_Extras.IsLivePatching = true
-        coroutine_yield()
-
-        -- Retrieve the next region from the queue
-        local region = table.remove( regionsQueue, 1 )
-        updateGridSize( region.gridSize )
-
-        local newGenCenter = region.pos1 + region.pos2
-        newGenCenter = newGenCenter / 2
-
-        if oldGenCenter and patchTbl.gridSize < 12.5 and oldGenCenter:Distance( newGenCenter ) < ( patchTbl.gridSize * 6 ) then -- we are stuck regenerating one point, try shuffling this
-            gridOffset = math.random( -4, 4 )
-            debugPrint( "Area generation is stuck, offsetting grid by " .. gridOffset )
-
-        else
-            gridOffset = 0
-
-        end
-
-        local pos1 = VectorMin( region.pos1, region.pos2 )
-        local pos2 = VectorMax( region.pos1, region.pos2 )
-        SnapToGrid( pos1 )
-        SnapToGrid( pos2 )
-
-        oldGenCenter = newGenCenter
-
-        debugPrint( "Patching region from", pos1, "to", pos2 )
-
-        local openVoxelsSeq = {} -- spots we are yet to check
-        local closedVoxels = {} -- spots that we dont need to check
-        local solidVoxels = {} -- solid spots
-        local vecsToPlace = {} -- good spots we found
-        local headroomTbl = {} -- headroom, for simple crouching checks
-        local validatedAreas = {} -- all the areas we made this pass
-
-        local biggest = VectorMax( pos1, pos2 )
-        local smallest = VectorMin( pos1, pos2 )
-
-        local sizeInX = biggest.x - smallest.x
-        local sizeInY = biggest.y - smallest.y
-        local sizeInZ = biggest.z - smallest.z
-
-        for z = 0, sizeInZ / patchTbl.gridSize do -- z first
-            z = z * patchTbl.gridSize
-            coroutine_yield()
-
-            for x = 0, sizeInX / patchTbl.gridSize do
-                x = x * patchTbl.gridSize
-                coroutine_yield()
-
-                for y = 0, sizeInY / patchTbl.gridSize do
-                    y = y * patchTbl.gridSize
-                    local voxel = Vector( smallest.x + x, smallest.y + y, smallest.z + z )
-                    table.insert( openVoxelsSeq, voxel )
-
-                end
-            end
-        end
-
-        debugPrint( "Total voxels to process:", #openVoxelsSeq )
-
-        -- Step 5: Process each voxel
-        while #openVoxelsSeq >= 1 do
-            local currVoxel = table.remove( openVoxelsSeq )
-            if closedVoxels[vecAsKey( currVoxel )] then continue end
-
-            coroutine_yield()
-            processVoxel( currVoxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
-            if debugging and IsValid( Entity(1) ) and currVoxel:Distance( Entity(1):GetPos() ) < 250 then
-                coroutine_yield( "wait" )
-
-            end
-        end
-
-        local count = table.Count( vecsToPlace )
-        debugPrint( "Placing!" )
-
-        if count >= 1 then
-            debugPrint( "Pre-merging areas..." )
-
-            local merged = true
-            while merged do
-                coroutine_yield()
-                merged = nil
-                for _, data in pairs( vecsToPlace ) do
-                    coroutine_yield()
-                    if mergeWithNeighbors( data, vecsToPlace ) then
-                        merged = true
-                        break
-
-                    end
-                end
-            end
-
-            debugPrint( "Placing " .. count .. " navareas..." )
-
-            local justNewAreas = {}
-            local justNewAreasSeq = {}
-            for _, data in pairs( vecsToPlace ) do
-                coroutine_yield()
-                if debugging then
-                    debugoverlay.Cross( data.corner1, 5, 10, Color( 0, 255, 0 ), true )
-                    debugoverlay.Cross( data.corner2, 5, 10, Color( 0, 255, 0 ), true )
-
-                end
-                local newArea = navmesh.CreateNavArea( data.corner1, data.corner2 )
-                table.insert( justNewAreasSeq, newArea )
-                justNewAreas[newArea] = true
-                data.newArea = newArea
-                if data.crouch then
-                    newArea:AddAttributes( NAV_MESH_CROUCH )
-
-                end
-            end
-
-            debugPrint( "Connecting placed areas..." )
-            coroutine_yield( "wait" )
-
-            local additionalSize = math_max( patchTbl.gridSize, 25 )
-            local additional = Vector( additionalSize, additionalSize, additionalSize )
-
-            for _, data in pairs( vecsToPlace ) do
-                coroutine_yield()
-                local upOff = patchTbl.upCrouch / 2
-                local newArea = data.newArea
-                local mins, maxs = navGetBounds( newArea )
-                for _, otherArea in ipairs( navmesh.FindInBox( mins + -additional, maxs + additional ) ) do
-                    local trivialDist -- defaults to 5 in following navpatcher 
-                    if not justNewAreas[otherArea] then
-                        trivialDist = math_max( 25, patchTbl.gridSize ) -- not a new area, allow long connections!
-
-                    end
-                    coroutine_yield()
-                    local connectable1 = terminator_Extras.AreasAreConnectable( newArea, otherArea, upOff, trivialDist )
-                    local connectable2 = terminator_Extras.AreasAreConnectable( otherArea, newArea, upOff, trivialDist )
-                    if connectable1 then
-                        newArea:ConnectTo( otherArea )
-
-                    end
-                    if connectable2 then
-                        otherArea:ConnectTo( newArea )
-
-                    end
-                end
-            end
-
-            debugPrint( "Merging placed areas..." )
-            coroutine_yield( "wait" )
-
-            merged = true
-            while merged do
-                coroutine_yield()
-                merged = nil
-                for _, area in ipairs( justNewAreasSeq ) do
-                    if not IsValid( area ) then continue end
-                    for _, neighbor in ipairs( area:GetAdjacentAreas() ) do
-                        merged, _, mergedArea = terminator_Extras.navmeshAttemptMerge( area, neighbor )
-                        if merged then
-                            table.insert( justNewAreasSeq, mergedArea )
-                            coroutine_yield( "wait" )
-                            break
-
-                        end
-                    end
-                    if merged then
-                        break
-
-                    end
-                end
-            end
-            validatedAreas = {}
-            for _, area in ipairs( justNewAreasSeq ) do
-                if IsValid( area ) then
-                    table.insert( validatedAreas, area )
-
-                end
-            end
-
-            debugPrint( "checking for attributes..." )
-
-            local trStruc = {
-                filter = filterFunc,
-            }
-            local upCrouchCheck = Vector( 0, 0, 10 )
-            local endOffset = Vector( 0, 0, patchTbl.headroomStandRaw )
-            for _, area in ipairs( validatedAreas ) do
-                local areasCenter = area:GetCenter()
-                trStruc.start = areasCenter + upCrouchCheck
-                trStruc.endpos = areasCenter + endOffset
-
-                local result = util.TraceLine( trStruc )
-                if result.Hit then
-                    area:AddAttributes( NAV_MESH_CROUCH )
-
-                end
-            end
-        end
-        terminator_Extras.IsLivePatching = nil
-        coroutine_yield( "waitlong" )
-
-        local areaCreatedCount = #validatedAreas
-        hook.Run( "terminator_areapatcher_doneapatch", validatedAreas, areaCreatedCount )
+        patchThink()
 
     end
 
@@ -745,38 +750,39 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
             thread = coroutine.create( patchCoroutine )
 
         end
-        if thread then
-            local oldTime = SysTime()
 
-            while math_abs( oldTime - SysTime() ) < areaPatchingRate do
-                inCoroutine = true
-                local noErrors, result = coroutine_resume( thread )
-                inCoroutine = nil
-                if noErrors == false then -- errored
-                    thread = nil
-                    terminator_Extras.IsLivePatching = nil
-                    ErrorNoHaltWithStack( result )
-                    break
+        if not thread then return end
 
-                elseif result == "wait" then -- it wants us to wait a tick
-                    break
+        local oldTime = SysTime()
 
-                elseif result == "waitlong" then -- it wants us to wait a bit
-                    nextThink = CurTime() + 0.5
-                    break
+        while math_abs( oldTime - SysTime() ) < areaPatchingRate do
+            inCoroutine = true
+            local noErrors, result = coroutine_resume( thread )
+            inCoroutine = nil
+            if noErrors == false then -- errored
+                thread = nil
+                terminator_Extras.IsLivePatching = nil
+                ErrorNoHaltWithStack( result )
+                break
 
-                elseif result == "done" then -- all finished, clean up hook
-                    thread = nil
-                    terminator_Extras.IsLivePatching = nil
-                    hook.Remove( "Think", "PatchThinkHook" )
-                    timer.Simple( 30, function() -- clean this up if patching stops
-                        if terminator_Extras.IsLivePatching then return end
-                        patchCleanup()
+            elseif result == "wait" then -- it wants us to wait a tick
+                break
 
-                    end )
-                    break
+            elseif result == "waitlong" then -- it wants us to wait a bit
+                nextThink = CurTime() + 0.5
+                break
 
-                end
+            elseif result == "done" then -- all finished, clean up hook
+                thread = nil
+                terminator_Extras.IsLivePatching = nil
+                hook.Remove( "Think", "PatchThinkHook" )
+                timer.Simple( 30, function() -- clean this up if patching stops
+                    if terminator_Extras.IsLivePatching then return end
+                    patchCleanup()
+
+                end )
+                break
+
             end
         end
     end )
@@ -836,4 +842,4 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
 
     end
 
-end, nil, "Patch a nav region centered at your crosshair using smallSize and specified grid size (default 11.25, superadmin only)")
+end, nil, "Patch a nav region centered at your crosshair using smallSize and specified grid size (default 11.25, superadmin only)" )

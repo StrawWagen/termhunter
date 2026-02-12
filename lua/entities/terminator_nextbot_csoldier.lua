@@ -236,7 +236,7 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
 
         end )
     end
-    local cached = coverposCache[ cacheStr ]
+    local cached = coverposCache[cacheStr]
     if cached then
         return cached
 
@@ -271,12 +271,12 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
     end
 
     if willSeeEnemy and not willSeeEnemyCrouching and coverPos.z >= ( entMeta.GetPos( self ).z + -40 ) then
-        coverposCache[ cacheStr ] = COVER_SOFTCOVER
+        coverposCache[cacheStr] = COVER_SOFTCOVER
         return COVER_SOFTCOVER
 
     elseif not willSeeEnemy and not willSeeEnemyCrouching then
         --debugoverlay.Line( posIfStanding, enemysShoot, 1, Color( 255, 0, 0 ), true )
-        coverposCache[ cacheStr ] = COVER_HARDCOVER
+        coverposCache[cacheStr] = COVER_HARDCOVER
         return COVER_HARDCOVER
 
     elseif hasBrains then -- brainy enemies can notice "crap" cover, otherwise treat all as no cover
@@ -289,16 +289,16 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
         local notEvenCrapCover = not crapCoverTr.Hit or crapCoverTr.Entity == enemy
         notEvenCrapCover = notEvenCrapCover and not crapCoverTr.StartSolid
         if notEvenCrapCover then
-            coverposCache[ cacheStr ] = COVER_NONE
+            coverposCache[cacheStr] = COVER_NONE
             return COVER_NONE
 
         else
-            coverposCache[ cacheStr ] = COVER_CRAPCOVER
+            coverposCache[cacheStr] = COVER_CRAPCOVER
             return COVER_CRAPCOVER
 
         end
     else
-        coverposCache[ cacheStr ] = COVER_NONE
+        coverposCache[cacheStr] = COVER_NONE
         return COVER_NONE
 
     end
@@ -346,14 +346,14 @@ function ENT:PopulateWithAreaOccupiedCounts( myTbl, toPopulate )
 
         if IsValid( allyPathEndArea ) then
             local areaId = allyPathEndArea:GetID()
-            local oldCount = toPopulate[ areaId ] or 1
-            toPopulate[ areaId ] = oldCount + spreadOutWeight / 2
+            local oldCount = toPopulate[areaId] or 1
+            toPopulate[areaId] = oldCount + spreadOutWeight / 2
 
         end
         if IsValid( allyArea ) then
             local areaId = allyArea:GetID()
-            local oldCount = toPopulate[ areaId ] or 1
-            toPopulate[ areaId ] = oldCount + spreadOutWeight
+            local oldCount = toPopulate[areaId] or 1
+            toPopulate[areaId] = oldCount + spreadOutWeight
 
         end
     end
@@ -394,7 +394,7 @@ function ENT:FindANearbyRecruitingLeader( myTbl )
     local leaderPositions = {}
     for _, leader in ipairs( potentialLeaders ) do
         if not IsValid( leader ) then invalidLeaders[leader] = true continue end
-        leaderPositions[ leader ] = entMeta.GetPos( leader )
+        leaderPositions[leader] = entMeta.GetPos( leader )
 
     end
     local Distance = vecMeta.Distance
@@ -973,7 +973,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     scoreData.minCoverposZ = math.max( myPos.z + -50, enemysShoot.z + -100 ) -- dont go below the enemy's shoot pos
 
                     if hasBrains and IsValid( enemysNav ) then
-                        scoreData.occupiedAreaCosts[ enemysNav:GetID() ] = 100
+                        scoreData.occupiedAreaCosts[enemysNav:GetID()] = 100
 
                     end
 
@@ -1037,8 +1037,8 @@ function ENT:DoCustomTasks( defaultTasks )
                             end
                         end
 
-                        if scoreData.occupiedAreaCosts[ area2sId ] then
-                            local occupiedCount = scoreData.occupiedAreaCosts[ area2sId ]
+                        if scoreData.occupiedAreaCosts[area2sId] then
+                            local occupiedCount = scoreData.occupiedAreaCosts[area2sId]
                             if occupiedCount and occupiedCount > 1 then
                                 score = score / occupiedCount
 
@@ -2112,7 +2112,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                             end
 
-                            if scoreData.AlreadyPatrolledAreas[ area2sId ] then
+                            if scoreData.AlreadyPatrolledAreas[area2sId] then
                                 score = score / math.random( 2, 3 ) -- avoid already patrolled areas
 
                             end
@@ -2142,7 +2142,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         end
                         local finalPatrolCenter, finalPatrolArea = myTbl.findValidNavResult( self, scoreData, myPos, scoreData.searchRadius, scoreFunction )
                         if IsValid( finalPatrolArea ) then
-                            data.AlreadyPatrolledAreas[ finalPatrolArea:GetID() ] = true
+                            data.AlreadyPatrolledAreas[finalPatrolArea:GetID()] = true
                             data.CurrentTaskGoalPos = finalPatrolCenter
                             if followerCount <= 0 then
                                 data.WatchFromArea = finalPatrolArea -- im not a leader, so i'll watch from this area

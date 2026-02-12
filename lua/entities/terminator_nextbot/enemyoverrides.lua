@@ -156,6 +156,56 @@ do
 
     end
 
+    local function shootPosFromHitboxes( self, ent, random, entsTbl )
+        local sets = entMeta.GetHitboxSetCount( ent )
+        if sets then
+            local hitboxes = {}
+            local data = entsTbl.term_cachedHitboxData or nil
+
+            if not data then
+                for num1 = 0, sets - 1 do
+                    for num2 = 0, entMeta.GetHitBoxCount( ent, num1 ) - 1 do
+                        local group = entMeta.GetHitBoxHitGroup( ent, num2, num1 )
+
+                        hitboxes[group] = hitboxes[group] or {}
+                        hitboxes[group][#hitboxes[group] + 1] = { entMeta.GetHitBoxBone( ent, num2, num1 ), entMeta.GetHitBoxBounds( ent, num2, num1 ) }
+
+                    end
+                end
+
+                if hitboxes[HITGROUP_HEAD] then
+                    data = hitboxes[HITGROUP_HEAD][random and math.random( #hitboxes[HITGROUP_HEAD] ) or 1]
+
+                elseif hitboxes[HITGROUP_CHEST] then
+                    data = hitboxes[HITGROUP_CHEST][random and math.random( #hitboxes[HITGROUP_CHEST] ) or 1]
+
+                elseif hitboxes[HITGROUP_GENERIC] then
+                    data = hitboxes[HITGROUP_GENERIC][random and math.random( #hitboxes[HITGROUP_GENERIC] ) or 1]
+
+                end
+                entsTbl.term_cachedHitboxData = data
+                -- just in case their model changes
+                timer.Simple( math.Rand( 5, 10 ), function()
+                    if not IsValid( self ) then return end
+                    if not IsValid( ent ) then return end
+                    entsTbl.term_cachedHitboxData = nil
+
+                end )
+            end
+
+            if data then
+                local bonem = entMeta.GetBoneMatrix( ent, data[1] )
+                if bonem then
+                    local theCenter = data[2] + ( data[3] - data[2] ) / 2
+
+                    local pos = LocalToWorld( theCenter, angle_zero, matrixMeta.GetTranslation( bonem ), matrixMeta.GetAngles( bonem ) )
+                    return cacheEntShootPos( ent, entsTbl, pos )
+
+                end
+            end
+        end
+    end
+
     --[[------------------------------------
         Name: ENT:EntShootPos
         Desc: Gets another npc/player/nextbot's shoot position.
@@ -184,53 +234,9 @@ do
         local isCrouchingPlayer = isPly and ent:Crouching()
 
         if not isCrouchingPlayer then
-            local sets = entMeta.GetHitboxSetCount( ent )
-            if sets then
-                local hitboxes = {}
-                local data = entsTbl.term_cachedHitboxData or nil
+            local shootPos = shootPosFromHitboxes( self, ent, random, entsTbl )
+            if shootPos then return shootPos end
 
-                if not data then
-                    for num1 = 0, sets - 1 do
-                        for num2 = 0, entMeta.GetHitBoxCount( ent, num1 ) - 1 do
-                            local group = entMeta.GetHitBoxHitGroup( ent, num2, num1 )
-
-                            hitboxes[group] = hitboxes[group] or {}
-                            hitboxes[group][#hitboxes[group] + 1] = { entMeta.GetHitBoxBone( ent, num2, num1 ), entMeta.GetHitBoxBounds( ent, num2, num1 ) }
-
-                        end
-                    end
-
-                    if hitboxes[HITGROUP_HEAD] then
-                        data = hitboxes[HITGROUP_HEAD][ random and math.random( #hitboxes[HITGROUP_HEAD] ) or 1 ]
-
-                    elseif hitboxes[HITGROUP_CHEST] then
-                        data = hitboxes[HITGROUP_CHEST][ random and math.random( #hitboxes[HITGROUP_CHEST] ) or 1 ]
-
-                    elseif hitboxes[HITGROUP_GENERIC] then
-                        data = hitboxes[HITGROUP_GENERIC][ random and math.random( #hitboxes[HITGROUP_GENERIC] ) or 1 ]
-
-                    end
-                    entsTbl.term_cachedHitboxData = data
-                    -- just in case their model changes
-                    timer.Simple( math.Rand( 5, 10 ), function()
-                        if not IsValid( self ) then return end
-                        if not IsValid( ent ) then return end
-                        entsTbl.term_cachedHitboxData = nil
-
-                    end )
-                end
-
-                if data then
-                    local bonem = entMeta.GetBoneMatrix( ent, data[1] )
-                    if bonem then
-                        local theCenter = data[2] + ( data[3] - data[2] ) / 2
-
-                        local pos = LocalToWorld( theCenter, angle_zero, matrixMeta.GetTranslation( bonem ), matrixMeta.GetAngles( bonem ) )
-                        return cacheEntShootPos( ent, entsTbl, pos )
-
-                    end
-                end
-            end
         end
 
         --debugoverlay.Cross( ent:WorldSpaceCenter(), 5, 10, Color( 255,255,255 ), true )
@@ -510,7 +516,7 @@ do
     local coroutine_yield = coroutine.yield
 
     local function processFindingEnt( self, myTbl, ent, fodder, myFov, ShouldBeEnemy, CanSeePosition, UpdateEnemyMemory, EntShootPos )
-        if notEnemyCache[ ent ] then return end
+        if notEnemyCache[ent] then return end
 
         if ent == self then return end
 
@@ -660,7 +666,7 @@ do
             d, priority = entr[1], entr[2]
         end
 
-        local classr = myTbl.m_ClassRelationships[ entMeta.GetClass( ent )]
+        local classr = myTbl.m_ClassRelationships[entMeta.GetClass( ent )]
         if classr and ( not priority or classr[2] > priority ) then
             d, priority = classr[1], classr[2]
         end
@@ -1086,14 +1092,14 @@ function ENT:validSoundHint()
         if interesting then return true end
 
         local id = emitter:GetCreationID()
-        local oldCount = self.heardThingCounts[ id ] or 0
-        self.heardThingCounts[ id ] = oldCount + 1
+        local oldCount = self.heardThingCounts[id] or 0
+        self.heardThingCounts[id] = oldCount + 1
 
         --print( emitter, oldCount )
 
         timer.Simple( 120, function()
             if not IsValid( self ) then return end
-            self.heardThingCounts[ id ] = self.heardThingCounts[ id ] + -1
+            self.heardThingCounts[id] = self.heardThingCounts[id] + -1
 
         end )
 
@@ -1128,7 +1134,7 @@ function ENT:RegisterForcedEnemyCheckPos( enemy )
         end
     end
 
-    checkPositions[ enemy:GetCreationID() ] = enemy:GetPos()
+    checkPositions[enemy:GetCreationID()] = enemy:GetPos()
 
 end
 
