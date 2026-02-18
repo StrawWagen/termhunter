@@ -1,4 +1,5 @@
 
+-- set these on ur bot to change its voice pitch, level, or DSP effect.
 -- ENT.term_SoundPitchShift
 -- ENT.term_SoundLevelShift
 -- ENT.term_SoundDSP
@@ -21,10 +22,12 @@ function ENT:InitializeSpeaking()
 
 end
 
-local function nextSpeakWhenSoundIsOver( ent, path, pitch )
+local function setNextSpeakWhenSoundIsOver( ent, path, pitch )
     local duration = SoundDuration( path ) or 1 -- FOLLOW GMOD WIKI FOR ACCURATE MP3 DURATIONS! SAVE WITH CONSTANT BITRATE!
     local durDivisor = pitch / 100
+    local additional = math.Rand( 0.1, 0.2 )
     duration = duration / durDivisor
+    duration = duration + additional
     ent.NextTermSpeak = CurTime() + duration
 
     return duration
@@ -35,9 +38,10 @@ local sndFlags = bit.bor( SND_CHANGE_PITCH, SND_CHANGE_VOL )
 
 function ENT:SpokenLinesThink( myTbl )
     if not myTbl.CanSpeak then return end
-
     if myTbl.NextTermSpeak > CurTime() then return end
+
     local noLines = #myTbl.StuffToSay <= 0
+
     if myTbl.AlwaysPlayLooping or noLines then -- play looping idle/angry sounds
         local loopingSounds = nil
         local oldState = myTbl.term_OldLoopingSoundState
@@ -141,7 +145,7 @@ function ENT:SpokenLinesThink( myTbl )
         local pitch = 100 + pitShift
         EmitSentence( sentence, self:GetShootPos(), self:EntIndex(), CHAN_VOICE, 1, 80 + lvlShift, SND_NOFLAGS, pitch )
 
-        local additional = math.random( 10, 15 ) / 50
+        local additional = math.Rand( 0.1, 0.2 )
 
         local duration = SentenceDuration( sentence ) or 1
         local durDivisor = pitch / 100
@@ -181,12 +185,38 @@ function ENT:SpokenLinesThink( myTbl )
 
         self:EmitSound( path, 76 + lvlShift, pitch, 1, CHAN_VOICE, sndFlags, dsp )
 
-        nextSpeakWhenSoundIsOver( self, path, pitch )
+        setNextSpeakWhenSoundIsOver( self, path, pitch )
         return
 
     end
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:Term_SpeakSound
+    Desc: Make the bot speak something without interrupting whatever it's "currently" saying.
+    Arg1: string/table | pathIn | Sound path or table of sound paths to queue.
+    Arg2: (optional) function | conditionFunc | Condition function that must return true for sound to play.
+    Ret1: 
+--]]------------------------------------
+function ENT:Term_SpeakSound( pathIn, conditionFunc )
+    if conditionFunc then
+        table.insert( self.StuffToSay, { path = pathIn, conditionFunc = conditionFunc } )
+
+    else
+        if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
+        if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
+        table.insert( self.StuffToSay, { path = pathIn } )
+
+    end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:Term_SpeakSoundNow
+    Desc: Make a bot say something NOW. Applies pitch, level, and DSP shifts.
+    Arg1: string/table | pathIn | Sound path or table of sound paths to play.
+    Arg2: (optional) number | specificPitchShift | Additional pitch shift to apply. Default is 0.
+    Ret1: number | Duration of the sound.
+--]]------------------------------------
 function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
     specificPitchShift = specificPitchShift or 0
 
@@ -203,24 +233,36 @@ function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
     local pitch = 100 + pitShift + specificPitchShift
 
     self:EmitSound( pathIn, 76 + lvlShift, pitch, 1, CHAN_VOICE, sndFlags, dsp )
-    return nextSpeakWhenSoundIsOver( self, pathIn, pitch )
+    return setNextSpeakWhenSoundIsOver( self, pathIn, pitch )
 
 end
 
--- puts line on a table of other lines that bot sifts through, will never overwrite existing lines.
-function ENT:Term_SpeakSound( pathIn, conditionFunc )
+--[[------------------------------------
+    Name: NEXTBOT:Term_SpeakSentence
+    Desc: Queues a sentence to be played. Won't interrupt current sentence/sound, but will play as soon as possible. Applies pitch and level shifts.
+    Arg1: string/table | sentenceIn | Sentence name or table of sentence names to queue.
+    Arg2: (optional) function | conditionFunc | Condition function that must return true for sentence to play.
+    Ret1: 
+--]]------------------------------------
+function ENT:Term_SpeakSentence( sentenceIn, conditionFunc )
     if conditionFunc then
-        table.insert( self.StuffToSay, { path = pathIn, conditionFunc = conditionFunc } )
+        table.insert( self.StuffToSay, { sent = sentenceIn, conditionFunc = conditionFunc } )
 
     else
         if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
         if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
-        table.insert( self.StuffToSay, { path = pathIn } )
+        table.insert( self.StuffToSay, { sent = sentenceIn } )
 
     end
 end
 
--- Immediately plays a sentence, bypassing StuffToSay queue
+--[[------------------------------------
+    Name: NEXTBOT:Term_SpeakSentenceNow
+    Desc: Immediately plays a sentence.
+    Arg1: string/table | sentenceIn | Sentence name or table of sentence names to play.
+    Arg2: (optional) number | specificPitchShift | Additional pitch shift to apply. Default is 0.
+    Ret1: number | Duration of the sentence.
+--]]------------------------------------
 function ENT:Term_SpeakSentenceNow( sentenceIn, specificPitchShift )
     specificPitchShift = specificPitchShift or 0
 
@@ -235,7 +277,7 @@ function ENT:Term_SpeakSentenceNow( sentenceIn, specificPitchShift )
     local pitch = 100 + pitShift + specificPitchShift
 
     EmitSentence( sentenceIn, self:GetShootPos(), self:EntIndex(), CHAN_VOICE, 1, 80 + lvlShift, SND_NOFLAGS, pitch )
-    local additional = math.random( 10, 15 ) / 50
+    local additional = math.Rand( 0.1, 0.2 )
     local duration = SentenceDuration( sentenceIn ) or 1
     local durDivisor = pitch / 100
     duration = duration / durDivisor
@@ -244,24 +286,24 @@ function ENT:Term_SpeakSentenceNow( sentenceIn, specificPitchShift )
 
 end
 
-function ENT:Term_SpeakSentence( sentenceIn, conditionFunc )
-    if conditionFunc then
-        table.insert( self.StuffToSay, { sent = sentenceIn, conditionFunc = conditionFunc } )
-
-    else
-        if #self.StuffToSay >= 4 then return end -- don't add infinite stuff to say.
-        if #self.StuffToSay >= 2 and math.random( 0, 100 ) >= 50 then return end
-        table.insert( self.StuffToSay, { sent = sentenceIn } )
-
-    end
-end
-
+--[[------------------------------------
+    Name: NEXTBOT:Term_ClearStuffToSay
+    Desc: Clears all queued sounds/sentences and resets speak timer.
+    Arg1: 
+    Ret1: 
+--]]------------------------------------
 function ENT:Term_ClearStuffToSay()
     self.StuffToSay = {}
     self.NextTermSpeak = 0
 
 end
 
+--[[------------------------------------
+    Name: NEXTBOT:Term_DontSpeakFor
+    Desc: Prevents bot from speaking for a specified duration.
+    Arg1: number | time | Time in seconds to block speaking.
+    Ret1: 
+--]]------------------------------------
 function ENT:Term_DontSpeakFor( time )
     self.NextTermSpeak = CurTime() + time
 

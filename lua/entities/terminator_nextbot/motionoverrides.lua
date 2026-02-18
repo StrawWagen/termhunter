@@ -187,16 +187,16 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
 end
 
 --[[------------------------------------
-Name: NEXTBOT:DisableBehaviour
-Desc: Decides should behaviour be disabled.
-Arg1: 
-Ret1: bool | Return true to disable.
+    Name: NEXTBOT:DisableBehaviour
+    Desc: Decides should behaviour be disabled.
+    Arg1: myTbl optimisation table
+    Ret1: bool | Return true to disable.
 --]]------------------------------------
 function ENT:DisableBehaviour( myTbl )
     local disabledThinking = myTbl.DisabledThinking( self ) and not myTbl.IsControlledByPlayer( self, myTbl )
     if disabledThinking then return true end
 
-    return myTbl.IsPostureActive( self ) or myTbl.IsGestureActive( self, true ) or myTbl.RunTask( self, "DisableBehaviour" )
+    return myTbl.IsPostureActive( self, myTbl ) or myTbl.IsGestureActive( self, true ) or myTbl.RunTask( self, "DisableBehaviour" )
 
 end
 

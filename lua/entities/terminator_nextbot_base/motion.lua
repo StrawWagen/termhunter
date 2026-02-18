@@ -1,4 +1,5 @@
-local entMeta = FindMetaTable("Entity")
+local entMeta = FindMetaTable( "Entity" )
+local nextbotMeta = FindMetaTable( "NextBot" )
 
 -- Motion Type Enums
 TERMINATOR_NEXTBOT_MOTIONTYPE_IDLE = 0
@@ -278,11 +279,12 @@ end
 --[[------------------------------------
 	Name: NEXTBOT:IsPostureActive
 	Desc: Returns whenever we currently playing a posture or not.
-	Arg1: 
+	Arg1: myTbl (optional) | Optimization table.
 	Ret1: bool | Posture active or not.
 --]]------------------------------------
-function ENT:IsPostureActive()
-	return self.m_CurPosture and (!self.m_CurPosture[2] or CurTime()<self.m_CurPosture[1]) or false
+function ENT:IsPostureActive( myTbl )
+	myTbl = myTbl or entMeta.GetTable( self )
+	return myTbl.m_CurPosture and ( not myTbl.m_CurPosture[2] or CurTime() < myTbl.m_CurPosture[1] ) or false
 end
 
 --[[------------------------------------
@@ -345,17 +347,18 @@ end
 	Updating animations and activities.
 --]]------------------------------------
 function ENT:BodyUpdate()
-	if !self:IsPostureActive() then
-		self:SetupActivity()
+	local myTbl = entMeta.GetTable( self )
+	if not myTbl.IsPostureActive( self, myTbl ) then
+		myTbl.SetupActivity( self )
 	end
 
-	if self:IsMoving() then
-		self:BodyMoveXY()
+	if myTbl.IsMoving( self ) then
+		nextbotMeta.BodyMoveXY( self )
 	else
-		self:FrameAdvance(0)
+		entMeta.FrameAdvance( self, 0 )
 	end
 
-	self:RunTask("BodyUpdate")
+	myTbl.RunTask( self, "BodyUpdate" )
 end
 
 --[[------------------------------------
@@ -369,8 +372,8 @@ function ENT:SetupCollisionBounds( myTbl )
 	local data = myTbl.GetCrouching( self ) and myTbl.CrouchCollisionBounds or myTbl.CollisionBounds
 
 	entMeta.SetCollisionBounds( self, data[1], data[2] )
-	
-	if entMeta.PhysicsInitShadow( self, false, false) then
+
+	if entMeta.PhysicsInitShadow( self, false, false ) then
 		entMeta.GetPhysicsObject( self ):SetMass( myTbl.MyPhysicsMass )
 	end
 end
