@@ -21,17 +21,20 @@ if SERVER then
 
     function ENT:fakeVjBaseWeaponFiring( wep ) -- copied code from vj base github, hope it doesnt change in future and break
         timer.Simple( wep.NPC_TimeUntilFire, function()
-            if IsValid( wep ) and IsValid( self ) and IsValid( self:GetOwner() ) and CurTime() > wep.NPC_NextPrimaryFireT then
-                wep:PrimaryAttack()
-                if wep.NPC_NextPrimaryFire == false then return end -- Support for animation events
-                wep.NPC_NextPrimaryFireT = CurTime() + wep.NPC_NextPrimaryFire
-                for _, tv in ipairs( wep.NPC_TimeUntilFireExtraTimers ) do
-                    timer.Simple( tv, function()
-                        if not IsValid( wep ) or not IsValid( self ) or wep:NPCAbleToShoot() ~= true then return end
-                        wep:PrimaryAttack()
+            if not IsValid( wep ) then return end
+            if not IsValid( self ) then return end
+            if not IsValid( self:GetOwner() ) then return end
+            if CurTime() <= wep.NPC_NextPrimaryFireT then return end
 
-                    end )
-                end
+            wep:PrimaryAttack()
+            if wep.NPC_NextPrimaryFire == false then return end -- Support for animation events
+            wep.NPC_NextPrimaryFireT = CurTime() + wep.NPC_NextPrimaryFire
+            for _, tv in ipairs( wep.NPC_TimeUntilFireExtraTimers ) do
+                timer.Simple( tv, function()
+                    if not IsValid( wep ) or not IsValid( self ) or wep:NPCAbleToShoot() ~= true then return end
+                    wep:PrimaryAttack()
+
+                end )
             end
         end )
     end
@@ -227,7 +230,7 @@ if SERVER then
         ["models/items/healthkit.mdl"] = true,
 
     }
-    local medkitOffset = Angle( 0,0,-90 )
+    local medkitOffset = Angle( 0, 0, -90 )
     hook.Add( "terminator_holstering_overrideangles", "fixthe_god_damn_MEDKITS!", function( model )
         if not medkitModels[model] then return end
         return medkitOffset
@@ -295,6 +298,21 @@ if SERVER then
     function ENT:SwitchToDefaultWeapon()
         if not self.TERM_FISTS then return end
         self:DoFists()
+
+    end
+
+    function ENT:GiveAmmo()
+        return nil
+
+    end
+
+    function ENT:GetAmmoCount()
+        return self:GetActiveWeapon():Clip1() or 0
+
+    end
+
+    function ENT:PickupObject()
+        return
 
     end
 

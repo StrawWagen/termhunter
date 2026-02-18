@@ -546,7 +546,7 @@ end
 
 function SWEP:GetNPCBulletSpread( prof )
     local spread = { 0,0,0,0,0 }
-    return spread[ prof + 1 ]
+    return spread[prof + 1]
 end
 
 function SWEP:ShouldWeaponAttackUseBurst()

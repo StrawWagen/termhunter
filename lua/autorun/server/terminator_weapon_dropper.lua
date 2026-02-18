@@ -53,7 +53,7 @@ local function setDropWeapons( ply, attacker, _ )
     for _, wep in ipairs( weapsToDrop ) do
 
         if not IsValid( wep ) then continue end
-        if wep.ShouldDropOnDie and wep:ShouldDropOnDie() == false and not termHunter_WeaponAnalogs[ wep:GetClass() ] then continue end
+        if wep.ShouldDropOnDie and wep:ShouldDropOnDie() == false and not termHunter_WeaponAnalogs[wep:GetClass()] then continue end
 
         -- create a new weapon.... spaget
         -- pretty sure DropWeapon doesnt work this late into player's death tho

@@ -133,7 +133,7 @@ function ENT:BehaveUpdate( interval )
             threads.motionCor = nil
             threads.playerControlCor = nil
             threads.disabledCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.DisabledBehaviourCoroutine( self, myTbl ) end, self:GetClass() ),
+                cor = coroutine.create( function( selfCor, myTblCor ) myTbl.DisabledBehaviourCoroutine( selfCor, myTblCor ) end, self:GetClass() ),
 
             }
         end
@@ -168,7 +168,7 @@ function ENT:BehaveUpdate( interval )
             threads.motionCor = nil
             threads.disabledCor = nil
             threads.playerControlCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPlayerControlCoroutine( self, myTbl ) end, self:GetClass() ),
+                cor = coroutine.create( function( selfCor, myTblCor ) myTbl.BehaviourPlayerControlCoroutine( selfCor, myTblCor ) end, self:GetClass() ),
 
             }
         end
@@ -179,47 +179,47 @@ function ENT:BehaveUpdate( interval )
         if not threads.priorityCor then
             updated = true
             threads.priorityCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourPriorityCoroutine( self, myTbl ) end, self:GetClass() ),
+                cor = coroutine.create( function( selfCor, myTblCor ) myTbl.BehaviourPriorityCoroutine( selfCor, myTblCor ) end, self:GetClass() ),
 
             }
         end
         if not threads.motionCor then
             updated = true
             threads.motionCor = {
-                cor = coroutine.create( function( self, myTbl ) myTbl.BehaviourMotionCoroutine( self, myTbl ) end, self:GetClass() ),
-                onDone = function( self, myTbl )
-                    local demanded = myTbl.m_PathUpdatesDemanded
+                cor = coroutine.create( function( selfCor, myTblCor ) myTbl.BehaviourMotionCoroutine( selfCor, myTblCor ) end, self:GetClass() ),
+                onDone = function( _selfCor, myTblCor )
+                    local demanded = myTblCor.m_PathUpdatesDemanded
                     if demanded <= 0 then return end
 
-                    myTbl.m_PathUpdatesDemanded = demanded - 1
+                    myTblCor.m_PathUpdatesDemanded = demanded - 1
 
                 end,
-                whenBusy = function( self, myTbl, lastOne ) -- horrible, terrible hacks to fix equally horrible terrible visual stuttering when low CoroutineThresh bots are pathing
-                    local demanded = myTbl.m_PathUpdatesDemanded
+                whenBusy = function( _selfCor, myTblCor, _lastOne ) -- horrible, terrible hacks to fix equally horrible terrible visual stuttering when low CoroutineThresh bots are pathing
+                    local demanded = myTblCor.m_PathUpdatesDemanded
                     if demanded <= 0 then return end
 
-                    if myTbl.IsFodder then -- ratelimit fodder path updates
-                        local nextUpdate = myTbl.m_NextPathUpdate or 0
+                    if myTblCor.IsFodder then -- ratelimit fodder path updates
+                        local nextUpdate = myTblCor.m_NextPathUpdate or 0
                         local cur = CurTime()
                         if nextUpdate > cur then return end
 
-                        myTbl.m_NextPathUpdate = cur + pathUpdateIntervalFodder
+                        myTblCor.m_NextPathUpdate = cur + pathUpdateIntervalFodder
 
                     end
 
-                    local path = myTbl.GetPath( self )
+                    local path = myTblCor.GetPath( self )
                     if not path or not pathMeta.IsValid( path ) then return end
 
                     local currSegment = pathMeta.GetCurrentGoal( path )
                     local currType = currSegment.type
                     local laddering = currType == 4 or currType == 5
                     if laddering then
-                        myTbl.TermHandleLadder( self )
+                        myTblCor.TermHandleLadder( self )
                         return
 
                     end
 
-                    local loco = myTbl.loco
+                    local loco = myTblCor.loco
 
                     -- was setting bot's angle to their angle before the path:Update, but that was breaking prediction/velocity somehow
                     -- this as it turns out, is the correct way to stop it from turning towards the path

@@ -178,7 +178,7 @@ function ENT:GetPathHalfwayPoint()
     if not pathSegs then return myPos end
 
     local middlePathSegIndex = math.Round( #pathSegs / 2 )
-    local middlePathSeg = pathSegs[ middlePathSegIndex ]
+    local middlePathSeg = pathSegs[middlePathSegIndex]
     return middlePathSeg.pos, middlePathSeg
 
 end
@@ -306,7 +306,7 @@ function ENT:flagConnectionAsShit( area1, area2 )
     local connectionsId = getConnId( area1:GetID(), area2:GetID() )
 
     local superShitConnection = nil
-    if badConnections[ connectionsId ] then superShitConnection = true end
+    if badConnections[connectionsId] then superShitConnection = true end
 
     badConnections[connectionsId] = true
     lastBadFlags[connectionsId] = CurTime()
@@ -377,8 +377,8 @@ function ENT:AddAreasToAvoid( areas, mul )
     for _, avoid in ipairs( areas ) do
         -- lagspike if we try to flank around area that contains the destination
         if avoid and IsValid( avoid ) and ( avoid ~= myTbl.flankingDest ) then
-            local oldMul = myTbl.pathAreasAdditionalCost[ avoid:GetID() ] or 0
-            myTbl.pathAreasAdditionalCost[ avoid:GetID() ] = oldMul + mul
+            local oldMul = myTbl.pathAreasAdditionalCost[avoid:GetID()] or 0
+            myTbl.pathAreasAdditionalCost[avoid:GetID()] = oldMul + mul
             --debugoverlay.Cross( avoid:GetCenter(), 10, 10, color_white, true )
 
         end
@@ -561,7 +561,7 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
 
     if laddering then return cost end
 
-    local additionalCost = locoData.pathAreasAdditionalCost[ toAreasId ]
+    local additionalCost = locoData.pathAreasAdditionalCost[toAreasId]
     if additionalCost then
         cost = cost * additionalCost
 
@@ -733,13 +733,13 @@ function ENT:FloodMarkAsUnreachable( startArea )
     if terminator_Extras.IsLivePatching then return end
     local myTbl = entMeta.GetTable( self )
 
-    local scoreData = {}
+    local scoreDataSetup = {}
     local invalidUnreachable
     local wasABlockedArea = false
-    scoreData.myArea = myTbl.GetCurrentNavArea( self, myTbl )
-    scoreData.decreasingScores = {}
-    scoreData.droppedDownAreas = {}
-    scoreData.areasToUnreachable = {}
+    scoreDataSetup.myArea = myTbl.GetCurrentNavArea( self, myTbl )
+    scoreDataSetup.decreasingScores = {}
+    scoreDataSetup.droppedDownAreas = {}
+    scoreDataSetup.areasToUnreachable = {}
 
     -- find areas around the path's end that we can't reach
     -- this prevents super obnoxous stutters on maps with tens of thousands of navareas
@@ -777,7 +777,7 @@ function ENT:FloodMarkAsUnreachable( startArea )
         return score
 
     end
-    self:findValidNavResult( scoreData, startArea, 2000, scoreFunction )
+    self:findValidNavResult( scoreDataSetup, startArea, 2000, scoreFunction )
 
     yieldIfWeCan()
 
@@ -788,7 +788,7 @@ function ENT:FloodMarkAsUnreachable( startArea )
 
         -- stop after marking the path dest, IF the unreachable finder was invalid!
         if not invalidUnreachable then
-            for _, area in ipairs( scoreData.areasToUnreachable ) do
+            for _, area in ipairs( scoreDataSetup.areasToUnreachable ) do
                 self:rememberAsUnreachable( area )
 
             end
@@ -1117,7 +1117,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
             for _, currClosedId in ipairs( closedSequential ) do
                 local currClosedScore = scores[currClosedId]
 
-                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and isLadder[ currClosedId ] ~= true then
+                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and isLadder[currClosedId] ~= true then
                     bestClosedScore = currClosedScore
                     bestClosedAreaId = currClosedId
 
@@ -1181,49 +1181,54 @@ local function adjacentAreasSkippingLadders( area, canUseLadders )
     if not canUseLadders then return areaDatas end
 
     local ladders = navMeta.GetLadders( area )
-    if #ladders > 0 then
-        local areasCenter = navMeta.GetCenter( area )
-        local already = { [GetID( area )] = true }
-        for _, areaData in ipairs( areaDatas ) do
-            already[GetID( areaData.area )] = true
+    if #ladders <= 0 then return areaDatas end
+    -- Track areas we've already processed to avoid duplicates and to update existing entries with ladder data
+    local already = { [GetID( area )] = true }
+    for _, areaData in ipairs( areaDatas ) do
+        already[GetID( areaData.area )] = true
 
-        end
-        for _, ladder in ipairs( ladders ) do
-            local ladderAlreadyDone = { [GetID( area )] = true }
-            local ladderAdjacents = AreaOrLadderGetAdjacentAreas( ladder )
-            for _, ladderAdj in ipairs( ladderAdjacents ) do
-                local ladderAdjID = GetID( ladderAdj )
-                if ladderAlreadyDone[ladderAdjID] then continue end
+    end
+    for _, ladder in ipairs( ladders ) do
+        -- Prevent processing the same area multiple times per ladder,
+        -- since ladders have multiple exit points (top forward/behind/left/right, bottom)
+        local ladderAlreadyDone = { [GetID( area )] = true }
+        local ladderAdjacents = AreaOrLadderGetAdjacentAreas( ladder )
+        for _, ladderAdj in ipairs( ladderAdjacents ) do
+            local ladderAdjID = GetID( ladderAdj )
+            if ladderAlreadyDone[ladderAdjID] then continue end
 
-                local adjacentsData
-                if already[ladderAdjID] then
-                    for _, areaData in ipairs( areaDatas ) do
-                        if areaData.area ~= ladderAdj then continue end
-                        adjacentsData = areaData
-                        break
-                    end
+            local adjacentsData
+            -- Check if this area already exists in our results from normal ground adjacency
+            if already[ladderAdjID] then
+                for _, areaData in ipairs( areaDatas ) do
+                    if areaData.area ~= ladderAdj then continue end
+                    adjacentsData = areaData
+                    break
                 end
-                if adjacentsData then
-                    adjacentsData.dist = ladder:GetLength()
-                    adjacentsData.ladder = ladder
-
-                else
-                    adjacentsData = {
-                        area = ladderAdj,
-                        dist = ladder:GetLength(),
-                        ladder = ladder,
-                        --dir shouldnt need this
-                    }
-                end
-
-                areaDatas[#areaDatas + 1] = adjacentsData
-                ladderAlreadyDone[ladderAdjID] = true
-
             end
+            if adjacentsData then
+                -- Update existing entry with ladder-specific distance and reference
+                -- because ladder travel cost should be based on ladder length, not ground distance
+                adjacentsData.dist = ladder:GetLength()
+                adjacentsData.ladder = ladder
+
+            else
+                -- This area wasn't reachable by ground adjacency, so add it as a new ladder-only connection
+                adjacentsData = {
+                    area = ladderAdj,
+                    dist = ladder:GetLength(),
+                    ladder = ladder,
+                }
+            end
+
+            areaDatas[#areaDatas + 1] = adjacentsData
+            ladderAlreadyDone[ladderAdjID] = true
+
         end
     end
 
     return areaDatas
+
 end
 
 -- return "path" of navareas that get us where we're going
@@ -1440,7 +1445,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
                 removeFrom( neighborsId, closedSequential, closed )
                 addTo( neighborsId, openedSequential, opened )
-                cameFrom[ neighborsId ] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
+                cameFrom[neighborsId] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
                 coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
             end
@@ -1469,7 +1474,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
     local fromNext
 
     if fromArea then
-        fromNext = areaCorridorNexts[ GetID( fromArea ) ]
+        fromNext = areaCorridorNexts[GetID( fromArea )]
         if not fromNext then -- not on the path
             allowedDeviations = allowedDeviations + -1 -- allow some deviations
             if allowedDeviations <= 0 then
@@ -1487,7 +1492,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
 
     if area then
         areaId = GetID( area )
-        local areaMask = areaCorridorNexts[ areaId ]
+        local areaMask = areaCorridorNexts[areaId]
         if not areaMask then
             return 10000000000000 -- not in corridor, try this last
 
@@ -1550,10 +1555,10 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
     for i, currId in ipairs( corridorIds ) do
         local nextOne = corridorIds[i + 1]
         if nextOne then
-            areaCorridorNexts[ currId ] = nextOne -- force the compute to take the correct path
+            areaCorridorNexts[currId] = nextOne -- force the compute to take the correct path
 
         else
-            areaCorridorNexts[ currId ] = true
+            areaCorridorNexts[currId] = true
 
         end
 

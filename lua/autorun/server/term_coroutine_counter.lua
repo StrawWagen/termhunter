@@ -80,7 +80,7 @@ local function count()
     collectgarbage( "restart" )
 
     print( "live coroutines:", coCount )
-    print( "of which, " .. staleCoCount .. " are stale")
+    print( "of which, " .. staleCoCount .. " are stale" )
 
 end
 
@@ -90,7 +90,7 @@ concommand.Add( "term_countcoroutines", function()
     if not done then
         done = true
         startCounter()
-        print("Started tracking coroutines.")
+        print( "Started tracking coroutines." )
         if luagc then
             print( "holylib found, using luagc... this can cause crashes!" )
 
