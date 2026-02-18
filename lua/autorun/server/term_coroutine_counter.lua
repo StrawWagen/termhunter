@@ -48,12 +48,12 @@ local function count()
     collectgarbage( "stop" )
     local cur = SysTime()
 
-    local coroutineDatas = setmetatable( {}, { __mode = "k" } )
+    local coroutineDatas = setmetatable( {}, { __mode = "kv" } )
     for co, tb in pairs( TrackedCoroutines ) do
         local lastResume = TrackedCoroutinesLastResumes[co] or 0
         local sinceResumed = math.Round( cur - lastResume, 4 )
         local class = TrackedCoroutineClasses[co] or "unknown_class"
-        local coData = setmetatable( { co = co, tb = tb, lastResume = lastResume, sinceResumed = sinceResumed, class = class }, { __mode = "k" } )
+        local coData = setmetatable( { co = co, tb = tb, lastResume = lastResume, sinceResumed = sinceResumed, class = class }, { __mode = "kv" } )
         table.insert( coroutineDatas, coData )
 
     end
@@ -86,7 +86,7 @@ end
 
 local done -- autorefresh should reset this
 
-concommand.Add( "term_countcoroutines", function()
+concommand.Add( "term_coroutine_counter", function()
     if not done then
         done = true
         startCounter()
