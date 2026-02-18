@@ -113,6 +113,7 @@ ENT.Term_BloodColor = BLOOD_COLOR_RED
 -- custom values for the nextbot base to use
 ENT.JumpHeight = 70 * 3.5 -- a multiple of default ( 70 )
 ENT.Term_Leaps = nil -- enables leaping towards enemy, leaping along paths
+ENT.Term_LeapMinimizesHeight = nil -- makes bot leap really low to ground
 
 ENT.DefaultStepHeight = 18
 -- allow us to have different step height when couching/standing

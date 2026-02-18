@@ -782,7 +782,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
             end,
             BehaveUpdatePriority = function( self, data ) -- bit of a hack, never stand still and "just take enemy shooting us"
-                local myTbl  = entMeta.GetTable( self )
+                local myTbl = entMeta.GetTable( self )
                 if not myTbl then return end -- ?????
                 if not myTbl.HasBrains then return end
                 if not myTbl.IsSeeEnemy then return end
@@ -804,7 +804,9 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
                 if not pos then
-                    pos = myPos + VectorRand() * 100
+                    local randVec = VectorRand()
+                    randVec.z = randVec.z * 0.1
+                    pos = myPos + randVec * 100
 
                 end
                 local floorOfPos = terminator_Extras.getFloorTr( pos ).HitPos
