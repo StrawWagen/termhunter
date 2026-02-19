@@ -1,3 +1,6 @@
+
+local entMeta = FindMetaTable( "Entity" )
+
 --[[ 
 ENT.IsWraith = true -- set to true on any bot to enable this file's logic
 ENT.NotSolidWhenCloaked = true -- if we're a wraith, we become non-solid when cloaked
