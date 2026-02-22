@@ -60,12 +60,18 @@ function ENT:StopControlByPlayer()
     local ply = self:GetControlPlayer()
     self:SetControlPlayer(NULL)
 
-    self:RunTask("StopControlByPlayer",ply)
+    self:RunTask( "StopControlByPlayer", ply )
 
     local tasks = self.TaskList
     for name, data in pairs( tasks ) do
         if not data.StopsWhenPlayerControlled then continue end
         self:StartTask( name, "StopsWhenPlayerControlled" )
+
+    end
+
+    local baseMovementTask = tasks["movement_handler"]
+    if baseMovementTask and baseMovementTask.StartsOnInitialize then
+        self:StartTask( "movement_handler", "RestartOnStopPlayerControl" )
 
     end
 end

@@ -1203,6 +1203,7 @@ do
 
     end )
 
+    -- :Use wrapper that handles errors and double doors and stuff.
     function ENT:Use2( toUse )
         if not self.CanUseStuff then return end
 
