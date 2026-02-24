@@ -153,9 +153,7 @@ ENT.FriendlyFireMul = 1 -- how much to mul friendly fire damage dealt to us
 ENT.FistDamageMul = 4
 ENT.ThrowingForceMul = 1000 -- speed we throw crowbars, this is the overcharged one so it's 1k
 
-ENT.Term_FOV = nil -- set this on your bot to make it not use the default fovCached
-ENT.duelEnemyTimeoutMul = 1
-ENT.CloseEnemyDistance = 75 -- bot ignores enemy priority if enemy is this close
+ENT.Term_FOV = nil -- set this to a number on your bot to make it not use the termhunter_fovoverride convar
 
 ENT.AutoUpdateFOV = true
 
@@ -185,7 +183,10 @@ ENT.CanSpeak = false
 -- enable/disable hearing things
 ENT.CanHearStuff = true
 
-ENT.DuelEnemyDist = 700 -- dist to move from flank or follow enemy, to duel enemy
+ENT.DuelEnemyDist = 700 -- dist to move from flank or follow enemy(pathfinding tasks), to duel enemy(pathfindingless movement)
+ENT.MaxRunningGunningDist = 5000 -- max dist to shoot while running, set to false to ignore speed when shooting
+ENT.duelEnemyTimeoutMul = 1
+ENT.CloseEnemyDistance = 75 -- bot ignores enemy priority if enemy is this close
 
 
 ENT.IsWraith = nil -- enable wraith cloaking logic
@@ -3514,7 +3515,12 @@ function ENT:DoDefaultTasks()
                             myTbl.lastShootingType = "aimingFuncRanged"
 
                         else
-                            if myTbl.DistToEnemy > wepRange and not myTbl.IsReallyAngry( self ) then -- too far, dont shoot
+                            local distToEnemy = myTbl.DistToEnemy
+                            if distToEnemy > wepRange and not myTbl.IsReallyAngry( self ) then -- too far, dont shoot
+                                doShootingPrevent = true
+
+                            end
+                            if myTbl.MaxRunningGunningDist and distToEnemy > myTbl.MaxRunningGunningDist and myTbl.m_Speed > myTbl.WalkSpeed + 5 then
                                 doShootingPrevent = true
 
                             end

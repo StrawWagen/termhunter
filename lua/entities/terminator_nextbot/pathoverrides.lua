@@ -1409,7 +1409,11 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
             local neighborsId = GetID( neighbor )
             -- NavMeshPathCostGenerator
             local neighborsCost = NavMeshPathCostGenerator( me, locoData, neighbor, bestArea, neighborDat.ladder, neighborDat.dist )
-            if fodder then coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING ) end
+            if fodder then
+                coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
+                if not IsValid( neighbor ) then continue end
+
+            end
 
             local neighborsCostSoFar = costSoFar + neighborsCost
 
@@ -1440,7 +1444,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
                 removeFrom( neighborsId, closedSequential, closed )
                 addTo( neighborsId, openedSequential, opened )
-                cameFrom[ neighborsId ] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
+                cameFrom[neighborsId] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
                 coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
             end

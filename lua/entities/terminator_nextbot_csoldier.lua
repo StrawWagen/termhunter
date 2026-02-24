@@ -138,6 +138,7 @@ ENT.MetallicMoveSounds = false
 ENT.ReallyStrong = false
 ENT.ReallyHeavy = false
 ENT.DuelEnemyDist = 1000
+ENT.MaxRunningGunningDist = 2000
 ENT.CloseEnemyDistance = 500 -- focus on closest enemy, not best, if below this dist
 
 ENT.FootstepClomping = false
