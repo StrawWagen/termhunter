@@ -1493,7 +1493,7 @@ end
 -- fixes bot firing guns slow in multiplayer, without making bot think faster.
 -- eg fixes m9k minigun firing at one tenth its actual fire rate
 function ENT:CreateShootingTimer( myTbl )
-    if myTbl.IsFodder then return end
+    if myTbl.IsFodder then return end -- fodder npcs dont get this expensive timer
     local timerName = "terminator_fastshootingthink_" .. self:GetCreationID()
     timer.Create( timerName, 0.05, 0, function()
         if not IsValid( self ) then timer.Remove( timerName ) return end
@@ -4173,6 +4173,7 @@ function ENT:DoDefaultTasks()
                 data.BackupUntil = data.BackupUntil or CurTime() + 2
                 data.LastSawFrom = myTbl.GetShootPos( self )
                 data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
+                data.AfterwardsTaskData = data.AfterwardsTaskData or nil
                 myTbl.InvalidatePath( self, "we gotta back the hell up" )
 
             end,
@@ -4182,7 +4183,7 @@ function ENT:DoDefaultTasks()
                 if not IsValid( myNav ) then
                     myTbl.overrideVeryStuck = true
                     self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, data.AfterwardsTask, "i dont know where i am!" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "i dont know where i am!" )
 
                     return
 
@@ -4273,7 +4274,7 @@ function ENT:DoDefaultTasks()
 
                         else
                             myTbl.TaskFail( self, "movement_backthehellup" )
-                            myTbl.StartTask( self, data.AfterwardsTask, "i can't find a good backup position!" )
+                            myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "i can't find a good backup position!" )
                             return
 
                         end
@@ -4293,11 +4294,11 @@ function ENT:DoDefaultTasks()
 
                 if not myTbl.IsSeeEnemy and myTbl.TimeSinceEnemySpotted( self, myTbl ) > 3 then
                     self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, data.AfterwardsTask, "no more enemy to backup from" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "no more enemy to backup from" )
 
                 elseif distToEnemy > data.DistToQuit then
                     self:TaskComplete( "movement_backthehellup" )
-                    myTbl.StartTask( self, data.AfterwardsTask, "i got far enough from my enemy!" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "i got far enough from my enemy!" )
 
                 end
             end,
