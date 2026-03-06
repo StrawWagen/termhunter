@@ -372,7 +372,6 @@ function ENT:SetupWeapon( wep )
         permaPrint( wep:GetModelScale() )
         if false then
             self:DropWeapon()
-
         end
     end )
     --]]
@@ -654,6 +653,69 @@ function ENT:CanWeaponPrimaryAttack( myTbl, wep, wepsTbl )
 end
 
 --[[------------------------------------
+    Name: NEXTBOT:AI_ShouldUseSecondary
+    Desc: (INTERNAL) Decides if we should use secondary fire based on emergency status and weapon type.
+    Arg1: Weapon | wep | The active weapon.
+    Ret1: bool | True if we should use secondary fire.
+--]]------------------------------------
+function ENT:AI_ShouldUseSecondary( wep )
+    if not IsValid( wep ) then return false end
+    
+    local enemy = self:GetEnemy()
+    if not IsValid(enemy) then return false end
+
+    -- EMERGENCY CHECK: Only consider secondary usage if we are in danger
+    local myTbl = entMeta.GetTable( self )
+    local hpPct = self:Health() / self:GetMaxHealth()
+    local isEmergency = hpPct < 0.4 -- Less than 40% Health
+    
+    -- Or if out of primary ammo
+    if wep:Clip1() <= 0 then isEmergency = true end
+
+    -- Or if the logic system says we are in serious danger
+    if not isEmergency and myTbl.inSeriousDanger and myTbl.inSeriousDanger(self) then
+        isEmergency = true
+    end
+
+    if not isEmergency then return false end
+    -- END EMERGENCY CHECK
+
+    local distSq = self:GetRangeSquaredTo(enemy)
+    local class = wep:GetClass()
+    
+    -- Map engine analogs back to original names for checking logic, if applicable
+    if EngineAnalogsReverse[class] then
+        class = EngineAnalogsReverse[class]
+    end
+
+    -- Specific logic for Half-Life 2 weapons
+    if class == "weapon_smg1" then
+        -- SMG Grenade: Good for mid-range. Don't use too close (self damage) or too far.
+        -- Increased chance in emergency
+        if distSq > (300*300) and distSq < (1500*1500) then
+            return math.random(1, 100) <= 20 -- 20% chance in emergency
+        end
+    elseif class == "weapon_ar2" then
+        -- Energy Ball: Good for long range and flushing enemies.
+        if distSq > (400*400) and distSq < (2000*2000) then
+            return math.random(1, 100) <= 15 -- 15% chance in emergency
+        end
+    elseif class == "weapon_shotgun" then
+        -- Double Barrel: Devastating at close range.
+        if distSq < (300*300) then
+            return math.random(1, 100) <= 50 -- 50% chance when close and in danger
+        end
+    end
+
+    -- Generic fallback for scripted weapons that have secondary ammo
+    if wep:GetMaxClip2() > 0 and wep:Clip2() > 0 then
+        return math.random(1, 100) <= 10
+    end
+
+    return false
+end
+
+--[[------------------------------------
     Name: NEXTBOT:WeaponPrimaryAttack
     Desc: Does primary attack from bot's active weapon. This also uses burst data from weapon.
     Arg1: 
@@ -667,6 +729,23 @@ function ENT:WeaponPrimaryAttack()
 
     local wepsTbl = entMeta.GetTable( wep )
     if myTbl.CanWeaponPrimaryAttack( self, myTbl, wep, wepsTbl ) ~= true then return false, "CanWeaponPrimaryAttack" end
+
+    -- START TRUE SECONDARY FIRE SUPPORT
+    -- Check if we should override primary fire with secondary fire
+    if not self:IsControlledByPlayer() and self:CanWeaponSecondaryAttack() and self:AI_ShouldUseSecondary(wep) then
+        self:WeaponSecondaryAttack()
+        
+        -- Add a small delay after secondary fire before we can primary fire again
+        -- This prevents instant double attacks and mimics recoil/recovery
+        local delay = 1.0
+        if wep:GetClass() == "weapon_shotgun_term" or wep:GetClass() == "weapon_shotgun" then
+            delay = 1.5 -- Double barrel takes longer
+        end
+        
+        self.m_WeaponData.Primary.NextShootTime = CurTime() + delay
+        return true, "Fired_Secondary_Override"
+    end
+    -- END TRUE SECONDARY FIRE SUPPORT
 
     local data = self.m_WeaponData.Primary
     local isSetupProperly = isfunction( wep.GetNPCBurstSettings ) and isfunction( wep.GetNPCRestTimes )
@@ -739,7 +818,12 @@ function ENT:CanWeaponSecondaryAttack()
     if not self:HasWeapon() or CurTime() < self.m_WeaponData.Secondary.NextShootTime then return false end
 
     local wep = self:GetActiveLuaWeapon()
+    if not IsValid(wep) then return false end
+
     if CurTime() < wep:GetNextSecondaryFire() then return false end
+
+    -- Check if we actually have ammo for secondary
+    if wep:GetMaxClip2() > 0 and wep:Clip2() <= 0 then return false end
 
     return true
 end
@@ -758,6 +842,11 @@ function ENT:WeaponSecondaryAttack()
     local successful = ProtectedCall(function() wep:NPCShoot_Secondary(self:GetShootPos(),self:GetAimVector()) end)
     self:HateBuggyWeapon( wep, successful )
     self:DoRangeGesture()
+    
+    -- Ensure we set the next time so we don't spam
+    local nextTime = wep:GetNextSecondaryFire()
+    if nextTime < CurTime() then nextTime = CurTime() + 1 end
+    self.m_WeaponData.Secondary.NextShootTime = nextTime
 end
 
 --[[------------------------------------
@@ -886,9 +975,14 @@ local DistToSqr = FindMetaTable( "Vector" ).DistToSqr
 
 function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     if not IsValid( wep ) then boring( wep ) return end
-    wepsTbl = wepsTbl or entMeta.GetTable( self )
+    
+    -- SAFETY FIX: Initialize tables early to prevent nil indexing later
+    myTbl = myTbl or entMeta.GetTable( self )
+    if not myTbl then return false end -- Should not happen if self is valid, but safety first
 
-    if not wepsTbl then boring( wep ) return end -- ????
+    wepsTbl = wepsTbl or entMeta.GetTable( wep ) -- LOGIC FIX: Use 'wep' not 'self'
+    if not wepsTbl then boring( wep ) return end
+
     local class = entMeta.GetClass( wep )
     local isCrate = class == crateClass
     if not isCrate then
@@ -906,7 +1000,6 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
 
     if doingHolstered and wepsParent ~= self then return false end
 
-    myTbl = myTbl or entMeta.GetTable( self )
     if doingHolstered and wepsParent == self and not myTbl.IsHolsteredWeap( self, wep ) then return false end -- we're already using this one... 
 
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
@@ -1679,6 +1772,91 @@ hook.Add( "PostEntityTakeDamage", "terminator_trackweapondamage", function( targ
 
     end
 end )
+
+-- Fix for projectile ownership and self-collision (SMG Grenade)
+hook.Add("OnEntityCreated", "Terminator_ProjectileFixes", function(ent)
+    -- Wait a tick for initialization
+    timer.Simple(0, function()
+        if not IsValid(ent) then return end
+        
+        local class = ent:GetClass()
+        
+        -- Detect common secondary projectiles
+        if class == "grenade_ar2" or class == "prop_combine_ball" or class == "rpg_missile" or class == "obj_vj_grenade" then
+            
+            local owner = ent:GetOwner()
+            local bot = nil
+
+            -- Scenario A: Owner is set to the Weapon (common in scripted weapons)
+            if IsValid(owner) and owner:IsWeapon() then
+                local parent = owner:GetOwner()
+                if IsValid(parent) and parent.isTerminatorHunterBased then
+                    bot = parent
+                end
+            -- Scenario B: Owner is already the Bot (ideal, but check collision)
+            elseif IsValid(owner) and owner.isTerminatorHunterBased then
+                bot = owner
+            -- Scenario C: Owner is nil. Check strict proximity to a firing Terminator.
+            elseif not IsValid(owner) then
+                local pos = ent:GetPos()
+                for _, v in ipairs(ents.FindInSphere(pos, 70)) do
+                    if v.isTerminatorHunterBased and v:GetActiveWeapon():GetLastShootTime() > CurTime() - 0.5 then
+                        bot = v
+                        break
+                    end
+                end
+            end
+
+            if IsValid(bot) then
+                -- Ensure kill credit goes to the bot, not the weapon or nil
+                ent:SetOwner(bot)
+                ent.Owner = bot -- Some SWEPs check this Lua field
+
+                -- Extra fix for Combine Ball logic in engine
+                if class == "prop_combine_ball" then
+                    -- Trigger the engine input to set owner, which handles internal dissolved pointers
+                    ent:Fire("SetOwner", "!activator", 0, bot)
+                end
+
+                -- Prevent SMG grenade (and others) from exploding instantly on the bot's face
+                -- We use NoCollide to ensure the physics engine ignores the bot for this projectile
+                constraint.NoCollide(ent, bot, 0, 0)
+                
+                -- Specific fix for grenade_ar2 which is very sensitive
+                if class == "grenade_ar2" then
+                    local phys = ent:GetPhysicsObject()
+                    if IsValid(phys) then
+                        -- Ensure it has forward velocity so it clears the bounding box
+                        local vel = phys:GetVelocity()
+                        local aim = bot:GetAimVector()
+                        
+                        -- If velocity is too low or weird, force it forward
+                        if vel:Length() < 500 then
+                            phys:SetVelocity(aim * 1000)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+-- Hook to forcibly attribute damage from these projectiles to the Terminator
+-- This catches cases where the engine resets the attacker or uses the inflictor as attacker
+hook.Add("EntityTakeDamage", "Terminator_ProjectileDamageCredit", function(target, dmginfo)
+    local inflictor = dmginfo:GetInflictor()
+    if not IsValid(inflictor) then return end
+    
+    local class = inflictor:GetClass()
+    if class == "prop_combine_ball" or class == "grenade_ar2" then
+        local owner = inflictor:GetOwner()
+        
+        -- If the projectile is owned by a terminator, ensure the damage is credited to them
+        if IsValid(owner) and owner.isTerminatorHunterBased then
+            dmginfo:SetAttacker(owner)
+        end
+    end
+end)
 
 do
     local Vector = Vector
