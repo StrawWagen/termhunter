@@ -12,8 +12,6 @@ terminator_Extras.listeners = terminator_Extras.listeners or {}
 local goodClassCache
 local lastSoundLevels
 
-local listenersToCleanup = {}
-
 local function cleanupListenerTbl()
     if not listening then
         listening = true
@@ -25,13 +23,10 @@ local function cleanupListenerTbl()
     end
     local listeners = terminator_Extras.listeners
     for index, curr in pairs( listeners ) do
-        if listenersToCleanup[curr] or not IsValid( curr ) then
-            table.remove( listeners, index )
+        if IsValid( curr ) then continue end
+        table.remove( listeners, index )
 
-        end
     end
-
-    listenersToCleanup = {}
 
     if #listeners <= 0 then
         listening = nil
@@ -62,7 +57,6 @@ function terminator_Extras.RegisterListener( listener )
     listener.term_IsListening = true
 
     listener:CallOnRemove( "terminator_cleanupsoundlisteners", function()
-        listenersToCleanup[listener] = true
         cleanupListenerTbl()
 
     end )
@@ -85,10 +79,10 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     local thingTbl
 
     if IsValid( thing ) then
-        if entMeta.IsFlagSet( thing, FL_NOTARGET ) then return end
+        if entMeta.IsFlagSet( thing, FL_NOTARGET ) then return end -- dont alert for stuff that doesnt want to be targeted
 
         thingTbl = entMeta.GetTable( thing )
-        if thingTbl.usedByTerm then return end
+        if thingTbl.usedByTerm then return end -- was recently used by a term bot, that probably caused the sound
 
         local last = thingTbl.term_LastSoundEmit
         local cur = CurTime()
@@ -97,7 +91,7 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
             local uselessBlockingValuable = not last.valuable and valuable
             if since < 5 and not uselessBlockingValuable then
                 local cutoff = last.range - ( since * 100 )
-                if cutoff > range then return end -- louder sound just happened, dont do another sound
+                if cutoff > range then return end -- this JUST created a louder sound, dont waste perf on this quiet sound
 
             end
         end
@@ -114,9 +108,9 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     local listeners = terminator_Extras.listeners
     local pleaseCleanup
 
+    -- time to alert!
     for _, currTerm in ipairs( listeners ) do
         if thing == currTerm then continue end
-        if listenersToCleanup[currTerm] then continue end
 
         local termsTbl = entMeta.GetTable( currTerm )
         if not termsTbl then -- null ent
@@ -148,7 +142,7 @@ local customRanges = {
     ["weapon_shotgun"] = 8000,
 }
 
-local function bulletFireThink( entity, data )
+hook.Add( "PostEntityFireBullets", "termalerter_firebullets", function( entity, data )
     if not listening then return end
     if not IsValid( entity ) then return end
 
@@ -160,7 +154,7 @@ local function bulletFireThink( entity, data )
     end
     local customRange = nil
     if IsValid( weap ) then
-        customRange = customRanges[ entMeta.GetClass( weap ) ]
+        customRange = customRanges[entMeta.GetClass( weap )]
 
     end
     if customRange then
@@ -177,28 +171,29 @@ local function bulletFireThink( entity, data )
             num = math.Clamp( data.Num / 2, 1, math.huge )
 
         end
+
+        -- bulletFire is never silent, its always gonna be used for something 'loud'
         local totalDmg = dmg * num
-        range = math.Clamp( totalDmg * 200, 3000, 10000 ) -- bigger gunz are louder
+        range = math.Clamp( totalDmg * 200, 3000, 10000 )
 
     end
 
     local src = data.Src
     terminatorsSendSoundHint( entity, src, range, true )
 
-end
-hook.Add( "PostEntityFireBullets", "straw_termalerter_firebullets", function( ... ) bulletFireThink( ... ) end )
+end )
 
 
 
 -- stick our fingers in emithint
-sound._StrawTakeover_EmitHint = sound._StrawTakeover_EmitHint or sound.EmitHint
+sound._TermTakeover_EmitHint = sound._TermTakeover_EmitHint or sound.EmitHint
 sound.EmitHint = function( ... )
-    hook.Run( "StrawSoundEmitHint", ... )
-    return sound._StrawTakeover_EmitHint( ... )
+    hook.Run( "Term_SoundEmitHint", ... )
+    return sound._TermTakeover_EmitHint( ... )
 
 end
 
-local function soundHintThink( hint, pos, volume, _, owner )
+hook.Add( "Term_SoundEmitHint", "termalerter_soundhint", function( hint, pos, volume, _, owner )
     if not listening then return end
 
     local combat = bit.band( hint, SOUND_COMBAT ) > 0
@@ -215,18 +210,18 @@ local function soundHintThink( hint, pos, volume, _, owner )
 
     terminatorsSendSoundHint( owner, pos, radius, valuable )
 
-end
-hook.Add( "StrawSoundEmitHint", "straw_termalerter_soundhint", function( ... ) soundHintThink( ... ) end )
+end )
 
 
 -- bl damage
-util._StrawTakeover_BlastDamage = util._StrawTakeover_BlastDamage or util.BlastDamage
+util._TermTakeover_BlastDamage = util._TermTakeover_BlastDamage or util.BlastDamage
 util.BlastDamage = function( ... )
-    hook.Run( "StrawBlastDamage", ... )
-    return util._StrawTakeover_BlastDamage( ... )
+    hook.Run( "Term_BlastDamage", ... )
+    return util._TermTakeover_BlastDamage( ... )
+
 end
 
-local function blastDamageHintThink( _, attacker, damageOrigin, damageRadius, damage )
+hook.Add( "Term_BlastDamage", "termalerter_blastdamage", function( _, attacker, damageOrigin, damageRadius, damage )
     if not listening then return end
 
     local radiusComponent = damageRadius * 0.2
@@ -234,19 +229,18 @@ local function blastDamageHintThink( _, attacker, damageOrigin, damageRadius, da
 
     terminatorsSendSoundHint( attacker, damageOrigin, volume, true )
 
-end
-hook.Add( "StrawBlastDamage", "straw_termalerter_blastdamage", function( ... ) blastDamageHintThink( ... ) end )
+end )
 
 
 -- bl damage info
-util._StrawTakeover_BlastDamageInfo = util._StrawTakeover_BlastDamageInfo or util.BlastDamageInfo
+util._TermTakeover_BlastDamageInfo = util._TermTakeover_BlastDamageInfo or util.BlastDamageInfo
 util.BlastDamageInfo = function( ... )
-    hook.Run( "StrawBlastDamageInfo", ... )
-    return util._StrawTakeover_BlastDamageInfo( ... )
+    hook.Run( "Term_BlastDamageInfo", ... )
+    return util._TermTakeover_BlastDamageInfo( ... )
 
 end
 
-local function blastDamageInfoHintThink( dmg, damageOrigin, damageRadius )
+hook.Add( "Term_BlastDamageInfo", "termalerter_blastdamageinfo", function( dmg, damageOrigin, damageRadius )
     if not listening then return end
 
     local damage = dmg:GetDamage()
@@ -255,14 +249,12 @@ local function blastDamageInfoHintThink( dmg, damageOrigin, damageRadius )
 
     terminatorsSendSoundHint( attacker, damageOrigin, volume, true )
 
-end
-
-hook.Add( "StrawBlastDamageInfo", "straw_termalerter_blastdamageinfo", function( ... ) blastDamageInfoHintThink( ... ) end )
+end )
 
 
 
 -- env_explosion reading
-local function explosionHintThink( entity )
+hook.Add( "OnEntityCreated", "termalerter_env_explosion", function( entity )
     if not listening then return end
     if not IsValid( entity ) then return end
     if entMeta.GetClass( entity ) ~= "env_explosion" then return end
@@ -287,9 +279,7 @@ local function explosionHintThink( entity )
         terminatorsSendSoundHint( attacker, pos, volume, true )
 
     end )
-end
-
-hook.Add( "OnEntityCreated", "straw_termalerter_explosioninfo", function( ... ) explosionHintThink( ... ) end )
+end )
 
 local function handleNormalSound( ent, pos, level )
     if not listening then return end
@@ -308,14 +298,14 @@ local function handleNormalSound( ent, pos, level )
 
 end
 
--- fingies be stucketh
-sound._StrawTakeover_soundPlay = sound._StrawTakeover_soundPlay or sound.Play
+sound._TermTakeover_soundPlay = sound._TermTakeover_soundPlay or sound.Play
 sound.Play = function( ... )
-    hook.Run( "StrawSoundPlayHook", ... )
-    return sound._StrawTakeover_soundPlay( ... )
+    hook.Run( "Term_SoundPlayHook", ... )
+    return sound._TermTakeover_soundPlay( ... )
 end
 
-local function soundPlayThink( name, pos, level, _, volume )
+
+hook.Add( "Term_SoundPlayHook", "termalerter_soundplayhook", function( name, pos, level, _, volume )
     if not listening then return end
 
     if not name then return end
@@ -331,15 +321,12 @@ local function soundPlayThink( name, pos, level, _, volume )
 
     end )
 
-end
-
-hook.Add( "StrawSoundPlayHook", "straw_termalerter_soundplayhook", function( ... ) soundPlayThink( ... ) end )
+end )
 
 
 local string_StartsWith = string.StartWith
 
--- sound reading!?!??
-local function emitSoundThink( soundDat )
+hook.Add( "EntityEmitSound", "termalerter_soundinfo", function( soundDat )
     if not listening then return end
     local entity = soundDat.Entity
     if not IsValid( entity ) then return end
@@ -380,7 +367,7 @@ local function emitSoundThink( soundDat )
 
     local soundLevel = soundDat.SoundLevel * soundDat.Volume
     local lastSoundLevel = lastSoundLevels[entity]
-    if lastSoundLevel and soundLevel < lastSoundLevel then return end-- dont spam sound info
+    if lastSoundLevel and soundLevel < lastSoundLevel then return end -- dont spam sound info
 
     timer.Simple( 0.1, function()
         if not listening then return end
@@ -392,6 +379,4 @@ local function emitSoundThink( soundDat )
         handleNormalSound( entity, pos, soundLevel, soundDat.SoundName )
 
     end )
-end
-
-hook.Add( "EntityEmitSound", "straw_termalerter_soundinfo", function( ... ) emitSoundThink( ... ) end )
+end )

@@ -438,10 +438,10 @@ function SWEP:DealDamage()
             dmginfo:SetDamageType( DMG_CLUB )
             dmginfo:SetDamagePosition( tr.HitPos )
 
-            if hitEnt:IsPlayer() or hitEnt:IsNextBot() or hitEnt:IsNPC() then
+            if hitEnt:IsPlayer() or hitEnt:IsNextBot() or hitEnt:IsNPC() then -- HIGH FORCE for npc ragdolls
                 dmginfo:SetDamageForce( owner:GetAimVector() * 6998 * scale )
 
-            else
+            else -- LOW force for props
                 dmginfo:SetDamageForce( owner:GetAimVector() * 100 )
 
             end

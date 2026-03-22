@@ -205,6 +205,7 @@ function ENT:MakeFootstepSound( myTbl, volumeMul, soundWeightAdj, footPos, curSp
     local chan = CHAN_AUTO
     local walking = curSpeed <= myTbl.MoveSpeed
 
+    -- human stepmode, get sound from surface dat
     if stepMode == "human" then
         local tr = util.TraceEntity( {
             start = footPos,
@@ -244,12 +245,16 @@ function ENT:MakeFootstepSound( myTbl, volumeMul, soundWeightAdj, footPos, curSp
             end
 
         end
+    -- stepmode custom, get sound from Term_FootstepSoundWalking or Term_FootstepSound
     elseif stepMode == "custom" then
+        -- these can be a string "example.wav",
+        --    or a table with .path, .pitch, .volume, .lvl keys,
+        --    or a table of tables with .path, etc, keys
         if walking and myTbl.Term_FootstepSoundWalking then
             stepSound = myTbl.Term_FootstepSoundWalking
 
         else
-            stepSound = myTbl.Term_FootstepSound -- can be string "example.wav", or a table with .path, .pitch, .volume, .lvl keys, or a table of tables with .path, etc, keys
+            stepSound = myTbl.Term_FootstepSound
 
         end
         if istable( stepSound ) and not stepSound.path then

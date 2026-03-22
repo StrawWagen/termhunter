@@ -92,7 +92,7 @@ ENT.MySpecialActions = {
 
     },
     ["Use"] = {
-        inBind = IN_USE,
+        commandName = "+use",
         drawHint = function( bot )
             if bot.CanUseStuff or bot.CanFindWeaponsOnTheGround then
                 return true
@@ -109,7 +109,7 @@ ENT.MySpecialActions = {
             -- find something to use, check under crosshair first
             local blockerResult = util.QuickTrace( shoot, bot:GetAimVector() * 80, bot )
             if blockerResult.Hit and IsValid( blockerResult.Entity ) then
-                blocker = blockerResult.Entity
+                blocker = blockerResult.SetEntity
 
             end
             if not IsValid( blocker ) then -- now check nearby the crosshair
@@ -333,7 +333,9 @@ end
 
 drive.Register( "drive_terminator_nextbot", {
     Init = function( self )
+
         if SERVER then
+            self.NextPosUpdateCheck = CurTime() + 1
             self.Entity.Term_PlayerDriveController = self
             self.Entity:StartControlByPlayer( self.Player )
             timer.Simple( 0.05, function()
@@ -344,6 +346,8 @@ drive.Register( "drive_terminator_nextbot", {
                 terminator_Extras.SyncDriveActions( self.Entity, self.Player )
 
             end )
+
+            hook.Run( "Term_OnStartedDriving", self.Player, self.Entity, self )
         else
             self.Entity:SetPredictable( false )
             self.Entity:SetupCLDrivingHooks()
@@ -352,6 +356,8 @@ drive.Register( "drive_terminator_nextbot", {
 
     Stop = function(self)
         self.StopDriving = true
+
+        hook.Run( "Term_OnStoppedDriving", self.Player, self.Entity, self )
 
         if SERVER then
             self.Entity:StopControlByPlayer()
@@ -379,6 +385,14 @@ drive.Register( "drive_terminator_nextbot", {
             local btns = mv:GetButtons()
             self.Entity.m_ControlPlayerButtons = self.Entity:ModifyControlPlayerButtons( btns, cmd ) or btns
 
+            if self.NextPosUpdateCheck < CurTime() then -- keep our PAS up to date with the bot!
+                self.NextPosUpdateCheck = CurTime() + 1
+                local driver = self.Player
+                if not driver:Alive() then
+                    driver:SetPos( self.Entity:GetShootPos() )
+
+                end
+            end
         end
     end,
 
