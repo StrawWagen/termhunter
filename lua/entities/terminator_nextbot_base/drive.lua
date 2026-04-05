@@ -88,7 +88,12 @@ ENT.MySpecialActions = {
         name = "Give up control",
         desc = "Stop controlling the bot", -- desc is unused for now
 
-        svAction = function( drive, _driver, _bot ) drive:Stop() end,
+        svAction = function( drive, _driver, _bot )
+            if drive.NextStopDriving > CurTime() then return end
+
+            drive:Stop()
+
+        end,
 
     },
     ["Use"] = {
@@ -336,6 +341,7 @@ drive.Register( "drive_terminator_nextbot", {
 
         if SERVER then
             self.NextPosUpdateCheck = CurTime() + 1
+            self.NextStopDriving = CurTime() + 1
             self.Entity.Term_PlayerDriveController = self
             self.Entity:StartControlByPlayer( self.Player )
             timer.Simple( 0.05, function()

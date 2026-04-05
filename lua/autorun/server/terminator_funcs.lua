@@ -256,7 +256,7 @@ for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
 
 end--]]
 
-local bigNegativeZ = Vector( 0, 0, -3000 )
+local bigNegativeZ = Vector( 0, 0, -6000 )
 local startOffset = Vector( 0, 0, 100 )
 local function getFloorTr( pos )
     local traceDat = {

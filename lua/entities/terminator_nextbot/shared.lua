@@ -5743,6 +5743,14 @@ function ENT:DoDefaultTasks()
                 self:RunTask( "StartStaring" )
 
             end,
+            BehaveUpdatePriority = function( self, data )
+                if not self:inSeriousDanger() then return end
+                if self:primaryPathIsValid() then return end
+                self:TaskFail( "movement_watch" )
+                self:StartTask( "movement_handler", "aaah i was stuck and in serious danger!" )
+                self:RestartMotionCoroutine()
+
+            end,
             BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
