@@ -96,6 +96,20 @@ ENT.MySpecialActions = {
         end,
 
     },
+    ["StopControllingToggleZoom"] = {
+        commandName = "toggle_zoom",
+        drawHint = false,
+        name = "Give up control",
+        desc = "Stop controlling the bot", -- desc is unused for now
+
+        svAction = function( drive, _driver, _bot )
+            if drive.NextStopDriving > CurTime() then return end
+
+            drive:Stop()
+
+        end,
+
+    },
     ["Use"] = {
         commandName = "+use",
         drawHint = function( bot )

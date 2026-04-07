@@ -24,14 +24,27 @@ ENT.ViewPunchLength = 0.5
     Arg3: string | name | Name of var. Used as name of Set`name` and Get`name` functions.
     Ret1: 
 --]]------------------------------------
+local _DTGet = {
+    Entity = entMeta.GetDTEntity,
+    Bool   = entMeta.GetDTBool,
+    Int    = entMeta.GetDTInt,
+    Float  = entMeta.GetDTFloat,
+    Angle  = entMeta.GetDTAngle,
+    Vector = entMeta.GetDTVector,
+}
+local _DTSet = {
+    Entity = entMeta.SetDTEntity,
+    Bool   = entMeta.SetDTBool,
+    Int    = entMeta.SetDTInt,
+    Float  = entMeta.SetDTFloat,
+    Angle  = entMeta.SetDTAngle,
+    Vector = entMeta.SetDTVector,
+}
 local AddNetworkVar = function(type,slot,name)
-    ENT["Set"..name] = function(self,value)
-        self["SetDT"..type](self,slot,value)
-    end
-
-    ENT["Get"..name] = function(self)
-        return self["GetDT"..type](self,slot)
-    end
+    local getter = _DTGet[type]
+    local setter = _DTSet[type]
+    ENT["Set"..name] = function(self,value) setter(self,slot,value) end
+    ENT["Get"..name] = function(self) return getter(self,slot) end
 end
 
 -- Current bot weapon
