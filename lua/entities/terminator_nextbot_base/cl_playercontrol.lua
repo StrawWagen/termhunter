@@ -323,7 +323,7 @@ end
 --   in that direction (visually away from the target) in order to actually aim at them correctly.
 -- Also without this fix, the crosshair could also appear to be over a target, while actually
 --   aiming at a wall behind them.
-function ENT:GetPotentiallyCorrectedHitPos( aimDir, trace )
+function ENT:GetAssistedHitPos( aimDir, trace )
     if not IsValid( self:GetActiveWeapon() ) then return end -- Don't assist if not holding a weapon.
     if isViableHitPosTarget( trace.Entity ) then return end -- Already directly aimed at a good target.
 
@@ -397,7 +397,7 @@ function ENT:SetupCLDrivingHooks()
             mask = MASK_SHOT,
             filter = self,
         } )
-        local hitPosCorrected = self:GetPotentiallyCorrectedHitPos( aimDir, crosshairTrace )
+        local hitPosCorrected = self:GetAssistedHitPos( aimDir, crosshairTrace )
         local hitPos = hitPosCorrected or crosshairTrace.HitPos
         local chp = hitPos:ToScreen()
 
