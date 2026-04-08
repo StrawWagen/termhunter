@@ -322,7 +322,7 @@ end
 -- but due to thirdperson perspective,
 -- you would have to aim the opposite direction to move the crosshair over the player.
 -- this fixes that, crosshair is always positioned correctly relative to players
-function ENT:GetDrivingHitPos( aimDir, trace )
+function ENT:GetPotentiallyCorrectedHitPos( aimDir, trace )
     if not IsValid( self:GetActiveWeapon() ) then return end -- Don't assist if not holding a weapon.
     if isViableHitPosTarget( trace.Entity ) then return end -- Already directly aimed at a good target.
 
@@ -396,7 +396,8 @@ function ENT:SetupCLDrivingHooks()
             mask = MASK_SHOT,
             filter = self,
         } )
-        local hitPos = self:GetDrivingHitPos( aimDir, crosshairTrace ) or crosshairTrace.HitPos
+        local hitPosCorrected = self:GetPotentiallyCorrectedHitPos( aimDir, crosshairTrace )
+        local hitPos = hitPosCorrected or crosshairTrace.HitPos
         local chp = hitPos:ToScreen()
 
         self:ModifyPlayerControlHUD( chp.x, chp.y )
