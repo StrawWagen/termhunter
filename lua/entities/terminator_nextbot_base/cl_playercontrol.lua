@@ -251,10 +251,17 @@ local function drawSpecialActions( bot )
     end
 end
 
-local function drawCrosshair( x, y )
+local function drawCrosshair( x, y, chHit )
     local scale = sizeScaled( 1 )
+    if chHit then
+        surface.SetDrawColor( 255, 50, 0, 255 ) -- scarlet for attention
+
+    else
+        surface.SetDrawColor( 255, 200, 0, 255 ) -- amber for high contrast on varied map backgrounds
+
+    end
+
     -- Minimal crosshair: HL2 style gap cross.
-    surface.SetDrawColor( 255, 200, 0, 255 ) -- amber for high contrast on varied map backgrounds
     surface.DrawRect( x - 1 * scale, y - 1 * scale, 2 * scale, 2 * scale )    -- crosshair center
     surface.DrawRect( x - 12 * scale, y - 1 * scale, 6 * scale, 2 * scale )   -- left arm
     surface.DrawRect( x + 6 * scale, y - 1 * scale, 6 * scale, 2 * scale )    -- right arm
@@ -269,12 +276,13 @@ local hpTextCol = Color( 255, 220, 40 )
 --[[------------------------------------
     Name: NEXTBOT:ModifyPlayerControlHUD
     Desc: Allows modify HUD with bot's info.
-    Arg1: number | chx | Crosshair X pos.
-    Arg2: number | chy | Crosshair Y pos.
+    Arg1: number | chx   | Crosshair X pos.
+    Arg2: number | chy   | Crosshair Y pos.
+    Arg3: bool   | chHit | Is the crosshair hitting something?
     Ret1: bool | Return true to prevent drawing default HUD.
 --]]------------------------------------
 -- HUD override while driving a Terminator bot.
-function ENT:ModifyPlayerControlHUD( chx, chy )
+function ENT:ModifyPlayerControlHUD( chx, chy, chHit )
     -- Override default HUD entirely for a controlled bot.
     local realHP = math.max( 0, self:Health() )
     local maxHP = math.max( 1, self:GetMaxHealth() )
@@ -283,7 +291,7 @@ function ENT:ModifyPlayerControlHUD( chx, chy )
     -- Smooth transition for bar fill.
     hpLerp = Lerp( FrameTime() * 6, hpLerp, frac )
 
-    drawCrosshair( chx, chy )
+    drawCrosshair( chx, chy, chHit )
 
     -- Health bar (bottom left)
     local barW = sizeScaled( 480 )
@@ -317,15 +325,23 @@ local function isViableHitPosTarget( ent )
 
 end
 
--- Makes sure the crosshair is always positioned correctly relative to players for aiming at them.
--- Without this correction, it could be off to one side of the target,
---   but due to the thirdperson perspective, you'd have to move your mouse *further*
---   in that direction (visually away from the target) in order to actually aim at them correctly.
--- Also without this fix, the crosshair could also appear to be over a target, while actually
---   aiming at a wall behind them.
+--[[------------------------------------
+    - Makes sure the crosshair is always positioned correctly relative to players for aiming at them.
+    - Without this correction, it could be off to one side of the target,
+        but due to the thirdperson perspective, you'd have to move your mouse *further*
+        in that direction (visually away from the target) in order to actually aim at them correctly.
+    - Also without this fix, the crosshair could also appear to be over a target, while actually
+        aiming at a wall behind them.
+
+    Returns hitPos, hittingATarget
+        hitPos: Vector or nil
+            - nil if nothing is better than just trace.HitPos.
+        hittingATarget: true or nil
+            - true if hitting a viable target to shoot at (player, npc, nextbot, vehicle).
+--]]------------------------------------
 function ENT:GetAssistedHitPos( aimDir, trace )
     if not IsValid( self:GetActiveWeapon() ) then return end -- Don't assist if not holding a weapon.
-    if isViableHitPosTarget( trace.Entity ) then return end -- Already directly aimed at a good target.
+    if isViableHitPosTarget( trace.Entity ) then return nil, true end -- Already directly aimed at a good target.
 
     local shootPos = trace.StartPos
     local camPos = EyePos()
@@ -397,11 +413,11 @@ function ENT:SetupCLDrivingHooks()
             mask = MASK_SHOT,
             filter = self,
         } )
-        local hitPosCorrected = self:GetAssistedHitPos( aimDir, crosshairTrace )
+        local hitPosCorrected, hittingATarget = self:GetAssistedHitPos( aimDir, crosshairTrace )
         local hitPos = hitPosCorrected or crosshairTrace.HitPos
         local chp = hitPos:ToScreen()
 
-        self:ModifyPlayerControlHUD( chp.x, chp.y )
+        self:ModifyPlayerControlHUD( chp.x, chp.y, hittingATarget )
 
     end )
 
