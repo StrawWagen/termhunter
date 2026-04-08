@@ -314,6 +314,7 @@ end
 
 local function isViableHitPosTarget( ent )
     return IsValid( ent ) and ( ent:IsPlayer() or ent:IsNPC() or ent:IsNextBot() or ent:IsVehicle() )
+
 end
 
 function ENT:GetDrivingHitPos( aimDir, trace )
@@ -352,6 +353,7 @@ function ENT:GetDrivingHitPos( aimDir, trace )
     end
 
     if bestTarget then return bestTarget end
+
 end
 
 function ENT:SetupCLDrivingHooks()
