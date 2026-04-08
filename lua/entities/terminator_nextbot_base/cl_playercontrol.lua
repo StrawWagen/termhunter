@@ -312,6 +312,48 @@ function ENT:ModifyPlayerControlHUD( chx, chy )
     return true -- Prevent default HUD elements for this state.
 end
 
+local function isViableHitPosTarget( ent )
+    return IsValid( ent ) and ( ent:IsPlayer() or ent:IsNPC() or ent:IsNextBot() or ent:IsVehicle() )
+end
+
+function ENT:GetDrivingHitPos( aimDir, trace )
+    if not IsValid( self:GetActiveWeapon() ) then return end -- Don't assist if not holding a weapon.
+    if isViableHitPosTarget( trace.Entity ) then return end -- Already directly aimed at a good target.
+
+    local shootPos = trace.StartPos
+    local camPos = EyePos()
+
+    local bestDist = math.huge
+    local bestTarget = nil
+
+    -- TODO: Should this iterate npcs and nextbots as well? Would be very laggy...
+    for _, ply in player.Iterator() do
+        if not ply:Alive() then continue end
+
+        -- Project the driver's screen in 3D space onto the target's position,
+        --  then get the intersection between it and the aim trace.
+        -- This accounts for the perspective shift from having an over-the-shoulder view.
+        local targetPos = ply:LocalToWorld( ply:OBBCenter() )
+        local to = targetPos - camPos
+        local planePos = util.IntersectRayWithPlane( shootPos, aimDir * 56756, targetPos, to )
+        if not planePos then continue end
+
+        -- Ignore if the assisted position would be too far from the target.
+        local dist = planePos:Distance( targetPos )
+        if dist > 300 then continue end
+
+        -- Find the closest one.
+        if dist < bestDist then
+            bestDist = dist
+            bestTarget = planePos
+
+        end
+
+    end
+
+    if bestTarget then return bestTarget end
+end
+
 function ENT:SetupCLDrivingHooks()
     local toTeardown = {}
 
@@ -339,13 +381,16 @@ function ENT:SetupCLDrivingHooks()
 
     toTeardown[#toTeardown + 1] = "HUDPaint"
     hook.Add( "HUDPaint", "Term_CLDriving", function()
+        local startPos = self:GetShootPos()
+        local aimDir = self:GetEyeAngles():Forward()
         local crosshairTrace = util.TraceLine( {
-            start = self:GetShootPos(),
-            endpos = self:GetShootPos() + self:GetEyeAngles():Forward() * 56756, -- large distance constant: effectively 'infinite' ray for crosshair placement
+            start = startPos,
+            endpos = startPos + aimDir * 56756, -- large distance constant: effectively 'infinite' ray for crosshair placement
             mask = MASK_SHOT,
             filter = self,
         } )
-        local chp = crosshairTrace.HitPos:ToScreen()
+        local hitPos = self:GetDrivingHitPos( aimDir, crosshairTrace ) or crosshairTrace.HitPos
+        local chp = hitPos:ToScreen()
 
         self:ModifyPlayerControlHUD( chp.x, chp.y )
 
