@@ -317,6 +317,11 @@ local function isViableHitPosTarget( ent )
 
 end
 
+-- makes sure crosshair is always positioned correctly relative to players
+-- without this correction, crosshair can sometimes be to the left of the player.
+-- but due to thirdperson perspective,
+-- you would have to aim the opposite direction to move the crosshair over the player.
+-- this fixes that, crosshair is always positioned correctly relative to players
 function ENT:GetDrivingHitPos( aimDir, trace )
     if not IsValid( self:GetActiveWeapon() ) then return end -- Don't assist if not holding a weapon.
     if isViableHitPosTarget( trace.Entity ) then return end -- Already directly aimed at a good target.
