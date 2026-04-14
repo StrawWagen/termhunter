@@ -151,7 +151,7 @@ function ENT:StartTask( task, data, reason )
     local myTbl = entMeta.GetTable( self )
     if myTbl.IsTaskActive( self, task ) then
         if printTasks then
-            ErrorNoHaltWithStack( self, " tried to start already active task: ", task )
+            ErrorNoHaltWithStack( self, " tried to start already active task: ", task, " with reason: ", reason )
 
         end
         return

@@ -1469,7 +1469,7 @@ function ENT:CanDoNewPath( pathTarget )
 
     end
     local Dist = self:MyPathLength() or 0
-    local pathPos = self.PathEndPos or vec_zero
+    local pathPos = self.m_PathPos or vec_zero
 
     if Dist > 10000 then
         NewPathDist = 4000 -- dont do pathing as often if the target is far away from me!
@@ -1911,8 +1911,8 @@ local function HunterIsStuck( self, myTbl )
     if HasAcceleration <= 0 then return end -- we aren't trying to move rn
 
     local myPos = self:GetPos()
-    local startPos = myTbl.LastMovementStartPos or vec_zero
-    local goalPos = myTbl.PathEndPos or vec_zero
+    local startPos = myTbl.m_LastPathStartPos or vec_zero
+    local goalPos = myTbl.m_PathPos or vec_zero
     local notMoving = myTbl.StuckPos3 and myTbl.StuckPos5
     -- laddering? check 3d dist, not 2d dist!
     if notMoving and myTbl.terminator_HandlingLadder then
@@ -1940,7 +1940,7 @@ local function HunterIsStuck( self, myTbl )
     end
 
     local farFromStart = DistToSqr2D( myPos, startPos ) > 15^2
-    local farFromStartAndNew = farFromStart or ( myTbl.LastMovementStart and ( myTbl.LastMovementStart + 1 < CurTime() ) )
+    local farFromStartAndNew = farFromStart or ( myTbl.m_LastPathStartTime and ( myTbl.m_LastPathStartTime + 1 < CurTime() ) )
     local farFromEnd = DistToSqr2D( myPos, goalPos ) > 15^2
     local isPath = myTbl.PathIsValid( self )
 
@@ -2019,7 +2019,7 @@ function ENT:ControlPath2( AimMode )
 
     if badPathAndStuck or posBasedStuck then -- new unstuck
         local myPos = self:GetPos()
-        myTbl.startUnstuckDestination = myTbl.PathEndPos -- save where we were going
+        myTbl.startUnstuckDestination = myTbl.m_PathPos -- save where we were going
         myTbl.startUnstuckPos = myPos
         myTbl.lastUnstuckStart = CurTime()
 
@@ -4002,10 +4002,33 @@ function ENT:DoDefaultTasks()
 
             end
         },
+        ["trancebreaking_handler"] = {
+            StartsOnInitialize = true,
+            OnStart = function( self, data )
+                data.nextBreak = CurTime() + 15
+
+            end,
+            OnDamaged = function( self, data, dmg )
+                if dmg:GetDamage() <= 1 then return end
+
+                local myTbl = entMeta.GetTable( self )
+                local busy, busyFor = myTbl.IsBusyBuildingPath( self, myTbl )
+                if not busy then return end
+                if busyFor <= 4 then return end
+
+                data.nextBreak = CurTime() + 15
+
+                myTbl.KillAllTasksWith( self, "movement" )
+                myTbl.StartTask( self, "movement_handler", nil, "i was in a trance, overthinking a path!" )
+                myTbl.RestartMotionCoroutine( self )
+
+            end,
+        },
         -- wait in one spot for a set amount of time!
         ["movement_wait"] = {
             OnStart = function( self, data )
                 data.time = CurTime() + ( data.time or math.Rand( 0.1, 0.2 ) )
+
             end,
             BehaveUpdateMotion = function( self, data, interval )
                 if CurTime() >= data.time then
@@ -4174,6 +4197,7 @@ function ENT:DoDefaultTasks()
                 data.LastSawFrom = myTbl.GetShootPos( self )
                 data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
                 data.AfterwardsTaskData = data.AfterwardsTaskData or nil
+                data.BackedUpAreaCounts = {}
                 myTbl.InvalidatePath( self, "we gotta back the hell up" )
 
             end,
@@ -4233,8 +4257,10 @@ function ENT:DoDefaultTasks()
 
                         end
                     end
+                    local backedUpCounts = data.BackedUpAreaCounts
                     local myViewOffset = myTbl.GetViewOffset( self )
                     local bestBackupPos
+                    local bestBackupArea
                     local bestBackupDist
                     local myZ = myPos.z
                     for _, area in ipairs( finalAreasToCheck ) do
@@ -4251,7 +4277,7 @@ function ENT:DoDefaultTasks()
                         local myShootWhenImThere = backupPos + myViewOffset
                         if not terminator_Extras.PosCanSeeComplex( myShoot, myShootWhenImThere, self ) then continue end
 
-                        local dropoff = math.Clamp( myZ - backupPos.z, 0, math.huge )
+                        local dropoff = myNav:ComputeAdjacentConnectionHeightChange( area )
                         local dirToThere = terminator_Extras.dirToPos( myShoot, myShootWhenImThere )
                         local distWeGetToEnemy = util.DistanceToLine( myShoot + dirToThere * 10, myShootWhenImThere, backupFrom )
                         distWeGetToEnemy = distWeGetToEnemy / dropoff
@@ -4261,7 +4287,14 @@ function ENT:DoDefaultTasks()
 
                         end
 
+                        local beenThereBeforeCount = backedUpCounts[area]
+                        if beenThereBeforeCount then
+                            distWeGetToEnemy = distWeGetToEnemy / beenThereBeforeCount
+
+                        end
+
                         if not bestBackupDist or distWeGetToEnemy > bestBackupDist then
+                            bestBackupArea = area
                             bestBackupDist = distWeGetToEnemy
                             bestBackupPos = backupPos
 
@@ -4279,6 +4312,8 @@ function ENT:DoDefaultTasks()
 
                         end
                     end
+                    local oldCount = backedUpCounts[bestBackupArea] or 0
+                    backedUpCounts[bestBackupArea] = oldCount + 1
                     data.UseNearestPoints = nil
                     data.CurrentTaskGoalPos = bestBackupPos
 
@@ -5743,14 +5778,6 @@ function ENT:DoDefaultTasks()
                 self:RunTask( "StartStaring" )
 
             end,
-            BehaveUpdatePriority = function( self, data )
-                if not self:inSeriousDanger() then return end
-                if self:primaryPathIsValid() then return end
-                self:TaskFail( "movement_watch" )
-                self:StartTask( "movement_handler", "aaah i was stuck and in serious danger!" )
-                self:RestartMotionCoroutine()
-
-            end,
             BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
                 local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
@@ -5849,7 +5876,7 @@ function ENT:DoDefaultTasks()
 
                 -- move forward if enemy moves around!
                 -- slinkAwayTime check means it only happens if enemy has looked directly at us at least once
-                if not data.Unreachable and goodEnemy and slinkAwayTime > CurTime() then
+                if not data.Unreachable and goodEnemy and slinkAwayTime > CurTime() and not self:EnemyIsLethalInMelee( self, enemy ) then
                     local walkedInStepWant = self.walkedInStepWant or math.random( 1, 4 )
                     local walkedInStepChance = walkedInStepWant * 0.1
                     local canWalkInStep = IsValid( enemy ) and enemy:GetVelocity():Length() > self.WalkSpeed and math.Rand( 0, 100 ) < walkedInStepChance
@@ -5906,7 +5933,9 @@ function ENT:DoDefaultTasks()
                     local _, canShootTr = terminator_Extras.PosCanSeeComplex( self:GetShootPos(), self:EntShootPos( enemy ), self, MASK_SHOT )
                     local canShoot = not canShootTr.Hit or canShootTr.Entity == enemy
 
-                    if not canShoot or self.terminator_HandlingLadder or self:WaterLevel() >= 3 or ( data.timeNeededToMove and data.timeNeededToMove > CurTime() ) then
+                    local myTbl = entMeta.GetTable( self )
+
+                    if not canShoot or myTbl.terminator_HandlingLadder or myTbl.IsSwimming( self, myTbl ) or ( data.timeNeededToMove and data.timeNeededToMove > CurTime() ) then
                         if self:primaryPathInvalidOrOutdated( enemyPos ) then
                             local result = terminator_Extras.getNearestPosOnNav( enemyPos )
                             if not IsValid( result.area ) then data.Unreachable = true end
@@ -5974,9 +6003,16 @@ function ENT:DoDefaultTasks()
                     end
                 -- too close bub!
                 elseif not beingFooled and ( self.DistToEnemy < tooCloseDist or ( enemy and enemy.isTerminatorHunterKiller ) ) then
-                    if self:EnemyIsReachable() then
+                    local reachable = self:EnemyIsReachable()
+                    if reachable and self:EnemyIsLethalInMelee( self, enemy ) then
+                        self:GetTheBestWeapon()
                         self:TaskComplete( "movement_watch" )
-                        self:StartTask( "movement_flankenemy", nil, "it is too close" )
+                        self:StartTask( "movement_backthehellup", nil, "it's too close, aah!" )
+                        self.PreventShooting = nil
+
+                    elseif reachable then
+                        self:TaskComplete( "movement_watch" )
+                        self:StartTask( "movement_flankenemy", nil, "enemy is close, gonna rush em" )
                         self.PreventShooting = nil
                         if data.enemyIsBoxedIn == true then
                             -- charge enemy
@@ -6927,14 +6963,6 @@ function ENT:DoDefaultTasks()
                 if not self.isUnstucking then
                     self:InvalidatePath( "approaching last seen, killing old path" )
                 end
-            end,
-            BehaveUpdatePriority = function( self, data )
-                if not self:inSeriousDanger() then return end
-                if self:primaryPathIsValid() then return end
-                self:TaskFail( "movement_approachlastseen" )
-                self:StartTask( "movement_handler", "aaah i was stuck and in serious danger!" )
-                self:RestartMotionCoroutine()
-
             end,
             BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
@@ -8640,7 +8668,8 @@ function ENT:DoDefaultTasks()
                     --debugoverlay.Text( data.bestPos, "a" .. data.bestPosScore, 10, false )
 
                 else
-                    if myPos:Distance( data.bestPos ) < 200 then
+                    local distToThere = myPos:Distance( data.bestPos )
+                    if distToThere < 200 then
                         self.overrideCrouch = CurTime() + 0.5
 
                     end
@@ -8650,7 +8679,7 @@ function ENT:DoDefaultTasks()
 
                     end
                     local result = self:ControlPath2( not self.IsSeeEnemy )
-                    if result == true or SqrDistLessThan( myPos:DistToSqr( data.bestPos ), 50 ) then
+                    if result == true or distToThere < 50 then
                         self:TaskComplete( "movement_perch" )
                         self:StartTask( "movement_camp", nil, "i got to my camping spot" )
 

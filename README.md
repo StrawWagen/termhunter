@@ -348,6 +348,10 @@ ENT.MyClassTask = {
     -- DisableBehaviour = function( self, data )
         -- Return true to disable bot behavior, same logic as ai_disabled
     -- end,
+
+    -- OnFinishBuildingPath = function( self, data, path, endPos, wasGood )
+        -- Called right after bots finish building their path
+    -- end
     
     
     -- ALLY/TEAM CALLBACKS --

@@ -274,7 +274,10 @@ function ENT:OnTakeDamage( Damage )
             local DamageDamage = Damage:GetDamage()
             if DamageDamage > 60 then -- ignore minor explosions
                 DamageDamage = DamageDamage * 0.9 -- minor resist
-                Damage:SetDamage( math.Clamp( DamageDamage, 0, terminator_Extras.healthDefault / 2.9 ) ) -- default to at least ~3 shots to kill term
+                if math.random( 0, 100 ) < 20 then -- chance to clamp explosive damage
+                    Damage:SetDamage( math.Clamp( DamageDamage, 0, terminator_Extras.healthDefault / 1.9 ) )
+
+                end
 
                 BgDamage = 40 + DamageDamage * 0.5
                 ToBGs = { 0, 1, 2, 3, 4, 5, 6 }

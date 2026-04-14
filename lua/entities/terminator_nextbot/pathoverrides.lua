@@ -826,11 +826,6 @@ function ENT:SetupPathShell( endpos, isUnstuck )
 
     -- not an orphan, proceed as normal!
     if pathDestinationIsAnOrphan ~= true then
-        -- save path start info for the HunterIsStuck
-        self.LastMovementStart = CurTime()
-        self.LastMovementStartPos = self:GetPos()
-        self.PathEndPos = endpos
-
         local before = SysTime()
         local computed, wasGood = self:SetupPath( endpos, endArea.area )
         local after = SysTime()
@@ -1611,6 +1606,12 @@ function ENT:SetupPath( pos, endArea )
     coroutine_yield()
 
     local myTbl = entMeta.GetTable( self )
+
+    -- save path start info for the HunterIsStuck
+    myTbl.m_LastPathStartTime = CurTime()
+    myTbl.m_LastPathStartPos = self:GetPos()
+    myTbl.m_PathPos = pos
+
     myTbl.InvalidatePath( self, "i started a new path" )
 
     myTbl.term_cancelPathGen = nil
@@ -1654,8 +1655,6 @@ function ENT:SetupPath( pos, endArea )
     path:SetMinLookAheadDistance( myTbl.PathMinLookAheadDistance )
     path:SetGoalTolerance( myTbl.PathGoalTolerance )
 
-    myTbl.m_PathPos = pos
-
     local computed, wasGood, _status = AstarCompute( path, self, myTbl, pos, endArea )
     --print( self:GetCreationID(), "AstarCompute", computed, wasGood, _status )
 
@@ -1689,6 +1688,11 @@ function ENT:SetupPath( pos, endArea )
 
     myTbl.term_ConsecutivePathFailures = 0
 
+    ProtectedCall( function()
+        myTbl.RunTask( self, "OnFinishBuildingPath", path, pos, wasGood )
+
+    end )
+
     return computed, wasGood
 
 end
@@ -1705,5 +1709,17 @@ function ENT:DamagingAreas()
 
     end
     return damagingAreas
+
+end
+
+
+function ENT:IsBusyBuildingPath( myTbl )
+    if myTbl.m_Path and not IsValid( myTbl.m_Path ) then
+        local startedBuilding = myTbl.m_LastPathStartTime or 0
+        local sinceStartedBuilding = math.abs( CurTime() - startedBuilding )
+        return true, sinceStartedBuilding
+
+    end
+    return false
 
 end
