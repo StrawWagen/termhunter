@@ -20,7 +20,7 @@ if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
         Name = "Combine Rocketeer",
         Class = "terminator_nextbot_crocketeer",
         Category = "Terminator Nextbot",
-        Weapons = ENT.DefaultWeapon,
+        Weapons = { ENT.DefaultWeapon },
     } )
 end
 
