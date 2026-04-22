@@ -4,9 +4,7 @@
 
 AddCSLuaFile()
 
-ENT.DefaultWeapon = {
-    "weapon_shotgun"
-}
+ENT.DefaultWeapon = "weapon_shotgun"
 
 ENT.DefaultSidearms = {
     "weapon_frag",
