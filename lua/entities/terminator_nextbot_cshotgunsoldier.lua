@@ -4,9 +4,7 @@
 
 AddCSLuaFile()
 
-ENT.DefaultWeapon = {
-    "weapon_shotgun"
-}
+ENT.DefaultWeapon = "weapon_shotgun"
 
 ENT.DefaultSidearms = {
     "weapon_frag",
@@ -22,7 +20,7 @@ if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
         Name = "Combine Shotgun Soldier",
         Class = "terminator_nextbot_cshotgunsoldier",
         Category = "Terminator Nextbot",
-        Weapons = ENT.DefaultWeapon,
+        Weapons = { ENT.DefaultWeapon },
     } )
 end
 
