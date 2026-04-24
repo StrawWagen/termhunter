@@ -14,6 +14,7 @@ ENT.Base = "terminator_nextbot_csoldier"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Combine Rocketeer"
 ENT.Spawnable = false -- dont show up in entity spawn category
+ENT.Author = "Boomertaters"
 
 if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
     list.Set( "NPC", "terminator_nextbot_crocketeer", {
