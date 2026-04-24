@@ -32,8 +32,8 @@ end
 
 ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 4
 ENT.MaxPathingIterations = 2500
-ENT.ThreshMulIfDueling = 5 -- CoroutineThresh is multiplied by this amount if we're closer than DuelEnemyDist
-ENT.ThreshMulIfClose = 3 -- if we're closer than DuelEnemyDist * 2
+ENT.ThreshMulIfDueling = 3 -- CoroutineThresh is multiplied by this amount if we're closer than DuelEnemyDist
+ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
 ENT.IsFodder = false
 
 ENT.JumpHeight = 45
