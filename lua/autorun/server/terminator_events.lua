@@ -529,13 +529,13 @@ local function eventManage( event )
             else
                 local timeoutWhen = curr.termEvent_TimeoutWhen
                 if timeoutWhen and timeoutWhen < CurTime() then
-                    if terminator_Extras.posIsInterrupting( curr:WorldSpaceCenter(), false ) then
+                    if terminator_Extras.posIsInterrupting( curr:WorldSpaceCenter(), false ) then -- reset timeout, they're right there!
                         curr.termEvent_TimeoutWhen = CurTime() + curr.termEvent_TimeoutTime
                         debugPrint( curr, " timeout INTERRUPT!" )
 
                     else
                         debugPrint( curr, " TIMEOUT!" )
-                        SafeRemoveEntity( spawned )
+                        SafeRemoveEntity( curr )
 
                     end
                 end
@@ -554,6 +554,7 @@ local function onConcluded( event )
         local bestDedication = 0
         local bestDedicationPly
         local dedications = {}
+        -- find the participator with highest dedication
         for ply, _ in pairs( event.participatingPlayers ) do
             if not IsValid( ply ) then continue end
             local theirDedication = ply:GetInfoNum( event.dedicationInfoNum, 0 )

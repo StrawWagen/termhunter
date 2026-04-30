@@ -151,7 +151,12 @@ function ENT:StartTask( task, data, reason )
     local myTbl = entMeta.GetTable( self )
     if myTbl.IsTaskActive( self, task ) then
         if printTasks then
+            permaPrint( "-------------------------------------------------" )
             ErrorNoHaltWithStack( self, " tried to start already active task: ", task, " with reason: ", reason )
+            self.taskHistory = self.taskHistory or {}
+            permaPrint( "taskhistory" )
+            permaPrintTable( self.taskHistory )
+            permaPrint( "-------------------------------------------------" )
 
         end
         return
@@ -216,6 +221,7 @@ function ENT:Use( user )
     local fourSpaces = "    "
 
     self.taskHistory = self.taskHistory or {}
+    permaPrint( "-BOT WAS USED WITH term_debugtasks 1-" )
     permaPrint( "taskhistory" )
     permaPrintTable( self.taskHistory )
     permaPrint( "activetasks", self )
@@ -227,6 +233,7 @@ function ENT:Use( user )
     permaPrint( "lastPathKillReason", self.lastPathInvalidateReason )
     permaPrint( "lastLadderLeaveReason", self.lastLadderLeaveStack )
     permaPrint( "lastYield", self.lastYieldLocation )
+    permaPrint( "-------------------------------------" )
 
 end
 

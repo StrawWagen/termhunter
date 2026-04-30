@@ -8226,9 +8226,13 @@ function ENT:DoDefaultTasks()
 
                     self.PreventShooting = nil
 
-                elseif ( not self.IsSeeEnemy and data.notSeeCount > ( data.maxNoSeeing / 8 ) ) or data.lookinRightAtMeCount > 150 then
+                elseif not self.IsSeeEnemy and data.notSeeCount > ( data.maxNoSeeing / 8 ) then
                     self:TaskComplete( "movement_camp" )
                     self:StartTask( "movement_perch", { requiredTarget = self.EnemyLastPosOffsetted, earlyQuitIfSeen = true, distanceWeight = 1 }, "i saw them before, and lost sight of them" )
+
+                elseif data.lookinRightAtMeCount > 150 then
+                    self:TaskComplete( "movement_camp" )
+                    self:StartTask( "movement_perch", { requiredTarget = self.EnemyLastPosOffsetted, earlyQuitIfSeen = true, distanceWeight = 1 }, "THEY SEE MEE!" )
 
                 -- exit if we took damage, or if we haven't seen an enemy 
                 elseif ( not self.IsSeeEnemy and ( self:getLostHealth() > 1 and ( data.wasEnemy or data.neverSeenEnemy ) ) ) or data.campingCounter < -internalStaringTolerance then
@@ -8654,11 +8658,19 @@ function ENT:DoDefaultTasks()
                                 end
                             end
 
+                            -- if not reachable, we hard bail
+                            if not self:areaIsReachable( targetsNav ) then
+                                self:TaskFail( "movement_perch" )
+                                self:StartTask( "movement_inertia", nil, "i couldnt get to a spot that sees what i want" )
+                                return
+
+                            end
                         end
                         if not canSee then
                             self:TaskFail( "movement_perch" )
                             self:StartTask( "movement_approachlastseen", nil, "i couldnt find a spot that sees what i want" )
                             return
+
                         end
                     else
                         self:TaskFail( "movement_perch" )
