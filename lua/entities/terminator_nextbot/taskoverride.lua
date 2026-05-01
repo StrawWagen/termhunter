@@ -152,10 +152,10 @@ function ENT:StartTask( task, data, reason )
     if myTbl.IsTaskActive( self, task ) then
         if printTasks then
             permaPrint( "-------------------------------------------------" )
-            ErrorNoHaltWithStack( self, " tried to start already active task: ", task, " with reason: ", reason )
             self.taskHistory = self.taskHistory or {}
             permaPrint( "taskhistory" )
             permaPrintTable( self.taskHistory )
+            ErrorNoHaltWithStack( self, " tried to start already active task: ", task, " with reason: ", reason )
             permaPrint( "-------------------------------------------------" )
 
         end

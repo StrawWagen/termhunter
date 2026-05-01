@@ -1459,32 +1459,35 @@ end
 
 function ENT:CanDoNewPath( pathTarget )
     if not isvector( pathTarget ) then return false end
-    if not self:nextNewPathIsGood() then return false end
-    if self.isUnstucking and self:PathIsValid() then return false end -- dont rebuild the path if we're handling an unstuck
-    if self:primaryPathIsValid() and self.terminator_HandlingLadder then self:TermHandleLadder() return false end
-    local NewPathDist = 1
+    local myTbl = entMeta.GetTable( self )
+    if not myTbl.nextNewPathIsGood( self ) then return false end
+    if myTbl.isUnstucking and myTbl.PathIsValid( self ) then return false end -- dont rebuild the path if we're handling an unstuck
+    if myTbl.primaryPathIsValid( self ) and myTbl.terminator_HandlingLadder then myTbl.TermHandleLadder( self ) return false end
+    local newPathDist = 1
     local mul = 1
-    if self.term_ExpensivePath then
-        mul = 10
+    if myTbl.term_ExpensivePath then
+        mul = 3
 
     end
-    local Dist = self:MyPathLength() or 0
-    local pathPos = self.m_PathPos or vec_zero
+    local pathLeng = myTbl.GetPathDistanceToGoal( self ) or 0
+    local pathPos = myTbl.m_PathPos
 
-    if Dist > 10000 then
-        NewPathDist = 4000 -- dont do pathing as often if the target is far away from me!
-    elseif Dist > 5000 then
-        NewPathDist = 3000
-    elseif Dist > 500 then
-        NewPathDist = 400
-    elseif Dist > 100 then
-        NewPathDist = 90
+    if pathLeng > 10000 then
+        newPathDist = 4000 -- dont do pathing as often if the target is far away from me!
+    elseif pathLeng > 5000 then
+        newPathDist = 3000
+    elseif pathLeng > 500 then
+        newPathDist = 400
+    elseif pathLeng > 100 then
+        newPathDist = 90
     end
 
-    NewPathDist = NewPathDist * mul
+    newPathDist = newPathDist * mul
 
-    local needsNew = SqrDistGreaterThan( pathTarget:DistToSqr( pathPos ), NewPathDist ) or self.needsPathRecalculate
-    self.needsPathRecalculate = nil
+    local targsDistToPos = pathTarget:DistToSqr( pathPos )
+
+    local needsNew = SqrDistGreaterThan( targsDistToPos, newPathDist ) or myTbl.needsPathRecalculate
+    myTbl.needsPathRecalculate = nil
     return needsNew
 
 end
@@ -1911,8 +1914,8 @@ local function HunterIsStuck( self, myTbl )
     if HasAcceleration <= 0 then return end -- we aren't trying to move rn
 
     local myPos = self:GetPos()
-    local startPos = myTbl.m_LastPathStartPos or vec_zero
-    local goalPos = myTbl.m_PathPos or vec_zero
+    local startPos = myTbl.m_LastPathStartPos
+    local goalPos = myTbl.m_PathPos
     local notMoving = myTbl.StuckPos3 and myTbl.StuckPos5
     -- laddering? check 3d dist, not 2d dist!
     if notMoving and myTbl.terminator_HandlingLadder then
@@ -4019,7 +4022,14 @@ function ENT:DoDefaultTasks()
                 data.nextBreak = CurTime() + 15
 
                 myTbl.KillAllTasksWith( self, "movement" )
-                myTbl.StartTask( self, "movement_handler", nil, "i was in a trance, overthinking a path!" )
+                if self:HasTask( "movement_backthehellup" ) then
+                    local quitDist = myTbl.DistToEnemy + ( myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.5 )
+                    myTbl.StartTask( self, "movement_backthehellup", { DistToQuit = quitDist }, "i was in a trance, im gonna back up!" )
+
+                else
+                    myTbl.StartTask( self, "movement_handler", nil, "i was in a trance, overthinking a path!" )
+
+                end
                 myTbl.RestartMotionCoroutine( self )
 
             end,
@@ -4322,6 +4332,13 @@ function ENT:DoDefaultTasks()
                 if data.CurrentTaskGoalPos then
                     coroutine_yield()
                     myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 5 )
+
+                end
+
+                -- if we have a holstered weapon, consider pulling it out!
+                local canWep, potentialWep = self:canGetWeapon()
+                if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_backthehellup", potentialWep ) then
+                    return
 
                 end
 
@@ -6958,6 +6975,7 @@ function ENT:DoDefaultTasks()
         -- approach the last known enemy position
         ["movement_approachlastseen"] = {
             OnStart = function( self, data )
+                data.startTime = CurTime()
                 data.approachAfter = CurTime() + 0.5
                 data.dontGetWepsForASec = data.dontGetWepsForASec or CurTime() + 1
                 if not self.isUnstucking then
@@ -6966,7 +6984,14 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
-                local toPos = data.pos or self.EnemyLastPos
+                local toPos = data.pos
+                if not toPos then
+                    toPos = self.EnemyLastPos
+
+                elseif self.LastEnemySpotTime > data.startTime then
+                    toPos = self.EnemyLastPos
+
+                end
                 local goodEnemy = self.IsSeeEnemy and IsValid( enemy )
                 local givenItAChance = data.approachAfter < CurTime() -- this schedule didn't JUST start.
 

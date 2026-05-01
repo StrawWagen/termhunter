@@ -125,6 +125,7 @@ function ENT:Initialize()
 
 	myTbl.BehaveInterval = 0
 	myTbl.m_Path = Path("Follow")
+	myTbl.m_LastPathStartPos = Vector()
 	myTbl.m_PathPos = Vector()
 	myTbl.m_PathOptions = {}
 	myTbl.m_NavArea = navmesh.GetNearestNavArea(pos)

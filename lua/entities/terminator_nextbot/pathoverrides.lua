@@ -200,6 +200,17 @@ function ENT:MyPathLength( path )
 
 end
 
+function ENT:GetPathDistanceToGoal( path )
+    path = path or self:GetPath()
+    if not self:PathIsValid( path ) then return 0 end
+
+    local fullLength = path:GetLength()
+    local distIntoPath = path:GetCursorPosition()
+
+    return fullLength - distIntoPath
+
+end
+
 -- helper
 function ENT:primaryPathInvalidOrOutdated( destination )
     if not self:nextNewPathIsGood() then return end
@@ -950,25 +961,7 @@ local table_IsEmpty = table.IsEmpty
 local inf = math.huge
 local ipairs = ipairs
 local isnumber = isnumber
-local table_remove = table.remove
 local table_Random = table.Random
-
--- helper func for findValidNavResult
-local function removeFrom( idToRemove, seqTbl, maskTbl )
-    local existed = maskTbl[idToRemove]
-    if not existed then return false end
-
-    maskTbl[idToRemove] = nil
-    for i = 1, #seqTbl do
-        if seqTbl[i] == idToRemove then
-            table_remove( seqTbl, i )
-            return true -- removed
-
-        end
-    end
-    return false -- not removed
-
-end
 
 -- helper func for findValidNavResult
 local function addTo( idToAdd, seqTbl, maskTbl )
@@ -979,6 +972,38 @@ local function addTo( idToAdd, seqTbl, maskTbl )
 
     end
     return false -- not added, already there
+
+end
+
+local function addTo( idToAdd, seqTbl, maskTbl, posTbl )
+    if not maskTbl[idToAdd] then
+        local n = #seqTbl + 1
+        seqTbl[n] = idToAdd
+        maskTbl[idToAdd] = true
+        posTbl[idToAdd] = n
+        return true
+
+    end
+    return false
+
+end
+
+local function removeFrom( idToRemove, seqTbl, maskTbl, posTbl )
+    local existed = maskTbl[idToRemove]
+    if not existed then return false end
+
+    maskTbl[idToRemove] = nil
+    local i = posTbl[idToRemove]
+    posTbl[idToRemove] = nil
+    local n = #seqTbl
+    if i ~= n then
+        local last = seqTbl[n]
+        seqTbl[i] = last    -- move last element into the gap
+        posTbl[last] = i    -- update last element's recorded position
+
+    end
+    seqTbl[n] = nil         -- pop tail
+    return true
 
 end
 
@@ -1053,8 +1078,10 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
     local opened = { [curId] = true }
     local openedSequential = { curId }
+    local openedPositions = { [curId] = 1 }
     local closed = {}
     local closedSequential = {}
+    local closedPositions = {}
     local distances = { [curId] = AreaOrLadderGetCenter( cur ):Distance( pos ) }
     local scores = { [curId] = 1 }
     local opCount = 0
@@ -1087,8 +1114,8 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
         end
 
         local areaId = bestArea
-        removeFrom( areaId, openedSequential, opened )
-        addTo( areaId, closedSequential, closed )
+        removeFrom( areaId, openedSequential, opened, openedPositions )
+        addTo( areaId, closedSequential, closed, closedPositions )
 
         local area = getNavAreaOrLadderById( areaId )
 
@@ -1157,7 +1184,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
                 distances[adjID] = distance
                 scores[adjID] = theScore
-                addTo( adjID, openedSequential, opened )
+                addTo( adjID, openedSequential, opened, openedPositions )
 
                 if adjArea.GetTop then
                     isLadder[adjID] = true
@@ -1280,6 +1307,21 @@ local function areaDistToPos( start, goalPos )
 
 end
 
+local function getLowestScoring( seqSearchTbl, costs1, costs2 )
+    local smallestCost = inf
+    local bestId
+    for _, id in ipairs( seqSearchTbl ) do
+        local cost = costs1[id] + costs2[id]
+        if cost < smallestCost then
+            smallestCost = cost
+            bestId = id
+
+        end
+    end
+    return bestId
+
+end
+
 local newUnreachableClass
 local newUnreachables = 0
 
@@ -1302,8 +1344,10 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
     local startAreasId = GetID( startArea )
     local opened = { [startAreasId] = true }
     local openedSequential = { startAreasId }
+    local openedPositions = { [startAreasId] = 1 }
     local closed = {}
     local closedSequential = {}
+    local closedPositions = {}
     local cameFrom = {}
     local costsSoFar = { [startAreasId] = 0 }
     local costsToEnd = { [startAreasId] = areaDistToPos( startArea, goal ) }
@@ -1336,20 +1380,12 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
         end
         coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING ) -- so corotine manager knows we're pathing
 
-        local smallestCost = inf
-        local bestId
-        for _, id in ipairs( openedSequential ) do
-            local cost = costsSoFar[id] + costsToEnd[id]
-            if cost < smallestCost then
-                smallestCost = cost
-                bestId = id
+        local bestId = getLowestScoring( openedSequential, costsSoFar, costsToEnd )
 
-            end
-        end
         local costSoFar = costsSoFar[bestId]
         local ourCameFrom = cameFrom[bestId]
-        removeFrom( bestId, openedSequential, opened )
-        addTo( bestId, closedSequential, closed )
+        removeFrom( bestId, openedSequential, opened, openedPositions )
+        addTo( bestId, closedSequential, closed, closedPositions )
 
         coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
@@ -1362,17 +1398,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
         --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( smallestCost ) ), 5, color_white, true )
 
         if maxPathingIterations and currExtent > maxPathingIterations then -- all out :( guess the goal is whatever got closest
-            local smallestCompromiseCost = inf
-            local bestCompromiseId
-            for _, id in ipairs( opened ) do
-                if not costsSoFar[id] then continue end
-                local cost = costsSoFar[id] + costsToEnd[id]
-                if cost < smallestCompromiseCost then
-                    smallestCompromiseCost = cost
-                    bestCompromiseId = id
-
-                end
-            end
+            local bestCompromiseId = getLowestScoring( openedSequential, costsToEnd, costsSoFar ) -- reverse the costs to get the best compromise of "got close to the goal" and "we know how to get here cheaply"
             if bestCompromiseId then
                 local bestCompromiseArea = navmesh.GetNavAreaByID( bestCompromiseId )
                 local areaCorridor = reconstruct_path( cameFrom, bestCompromiseArea )
@@ -1420,7 +1446,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
                 continue
 
             elseif cannotTraverse then -- cant go this way
-                addTo( neighborsId, closedSequential, closed ) -- mark as closed
+                addTo( neighborsId, closedSequential, closed, closedPositions ) -- mark as closed
                 costsSoFar[neighborsId] = costSoFar * 1000 -- blow up the cost, so any valid retraces are very confident going back over this
                 coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
                 continue
@@ -1437,8 +1463,14 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
                 costsSoFar[neighborsId] = neighborsCostSoFar
                 costsToEnd[neighborsId] = areaDistToPos( neighbor, goal )
 
-                removeFrom( neighborsId, closedSequential, closed )
-                addTo( neighborsId, openedSequential, opened )
+                if debugPathing then
+                    local currsCenter = navMeta.GetCenter( bestArea )
+                    local neighsCenter = navMeta.GetCenter( neighbor )
+                    debugoverlay.Line( currsCenter, neighsCenter, 15, Color( 255, 0, 0 ), true )
+                end
+
+                removeFrom( neighborsId, closedSequential, closed, closedPositions )
+                addTo( neighborsId, openedSequential, opened, openedPositions )
                 cameFrom[neighborsId] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
                 coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
@@ -1468,7 +1500,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
     local fromNext
 
     if fromArea then
-        fromNext = areaCorridorNexts[ GetID( fromArea ) ]
+        fromNext = areaCorridorNexts[GetID( fromArea )]
         if not fromNext then -- not on the path
             allowedDeviations = allowedDeviations + -1 -- allow some deviations
             if allowedDeviations <= 0 then
@@ -1486,7 +1518,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
 
     if area then
         areaId = GetID( area )
-        local areaMask = areaCorridorNexts[ areaId ]
+        local areaMask = areaCorridorNexts[areaId]
         if not areaMask then
             return 10000000000000 -- not in corridor, try this last
 
@@ -1549,10 +1581,10 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
     for i, currId in ipairs( corridorIds ) do
         local nextOne = corridorIds[i + 1]
         if nextOne then
-            areaCorridorNexts[ currId ] = nextOne -- force the compute to take the correct path
+            areaCorridorNexts[currId] = nextOne -- force the compute to take the correct path
 
         else
-            areaCorridorNexts[ currId ] = true
+            areaCorridorNexts[currId] = true
 
         end
 
@@ -1632,6 +1664,7 @@ function ENT:SetupPath( pos, endArea )
 
     coroutine_yield()
 
+    -- avoid areas that we took damage in before
     if myTbl.awarenessDamaging then
         local damagingAreas = self:DamagingAreas()
         local avoidStrength = 50

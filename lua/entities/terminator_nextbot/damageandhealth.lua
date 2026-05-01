@@ -191,7 +191,12 @@ local function OnDamaged( damaged, Hitgroup, Damage )
         local BgDamage
         local DamageDealt = Damage:GetDamage()
 
-        if DamageDealt >= damaged.HighCal then -- strong weapon!
+        if Damage:IsDamageType( DMG_SNIPER ) then
+            BgDamage = Damage:GetDamage()
+            damaged:CatDamage()
+            MedCalRics( damaged )
+
+        elseif DamageDealt >= damaged.HighCal then -- strong weapon!
             BgDamage = Damage:GetDamage() * 1.5
             Damage:SetDamage( DamageDealt * 0.4 )
             MedDamage( damaged, Damage )
