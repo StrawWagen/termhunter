@@ -267,8 +267,11 @@ local function shouldNotSeeEnemy( me, enemy ) -- return true to block seeing, fa
     if not a then cacheShouldNotSee( enemy, false ) return end
     if a >= maxSeen then cacheShouldNotSee( enemy, false ) return end -- dont waste any more performance
     if enemy:IsOnFire() then cacheShouldNotSee( enemy, false ) return end -- they are visible!
-    if isPlayer( enemy ) and enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
-    if IsValid( enemy:GetEntityInUse() ) then cacheShouldNotSee( enemy, false ) return end -- damn hows that thing floating???
+    if isPlayer( enemy ) then
+        if enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
+        if IsValid( enemy:GetEntityInUse() ) then cacheShouldNotSee( enemy, false ) return end -- damn hows that thing floating???
+
+    end
 
     -- seen threshold
     -- if alpha is 125, seen is 25, if 50, seen is 100
