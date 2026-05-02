@@ -726,7 +726,7 @@ function ENT:BehaviourPlayerControlCoroutine( myTbl )
         myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
 
         -- Calling task callbacks
-        myTbl.RunTask( self, "PlayerControlUpdate", ply )
+        myTbl.RunTask( self, "PlayerControlUpdate", myTbl.GetControlPlayer( self ) )
         myTbl.RunTask( self, "Think" )
 
         coroutine_yield( BOT_COROUTINE_RESULTS.DONE )

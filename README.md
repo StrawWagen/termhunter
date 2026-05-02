@@ -297,6 +297,12 @@ ENT.MyClassTask = {
         -- Return true to make bot walk
     -- end,
 
+    -- AdditionalFootstep = function( self, data, footPos, foot, stepSound, volume, filter )
+        -- return true to override default footstep logic
+        -- NOTE: The footstep system is very well documented and dynamic
+        -- fully consider and understand footsteps.lua before resorting to this
+    -- end,
+
     -- OnJump = function( self, data, height )
         -- Called when bot jumps
     -- end,
@@ -543,6 +549,83 @@ ENT.MyClassTask = {
     end,
 }
 ```
+
+---
+
+## Overridable Functions
+These are the functions that expect to be overriden.
+
+### `ENT:AdditionalClientInitialize()` — **client**
+
+Runs when your bot spawns on the client. Use this for any client-side setup you need — setting color, bodygroups, etc.
+
+```lua
+function ENT:AdditionalClientInitialize()
+    self:SetColor( Color( 255, 0, 0 ) )
+end
+```
+
+---
+
+### `ENT:AdditionalInitialize( myTbl )` — **server**
+
+Runs when your bot spawns on the server, once everything is ready — weapons assigned, relationships set up. Use this for any server-side state you need to initialize.
+
+- `myTbl` — the bot's optimisation table
+
+```lua
+function ENT:AdditionalInitialize( myTbl )
+    self.MyCustomState = true
+end
+```
+
+---
+
+### `ENT:AdditionalThink( myTbl )` — **server**, inside coroutine *(deprecated)*
+
+> Use `Think` in `MyClassTask` instead — it does the same job and works correctly across the class hierarchy.
+
+---
+
+### `ENT:AdditionalOnLandOnGround( ent, fallHeight )` — **server** *(deprecated)*
+
+> Use `OnLandOnGround` in `MyClassTask` instead.
+
+---
+
+### `ENT:AdditionalFootstep( footPos, foot, stepSound, volume, filter )` — **server** *(deprecated)*
+
+> Ideally, setup the ENT. variables documented in footsteps.lua
+> Use `AdditionalFootstep` in `MyClassTask` instead.
+
+---
+
+### `ENT:Draw()` — **client**
+
+Override this to customise how your bot is rendered. By default it just draws the model.
+
+```lua
+local entMeta = FindMetaTable( "Entity" )
+
+function ENT:Draw()
+    entMeta.DrawModel( self ) -- save _index call
+    -- add your own overlays here
+end
+```
+
+---
+
+### `ENT:Think()` — **client**
+
+Define this to run code every frame on the client. Useful for updating particles, managing looping sounds, or any other per-frame effects tied to your bot.
+
+```lua
+function ENT:Think()
+    -- runs every frame on the client
+end
+```
+
+---
 
 
 ## now you might be thinking..

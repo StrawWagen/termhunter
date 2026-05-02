@@ -56,6 +56,22 @@ ENT.Term_FootstepSoundWalking = { -- sound to play when the bot is walking, if n
 -- end prefab
 
 
+-- ENT.Term_FootstepShake = { -- plays screenshake on step
+--     amplitude = 5, -- how much the screen shakes
+--     frequency = 100, -- how fast the screen shakes
+--     duration = 0.5, -- how long the screen shakes
+--     radius = 200, -- how far the shake can be felt
+-- } 
+
+-- ENT.FootstepClomping = true -- plays a second sound over steps, used by terminators and jerma985
+
+-- footstep sounds follow the spokenline.lua's ENT.term_SoundLevelShift and ENT.term_SoundPitchShift
+
+-- !!!LAGGY ON BIG SERVERS!!!
+-- makes step sounds ignore PAS, which is buggy on dedicated servers with loud, LOUD sounds
+-- ENT.Term_FootstepIgnorePAS = true
+
+
 local defaultUp = Vector( 0, 0, 1 )
 local defaultSteppingCriteria = -0.8 -- should work on default playermodels
 
@@ -287,6 +303,7 @@ function ENT:MakeFootstepSound( myTbl, volumeMul, soundWeightAdj, footPos, curSp
 
     if not stepSound then return end
     if self:AdditionalFootstep( footPos, foot, stepSound, volume, filter ) then return end
+    if self:RunTask( "AdditionalFootstep", footPos, foot, stepSound, volume, filter ) then return end
 
     if self.Term_FootstepShake then
         local shakeData = self.Term_FootstepShake
