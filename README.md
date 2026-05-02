@@ -593,7 +593,7 @@ end
 The following are deprecated — use `MyClassTask` callbacks instead:
 - `ENT:AdditionalThink( myTbl )` → `Think`
 - `ENT:AdditionalOnLandOnGround( ent, fallHeight )` → `OnLandOnGround`
-- `ENT:AdditionalFootstep( ... )` → `AdditionalFootstep`, or the `ENT.` variables in `footsteps.lua`
+- `ENT:AdditionalFootstep( ... )` → check the `ENT.` variables in `footsteps.lua` first, use the `AdditionalFootstep` callback if your usecase is too complex
 
 ---
 
