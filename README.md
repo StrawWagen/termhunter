@@ -553,77 +553,47 @@ ENT.MyClassTask = {
 ---
 
 ## Overridable Functions
-These are the functions that expect to be overriden.
 
-### `ENT:AdditionalClientInitialize()` — **client**
-
-Runs when your bot spawns on the client. Use this for any client-side setup you need — setting color, bodygroups, etc.
-
+**`ENT:AdditionalClientInitialize()`** — *client* — end of client Initialize. Good for visual setup.
 ```lua
+local mySpecialColor = Color( 255, 0, 0 )
+
 function ENT:AdditionalClientInitialize()
-    self:SetColor( Color( 255, 0, 0 ) )
+    self:SetColor( mySpecialColor )
+
 end
 ```
 
----
-
-### `ENT:AdditionalInitialize( myTbl )` — **server**
-
-Runs when your bot spawns on the server, once everything is ready — weapons assigned, relationships set up. Use this for any server-side state you need to initialize.
-
-- `myTbl` — the bot's optimisation table
-
+**`ENT:AdditionalInitialize( myTbl )`** — *server* — end of server Initialize, weapons and relationships are already set up.
 ```lua
 function ENT:AdditionalInitialize( myTbl )
     self.MyCustomState = true
+
 end
 ```
 
----
-
-### `ENT:AdditionalThink( myTbl )` — **server**, inside coroutine *(deprecated)*
-
-> Use `Think` in `MyClassTask` instead — it does the same job and works correctly across the class hierarchy.
-
----
-
-### `ENT:AdditionalOnLandOnGround( ent, fallHeight )` — **server** *(deprecated)*
-
-> Use `OnLandOnGround` in `MyClassTask` instead.
-
----
-
-### `ENT:AdditionalFootstep( footPos, foot, stepSound, volume, filter )` — **server** *(deprecated)*
-
-> Ideally, setup the ENT. variables documented in footsteps.lua
-> Use `AdditionalFootstep` in `MyClassTask` instead.
-
----
-
-### `ENT:Draw()` — **client**
-
-Override this to customise how your bot is rendered. By default it just draws the model.
-
+**`ENT:Draw()`** — *client* — override to customise rendering. Default just draws the model.
 ```lua
 local entMeta = FindMetaTable( "Entity" )
 
 function ENT:Draw()
-    entMeta.DrawModel( self ) -- save _index call
-    -- add your own overlays here
+    entMeta.DrawModel( self ) -- saves an _index call vs self:DrawModel()
+
 end
 ```
 
----
-
-### `ENT:Think()` — **client**
-
-Define this to run code every frame on the client. Useful for updating particles, managing looping sounds, or any other per-frame effects tied to your bot.
-
+**`ENT:Think()`** — *client* — not defined by the base, freely override for per-frame effects.
 ```lua
 function ENT:Think()
-    -- runs every frame on the client
+    -- particles, looping sounds, etc.
+
 end
 ```
+
+The following are deprecated — use `MyClassTask` callbacks instead:
+- `ENT:AdditionalThink( myTbl )` → `Think`
+- `ENT:AdditionalOnLandOnGround( ent, fallHeight )` → `OnLandOnGround`
+- `ENT:AdditionalFootstep( ... )` → `AdditionalFootstep`, or the `ENT.` variables in `footsteps.lua`
 
 ---
 
