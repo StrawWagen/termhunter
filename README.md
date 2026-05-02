@@ -402,7 +402,7 @@ ENT.MyClassTask = {
    
    Say you make your npc play... A laughing sound in OnDamaged, all npcs based off it will laugh.
    
-   Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh!
+   Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh! (and scream...)
 
 
 ## ENT.MySpecialActions System
