@@ -135,7 +135,7 @@ function terminator_Extras.DehingeDoor( attacker, door, noCollided )
 
 end
 
-function terminator_Extras.SoftBashDoorRotating( door, bashAwayFrom )
+function terminator_Extras.OpenDoorQuicklyAwayFrom( door, bashAwayFrom )
     local newName = "term_SoftBashDoorRotating_" .. bashAwayFrom:EntIndex()
     bashAwayFrom.term_PreBashName = bashAwayFrom:GetName()
     bashAwayFrom:SetName( newName )
