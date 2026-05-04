@@ -95,7 +95,6 @@ hook.Add( "EntityTakeDamage", "term_busteddoorbreak", function( target, damage )
     end
 
 end )
-local lockOffset = Vector( 0, 42.6, -10 )
 
 local slidingDoors = {
     ["func_movelinear"] = true,
@@ -223,7 +222,7 @@ function SWEP:HandleDoor( tr, strength )
             end
 
             if doorsLocked and isProperDoor then
-                SparkEffect( door:GetPos() + -lockOffset )
+                terminator_Extras.EmitSparksFromDoorHandle( door )
                 LockBustSound( door )
 
             end

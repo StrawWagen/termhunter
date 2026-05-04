@@ -1,39 +1,47 @@
 -- is this a real fake door?
 -- returns true if door has space both sides
 -- false if door goes into a wall
+
+local function checkDoorClearance( door, center, dir )
+    local startOffset = dir * 25
+    local endOffset  = dir * 2
+
+    local traceDatF = {
+        mask = MASK_SOLID_BRUSHONLY,
+        start = center + startOffset,
+        endpos = center + endOffset,
+        filter = door,
+    }
+
+    local traceDatB = {
+        mask = MASK_SOLID_BRUSHONLY,
+        start = center - startOffset,
+        endpos = center - endOffset,
+        filter = door,
+    }
+
+    local traceBack = util.TraceLine( traceDatB )
+    local traceFront = util.TraceLine( traceDatF )
+
+    local clearAxis = not traceBack.Hit and not traceFront.Hit
+
+    return clearAxis
+
+end
+
 terminator_Extras.CanBashDoor = function( door )
-    if door:GetClass() ~= "prop_door_rotating" then return nil end
+    if door:GetClass() ~= "prop_door_rotating" then return nil end -- not supported
 
     local nextCheck = door.nextDoorSmashValidityCheck or 0
     if nextCheck < CurTime() then
         door.nextDoorSmashValidityCheck = CurTime() + 2.5
 
         local center = door:WorldSpaceCenter()
-        local forward = door:GetForward()
-        local starOffset = forward * 25
-        local endOffset  = forward * 2
 
-        local traceDatF = {
-            mask = MASK_SOLID_BRUSHONLY,
-            start = center + starOffset,
-            endpos = center + endOffset
-        }
+        local clearForward = checkDoorClearance( door, center, door:GetForward() )
 
-        local traceDatB = {
-            mask = MASK_SOLID_BRUSHONLY,
-            start = center + -starOffset,
-            endpos = center + -endOffset
-        }
-
-        --debugoverlay.Line( center + starOffset, center + forward, 30, Color( 255, 255, 255 ), true )
-        --debugoverlay.Line( center + -starOffset, center + -endOffset, 30, Color( 255, 255, 255 ), true )
-
-        local traceBack = util.TraceLine( traceDatB )
-        local traceFront = util.TraceLine( traceDatF )
-
-        local canSmash = not traceBack.Hit and not traceFront.Hit
-        door.doorCanSmashCached = canSmash
-        return canSmash
+        door.doorCanSmashCached = clearForward
+        return clearForward
 
     else
         return door.doorCanSmashCached
@@ -81,11 +89,29 @@ function terminator_Extras.StrainSound( ent )
 
 end
 
+do
+    local lockOffset = Vector( 0, 42.6, -10 )
+
+    function terminator_Extras.EmitSparksFromDoorHandle( door )
+        local handlePos = door:LocalToWorld( lockOffset )
+        timer.Simple( 0, function() -- wow wouldnt it be cool if effects worked on the first tick personally i think that would be really cool
+            local Sparks = EffectData()
+            Sparks:SetOrigin( handlePos )
+            Sparks:SetMagnitude( 2 )
+            Sparks:SetScale( 1 )
+            Sparks:SetRadius( 6 )
+            util.Effect( "Sparks", Sparks )
+
+        end )
+    end
+end
+
 function terminator_Extras.DehingeDoor( attacker, door, noCollided )
     local pos = door:GetPos()
     local ang = door:GetAngles()
     local mdl = door:GetModel()
     local ski = door:GetSkin()
+    local bodygroups = door:GetBodyGroups()
 
     door:SetKeyValue( "returndelay", -1 )
     door:Fire( "Open" )
@@ -105,10 +131,14 @@ function terminator_Extras.DehingeDoor( attacker, door, noCollided )
     prop:SetAngles( ang )
     prop:SetModel( mdl )
     prop:SetSkin( ski or 0 )
+
     prop:Spawn()
 
-    prop:SetPhysicsAttacker( attacker or game.GetWorld() )
-    local obj = prop:GetPhysicsObject()
+    for _, bg in ipairs( bodygroups ) do
+        prop:SetBodygroup( bg.id, door:GetBodygroup( bg.id ) )
+
+    end
+
     if IsValid( obj ) then
         local vel = terminator_Extras.dirToPos( attacker:GetPos(), door:WorldSpaceCenter() ) * 30000
         obj:ApplyForceOffset( vel, attacker:GetPos() )
