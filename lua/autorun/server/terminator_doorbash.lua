@@ -1,3 +1,6 @@
+-- is this a real fake door?
+-- returns true if door has space both sides
+-- false if door goes into a wall
 terminator_Extras.CanBashDoor = function( door )
     if door:GetClass() ~= "prop_door_rotating" then return nil end
 
@@ -130,4 +133,48 @@ function terminator_Extras.DehingeDoor( attacker, door, noCollided )
 
     return prop
 
+end
+
+function terminator_Extras.SoftBashDoorRotating( door, bashAwayFrom )
+    local newName = "term_SoftBashDoorRotating_" .. bashAwayFrom:EntIndex()
+    bashAwayFrom.term_PreBashName = bashAwayFrom:GetName()
+    bashAwayFrom:SetName( newName )
+
+    if not door.term_defaultsGrabbed then
+        door.term_defaultsGrabbed = true
+        local values = door:GetKeyValues()
+        door.term_oldBashSpeed = values["speed"]
+        door.term_oldOpenDir = values["opendir"]
+        door.term_oldOpenDmg = values["dmg"]
+
+    end
+
+    door:SetKeyValue( "speed", "500" )
+    door:SetKeyValue( "opendir", 0 )
+    door:SetKeyValue( "dmg", 100 )
+    door:Fire( "unlock", "", .01 )
+    door:Fire( "openawayfrom", newName, .01 )
+
+    timer.Simple( 0.02, function()
+        if not IsValid( bashAwayFrom ) or bashAwayFrom:GetName() ~= newName then return end
+
+        bashAwayFrom:SetName( bashAwayFrom.term_PreBashName )
+
+    end )
+
+    timer.Simple( 0.3, function()
+        if not IsValid( door ) then return end
+        if door.term_oldBashSpeed then
+            door:SetKeyValue( "speed", door.term_oldBashSpeed )
+
+        end
+        if door.term_oldOpenDir then
+            door:SetKeyValue( "opendir", door.term_oldOpenDir )
+
+        end
+        if door.term_oldOpenDmg then
+            door:SetKeyValue( "dmg", door.term_oldOpenDmg )
+
+        end
+    end )
 end
