@@ -527,13 +527,12 @@ function ENT:EnemyIsBoxedIn()
 
 end
 
-local MEMORY_MEMORIZING = 1
-local MEMORY_INERT = 2
-local MEMORY_BREAKABLE = 4
-local MEMORY_VOLATILE = 8
---local MEMORY_THREAT = 16
-local MEMORY_WEAPONIZEDNPC = 32
-local MEMORY_DAMAGING = 64
+local MEMORY_MEMORIZING     = terminator_Extras.botMemoryTypes.MEMORY_MEMORIZING
+local MEMORY_INERT          = terminator_Extras.botMemoryTypes.MEMORY_INERT
+local MEMORY_BREAKABLE      = terminator_Extras.botMemoryTypes.MEMORY_BREAKABLE
+local MEMORY_VOLATILE       = terminator_Extras.botMemoryTypes.MEMORY_VOLATILE
+local MEMORY_WEAPONIZEDNPC  = terminator_Extras.botMemoryTypes.MEMORY_WEAPONIZEDNPC
+local MEMORY_DAMAGING       = terminator_Extras.botMemoryTypes.MEMORY_DAMAGING
 
 function ENT:ignoreEnt( ent, time )
     ent.terminatorIgnoreEnt = true
