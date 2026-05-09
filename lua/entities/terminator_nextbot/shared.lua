@@ -1734,7 +1734,7 @@ function ENT:beatUpEnt( myTbl, ent, unstucking )
     local attacked = nil
 
     if canHit then
-        if closeAndCanHit and not myTbl.IsFists( self ) and myTbl.TERM_FISTS then
+        if closeAndCanHit and ( myTbl.TERM_FISTS and not myTbl.IsFists( self ) ) then
             myTbl.DoFists( self )
 
         end
@@ -2289,8 +2289,8 @@ end
 function ENT:beatupVehicleIfWeCan( currTask )
     if self.IsSeeEnemy then return end
 
-    local sinceLastSeenEnemy = CurTime() - self.LastEnemySpotTime
-    if sinceLastSeenEnemy < 10 then return end
+    local sinceLastSpotted = self:TimeSinceEnemySpotted()
+    if sinceLastSpotted < 10 then return end
 
     local vehicleIHate = self.term_VehicleIHateAlot
     if not IsValid( vehicleIHate ) then return end
@@ -5055,7 +5055,7 @@ function ENT:DoDefaultTasks()
                         if not IsValid( currBashEnt ) then continue end
 
                         local bashDistToSound = currBashEnt:GetPos():DistToSqr( soundPos )
-                        if SqrDistGreaterThan( bashDistToSound, 100 ) then continue end
+                        if SqrDistGreaterThan( bashDistToSound, 200 ) then continue end
 
                         local myDistToBash = currBashEnt:GetPos():DistToSqr( myPos )
                         if SqrDistGreaterThan( myDistToBash, 800 ) then continue end
@@ -5112,7 +5112,7 @@ function ENT:DoDefaultTasks()
                     self:StartTask( "movement_search", { searchWant = searchWant, searchCenter = soundPos }, "cant reach the sound" )
                     --debugoverlay.Cross( soundPos, 100, 10, Color( 0,255,255 ), true )
 
-                elseif IsValid( toBashAfterSound ) then
+                elseif IsValid( toBashAfterSound ) or ( math.random( 1, 2 ) == 1 and self:IsReallyAngry() ) then
                     Done = true
                     self:TaskComplete( "movement_followsound" )
                     self:StartTask( "movement_bashobject", { object = toBashAfterSound }, "the loud thing's breakable?!" )
@@ -5644,6 +5644,7 @@ function ENT:DoDefaultTasks()
                     elseif data.wasNormalSearch then
                         self:TaskFail( "movement_searchlastdir" )
                         self:StartTask( "movement_biginertia", { Want = math.random( 1, 2 ) }, "i got in a loop, time to go somewhere else" )
+                        return
 
                     else
                         self:TaskFail( "movement_searchlastdir" )
@@ -6780,13 +6781,18 @@ function ENT:DoDefaultTasks()
                         self:TaskFail( "movement_flankenemy" )
                         self:StartTask( "movement_followenemy", nil, "nope couldnt flank em" )
 
-                    else
+                    elseif self:TimeSinceEnemySpotted() < 15 then
                         self:TaskFail( "movement_flankenemy" )
                         self:StartTask( "movement_stalkenemy", nil, "i cant reach them, stalking instead" )
+
+                    else
+                        self:TaskFail( "movement_flankenemy" )
+                        self:StartTask( "movement_handler", nil, "i cant reach them, im just gonna do something else" )
 
                     end
                     --print( "flankquit" )
                     return
+
                 end
 
                 local enemy = self:GetEnemy()
@@ -7662,7 +7668,14 @@ function ENT:DoDefaultTasks()
                     local scoreFunction = function( scoreData, area1, area2 )
                         local dropToArea = area2:ComputeAdjacentConnectionHeightChange( area1 )
                         local score = area2:GetCenter():DistToSqr( scoreData.startPos ) * math.Rand( 0.8, 1.4 )
+                        if dropToArea >= 1 then
+                            score = score / dropToArea
+
+                        end
                         if scoreData.self.walkedAreas[area2:GetID()] then
+                            return 1
+                        end
+                        if not scoreData.self:areaIsReachable( area2 ) then
                             return 1
                         end
                         if not area2:IsPotentiallyVisible( scoreData.startArea ) then
@@ -8305,6 +8318,7 @@ function ENT:DoDefaultTasks()
                 data.scoredAreas = {}
                 data.hazardousAreas = self.hazardousAreas
                 data.oldDistToBestPos = math.huge
+                data.startingHealth = self:Health()
                 self:InvalidatePath( "placing wep, remove old path!" )
             end,
             BehaveUpdateMotion = function( self, data )
@@ -8326,6 +8340,7 @@ function ENT:DoDefaultTasks()
                     self:StartTask( "movement_handler", nil, "i placed it!" )
 
                 elseif self:getLostHealth() > 10 or self:inSeriousDanger() then
+                    self:resetLostHealth()
                     self:TaskComplete( "movement_placeweapon" )
                     self:StartTask( "movement_handler", nil, "something hurt me!" )
 

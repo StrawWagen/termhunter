@@ -554,7 +554,7 @@ ENT.MyClassTask = {
 
 ## Overridable Functions
 
-**`ENT:AdditionalClientInitialize()`** — *client* — end of client Initialize. Good for visual setup.
+**`ENT:AdditionalClientInitialize()`** — *client* — end of client realm :Initialize. Good for visual setup.
 ```lua
 local mySpecialColor = Color( 255, 0, 0 )
 
@@ -564,7 +564,7 @@ function ENT:AdditionalClientInitialize()
 end
 ```
 
-**`ENT:AdditionalInitialize( myTbl )`** — *server* — end of server Initialize, weapons and relationships are already set up.
+**`ENT:AdditionalInitialize( myTbl )`** — *server* — end of server realm :Initialize, weapons and relationships are already set up.
 ```lua
 function ENT:AdditionalInitialize( myTbl )
     self.MyCustomState = true

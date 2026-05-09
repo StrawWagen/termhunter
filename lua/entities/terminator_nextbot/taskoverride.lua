@@ -154,9 +154,17 @@ function ENT:StartTask( task, data, reason )
             permaPrint( "-------------------------------------------------" )
             self.taskHistory = self.taskHistory or {}
             permaPrint( "taskhistory" )
-            permaPrintTable( self.taskHistory )
+            for _, record in ipairs( myTbl.taskHistory ) do
+                permaPrint( "    ", record.time, record.taskReason )
+
+            end
             ErrorNoHaltWithStack( self, " tried to start already active task: ", task, " with reason: ", reason )
             permaPrint( "-------------------------------------------------" )
+
+            local fragment = { time = SysTime(), isAlready = true, taskReason = "!!!! TRIED TO START ALREADY" .. task .. " " .. reason }
+
+            -- put it in there too
+            table.insert( myTbl.taskHistory, fragment )
 
         end
         return
@@ -193,7 +201,7 @@ function ENT:StartTask( task, data, reason )
     myTbl.m_HollowEventCache = nil -- reset hollow event cache
 
     if printTasks then
-        permaPrint( self:GetCreationID(), task, self:GetEnemy(), reason ) -- print before calling OnStart, so they're in chronological order
+        permaPrint( self:EntIndex(), task, self:GetEnemy(), reason ) -- print before calling OnStart, so they're in chronological order
 
     end
 
@@ -205,7 +213,9 @@ function ENT:StartTask( task, data, reason )
     -- yes, memory leak, never activates under normal circumstances tho, only if term_debugtasks is 1
     myTbl.taskHistory = myTbl.taskHistory or {}
 
-    table.insert( myTbl.taskHistory, SysTime() .. " " .. task .. " " .. reason )
+    local fragment = { time = SysTime(), taskReason = task .. " " .. reason }
+
+    table.insert( myTbl.taskHistory, fragment )
 
 end
 
@@ -223,7 +233,10 @@ function ENT:Use( user )
     self.taskHistory = self.taskHistory or {}
     permaPrint( "-BOT WAS USED WITH term_debugtasks 1-" )
     permaPrint( "taskhistory" )
-    permaPrintTable( self.taskHistory )
+    for _, record in ipairs( self.taskHistory ) do
+        permaPrint( "    ", record.time, record.taskReason )
+
+    end
     permaPrint( "activetasks", self )
     for taskName, _ in pairs( self.m_ActiveTasks ) do
         permaPrint( fourSpaces .. taskName )

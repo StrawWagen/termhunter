@@ -2,6 +2,7 @@
 terminator_Extras = terminator_Extras or {}
 local terminator_Extras = terminator_Extras
 
+local ladMeta = FindMetaTable( "CNavLadder" )
 local navMeta = FindMetaTable( "CNavArea" )
 local vecMeta = FindMetaTable( "Vector" )
 local entMeta = FindMetaTable( "Entity" )
@@ -20,6 +21,34 @@ local math_max = math.max
 local math_abs = math.abs
 local CurTime = CurTime
 local IsValid = IsValid
+
+
+-- copied from pathoverrides.lua
+local function AreaOrLadderGetAdjacentAreas( areaOrLadder, blockLadders )
+    local adjacents = {}
+    if not areaOrLadder then return adjacents end
+    if areaOrLadder.GetTop then -- is ladder
+        if blockLadders then return end
+        table_insert( adjacents, ladMeta.GetBottomArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopForwardArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopBehindArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopRightArea( areaOrLadder ) )
+        table_insert( adjacents, ladMeta.GetTopLeftArea( areaOrLadder ) )
+
+    else
+        if blockLadders then
+            adjacents = navMeta.GetAdjacentAreas( areaOrLadder )
+
+        else
+            adjacents = navMeta.GetAdjacentAreas( areaOrLadder )
+            tableAdd( adjacents, navMeta.GetLadders( areaOrLadder ) )
+
+        end
+
+    end
+    return adjacents
+
+end
 
 
 local defaultMaxPlysToPatch = 6
@@ -383,7 +412,9 @@ do
         if distToArea > 15 and plyMeta.Crouching( ply ) then onNoArea( ply, plyTbl, beingChased, someoneWasChased ) return end
 
         local patchABitAhead = beingChased and not terminator_Extras.IsLivePatching and math.random( 0, 100 ) < 5 and vecMeta.LengthSqr( entMeta.GetVelocity( ply ) ) > speedToPatchAhead
-        if patchABitAhead then -- rare
+        -- start a patch ahead of the player
+        -- rare
+        if patchABitAhead then
             local aheadOffset = vecMeta.GetNormalized( ply:GetVelocity() * flattener ) * 250
             local aheadPos = plyPos + aheadOffset
             if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
@@ -442,6 +473,21 @@ do
         if IsConnected( oldArea, currArea ) and IsConnected( currArea, oldArea ) then return end
         if not AreasHaveAnyOverlap( oldArea, currArea ) then debugPrint( "0" ) return end
 
+        -- do not create connections between areas
+        -- if they're already connected by a ladder
+        -- it completely breaks the pathfinder, makes it never use the ladder!
+        local laddersOfOld = oldArea:GetLadders()
+        if #laddersOfOld > 0 then
+            PrintTable( laddersOfOld )
+            for _, ladder in ipairs( laddersOfOld ) do
+                local laddersAdjAreas = AreaOrLadderGetAdjacentAreas( ladder )
+                for _, adjArea in ipairs( laddersAdjAreas ) do
+                    if adjArea == currArea then debugPrint( "0a" ) return end
+
+                end
+            end
+        end
+
         local currClosestPos = GetClosestPointOnArea( currArea, plysCenter )
         local oldClosestPos = GetClosestPointOnArea( oldArea, plysCenter )
         local highestHeight = math_max( patchData.highestGotOffGround, oldClosestPos.z + upMagicNum, currClosestPos.z + upMagicNum )
@@ -463,6 +509,7 @@ do
         end
 
         -- goes from last area, to the highest height, then back down to the current area
+        -- basically checks if theres a clear path of 4 segments from old area, to current area
         if not terminator_Extras.PosCanSee( currClosestPos + upTen, currClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "1" ) return end
         if not terminator_Extras.PosCanSee( currClosestPosInAir, plysCenter2, MASK_SOLID_BRUSHONLY ) then debugPrint( "2" ) return end
         if not terminator_Extras.PosCanSee( plysCenter2, oldClosestPosInAir, MASK_SOLID_BRUSHONLY ) then debugPrint( "3" ) return end

@@ -1110,6 +1110,12 @@ function ENT:validSoundHint()
     local hint = self.lastHeardSoundHint
     if not hint then return end
 
+    if not hint.valuable then
+        local since = CurTime() - hint.time
+        if since > 10 then return end
+
+    end
+
     local emitter = hint.emitter
     if IsValid( emitter ) then
         local interesting = isPlayer( emitter ) or isNextbotOrNpcEnt( emitter )

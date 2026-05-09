@@ -1788,7 +1788,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         local progressed = obstacleGoal and obstacleGoal ~= aheadSegment.pos
         if progressed then
             if myTbl.m_PathObstacleRebuild then
-                self:InvalidatePath( "obstacle avoid 1" )
+                self:InvalidatePath( "obstacle avoid 1 " .. myTbl.m_PathObstacleRebuild )
                 return
 
             end
@@ -1836,7 +1836,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
         if timeout or atAvoidPos then -- got to avoid pos, new path since we're probably off the old one
             if myTbl.m_PathObstacleRebuild then
-                self:InvalidatePath( "obstacle avoid 3" )
+                self:InvalidatePath( "obstacle avoid 3 " .. myTbl.m_PathObstacleRebuild )
                 return
 
             end
@@ -2112,7 +2112,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                     if not goodPosToGoto or wasNothingGreat then
                         -- speed up the connection flagging unstucker, we cant get thru here
                         self:OnHardBlocked()
-                        myTbl.m_PathObstacleRebuild = true
+                        myTbl.m_PathObstacleRebuild = "not goodPosToGoto or wasNothingGreat"
 
                     end
 
@@ -2135,7 +2135,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                         myTbl.m_PathObstacleAvoidTarget = segAfterTheDrop.pos
                         myTbl.m_PathObstacleAvoidTimeout = cur + 4
 
-                        myTbl.m_PathObstacleRebuild = true
+                        myTbl.m_PathObstacleRebuild = "dropTypeToDealwith and not ( not dropdownClearPos or wasNothingGreat )"
 
                     end
 
