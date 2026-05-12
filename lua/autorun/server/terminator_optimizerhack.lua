@@ -262,8 +262,8 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
             if mergingOptions > 1 and navSurfaceArea( start ) > navSurfaceArea( next ) then
                 -- cancel the merge if it will delete the corner we have in common with the biggest area
                 for _, theOffendingCorner in ipairs( offendingCorners ) do
-                    local startAreaEncapsulatesCorner = getShortestDistanceToNavSqr( start, theOffendingCorner )
-                    local nextAreaEncapsulatesCorner = getShortestDistanceToNavSqr( next, theOffendingCorner )
+                    local startAreaEncapsulatesCorner = theOffendingCorner:DistToSqr( start:GetClosestPointOnArea( theOffendingCorner ) )
+                    local nextAreaEncapsulatesCorner = theOffendingCorner:DistToSqr( next:GetClosestPointOnArea( theOffendingCorner ) )
 
                     if nextAreaEncapsulatesCorner and startAreaEncapsulatesCorner then
                         --debugoverlay.Cross( theOffendingCorner, 5, 5 )
