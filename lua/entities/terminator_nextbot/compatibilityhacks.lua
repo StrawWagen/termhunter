@@ -227,7 +227,7 @@ if SERVER then
         ["models/items/healthkit.mdl"] = true,
 
     }
-    local medkitOffset = Angle( 0,0,-90 )
+    local medkitOffset = Angle( 0, 0, -90 )
     hook.Add( "terminator_holstering_overrideangles", "fixthe_god_damn_MEDKITS!", function( model )
         if not medkitModels[model] then return end
         return medkitOffset

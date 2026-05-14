@@ -153,6 +153,7 @@ local function setupRecentlyAlive()
         if not IsValid( ply ) then return end
         recentlyDied[ply] = true
         timer.Simple( 8, function() -- dont spoil it when they die
+            if not usingInterruptingAlive then return end
             recentlyDied[ply] = nil
             if table.Count( recentlyDied ) > 0 then return end
             teardownRecentlyDied()

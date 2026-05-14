@@ -4451,7 +4451,7 @@ function ENT:DoDefaultTasks()
 
                         end
                         -- edge case
-                        if not valid and visible then
+                        if not valid and visible and IsValid( data.object ) then
                             myTbl.GotoPosSimple( self, myTbl, data.object:WorldSpaceCenter(), 5 )
                             self:Anger( 1 )
 

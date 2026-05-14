@@ -1,5 +1,5 @@
 
-hook.Add( "CreateClientsideRagdoll", "zambie_fixcorpsemats", function( died, newRagdoll )
+hook.Add( "CreateClientsideRagdoll", "terminator_fixcorpsemats", function( died, newRagdoll )
     if not died.isTerminatorHunterBased then return end
 
     terminator_Extras.copyMatsOver( died, newRagdoll )
