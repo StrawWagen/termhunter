@@ -94,7 +94,6 @@ ENT.MySpecialActions = {
             drive:Stop()
 
         end,
-
     },
     ["StopControllingToggleZoom"] = {
         commandName = "toggle_zoom",
@@ -108,7 +107,20 @@ ENT.MySpecialActions = {
             drive:Stop()
 
         end,
+    },
+    ["DropCurrentWeapon"] = {
+        commandName = "noclip",
+        drawHint = true,
+        name = "Drop current weapon",
+        desc = "Drop the bot's current weapon", -- desc is unused for now
 
+        svAction = function( _drive, _driver, bot )
+            local actWep = bot:GetActiveLuaWeapon()
+            if not IsValid( actWep ) then return end
+            if bot:IsFists() then return end
+            bot:DropWeapon( false )
+
+        end,
     },
     ["Use"] = {
         commandName = "+use",
