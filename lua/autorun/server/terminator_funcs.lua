@@ -96,7 +96,7 @@ terminator_Extras.PitchToPos = function( pos1, ang1, pos2, ang2 )
 
     local len = localPos:Length()
     if len < 0 then return 0 end
-    return rad2deg * math.asin(localPos.z / len)
+    return rad2deg * math.asin( localPos.z / len )
 
 end
 

@@ -275,6 +275,8 @@ function terminator_Extras.DrawInHand( wep, posOffset, angOffset )
 end
 
 -- table.Add without saftey checks, without using table.insert
+-- everything is added to dest from source
+-- does not unpack source
 function terminator_Extras.tableAdd( dest, source )
     for _, thing in pairs( source ) do
         dest[#dest + 1] = thing
