@@ -144,7 +144,12 @@ function SWEP:CreateMissile( _, owner )
             local missileTargetPos2 = missileTargetPos
             local missilePos = missile:GetPos()
 
-            if not owner:GetEnemy().InVehicle or not owner:GetEnemy():InVehicle() then
+            local enemy = owner:GetEnemy()
+
+            -- send missiles that miss, way down towards the ground
+            -- UNLESS valid enemy in a vehicle
+            local validEnemyInVehicle = IsValid( enemy ) and enemy.InVehicle and enemy:InVehicle()
+            if not validEnemyInVehicle then
                 local dirToTarget = ( missileTargetPos - ownerShootPos ):GetNormalized()
                 local myDistToTarget = ownerShootPos:Distance( missileTargetPos )
                 local wayBehindTargetPos = missileTargetPos + dirToTarget * ( myDistToTarget + -150 )
@@ -160,6 +165,7 @@ function SWEP:CreateMissile( _, owner )
             local oldMul = 0.85
             if missile.doFastTurnExpires > CurTime() then
                 oldMul = 0.6
+
             end
 
             local dirAdded = ( oldDir * oldMul ) + ( newDir * 0.25 )
