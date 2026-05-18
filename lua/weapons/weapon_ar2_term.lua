@@ -103,6 +103,9 @@ end
 function SWEP:SecondaryAttack()
 	if !self:CanSecondaryAttack() then return end
 	
+	-- TODO: secondary fire ammo
+	self:SetNextSecondaryFire(CurTime()+GetConVarNumber("sk_weapon_ar2_alt_fire_delay") * 10)
+
 	self:GetOwner():EmitSound(Sound("Weapon_AR2.NPC_Double"))
 	
 	local pos = self:GetOwner():GetShootPos()

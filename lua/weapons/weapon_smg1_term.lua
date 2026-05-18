@@ -128,7 +128,8 @@ function SWEP:SecondaryAttack()
 	grenade:SetCustomCollisionCheck(true)
 	
 	self:SetNextPrimaryFire(CurTime()+0.5)
-	self:SetNextSecondaryFire(CurTime()+1)
+	-- TODO: secondary fire ammo
+	self:SetNextSecondaryFire(CurTime()+4)
 end
 
 function SWEP:Equip()
