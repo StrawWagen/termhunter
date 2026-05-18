@@ -478,7 +478,6 @@ do
         -- it completely breaks the pathfinder, makes it never use the ladder!
         local laddersOfOld = oldArea:GetLadders()
         if #laddersOfOld > 0 then
-            PrintTable( laddersOfOld )
             for _, ladder in ipairs( laddersOfOld ) do
                 local laddersAdjAreas = AreaOrLadderGetAdjacentAreas( ladder )
                 for _, adjArea in ipairs( laddersAdjAreas ) do
