@@ -87,11 +87,11 @@ local function updateGridSize( newSize )
     patchTbl = {}
 
     patchTbl.gridSize = newSize
+    patchTbl.gridOffset = 6.25
 
     patchTbl.halfGrid = patchTbl.gridSize * 0.5
     patchTbl.gridSmaller = patchTbl.gridSize * 0.25
-    patchTbl.vecGridsizeZ = Vector( 0, 0, patchTbl.gridSize )
-    patchTbl.vecHalfGridsizeZ = Vector( 0, 0, patchTbl.halfGrid / 2 )
+    patchTbl.vecQuarterGridsizeZ = Vector( 0, 0, patchTbl.halfGrid / 2 )
 
     patchTbl.trMins = Vector( -patchTbl.gridSmaller, -patchTbl.gridSmaller, -1 )
     patchTbl.trMaxs = Vector( patchTbl.gridSmaller, patchTbl.gridSmaller, 1 )
@@ -103,7 +103,7 @@ local function updateGridSize( newSize )
     patchTbl.oppCornerOffset = Vector( patchTbl.halfGrid, patchTbl.halfGrid, 2 )
 
     patchTbl.headroomStandRaw = 64
-    patchTbl.headroomCrouchRaw = 25
+    patchTbl.headroomCrouchRaw = 20
     patchTbl.headroomStand = math.floor( patchTbl.headroomStandRaw / patchTbl.gridSize )
     patchTbl.headroomCrouch = math.floor( patchTbl.headroomCrouchRaw / patchTbl.gridSize )
     patchTbl.upCrouch = Vector( 0, 0, patchTbl.headroomCrouchRaw )
@@ -120,7 +120,7 @@ local function updateGridSize( newSize )
     }
 
     patchTbl.initialResult = {} -- just do this optimisation for the initial trace, it does most of the hard work
-    patchTbl.trStrucIntitial = {
+    patchTbl.trStrucInitial = {
         mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
         filter = function( hit ) return filterFunc( hit ) end,
         mins = patchTbl.trMins,
@@ -284,6 +284,7 @@ local function mergeWithNeighbors( data, vecsToPlace )
         data.corner2 = Vector( maxX, maxY, maxZ )
 
         return true
+
     end
 end
 
@@ -296,6 +297,11 @@ end
 
 local function vecAsKey( vec )
     return math_Round( vec.x, roundDec ) .. math_Round( vec.y, roundDec ) .. math_Round( vec.z, roundDec )
+
+end
+
+local function vecAsKeyUnpacked( x, y, z )
+    return math_Round( x, roundDec ) .. math_Round( y, roundDec ) .. math_Round( z, roundDec )
 
 end
 
@@ -319,7 +325,7 @@ local up = Vector( 0, 0, 1 )
 
 local function SnapToGrid( vec, gridSizeInternal, gridOffsetInternal )
     gridSizeInternal = gridSizeInternal or patchTbl.gridSize
-    gridOffsetInternal = gridOffsetInternal or gridOffset
+    gridOffsetInternal = gridOffsetInternal or patchTbl.gridOffset
     vec.x = ( math_Round( vec.x / gridSizeInternal ) * gridSizeInternal ) + gridOffsetInternal
     vec.y = ( math_Round( vec.y / gridSizeInternal ) * gridSizeInternal ) + gridOffsetInternal
     vec.z = ( math_Round( vec.z / gridSizeInternal ) * gridSizeInternal ) + gridOffsetInternal
@@ -329,9 +335,9 @@ end
 terminator_Extras.SnapVecToGrid = SnapToGrid
 
 local function GetSnappedToGrid( vec )
-    local x = ( math_Round( vec.x / patchTbl.gridSize ) * patchTbl.gridSize ) + gridOffset
-    local y = ( math_Round( vec.y / patchTbl.gridSize ) * patchTbl.gridSize ) + gridOffset
-    local z = ( math_Round( vec.z / patchTbl.gridSize ) * patchTbl.gridSize ) + gridOffset
+    local x = ( math_Round( vec.x / patchTbl.gridSize ) * patchTbl.gridSize ) + patchTbl.gridOffset
+    local y = ( math_Round( vec.y / patchTbl.gridSize ) * patchTbl.gridSize ) + patchTbl.gridOffset
+    local z = ( math_Round( vec.z / patchTbl.gridSize ) * patchTbl.gridSize ) + patchTbl.gridOffset
     return Vector( x, y, z )
 
 end
@@ -342,8 +348,12 @@ local HEADROOM_STAND = 2
 
 local function getHeadroom( voxel, solidVoxels )
     local clearCount = 0
+    -- x/y never change per-call; pre-build their key halves so only z varies each iteration
+    local keyX, keyY = voxel.x, voxel.y
+    local gridSize = patchTbl.gridSize
     for ind = 1, patchTbl.headroomStand + 1 do
-        if solidVoxels[vecAsKey( voxel + ( patchTbl.vecGridsizeZ * ind ) )] then
+        local key = vecAsKeyUnpacked( keyX, keyY, math_Round( voxel.z + gridSize * ind, roundDec ) )
+        if solidVoxels[key] then
             break
         else
             clearCount = clearCount + 1
@@ -381,10 +391,10 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     end
 
     local bottomOfBounds = tempVector( "processvoxelboundbottom", voxel.x, voxel.y, math_min( voxel.z, mins.z + -patchTbl.gridSize ) )
-    patchTbl.trStrucIntitial.start = voxel
-    patchTbl.trStrucIntitial.endpos = bottomOfBounds
+    patchTbl.trStrucInitial.start = voxel
+    patchTbl.trStrucInitial.endpos = bottomOfBounds
 
-    util.TraceHull( patchTbl.trStrucIntitial )
+    util.TraceHull( patchTbl.trStrucInitial )
     if patchTbl.initialResult.StartSolid then
         if debugging then
             debugoverlay.Cross( voxel, 5, 10, Color( 255, 0, 0 ), true )
@@ -412,17 +422,15 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     local hitPos = patchTbl.initialResult.HitPos
     local snapped = GetSnappedToGrid( hitPos )
 
-    local line = { start = voxel, endpos = hitPos }
-    local dist = line.start:Distance( line.endpos )
+    local dist = voxel:Distance( hitPos )
     local voxelsToToss = math.floor( dist / patchTbl.gridSize )
     if voxelsToToss >= 1 then -- skip voxels early if floor trace passed through them no issue
         if debugging then
-            debugoverlay.Line( voxel, line.endpos, 10, Color( 255, 0, 0 ), true )
+            debugoverlay.Line( voxel, hitPos, 10, Color( 255, 0, 0 ), true )
 
         end
         for ind = 1, voxelsToToss do
-            local toToss = tempVector( "processvoxeltossing", voxel.x, voxel.y, voxel.z + -( ind * patchTbl.gridSize ) )
-            closedVoxels[vecAsKey( toToss )] = true
+            closedVoxels[vecAsKeyUnpacked( voxel.x, voxel.y, voxel.z - ind * patchTbl.gridSize )] = true
 
         end
     end
@@ -437,9 +445,11 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     if patchTbl.initialResult.HitNormal:Dot( up ) < 0.5 then return end
 
 
+    -- if this is a massive overhang, skip it
+    -- will probably get patched up with a lower grid size pass later if needed
     local trStrucFindFloor = {
-        start = hitPos + patchTbl.vecHalfGridsizeZ,
-        endpos = hitPos + -patchTbl.vecHalfGridsizeZ,
+        start = hitPos + patchTbl.vecQuarterGridsizeZ,
+        endpos = hitPos + -patchTbl.vecQuarterGridsizeZ,
         mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
         filter = filterFunc,
 
@@ -487,20 +497,19 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
         end
     end
 
-    local pos = hitPos
     local key = vecAsKey( snapped )
     vecsToPlace[key] = {
         key = key,
-        truePos = pos,
-        corner1 = pos + patchTbl.areaCenteringOffset,
-        corner2 = pos + patchTbl.oppCornerOffset,
+        truePos = hitPos,
+        corner1 = hitPos + patchTbl.areaCenteringOffset,
+        corner2 = hitPos + patchTbl.oppCornerOffset,
         headroom = voxelsHeadroom,
         crouch = voxelsHeadroom <= HEADROOM_CROUCH
 
     }
 
     if debugging then
-        debugoverlay.Cross( pos, 5, 10, color_white, true )
+        debugoverlay.Cross( hitPos, 5, 10, color_white, true )
 
     end
 end
@@ -520,12 +529,9 @@ local function patchCoroutine()
         local newGenCenter = region.pos1 + region.pos2
         newGenCenter = newGenCenter / 2
 
-        if oldGenCenter and patchTbl.gridSize < 12.5 and oldGenCenter:Distance( newGenCenter ) < ( patchTbl.gridSize * 6 ) then -- we are stuck regenerating one point, try shuffling this
-            gridOffset = math.random( -4, 4 )
-            debugPrint( "Area generation is stuck, offsetting grid by " .. gridOffset )
-
-        else
-            gridOffset = 0
+        if patchTbl.oldGenCenter and patchTbl.gridSize < 12.5 and patchTbl.oldGenCenter:Distance( newGenCenter ) < ( patchTbl.gridSize * 4 ) then -- we are stuck regenerating one point, try shuffling this
+            patchTbl.gridOffset = math.random( -12.5, 12.5 ) / 2
+            debugPrint( "Area generation is stuck, offsetting grid by " .. patchTbl.gridOffset )
 
         end
 
@@ -534,26 +540,30 @@ local function patchCoroutine()
         SnapToGrid( pos1 )
         SnapToGrid( pos2 )
 
-        oldGenCenter = newGenCenter
+        patchTbl.oldGenCenter = newGenCenter
 
         debugPrint( "Patching region from", pos1, "to", pos2 )
 
-        local openVoxelsSeq = {} -- spots we are yet to check
         local closedVoxels = {} -- spots that we dont need to check
         local solidVoxels = {} -- solid spots
         local vecsToPlace = {} -- good spots we found
-        local headroomTbl = {} -- headroom, for simple crouching checks
+        local headroomTbl = {} -- headroom per voxel; unused for now, could be useful later
         local validatedAreas = {} -- all the areas we made this pass
 
-        local biggest = VectorMax( pos1, pos2 )
-        local smallest = VectorMin( pos1, pos2 )
+        local sizeInX = pos2.x - pos1.x
+        local sizeInY = pos2.y - pos1.y
+        local sizeInZ = pos2.z - pos1.z
 
-        local sizeInX = biggest.x - smallest.x
-        local sizeInY = biggest.y - smallest.y
-        local sizeInZ = biggest.z - smallest.z
-
-        for z = 0, sizeInZ / patchTbl.gridSize do -- z first
-            z = z * patchTbl.gridSize
+        -- iterate over the entire volume
+        -- start from the top
+        -- process each 'voxel'
+        -- if solid, add to closedVoxels and solidVoxels
+        -- check floor of voxel
+        -- if below is clear, close all voxels until the floor
+        -- and add floor to vecsToPlace with headroom info
+        local zSteps = math.floor( sizeInZ / patchTbl.gridSize )
+        for zInd = zSteps, 0, -1 do
+            local z = zInd * patchTbl.gridSize
             coroutine_yield()
 
             for x = 0, sizeInX / patchTbl.gridSize do
@@ -562,32 +572,24 @@ local function patchCoroutine()
 
                 for y = 0, sizeInY / patchTbl.gridSize do
                     y = y * patchTbl.gridSize
-                    local voxel = Vector( smallest.x + x, smallest.y + y, smallest.z + z )
-                    table.insert( openVoxelsSeq, voxel )
+                    local vx, vy, vz = pos1.x + x, pos1.y + y, pos1.z + z
+                    local key = vecAsKeyUnpacked( vx, vy, vz )
+                    if closedVoxels[key] then continue end
 
+                    local voxel = Vector( vx, vy, vz )
+                    coroutine_yield()
+                    processVoxel( voxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
+                    if debugging and IsValid( Entity( 1 ) ) and voxel:Distance( Entity( 1 ):GetPos() ) < 250 then
+                        coroutine_yield( "wait" )
+
+                    end
                 end
             end
         end
 
-        debugPrint( "Total voxels to process:", #openVoxelsSeq )
-
-        -- Step 5: Process each voxel
-        while #openVoxelsSeq >= 1 do
-            local currVoxel = table.remove( openVoxelsSeq )
-            if closedVoxels[vecAsKey( currVoxel )] then continue end
-
-            coroutine_yield()
-            processVoxel( currVoxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
-            if debugging and IsValid( Entity(1) ) and currVoxel:Distance( Entity(1):GetPos() ) < 250 then
-                coroutine_yield( "wait" )
-
-            end
-        end
-
-        local count = table.Count( vecsToPlace )
         debugPrint( "Placing!" )
 
-        if count >= 1 then
+        if next( vecsToPlace ) then
             debugPrint( "Pre-merging areas..." )
 
             local merged = true
@@ -604,6 +606,7 @@ local function patchCoroutine()
                 end
             end
 
+            local count = table.Count( vecsToPlace )
             debugPrint( "Placing " .. count .. " navareas..." )
 
             local justNewAreas = {}
@@ -628,18 +631,18 @@ local function patchCoroutine()
             debugPrint( "Connecting placed areas..." )
             coroutine_yield( "wait" )
 
-            local additionalSize = math_max( patchTbl.gridSize, 25 )
+            local additionalSize = math_max( patchTbl.gridSize, 12.5 )
             local additional = Vector( additionalSize, additionalSize, additionalSize )
+            local upOff = patchTbl.upCrouch / 2
 
             for _, data in pairs( vecsToPlace ) do
                 coroutine_yield()
-                local upOff = patchTbl.upCrouch / 2
                 local newArea = data.newArea
                 local mins, maxs = navGetBounds( newArea )
                 for _, otherArea in ipairs( navmesh.FindInBox( mins + -additional, maxs + additional ) ) do
                     local trivialDist -- defaults to 5 in following navpatcher 
                     if not justNewAreas[otherArea] then
-                        trivialDist = math_max( 25, patchTbl.gridSize ) -- not a new area, allow long connections!
+                        trivialDist = math_max( 12.5, patchTbl.gridSize ) -- not a new area, allow long connections!
 
                     end
                     coroutine_yield()
@@ -659,6 +662,7 @@ local function patchCoroutine()
             debugPrint( "Merging placed areas..." )
             coroutine_yield( "wait" )
 
+            local mergedArea
             merged = true
             while merged do
                 coroutine_yield()
@@ -752,9 +756,7 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
             local oldTime = SysTime()
 
             while math_abs( oldTime - SysTime() ) < areaPatchingRate do
-                inCoroutine = true
                 local noErrors, result = coroutine_resume( thread )
-                inCoroutine = nil
                 if noErrors == false then -- errored
                     thread = nil
                     terminator_Extras.IsLivePatching = nil
@@ -796,7 +798,7 @@ function terminator_Extras.dynamicallyPatchPos( pos )
 
     local areasInSmallSize = navmesh.FindInBox( pos + -smallSize * 1.25, pos + smallSize * 1.25 )
     if areasInSmallSize and #areasInSmallSize >= 1 then
-        terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, 11.25 )
+        terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, 12.5 )
 
     else
         local areasInBigSize = navmesh.FindInBox( pos + -bigSize, pos + bigSize )
@@ -810,7 +812,7 @@ function terminator_Extras.dynamicallyPatchPos( pos )
     end
 end
 
--- Superadmin-only concommand to patch around the caller's eye trace position using smallSize and grid size 11.25
+-- Superadmin-only concommand to patch around the caller's eye trace position using smallSize and grid size 12.5
 concommand.Add( "terminator_areapatch_here", function( ply, _, args )
     if not IsValid( ply ) then return end -- must be a player
     if not ply:IsSuperAdmin() then
@@ -819,7 +821,7 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
 
     end
 
-    local gridSize = tonumber( args[1] ) or 11.25
+    local gridSize = tonumber( args[1] ) or 12.5
 
     local tr = ply:GetEyeTrace()
     if not tr or not tr.HitPos then return end
@@ -829,7 +831,7 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
 
     terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, gridSize )
 
-    -- Visualize the region being queued with a debug box
+    -- always show region being queued with a debug box
     local boxMins = -smallSize
     local boxMaxs = smallSize
     debugoverlay.Box( pos, boxMins, boxMaxs, 10, Color( 0, 255, 0, 10 ) )
@@ -839,4 +841,4 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
 
     end
 
-end, nil, "Patch a nav region centered at your crosshair using smallSize and specified grid size (default 11.25, superadmin only)")
+end, nil, "Patch a nav region centered at your crosshair using smallSize and specified grid size (default 12.5, superadmin only)" )

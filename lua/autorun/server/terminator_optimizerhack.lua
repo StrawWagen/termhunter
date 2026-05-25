@@ -22,7 +22,7 @@ local bit_band = bit.band
 terminator_Extras = terminator_Extras or {}
 local terminator_Extras = terminator_Extras
 
-local cornerIndexes = { 0,1,2,3 }
+local cornerIndexes = { 0, 1, 2, 3 }
 local fiveSqared = 5^2
 
 local function navSurfaceArea( navArea )

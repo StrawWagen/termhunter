@@ -322,7 +322,7 @@ local function onNoArea( ply, plyTbl, beingChased, someoneWasChased ) -- ply is 
         plyTbl.term_LastPatchPos = plyPos
 
         if ply:Crouching() and ply:GetVelocity():LengthSqr() < 225^2 then -- always patch in vents etc
-            terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 11.25 )
+            terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 12.5 )
             return
 
         end
