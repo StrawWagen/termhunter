@@ -207,7 +207,7 @@ function terminator_Extras.smartConnectionThink( oldArea, currArea, simple )
     -- get dist flat, no z component
     local distTo = connectionDistance( oldArea, currArea )
 
-    if distTo > 55 and not goodDist( distTo ) then debugPrint( "6" ) return end
+    if distTo > 80 and not goodDist( distTo ) then debugPrint( "6" ) return end
 
     -- check if there's a simple-ish way from oldArea to currArea
     -- dont create a new connection if there is

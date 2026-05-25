@@ -102,11 +102,11 @@ local function updateGridSize( newSize )
     patchTbl.areaCenteringOffset = Vector( -patchTbl.halfGrid, -patchTbl.halfGrid, 2 )
     patchTbl.oppCornerOffset = Vector( patchTbl.halfGrid, patchTbl.halfGrid, 2 )
 
-    patchTbl.headroomStandRaw = 45
-    patchTbl.headroomStandRaw = 20
+    patchTbl.headroomStandRaw = 64
+    patchTbl.headroomCrouchRaw = 25
     patchTbl.headroomStand = math.floor( patchTbl.headroomStandRaw / patchTbl.gridSize )
-    patchTbl.headroomCrouch = math.floor( patchTbl.headroomStandRaw / patchTbl.gridSize )
-    patchTbl.upCrouch = Vector( 0, 0, 20 )
+    patchTbl.headroomCrouch = math.floor( patchTbl.headroomCrouchRaw / patchTbl.gridSize )
+    patchTbl.upCrouch = Vector( 0, 0, patchTbl.headroomCrouchRaw )
 
     patchTbl.finalAreaCheckMins = Vector( -patchTbl.gridSize, -patchTbl.gridSize, -35 )
     patchTbl.finalAreaCheckMaxs = Vector( patchTbl.gridSize, patchTbl.gridSize, 35 )
@@ -276,7 +276,7 @@ local function mergeWithNeighbors( data, vecsToPlace )
         if not allGood then continue end
 
         for _, toMerge in ipairs( neighbors ) do
-            vecsToPlace[ toMerge.key ] = nil
+            vecsToPlace[toMerge.key] = nil
 
         end
 
@@ -449,6 +449,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     if not floorResult.Hit then return end
 
 
+    -- is this inside a wall?
     local trStrucCollide = {
         start = hitPos + patchTbl.upCrouch,
         endpos = hitPos + patchTbl.upCrouch + up,
@@ -464,7 +465,9 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     local defUnder, probUnder, upTrResult = patchTbl.posIsUnderDisplacement( hitPos )
     if defUnder or probUnder then return end
-    if upTrResult.HitPos:Distance( hitPos ) < patchTbl.headroomStandRaw then return end -- really tiny space
+
+    local finalHeadroomDist = upTrResult.HitPos:Distance( hitPos )
+    if finalHeadroomDist < patchTbl.headroomCrouchRaw then return end -- really tiny space
 
     local existingArea = navmesh.GetNearestNavArea( hitPos, false, patchTbl.halfGrid, false, true, -2 )
     if IsValid( existingArea ) then return end
