@@ -523,7 +523,8 @@ function ENT:OnUnStuck()
     self.m_StuckTime = CurTime() + 1
     self.m_StuckTime2 = 0
 
-    self:RunTask("OnUnStuck")
+    self:RunTask( "OnUnStuck" )
+
 end
 
 function ENT:isUnderWater()
@@ -985,6 +986,18 @@ local random1 = Vector( 0, 0, 0 )
 local random2 = Vector( 0, 0, 0 )
 
 -- find pos to path to, for geting around any kind of obstacle
+--[[------------------------------------
+    Name: ENT:PosThatWillBringUsTowards
+    Monte Carlo hull-trace search for a position that navigates around
+    arbitrary obstacles toward aheadPos. Caches results.
+
+    Arg1: startPos    | Vector | Search origin
+    Arg2: aheadPos    | Vector | Target to navigate toward
+    Arg3: maxAttempts | number | Optional. Max sample attempts. Default 150
+
+    Ret1: Vector | nil | Best position found, or nil if none usable
+    Ret2: bool   | nil | true if result is a fallback (low confidence)
+--]]------------------------------------
 function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
     maxAttempts = maxAttempts or 150
     local timerName = "terminator_obliteratetowardscache_" .. self:GetCreationID()
@@ -1011,7 +1024,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
     local cacheTime = 0.8
 
-    local b1,b2 = self:BoundsAdjusted( 0.75 )
+    local b1, b2 = self:BoundsAdjusted( 0.75 )
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
 
@@ -1034,31 +1047,34 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
     }
 
     local dirResult = util.TraceHull( dirConfig )
-    --debugoverlay.Line( startPos, dirResult.HitPos, 5, color_white, true )
+    --debugoverlay.Line( startPos, aheadPosOffGround, 5, Color( 255, 255, 0 ), true )
+    --debugoverlay.Cross( aheadPosOffGround, 5, 5, Color( 255, 255, 0 ), true )
 
     if fodder then
         coroutine_yield()
 
     end
 
-    if dirResult.Hit then
+    if not dirResult.Hit then -- it's completely clear!
+        if fodder then
+            cacheTime = cacheTime * 2
 
-        -- table of scores for table.maxn
-        local potentialClearPositionsScored = {}
+        end
+        self.nextBringUsTowardsCache = cur + cacheTime
+        self.cachedBringUsTowards = dirResult.HitPos
+        return dirResult.HitPos
+
+    else -- not clear
         local bestScore = 0
         local wasAClearBestScore
-
-        -- the positions
-        local potentialClearHitPositions = {}
-        -- table of fractions for checks, to see if they actually get us "there"
-        local potentialClearPositionFractions = {}
+        local bestPos, bestHitPos
 
         local attempts = 1
-        local traceDist = 1
+        local traceDist = 2
         local jumpHeight = self.loco:GetMaxJumpHeight()
         local stepHeight = self.loco:GetStepHeight()
 
-        local startTime = cur
+        local startTime = SysTime()
 
         -- most of these will fail, allow lots!
         while attempts < maxAttempts do
@@ -1083,6 +1099,7 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
             end
 
+            traceDist = math.max( traceDist, 1 )
             local offsetScale = math.log( traceDist, 10 ) * 150
 
             random1:Random( -1, 1 )
@@ -1129,7 +1146,6 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
             end
 
-            --debugoverlay.Line( startPos, newStartPos, 5, color_white, true )
 
             local newEndPos = defEndPos + offset
             local haveToJump = math.abs( newStartPos.z - startPos.z ) > stepHeight
@@ -1140,11 +1156,17 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
             coroutine_yield()
 
             dirResult = util.TraceHull( dirConfig )
-            --debugoverlay.Line( newStartPos, dirResult.HitPos, 5, color_white, true )
+
+            if dirResult.StartSolid then continue end
 
             coroutine_yield()
 
-            if not dirResult.Hit and not self:ClearOrBreakable( startPos, newStartPos ) then
+            local dirResultClear = not dirResult.Hit
+
+            -- clear, but not clear from our pos to newStartPos
+            if dirResultClear and not self:ClearOrBreakable( startPos, newStartPos ) then
+                --debugoverlay.Line( startPos, newStartPos, 5, Color( 255, 0, 0 ), true )
+                --debugoverlay.Line( newStartPos, dirResult.HitPos, 5, color_white, true )
                 if fodder then
                     coroutine_yield()
 
@@ -1165,66 +1187,77 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
             local currScore
 
             -- perfect trace!
-            local perfectTrace = not dirResult.Hit and self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround, false, 2 ) and not haveToJump
+            local perfectTrace = dirResultClear and not haveToJump and self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround, false, 1.5 )
             if perfectTrace then
+                --debugoverlay.Line( startPos, newStartPos, 5, Color( 0, 255, 0 ), true )
+                --debugoverlay.Line( newStartPos, dirResult.HitPos, 5, Color( 0, 255, 0 ), true )
+                --debugoverlay.Line( dirResult.HitPos, aheadPosOffGround, 5, Color( 0, 255, 0 ), true )
+                self.nextBringUsTowardsCache = cur + cacheTime * 2
                 self.cachedBringUsTowards = newStartPos
                 return newStartPos
 
             end
+
+            --debugoverlay.Line( startPos, newStartPos, 5, color_white, true )
+            --debugoverlay.Line( newStartPos, dirResult.HitPos, 5, color_white, true )
+
             coroutine_yield()
+
             -- imperfect, rank it!
-            if not dirResult.StartSolid then
-                currScore = dirResult.Fraction
-                -- bonus score, it hit something passable!
-                local hitPassable = self:hitBreakable( dirConfig, dirResult )
-                if hitPassable then
-                    currScore = currScore + 1
+            currScore = dirResult.Fraction
+            -- bonus score, it hit something passable!
+            local hitPassable = self:hitBreakable( dirConfig, dirResult )
+            if hitPassable then
+                currScore = currScore + 1
 
-                end
-                -- only do the trace check if this is a contender for the best fraction
-                if currScore > bestScore then
-                    coroutine_yield()
-
-                    -- if there's a doorway, start picking ones that only go through the doorway
-                    local isATrulyClearTrace = self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround )
-                    if isATrulyClearTrace or wasAClearBestScore then
-                        currScore = math.Clamp( currScore, 0, math_Rand( 1.4, 1.5 ) )
-
-                    end
-                    if isATrulyClearTrace and not wasAClearBestScore then
-                        wasAClearBestScore = true
-                        bestScore = 0
-
-                    end
-                elseif not haveToJump then
-                    currScore = currScore * 2
-
-                end
             end
-            if currScore then
-                potentialClearPositionsScored[ currScore ] = newStartPos
 
-                potentialClearHitPositions[ currScore ] = dirResult.HitPos
-                potentialClearPositionFractions[ currScore ] = fractionCurr
-                bestScore = table.maxn( potentialClearPositionsScored )
+            -- only do the trace check if this is a contender for the best fraction
+            if currScore > bestScore then
+                coroutine_yield()
+
+                -- if there's a doorway, start picking ones that only go through the doorway
+                local isATrulyClearTrace = self:ClearOrBreakable( dirResult.HitPos, aheadPosOffGround )
+                if isATrulyClearTrace or wasAClearBestScore then
+                    currScore = math.Clamp( currScore, 0, math_Rand( 1.4, 1.5 ) )
+
+                end
+                if isATrulyClearTrace and not wasAClearBestScore then
+                    wasAClearBestScore = true
+                    bestScore = 0
+
+                elseif wasAClearBestScore and not isATrulyClearTrace then
+                    currScore = nil
+
+                end
+            elseif wasAClearBestScore then
+                currScore = nil
+
+            elseif not haveToJump then
+                currScore = currScore * 2
+
+            end
+
+            -- is it better?
+            if currScore and currScore > bestScore then
+                bestScore = currScore
+                bestPos = newStartPos
+                bestHitPos = dirResult.HitPos
 
             end
         end
-        local bestFraction = potentialClearPositionsScored[ bestScore ]
-        local bestHitPosition = potentialClearHitPositions[ bestScore ]
-
-        if not bestHitPosition then return nil, true end
+        if not bestHitPos then return nil, true end
 
         coroutine_yield()
 
-        local clear = self:ClearOrBreakable( bestHitPosition, aheadPosOffGround )
-        -- best fraction doesnt get us there
-        if not bestFraction or ( bestScore < 0.35 ) or not clear then
-            return bestFraction, true
+        local clear = self:ClearOrBreakable( bestHitPos, aheadPosOffGround )
+        -- best score doesn't get us there
+        if not bestPos or ( bestScore < 0.35 ) or not clear then
+            return bestPos, true
 
         end
 
-        local timeTaken = cur - startTime
+        local timeTaken = SysTime() - startTime
         cacheTime = cacheTime + timeTaken
         if fodder then
             cacheTime = cacheTime * 2
@@ -1233,17 +1266,8 @@ function ENT:PosThatWillBringUsTowards( startPos, aheadPos, maxAttempts )
 
         self.nextBringUsTowardsCache = cur + cacheTime
 
-        self.cachedBringUsTowards = bestFraction
-        return bestFraction
-
-    else
-        if fodder then
-            cacheTime = cacheTime * 2
-
-        end
-        self.nextBringUsTowardsCache = cur + cacheTime
-        self.cachedBringUsTowards = dirResult.HitPos
-        return dirResult.HitPos
+        self.cachedBringUsTowards = bestPos
+        return bestPos
 
     end
 end
@@ -1253,7 +1277,7 @@ local scalar = 0.75
 -- simple check, can the bot exist left/right in the direction of the goal.
 function ENT:CanStepAside( dir, goal )
     local pos = self:GetPos() + vec_up15
-    local b1,b2 = self:BoundsAdjusted( scalar )
+    local b1, b2 = self:BoundsAdjusted( scalar )
     local mask = self:GetSolidMask()
     local cgroup = self:GetCollisionGroup()
 
@@ -1715,6 +1739,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
     if not aheadSegment then
         aheadSegment = currSegment
+
     end
 
     if not currSegment then return false end
@@ -1858,7 +1883,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         end
     end
 
-    local checkTolerance = myTbl.PathGoalTolerance * 4
+    local checkTolerance = myTbl.PathGoalTolerance * 3
 
     --figuring out what kind of terrian we passing
     -- filter with me + my children
@@ -2001,18 +2026,26 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
     end
 
+    local myHeightToNext = aheadSegment.pos.z - myPos.z
+    local jumpableHeight = myHeightToNext < myTbl.JumpHeight
+
     local isHandlingJump = false
     local doingJump = nil
 
     local jumptype = aheadType == 2 or currType == 2 or realGapJump or reallyJustAGap or validDroptypeInterpretedAsGap
     local droptype = droppingType and not dropIsReallyJustAGap
-    local dropTypeToDealwith = droptype and closeToGoal
+    local potentialdropTypeToDealWith = droptype and closeToGoal and not validDroptypeInterpretedAsGap
+    local dropTypeToDealWith
+    local segAfterTheDrop
+    if potentialdropTypeToDealWith then
+        local _, segDropdownBottom = self:GetNextPathArea( aheadArea, 1 )
+        segAfterTheDrop = segDropdownBottom or aheadSegment
+        dropTypeToDealWith = math.abs( segAfterTheDrop.pos.z - myPos.z ) > ( myTbl.StepHeight * 2 )
+
+    end
 
     local good = self:PathIsValid() and iAmOnGround
     local areaSimple = myTbl.GetCurrentNavArea( self, myTbl ) or myArea
-
-    local myHeightToNext = aheadSegment.pos.z - myPos.z
-    local jumpableHeight = myHeightToNext < myTbl.JumpHeight
 
     coroutine_yield()
     if IsValid( areaSimple ) and good then
@@ -2027,7 +2060,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
         coroutine_yield()
         if IsValid( areaSimple ) and jumpableHeight and not blockJump and ( myTbl.nextPathJump or 0 ) < cur then
-            local dir = aheadSegment.pos-myPos
+            local dir = aheadSegment.pos - myPos
             dir.z = 0
             dir:Normalize()
 
@@ -2072,10 +2105,10 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
             --print( myHeightToNext, myTbl.loco:GetStepHeight() )
             --print( aheadType == 2, currType == 2, realGapJump, reallyJustAGap, validDroptypeInterpretedAsGap )
-            --print( jumpstate, smallObstacle, jumptype, dropTypeToDealwith, smallObstacleBlocking, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, myTbl.m_PathJump and jumpstate == 1, jumpstate == 2, needsToFeelAround )
+            --print( jumpstate, smallObstacle, jumptype, dropTypeToDealWith, smallObstacleBlocking, areaSimple:HasAttributes( NAV_MESH_JUMP ), droptype and jumpstate == 1, myTbl.m_PathJump and jumpstate == 1, jumpstate == 2, needsToFeelAround )
             if
                 jumptype or                                                     -- jump segment
-                dropTypeToDealwith or
+                dropTypeToDealWith or
                 smallObstacleBlocking or
                 areaSimple:HasAttributes( NAV_MESH_JUMP ) or                    -- jump area
                 droptype and jumpstate == 1 or                                  -- dropping down and there's obstacle
@@ -2117,13 +2150,11 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                     end
 
                 -- droptypes have a habit of being over-generated, find a path "downwards" even if it's not a direct path
-                elseif dropTypeToDealwith then
+                elseif dropTypeToDealWith then
                     myTbl.m_PathJump = true
-                    local _, segDropdownBottom = self:GetNextPathArea( aheadArea, 1 )
-                    local segAfterTheDrop = segDropdownBottom or aheadSegment
 
                     if isFodder then coroutine_yield() end
-                    local dropdownClearPos = self:PosThatWillBringUsTowards( myPos + vec_up15, segAfterTheDrop.pos )
+                    local dropdownClearPos, wasNothingGreat = self:PosThatWillBringUsTowards( myPos + vec_up15, segAfterTheDrop.pos )
                     if isFodder then coroutine_yield() end
 
                     if not dropdownClearPos or wasNothingGreat then
@@ -2135,7 +2166,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                         myTbl.m_PathObstacleAvoidTarget = segAfterTheDrop.pos
                         myTbl.m_PathObstacleAvoidTimeout = cur + 4
 
-                        myTbl.m_PathObstacleRebuild = "dropTypeToDealwith and not ( not dropdownClearPos or wasNothingGreat )"
+                        myTbl.m_PathObstacleRebuild = "dropTypeToDealWith and not ( not dropdownClearPos or wasNothingGreat )"
 
                     end
 

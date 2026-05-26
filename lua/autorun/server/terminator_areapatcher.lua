@@ -76,6 +76,8 @@ local function filterFunc( hit )
 
 end
 
+local smallGridSize = 12.5
+
 local patchTbl
 
 local function patchCleanup()
@@ -87,7 +89,7 @@ local function updateGridSize( newSize )
     patchTbl = {}
 
     patchTbl.gridSize = newSize
-    patchTbl.gridOffset = 6.25
+    patchTbl.gridOffset = smallGridSize / 2
 
     patchTbl.halfGrid = patchTbl.gridSize * 0.5
     patchTbl.gridSmaller = patchTbl.gridSize * 0.25
@@ -515,6 +517,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 end
 
 local coroutine_yield = coroutine.yield
+local oldGenCenter
 
 -- Coroutine function to handle patching regions one-by-one
 local function patchCoroutine()
@@ -529,8 +532,11 @@ local function patchCoroutine()
         local newGenCenter = region.pos1 + region.pos2
         newGenCenter = newGenCenter / 2
 
-        if patchTbl.oldGenCenter and patchTbl.gridSize < 12.5 and patchTbl.oldGenCenter:Distance( newGenCenter ) < ( patchTbl.gridSize * 4 ) then -- we are stuck regenerating one point, try shuffling this
-            patchTbl.gridOffset = math.random( -12.5, 12.5 ) / 2
+        if oldGenCenter and patchTbl.gridSize < smallGridSize and oldGenCenter:Distance( newGenCenter ) < ( patchTbl.gridSize * 4 ) then -- we are stuck regenerating one point, try shuffling this
+            local offset = math.random( -4, 4 )
+            offset = offset * smallGridSize / 2
+
+            patchTbl.gridOffset = smallGridSize / 2
             debugPrint( "Area generation is stuck, offsetting grid by " .. patchTbl.gridOffset )
 
         end
@@ -540,7 +546,7 @@ local function patchCoroutine()
         SnapToGrid( pos1 )
         SnapToGrid( pos2 )
 
-        patchTbl.oldGenCenter = newGenCenter
+        oldGenCenter = newGenCenter
 
         debugPrint( "Patching region from", pos1, "to", pos2 )
 
@@ -631,7 +637,7 @@ local function patchCoroutine()
             debugPrint( "Connecting placed areas..." )
             coroutine_yield( "wait" )
 
-            local additionalSize = math_max( patchTbl.gridSize, 12.5 )
+            local additionalSize = math_max( patchTbl.gridSize, smallGridSize )
             local additional = Vector( additionalSize, additionalSize, additionalSize )
             local upOff = patchTbl.upCrouch / 2
 
@@ -642,7 +648,7 @@ local function patchCoroutine()
                 for _, otherArea in ipairs( navmesh.FindInBox( mins + -additional, maxs + additional ) ) do
                     local trivialDist -- defaults to 5 in following navpatcher 
                     if not justNewAreas[otherArea] then
-                        trivialDist = math_max( 12.5, patchTbl.gridSize ) -- not a new area, allow long connections!
+                        trivialDist = math_max( smallGridSize, patchTbl.gridSize ) -- not a new area, allow long connections!
 
                     end
                     coroutine_yield()
@@ -798,7 +804,7 @@ function terminator_Extras.dynamicallyPatchPos( pos )
 
     local areasInSmallSize = navmesh.FindInBox( pos + -smallSize * 1.25, pos + smallSize * 1.25 )
     if areasInSmallSize and #areasInSmallSize >= 1 then
-        terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, 12.5 )
+        terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, smallGridSize )
 
     else
         local areasInBigSize = navmesh.FindInBox( pos + -bigSize, pos + bigSize )
@@ -812,7 +818,7 @@ function terminator_Extras.dynamicallyPatchPos( pos )
     end
 end
 
--- Superadmin-only concommand to patch around the caller's eye trace position using smallSize and grid size 12.5
+-- Superadmin-only concommand to patch around the caller's eye trace position using smallSize and grid size 12.5, smallGridSize
 concommand.Add( "terminator_areapatch_here", function( ply, _, args )
     if not IsValid( ply ) then return end -- must be a player
     if not ply:IsSuperAdmin() then
@@ -821,7 +827,7 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
 
     end
 
-    local gridSize = tonumber( args[1] ) or 12.5
+    local gridSize = tonumber( args[1] ) or smallGridSize
 
     local tr = ply:GetEyeTrace()
     if not tr or not tr.HitPos then return end
@@ -841,4 +847,4 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
 
     end
 
-end, nil, "Patch a nav region centered at your crosshair using smallSize and specified grid size (default 12.5, superadmin only)" )
+end, nil, "Patch a nav region centered at your crosshair using smallSize and specified grid size (default " .. smallGridSize .. ", superadmin only)" )
