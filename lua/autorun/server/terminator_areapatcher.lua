@@ -104,7 +104,7 @@ local function updateGridSize( newSize )
     patchTbl.areaCenteringOffset = Vector( -patchTbl.halfGrid, -patchTbl.halfGrid, 2 )
     patchTbl.oppCornerOffset = Vector( patchTbl.halfGrid, patchTbl.halfGrid, 2 )
 
-    patchTbl.headroomStandRaw = 64
+    patchTbl.headroomStandRaw = 70
     patchTbl.headroomCrouchRaw = 20
     patchTbl.headroomStand = math.floor( patchTbl.headroomStandRaw / patchTbl.gridSize )
     patchTbl.headroomCrouch = math.floor( patchTbl.headroomCrouchRaw / patchTbl.gridSize )
