@@ -104,7 +104,8 @@ function SWEP:SecondaryAttack()
 	if !self:CanSecondaryAttack() then return end
 	
 	-- TODO: secondary fire ammo
-	self:SetNextSecondaryFire(CurTime()+GetConVarNumber("sk_weapon_ar2_alt_fire_delay") * 10)
+	local delay = math.max( GetConVarNumber("sk_weapon_ar2_alt_fire_delay") * 10, 25 )
+	self:SetNextSecondaryFire(CurTime()+delay)
 
 	self:GetOwner():EmitSound(Sound("Weapon_AR2.NPC_Double"))
 	
