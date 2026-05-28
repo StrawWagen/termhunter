@@ -802,7 +802,7 @@ function terminator_Extras.dynamicallyPatchPos( pos )
     if not doAreaPatching then return end
     if #regionsQueue >= 100 then return end -- don't let this blow up!
 
-    local areasInSmallSize = navmesh.FindInBox( pos + -smallSize * 1.25, pos + smallSize * 1.25 )
+    local areasInSmallSize = navmesh.FindInBox( pos + -smallSize * 1.5, pos + smallSize * 1.5 )
     if areasInSmallSize and #areasInSmallSize >= 1 then
         terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, smallGridSize )
 

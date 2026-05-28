@@ -74,6 +74,103 @@ local function hasAttributeFast( attributes, attribute )
 
 end
 
+local cornersBuds = {
+    [0] = 1, -- NW, NE
+    [1] = 2, -- NE, SE
+    [2] = 3, -- SE, SW
+    [3] = 0, -- SW, NW
+}
+
+local stairCheckUp = Vector( 0, 0, 8 ) -- stick close to the ground when checking if stairs are coplanar
+local otherwiseCheckUp = Vector( 0, 0, 12 ) -- otherwise be lenient
+
+local function offsetForThisArea( area, pos )
+    if area:HasAttributes( NAV_MESH_STAIRS ) then
+        return pos + stairCheckUp
+
+    else
+        return pos + otherwiseCheckUp
+
+    end
+end
+
+-- see if all the points on this area can see the other area's points
+-- if they can, merging these two areas won't make the area go through the world
+function AreRoughlyCoplanar( area1, area2 )
+    local trResult = {}
+    local trStruc = {
+        mask = MASK_NPCSOLID,
+        output = trResult,
+    }
+
+    local center1 = area1:GetCenter()
+    local center2 = area2:GetCenter()
+    center1 = center1 + otherwiseCheckUp
+    center2 = center2 + otherwiseCheckUp
+
+    trStruc.start = center1
+    trStruc.endpos = center2
+    util.TraceLine( trStruc )
+
+    if trResult.Hit then
+        --debugoverlay.Line( trStruc.start, trResult.HitPos, 5, Color( 255, 0, 0 ), true )
+        return false
+
+    end
+
+    local area1sClosestTo2 = area1:GetClosestPointOnArea( center2 )
+    local area2sClosestTo1 = area2:GetClosestPointOnArea( center1 )
+    area1sClosestTo2 = area1sClosestTo2 + otherwiseCheckUp
+    area2sClosestTo1 = area2sClosestTo1 + otherwiseCheckUp
+
+    local _, deepPos1 = util.DistanceToLine( center1, center2, area1sClosestTo2 )
+    local area1sDeepZDist = math.abs( deepPos1.z - area1sClosestTo2.z )
+    if area1sDeepZDist > 5 then
+        --debugoverlay.Line( center1, center2 , 5, Color( 255, 0, 0 ), true )
+        --debugoverlay.Line( deepPos1, area1sClosestTo2, 5, Color( 255, 0, 0 ), true )
+        return false -- this area is too deep into the other area
+
+    end
+    local _, deepPos2 = util.DistanceToLine( center1, center2, area2sClosestTo1 )
+    local area2sDeepZDist = math.abs( deepPos2.z - area2sClosestTo1.z )
+    if area2sDeepZDist > 5 then
+        --debugoverlay.Line( center1, center2 , 5, Color( 255, 0, 0 ), true )
+        --debugoverlay.Line( deepPos2, area2sClosestTo1, 5, Color( 255, 0, 0 ), true )
+        return false -- this area is too deep into the other area
+
+    end
+
+    for cornerI = 0, 3 do
+
+        local corner1 = area1:GetCorner( cornerI )
+        local corner2 = area2:GetCorner( cornersBuds[cornerI] )
+        corner1 = offsetForThisArea( area1, corner1 )
+        corner2 = offsetForThisArea( area2, corner2 )
+
+        trStruc.start = corner1
+        trStruc.endpos = corner2
+
+        util.TraceLine( trStruc )
+        if trResult.StartSolid then
+            --debugoverlay.Line( trStruc.start, trStruc.endpos, 5, Color( 255, 0, 0 ), true )
+            -- if we start solid, then these two corners are not coplanar
+            return false
+
+        elseif trResult.Hit then
+            --debugoverlay.Line( trStruc.start, trResult.HitPos, 5, Color( 255, 0, 0 ), true )
+            -- if we hit something, then these two corners are not coplanar
+            return false
+
+        else
+            debugoverlay.Line( trStruc.start, trStruc.endpos, 5, Color( 0, 255, 0 ), true )
+            -- these two corners are coplanar
+
+        end
+    end
+    return true
+
+end
+
 function terminator_Extras.navAreasCanMerge( start, next )
 
     if not ( start and next ) then return false, 0, NULL end -- outdated
@@ -82,13 +179,13 @@ function terminator_Extras.navAreasCanMerge( start, next )
     local nextA = GetAttributes( next )
 
     --SUPER fast
-    local isStairs = hasAttributeFast( startA, NAV_MESH_STAIRS ) or hasAttributeFast( nextA, NAV_MESH_STAIRS )
+    local isStairs = start:HasAttributes( NAV_MESH_STAIRS ) or next:HasAttributes( NAV_MESH_STAIRS )
     local probablyBreakingStairs
     if isStairs then
         -- DONT MESS WITH STAIRS!
         probablyBreakingStairs = true
         -- ok these are coplanar, and they're both stairs... i'll let this slide....
-        if start:IsCoplanar( next ) and hasAttributeFast( startA, NAV_MESH_STAIRS ) and hasAttributeFast( nextA, NAV_MESH_STAIRS ) then
+        if AreRoughlyCoplanar( start, next ) then
             probablyBreakingStairs = nil
 
         end
@@ -163,22 +260,10 @@ function terminator_Extras.navAreasCanMerge( start, next )
     local wouldBeTooBig = newSurfaceArea > 300000 or tooLong
     if wouldBeTooBig then return false, 0, NULL end
 
-    local coplanar = start:IsCoplanar( next )
+    local coplanar = start:IsCoplanar( next ) and start:ComputeAdjacentConnectionHeightChange( next ) <= 5
 
     -- ok this merge is gonna cause artifacts!
-    if not coplanar then
-        local zDifference = math.abs( center1.z - center2.z )
-        -- areas are far apart in height, the artifact will be big
-        if zDifference > 20 then
-            -- if they're both on displacements then we can let it slide
-            local startIsOnDisplacement = terminator_Extras.areaIsEntirelyOverDisplacements( start )
-            if not startIsOnDisplacement then return false, 0, NULL end
-
-            local nextIsOnDisplacement = terminator_Extras.areaIsEntirelyOverDisplacements( next )
-            if not nextIsOnDisplacement then return false, 0, NULL end
-
-        end
-    end
+    if not coplanar and not AreRoughlyCoplanar( start, next ) then return false, 0, NULL end
 
     return true, newSurfaceArea
 
