@@ -326,6 +326,8 @@ ENT.MyClassTask = nil
 
 -- see readme for a nearly full list of possible callbacks
 
+ENT.MyBlockedClassTasks = nil
+
 -- handles adding class tasks
 -- DO NOT OVERRIDE THIS ONE, OVERRIDE THE ENT.MyClassTask ABOVE INSTEAD
 -- searches entire base class tree, setting up the ENT.MyClassTask of every class in the tree
@@ -336,15 +338,38 @@ function ENT:DoClassTasks( myTbl )
     for _, sentTbl in ipairs( sentsToDo ) do
         local classTask = sentTbl.MyClassTask
 
-        if not classTask then continue end
-        if table.Count( classTask ) == 0 then continue end
+        if classTask then
+            if table.Count( classTask ) == 0 then continue end
 
-        -- class tasks always start on initialize
-        classTask.StartsOnInitialize = true
+            -- class tasks always start on initialize
+            classTask.StartsOnInitialize = true
 
-        local className = sentTbl.ClassName .. "_handler"
-        self.TaskList[className] = classTask
+            local className = sentTbl.ClassName .. "_handler"
+            self.TaskList[className] = classTask
 
+        end
+
+        local blocked = sentTbl.MyBlockedClassTasks
+        if blocked then
+            for toBlockClass, blocker in ipairs( blocked ) do
+                -- if blocker is true, block that entire class's task
+                if isbool( blocker ) and blocker then
+                    local className = toBlockClass .. "_handler"
+                    self.TaskList[className] = nil
+
+                -- it's a table of callbacks to block!
+                elseif istable( blocker ) then
+                    local className = toBlockClass .. "_handler"
+                    local blockingClassTask = self.TaskList[className]
+                    if not blockingClassTask then continue end
+
+                    for _, callback in ipairs( blocker ) do
+                        blockingClassTask[callback] = nil
+
+                    end
+                end
+            end
+        end
     end
 end
 

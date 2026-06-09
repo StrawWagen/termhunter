@@ -124,7 +124,9 @@ function ENT:ClearOrBreakable( start, endpos, doSmallHull, hullMul )
 end
 
 -- should we assume that we will break this upon doing our path?
-function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
+function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck, yieldable )
+    if not traceResult.Hit then return end
+
     local hitEnt = traceResult.Entity
     if not IsValid( hitEnt ) then return end -- we cant break it if its not an entity!
 
@@ -147,6 +149,9 @@ function ENT:hitBreakable( traceStruct, traceResult, skipDistCheck )
 
         end
     end
+
+    if yieldable then coroutine_yield() end
+
     -- didnt hit close to end, or hit glass
     local myTbl = entMeta.GetTable( self )
     local class = entMeta.GetClass( hitEnt )
@@ -1347,7 +1352,7 @@ end
 function ENT:GetJumpBlockState( myTbl, dir, goal )
 
     local enemy = myTbl.GetEnemy( self )
-    local b1,b2 = myTbl.BoundsAdjusted( self, scalar )
+    local b1, b2 = myTbl.BoundsAdjusted( self, scalar )
     local step = myTbl.loco:GetStepHeight() * scalar
     local pos = entMeta.GetPos( self ) + vec_up15
     local cgroup = entMeta.GetCollisionGroup( self )
@@ -1465,12 +1470,18 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
             -- vertConfig goes from the last start of the can step check, to the next start, so it checks if there's vertical space
             vertConfig.start = newStartPos
 
+            if yieldable then
+                coroutine_yield()
+
+            end
+
             -- ceiling, we cant jump up here
-            if vertResult.Hit and not myTbl.hitBreakable( self, vertConfig, vertResult ) then
+            if vertResult.Hit and not myTbl.hitBreakable( self, vertConfig, vertResult, true ) then
                 --local color = Color( 255, 255, 255, 25 )
                 --if vertResult.Hit then color = Color( 255,0,0, 25 ) end
                 --debugoverlay.Box( vertResult.HitPos, vertConfig.mins, vertConfig.maxs, 4, color )
                 return 2 -- step back bot!
+
             end
 
             if yieldable then
@@ -1483,7 +1494,12 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
 
             dirResult = util.TraceHull( dirConfig )
 
-            local hitThingWeCanBreak = myTbl.hitBreakable( self, dirConfig, dirResult )
+            if yieldable then
+                coroutine_yield()
+
+            end
+
+            local hitThingWeCanBreak = dirResult.Hit and myTbl.hitBreakable( self, dirConfig, dirResult, true )
 
             if yieldable then
                 coroutine_yield()
@@ -1496,6 +1512,12 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
             finalCheckConfig.endpos = goalWithOverriddenZ
 
             finalCheckResult = util.TraceHull( finalCheckConfig )
+
+
+            if yieldable then
+                coroutine_yield()
+
+            end
 
             -- if we are above the goal or, if we can see it
             -- stops bot from jumping in hallways
@@ -2092,8 +2114,14 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             if isFodder then coroutine_yield() end
 
             local smallObstacle = jumpstate == 1 and jumpingHeight
-            local canStepAside = self:CanStepAside( dir, aheadSegment.pos )
-            local smallObstacleBlocking = smallObstacle and ( not canStepAside or self:GetCurrentSpeedSqr() < terminator_Extras.term_SpeedToConsiderSmallJumps or myTbl.wasDoingJumpOverSmallObstacle ) and not canStepAside
+            local smallObstacleBlocking = smallObstacle
+            if smallObstacleBlocking then
+                local canStepAside = self:CanStepAside( dir, aheadSegment.pos )
+                local movingSlow = self:GetCurrentSpeedSqr() < terminator_Extras.term_SpeedToConsiderSmallJumps
+                local jumpingOverSmallObstacle = myTbl.wasDoingJumpOverSmallObstacle
+                smallObstacleBlocking = not canStepAside and ( movingSlow and not jumpingOverSmallObstacle )
+
+            end
 
             local needsToFeelAround
             if jumpstate == 2 then
@@ -2597,6 +2625,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             myTbl.overrideCrouch = CurTime() + 0.5
 
         end
+        if yieldable then
+            coroutine_yield()
+
+        end
 
         local aboveUs
         local doJumpTowards
@@ -2633,7 +2665,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                         pos = pos + dir * 50
 
                     end
-                elseif myTbl.Term_Leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos then
+                elseif myTbl.Term_Leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos and dist2d < myTbl.JumpHeight then
                     doJumpTowards = true
 
                 end
@@ -2648,7 +2680,13 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                 return
 
             end
-            local jumpstate, jumpingHeight, jumpBlockClearPos = myTbl.GetJumpBlockState( self, myTbl, dir, pos, false )
+            local jumpstate, jumpingHeight, jumpBlockClearPos = 0, nil, nil
+
+            if not isFodder or math.random( 1, 100 ) > 75 then
+                jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( myTbl, dir, pos )
+
+            end
+
             local goalBasedJump = jumpstate ~= 2 and aboveUs
             local readyToJump = not myTbl.nextPathJump or myTbl.nextPathJump < CurTime()
             --print( jumpstate, jumpingHeight )

@@ -635,6 +635,10 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
 
     end
 
+    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
+    if not IsValid( fromArea ) then return -1 end
+    if not IsValid( toArea ) then return -1 end
+
     if navMeta.IsUnderwater( toArea ) then
         if not locoData.canSwim then
             cost = cost * 4

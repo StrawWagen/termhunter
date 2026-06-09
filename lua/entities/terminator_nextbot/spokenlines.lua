@@ -2,6 +2,9 @@
 -- ENT.term_SoundPitchShift
 -- ENT.term_SoundLevelShift
 -- ENT.term_SoundDSP
+-- ENT.IdleLoopingSounds
+-- ENT.AngryLoopingSounds
+-- ENT.AlwaysPlayLooping
 
 local CurTime = CurTime
 
@@ -264,6 +267,12 @@ end
 
 function ENT:Term_DontSpeakFor( time )
     self.NextTermSpeak = CurTime() + time
+
+end
+
+function ENT:IsSpeaking()
+    if not self.CanSpeak then return false end
+    return self.NextTermSpeak > CurTime()
 
 end
 

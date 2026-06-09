@@ -102,22 +102,27 @@ end
 
 function SWEP:SecondaryAttack()
 	if !self:CanSecondaryAttack() then return end
+	local owner = self:GetOwner()
+	-- NextSecondaryFire is reset on equip....
+	if owner.term_NextCballFire and CurTime() < owner.term_NextCballFire then return end
 	
 	-- TODO: secondary fire ammo
 	local delay = math.max( GetConVarNumber("sk_weapon_ar2_alt_fire_delay") * 10, 25 )
 	self:SetNextSecondaryFire(CurTime()+delay)
+	owner.term_NextCballFire = CurTime()+delay
 
-	self:GetOwner():EmitSound(Sound("Weapon_AR2.NPC_Double"))
+	owner:EmitSound(Sound("Weapon_AR2.NPC_Double"))
 	
-	local pos = self:GetOwner():GetShootPos()
-	local target = self:GetOwner():GetAimVector()
+	local pos = owner:GetShootPos()
+	local target = owner:GetAimVector()
 	local velocity = target*1000
 	
 	local duration = GetConVarNumber("sk_weapon_ar2_alt_fire_duration")
 	local radius = GetConVarNumber("sk_weapon_ar2_alt_fire_radius")
 	local mass = GetConVarNumber("sk_weapon_ar2_alt_fire_mass")
 	
-	self:CreateCombineBall(pos,velocity,radius,mass,duration,self:GetOwner())
+	self:CreateCombineBall(pos,velocity,radius,mass,duration,owner)
+
 end
 
 function SWEP:Equip()

@@ -116,6 +116,13 @@ function ENT:Nick()
 
 end
 
+function ENT:Team()
+    local disguisedAs = self:GetNWEntity( "disguisedterminatorsmimictarget", nil )
+    if not IsValid( disguisedAs ) then return end
+    return disguisedAs:Team()
+
+end
+
 if not CLIENT then return end
 
 local function paintNameAndHealth( toPaint )

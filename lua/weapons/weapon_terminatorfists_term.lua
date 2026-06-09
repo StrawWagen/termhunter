@@ -76,7 +76,11 @@ hook.Add( "EntityTakeDamage", "term_busteddoorbreak", function( target, damage )
         start = target:GetPos() + vector_up * modelRad * 2,
         endpos = target:GetPos() + -vector_up * modelRad * 2,
         ignoreworld = true,
-        filter = function( ent ) if ent == target then return true end return false end,
+        filter = function( ent )
+            if ent == target then return true end
+            return false
+
+        end,
     }
     local result = util.TraceLine( trInfo )
 
@@ -92,8 +96,8 @@ hook.Add( "EntityTakeDamage", "term_busteddoorbreak", function( target, damage )
 
     if target.bustedDoorHp <= 0 then
         SafeRemoveEntity( target )
-    end
 
+    end
 end )
 
 local slidingDoors = {
@@ -245,7 +249,7 @@ function SWEP:ResetHoldTypeCountdown()
         time = 120
 
     end
-    local oldTime = self.doFistsTime
+    local oldTime = self.doFistsTime or 0
     self.doFistsTime = math.max( CurTime(), oldTime ) + time
 
 end

@@ -266,8 +266,9 @@ function ENT:MakeFootstepSound( myTbl, volumeMul, soundWeightAdj, footPos, curSp
         -- these can be a string "example.wav",
         --    or a table with .path, .pitch, .volume, .lvl keys,
         --    or a table of tables with .path, etc, keys
-        if walking and myTbl.Term_FootstepSoundWalking then
-            stepSound = myTbl.Term_FootstepSoundWalking
+        local walkSnds = myTbl.Term_FootstepSoundWalking
+        if walking and walkSnds then
+            stepSound = walkSnds
 
         else
             stepSound = myTbl.Term_FootstepSound
@@ -283,11 +284,11 @@ function ENT:MakeFootstepSound( myTbl, volumeMul, soundWeightAdj, footPos, curSp
             end
         end
         if istable( stepSound ) then
-            stepSound = stepSound.path or nil
             pitch = asNum( stepSound.pitch ) or pitch
             volume = asNum( stepSound.volume ) or volume
             lvl = asNum( stepSound.lvl ) or lvl
             chan = stepSound.chan or CHAN_AUTO
+            stepSound = stepSound.path or nil
 
         end
     end

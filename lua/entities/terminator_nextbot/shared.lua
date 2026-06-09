@@ -3578,6 +3578,8 @@ function ENT:DoDefaultTasks()
         ["awareness_handler"] = {
             StartsOnInitialize = true,
             BehaveUpdatePriority = function( self, data, interval )
+                coroutine_yield()
+
                 local myTbl  = entMeta.GetTable( self )
                 local nextAware = myTbl.term_NextAwareness or 0
                 if nextAware < CurTime() then
@@ -3900,12 +3902,14 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdatePriority = function( self, data, interval )
                 if data.GarboInformCount >= data.MaxGarboInforms then return end
+                coroutine_yield()
+
                 local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
                 if not IsValid( enemy ) then return end
                 if not myTbl.IsSeeEnemy then return end
 
-                if data.NeedsToDoInform then -- do this within the coroutine\
+                if data.NeedsToDoInform then -- do this within the coroutine
                     if not IsValid( data.NeedsToDoInform.enemy ) then return end -- outdated
 
                     for _, ally in ipairs( self:GetNearbyAllies() ) do
@@ -3929,6 +3933,7 @@ function ENT:DoDefaultTasks()
                     add = math.Rand( 2, 5 )
 
                 end
+
                 data.EnemyPosInform = CurTime() + add
                 data.Inform( enemy, myTbl.EntShootPos( self, enemy ), self:GetPos() )
 
