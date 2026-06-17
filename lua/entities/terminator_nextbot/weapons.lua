@@ -1041,7 +1041,7 @@ function ENT:DoFists()
 end
 
 function ENT:SetupFists( fists )
-    if self.FistRangeMul then
+    if self.FistRangeMul and fists.Range then
         fists.Range = fists.Range * self.FistRangeMul
 
     end
