@@ -36,9 +36,10 @@ end
 
 function ENT:InvalidatePath( reason )
     local path = self:GetPath()
-    if not path:IsValid() then return end
+    if not IsValid( path ) then return end
     path:Invalidate()
 
+    self.term_PathShouldBeValid = nil
     self.term_ExpensivePath = nil
 
     self.term_cancelPathGen = true
@@ -967,18 +968,6 @@ local ipairs = ipairs
 local isnumber = isnumber
 local table_Random = table.Random
 
--- helper func for findValidNavResult
-local function addTo( idToAdd, seqTbl, maskTbl )
-    if not maskTbl[idToAdd] then
-        seqTbl[#seqTbl + 1] = idToAdd
-        maskTbl[idToAdd] = true
-        return true
-
-    end
-    return false -- not added, already there
-
-end
-
 local function addTo( idToAdd, seqTbl, maskTbl, posTbl )
     if not maskTbl[idToAdd] then
         local n = #seqTbl + 1
@@ -1686,6 +1675,8 @@ function ENT:SetupPath( pos, endArea )
 
     coroutine_yield()
 
+    myTbl.term_PathShouldBeValid = true
+
     local path = Path( "Follow" )
     myTbl.m_Path = path
 
@@ -1751,7 +1742,7 @@ end
 
 
 function ENT:IsBusyBuildingPath( myTbl )
-    if myTbl.m_Path and not IsValid( myTbl.m_Path ) then
+    if myTbl.term_PathShouldBeValid and not IsValid( myTbl.m_Path ) then
         local startedBuilding = myTbl.m_LastPathStartTime or 0
         local sinceStartedBuilding = math.abs( CurTime() - startedBuilding )
         return true, sinceStartedBuilding

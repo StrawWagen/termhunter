@@ -1371,6 +1371,9 @@ function ENT:Term_LookAround( myTbl )
             speedToStopLookingFarAhead = terminator_Extras.term_InterruptedSpeedToAimAtProps
 
         end
+    else
+        disrespecting = nil
+
     end
 
     coroutine_yield()
@@ -1427,7 +1430,7 @@ function ENT:Term_LookAround( myTbl )
         --lookAtType = "generichint"
 
     -- look at enemy last pos
-    elseif lookAtGoal and pathIsValid and not seeEnem and ( enemyStillFresh or shouldLookTime or ( math.random( 1, 100 ) < 4 and self:CanSeePosition( myTbl.EnemyLastPos, myTbl ) ) ) then
+    elseif lookAtGoal and pathIsValid and not seeEnem and not disrespecting and ( enemyStillFresh or shouldLookTime or ( math.random( 1, 100 ) < 2 and self:CanSeePosition( myTbl.EnemyLastPos, myTbl ) ) ) then
         if not shouldLookTime then
             myTbl.LookAtEnemyLastPos = cur + sndCuriosity
 
@@ -1458,7 +1461,7 @@ function ENT:Term_LookAround( myTbl )
 
         -- if we're moving slow, look at what's blocking us, or down at where we're going
         if not self:IsOnGround() or movingSlow then
-            if IsValid( disrespecting ) then
+            if disrespecting then
                 lookAtPos = myTbl.getBestPos( self, disrespecting )
                 --lookAtType = "lookatpath_disrespector"
 

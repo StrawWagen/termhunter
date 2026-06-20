@@ -1504,7 +1504,7 @@ local function getDamageTrackerOf( me, myTbl, wepOrClass )
 
     if not isstring( class ) then return end
 
-    local tracker = trackers[ class ]
+    local tracker = trackers[class]
     if not tracker then
         -- tolerance for weapons
         local bonusAttackAttempts = 30
@@ -1546,7 +1546,7 @@ local function getDamageTrackerOf( me, myTbl, wepOrClass )
             maxDistEverDamagedWith = 0,
 
         }
-        trackers[ class ] = tracker
+        trackers[class] = tracker
 
     end
     return tracker

@@ -1368,11 +1368,15 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
             end
         end
     elseif shouldAttack or breakableMemory then
-        if breakableMemory and blockerAtGoodRange and not myTbl.IsSeeEnemy and hasReasonableHealth( blocker ) and myTbl.GetCachedDisrespector( self, myTbl )  then
+        local speedToStopLookingFarAhead = terminator_Extras.term_DefaultSpeedToAimAtProps
+        local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
+        local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
+        local decentBreakable = breakableMemory and blockerAtGoodRange and hasReasonableHealth( blocker ) and myTbl.GetCachedDisrespector( self, myTbl )
+        if decentBreakable and ( movingSlow or not myTbl.IsSeeEnemy ) then
             attack = "toOpen_breakableMemory"
 
         elseif reallyAngry or ( blockersBearingToPath and blockersBearingToPath > 120 ) then
-            if sinceStarted > 2 and range and blockerAtGoodRange then
+            if ( movingSlow or sinceStarted > 2 ) and range and blockerAtGoodRange then
                 attack = "toOpen_reallyMadOrDirectlyBlocking"
 
             elseif sinceStarted > 2 and not isFists then
