@@ -608,79 +608,84 @@ If you go down this path,
 you will make great use of...
 ## ENT:DoCustomTasks( defaultTasks )
 
-The nextbot base provides many useful generic tasks that can be extracted, used in derived NPCs
+The nextbot base provides many useful generic tasks that can be extracted, used in derived NPCs.
+
 This function exposes them, for you to build your own self.TaskList
 
 ### "enemy_handler"
 Manages acquiring, finding, losing enemies.
-    Manages these useful variables
-    - `self.IsSeeEnemy` true if there is no map geometry between bot and it's enemy.
-    - `self.NothingOrBreakableBetweenEnemy` true if there's either breakable props, or nothing at all between the bot and it's enemy.
-    - `self.DistToEnemy` distance to current enemy, or distance to last enemy if no valid enemy
-    - `self.EnemiesVehicle` current enemy's vehicle if they are a player and inside a valid vehicle
-    - `self.LastEnemySpotTime` last CurTime() we had a valid line of sight to an enemy
-    - `self.LastEnemyShootPos` the GetShootPos of the last enemy we saw
-    - `self.EnemyLastMoveDir` the direction of movement of the last enemy we saw
-    - `self.EnemyLastPos` the last position we saw any enemy at
-    - `self.EnemyLastPosOffsetted` above, but offsetted 150u in the direction of EnemyLastMoveDir
+
+Owns these variables
+- `self.IsSeeEnemy` true if there is no map geometry between bot and it's enemy.
+- `self.NothingOrBreakableBetweenEnemy` true if there's either breakable props, or nothing at all between the bot and it's enemy.
+- `self.DistToEnemy` distance to current enemy, or distance to last enemy if no valid enemy
+- `self.EnemiesVehicle` current enemy's vehicle if they are a player and inside a valid vehicle
+- `self.LastEnemySpotTime` last CurTime() we had a valid line of sight to an enemy
+- `self.LastEnemyShootPos` the GetShootPos of the last enemy we saw
+- `self.EnemyLastMoveDir` the direction of movement of the last enemy we saw
+- `self.EnemyLastPos` the last position we saw any enemy at
+- `self.EnemyLastPosOffsetted` above, but offsetted 150u in the direction of EnemyLastMoveDir
 
 ### "shooting_handler"
 Manages...
-    - aiming. 
-    - shooting at current enemy. 
-    - dropping crappy weapons.
-    - reloading weapons
-    - looking around while pathing
+- aiming. 
+- shooting at current enemy. 
+- dropping crappy weapons.
+- reloading weapons
+- looking around while pathing
 
 ### "awareness_handler"
 Manages an essential local cache of nearby objects
-    NPCs use this cache to...
-    Find objects blocking their path (to beat them up)
-    To find SLAMs, harmful traps to path around
-    To find explosive barrels nearby their enemy, to shoot!
-    To find nearby weapons...
-    
-    #### the exact cache name
-    - `self.AwarenessCheckRange` radius of the cache (do not make this too big, will slow down bots A LOT)
-    - `self.awarenessSubstantialStuff` all 'substantial' entities within this radius, ENT:caresAbout gates this table
-    
-    #### If the bot is not self.IsFodder and has self.HasBrains... these caches are kept
-    - `self.awarenessDamaging` ents that match any class+model combos that have damaged the bot before
-    - `self.awarenessVolatiles` explosive ents, can be any class+model combos that have done explosive damage to the bot
-        (explosive barrels included by default)
-    
-    #### If the bot has self.TERM_FISTS set to any weapon classname
-    - `self.awarenessBash` very breakable entities, locked doors aswell
-    - `self.awarenessLockedDoors` locked doors, these generate NAV_MESH_BLOCKED_PROPDOOR flags,
-        caused many pathfinding issues, so bots hate them with a passion
+
+#### NPCs use this cache to...
+##### Find objects blocking their path (to beat them up)
+To find SLAMs, harmful traps to path around
+
+To find explosive barrels nearby their enemy, to shoot!
+
+To find nearby weapons...
+
+##### The cache tables
+- `self.AwarenessCheckRange` radius of the cache (do not make this too big, will slow down bots A LOT)
+- `self.awarenessSubstantialStuff` all 'substantial' entities within this radius, ENT:caresAbout gates this table
+
+##### Caches for non-self.IsFodder bots with self.HasBrains
+- `self.awarenessDamaging` ents that match any class+model combos that have damaged the bot before
+- `self.awarenessVolatiles` explosive ents, can be any class+model combos that have done explosive damage to the bot
+    (explosive barrels included by default)
+
+##### If the bot has self.TERM_FISTS set to any weapon classname
+- `self.awarenessBash` very breakable entities, locked doors aswell
+- `self.awarenessLockedDoors` locked doors, these generate NAV_MESH_BLOCKED_PROPDOOR flags,
+    caused many pathfinding issues, so bots hate them with a passion
 
 ### "reallystuck_handler"
 Background stuck checker.
-    Always checking to see if the bot...
-    - Hasn't moved location for some time.
-    - Somehow ended up under a displacement.
-    - Has self.overrideVeryStuck set to true.
+#### Always checking to see if the bot...
+- Hasn't moved location for some time.
+- Somehow ended up under a displacement.
+- Has self.overrideVeryStuck set to true.
 
-    If any of these conditions are met, this sequence of events is started...
-    1. A nearby navarea is selected
-    2. All active bot tasks that begin with "movement_" are STOPPED
-    3. The bot is then forced to move itself towards the nearby area
-    4. movement_handler is then restarted
-    If this fails, and the bot somehow didn't get to the area, it's then teleported.
+If any of these conditions are met, this sequence of events is started...
+1. A nearby navarea is selected
+2. All active bot tasks that begin with "movement_" are STOPPED
+3. The bot is then forced to move itself towards the nearby area
+4. movement_handler is then restarted
+If this fails, and the bot somehow didn't get to the area, it's then teleported.
 
 ### "inform_handler"
 Manages sharing enemy position and relation with allies.
-    - `self.InformRadius` defines the enemy information sharing distance
+- `self.InformRadius` defines the enemy information sharing distance
 
 ### "trancebreaking_handler"
 Hacky fix to old terminator nextbot tasks often overthinking paths.
-    If a bot is damaged, and has been thinking about a path for more than 4 seconds...
-    1. All their movement tasks are stopped.
-    2. if they have the generic task, "movement_backthehellup", it's started, otherwise "movement_handler" is started.
+If a bot is damaged, and has been thinking about a path for more than 4 seconds...
+1. All their movement tasks are stopped.
+2. if they have the generic task, "movement_backthehellup", it's started, otherwise "movement_handler" is started.
 
 ### "movement_handler"
 ***OVERRIDE THIS!!!***
-    This is the "okay what do i do next" state of your bot, all other tasks should loop back to here
+This is the "okay what do i do next" state of your bot, all other tasks should loop back to here
 
 ### "movement_wait"
 Very simple task that waits for data.time, or 0.1-0.2 seconds
