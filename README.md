@@ -605,12 +605,13 @@ The following are deprecated — use `MyClassTask` callbacks instead:
 Adding custom behaviour is extremely tough, fraught with pitfalls and lag.
 
 If you go down this path,
-you will make great use of...
+you'll need to make great use of...
 ## ENT:DoCustomTasks( defaultTasks )
 
-The nextbot base provides many useful generic tasks that can be extracted, used in derived NPCs.
+This is the function that will house your custom NPC brain.
+It provides ample default tasks for you to browse.
 
-This function exposes them, for you to build your own self.TaskList
+The ones documented here are set up to be exposed, used in custom npcs.
 
 ### "enemy_handler"
 Manages acquiring, finding, losing enemies.
@@ -738,8 +739,9 @@ When you're reverse engineering the above examples
 4. All the movement tasks start with `movement_`, because ai logic in the code expects moving tasks to start with it.
 5. They sometimes use `BehaveUpdatePriority` callbacks to bail path calculations and not just stand there when someones shooting them!
 6. They use the fickle `ENT:findValidNavResult` function to find navareas, to path to, in wandering routines, and more!
-7. they call `coroutine.yield()`... seemingly everywhere, but not too much?
+7. They call `coroutine.yield()`... seemingly everywhere, but not too much?
     (The placement of coroutine_yields is usually honed with the `term_debug_worstoverbudgetyields` and `term_debug_totaloverbudgetyields` commands)
+8. They put all big actions inside MySpecialActions, so players driving the bots can trigger them too.
 
 *But most importantly...*
 ### have fun!
