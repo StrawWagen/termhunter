@@ -618,7 +618,7 @@ Manages acquiring, finding, losing enemies.
 
 Owns these variables
 - `self.IsSeeEnemy` true if there is no map geometry between bot and it's enemy.
-- `self.NothingOrBreakableBetweenEnemy` true if there's either breakable props, or nothing at all between the bot and it's enemy.
+- `self.NothingOrBreakableBetweenEnemy` true if the bot sees a breakable prop in the direction of the enemy, also true if there's nothing at all between the bot and it's enemy
 - `self.DistToEnemy` Distance to current enemy, or distance to last enemy if no valid enemy.
 - `self.EnemiesVehicle` Current enemy's vehicle if they are a player and inside a valid vehicle.
 - `self.LastEnemySpotTime` Last CurTime() we had a valid line of sight to an enemy.
