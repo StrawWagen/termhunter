@@ -598,7 +598,7 @@ The following are deprecated — use `MyClassTask` callbacks instead:
 ---
 
 
-### ow you might be thinking..
+### Now you might be thinking..
 
 "That's great, but i want to add a custom brain to my npc!"
 
