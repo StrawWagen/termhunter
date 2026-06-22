@@ -1189,7 +1189,7 @@ end )
 -- get that weapon!
 -- can unholster a weapon.
 -- or if a weapon is not holstered, returns true, and kills oldTask
-function ENT:getTheWeapon( oldTask, theWep, nextTask, theDat )
+function ENT:getTheWeapon( oldTask, theWep, afterwardsTask, afterwardsTaskData )
     if IsValid( theWep ) and self:IsHolsteredWeap( theWep ) then
         -- equip holstered weap
         self:SetupWeapon( theWep )
@@ -1197,7 +1197,7 @@ function ENT:getTheWeapon( oldTask, theWep, nextTask, theDat )
     else
         -- break task to get a weap
         self:TaskComplete( oldTask )
-        self:StartTask( "movement_getweapon", { Wep = potentialWep, nextTask = nextTask, nextTaskData = theDat }, "there's a weapon" )
+        self:StartTask( "movement_getweapon", { Wep = theWep, AfterwardsTask = afterwardsTask, AfterwardsTaskData = afterwardsTaskData }, "there's a weapon" )
         return true
 
     end

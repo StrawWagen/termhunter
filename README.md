@@ -112,7 +112,7 @@ You can also play animation layers (gestures) over the bot's current animation u
 - `speed` - Playback rate (default 1.0, lower = slower)
 - `wait` - If true, blocks bot behavior/movement until gesture finishes
 
-You'll see examples of this in the MySpecialActions section below.
+You'll see expanded examples of this in the MySpecialActions section below.
 
 
 ## ENT.MyClassTask System
@@ -598,23 +598,138 @@ The following are deprecated — use `MyClassTask` callbacks instead:
 ---
 
 
-## now you might be thinking..
+### now you might be thinking..
 
 "That's great, but i want to add a custom brain to my npc!"
 
-Well, the support is there.
+Adding custom behaviour is extremely tough, fraught with pitfalls and lag.
+
+If you go down this path,
+you will make great use of...
+## ENT:DoCustomTasks( defaultTasks )
+
+The nextbot base provides many useful generic tasks that can be extracted, used in derived NPCs
+This function exposes them, for you to build your own self.TaskList
+
+### "enemy_handler"
+Manages acquiring, finding, losing enemies.
+    Manages these useful variables
+    - `self.IsSeeEnemy` true if there is no map geometry between bot and it's enemy.
+    - `self.NothingOrBreakableBetweenEnemy` true if there's either breakable props, or nothing at all between the bot and it's enemy.
+    - `self.DistToEnemy` distance to current enemy, or distance to last enemy if no valid enemy
+    - `self.EnemiesVehicle` current enemy's vehicle if they are a player and inside a valid vehicle
+    - `self.LastEnemySpotTime` last CurTime() we had a valid line of sight to an enemy
+    - `self.LastEnemyShootPos` the GetShootPos of the last enemy we saw
+    - `self.EnemyLastMoveDir` the direction of movement of the last enemy we saw
+    - `self.EnemyLastPos` the last position we saw any enemy at
+    - `self.EnemyLastPosOffsetted` above, but offsetted 150u in the direction of EnemyLastMoveDir
+
+### "shooting_handler"
+Manages...
+    - aiming. 
+    - shooting at current enemy. 
+    - dropping crappy weapons.
+    - reloading weapons
+    - looking around while pathing
+
+### "awareness_handler"
+Manages an essential local cache of nearby objects
+    NPCs use this cache to...
+    Find objects blocking their path (to beat them up)
+    To find SLAMs, harmful traps to path around
+    To find explosive barrels nearby their enemy, to shoot!
+    To find nearby weapons...
+    
+    #### the exact cache name
+    - `self.AwarenessCheckRange` radius of the cache (do not make this too big, will slow down bots A LOT)
+    - `self.awarenessSubstantialStuff` all 'substantial' entities within this radius, ENT:caresAbout gates this table
+    
+    #### If the bot is not self.IsFodder and has self.HasBrains... these caches are kept
+    - `self.awarenessDamaging` ents that match any class+model combos that have damaged the bot before
+    - `self.awarenessVolatiles` explosive ents, can be any class+model combos that have done explosive damage to the bot
+        (explosive barrels included by default)
+    
+    #### If the bot has self.TERM_FISTS set to any weapon classname
+    - `self.awarenessBash` very breakable entities, locked doors aswell
+    - `self.awarenessLockedDoors` locked doors, these generate NAV_MESH_BLOCKED_PROPDOOR flags,
+        caused many pathfinding issues, so bots hate them with a passion
+
+### "reallystuck_handler"
+Background stuck checker.
+    Always checking to see if the bot...
+    - Hasn't moved location for some time.
+    - Somehow ended up under a displacement.
+    - Has self.overrideVeryStuck set to true.
+
+    If any of these conditions are met, this sequence of events is started...
+    1. A nearby navarea is selected
+    2. All active bot tasks that begin with "movement_" are STOPPED
+    3. The bot is then forced to move itself towards the nearby area
+    4. movement_handler is then restarted
+    If this fails, and the bot somehow didn't get to the area, it's then teleported.
+
+### "inform_handler"
+Manages sharing enemy position and relation with allies.
+    - `self.InformRadius` defines the enemy information sharing distance
+
+### "trancebreaking_handler"
+Hacky fix to old terminator nextbot tasks often overthinking paths.
+    If a bot is damaged, and has been thinking about a path for more than 4 seconds...
+    1. All their movement tasks are stopped.
+    2. if they have the generic task, "movement_backthehellup", it's started, otherwise "movement_handler" is started.
+
+### "movement_handler"
+***OVERRIDE THIS!!!***
+    This is the "okay what do i do next" state of your bot, all other tasks should loop back to here
+
+### "movement_wait"
+Very simple task that waits for data.time, or 0.1-0.2 seconds
+
+### "movement_waitforenemy"
+Simple task that waits until the bot has a valid enemy, then starts movement_handler
+
+### "movement_followtarget"
+Simple task that follows `self.Target`, if it's valid.
+
+### "movement_backthehellup"
+An extremely useful task, makes the bot run away from it's current enemy.
+
+
+## Implimenting DoCustomTasks
+
+Small snippet from the `terminator_nextbot_csoldier` NPC
+
+```lua
+function ENT:DoCustomTasks( defaultTasks )
+    self.TaskList = {
+        ["enemy_handler"] = defaultTasks["enemy_handler"],
+        ["shooting_handler"] = defaultTasks["shooting_handler"],
+        ["awareness_handler"] = defaultTasks["awareness_handler"],
+        ["reallystuck_handler"] = defaultTasks["reallystuck_handler"],
+
+        ["inform_handler"] = defaultTasks["inform_handler"],
+        ["movement_wait"] = defaultTasks["movement_wait"],
+        ["movement_getweapon"] = defaultTasks["movement_getweapon"],
+        ["movement_followtarget"] = defaultTasks["movement_followtarget"],
+        ["movement_backthehellup"] = defaultTasks["movement_backthehellup"],
+
+        ["soldier_meleeattack_handler"] = { -- simple task that triggers the bot's TermSoldier_Melee special action
+    --- brain continues below
+```
+All the desired tasks are copied over into the bot's new self.TaskList, and the new brain continues below
+
+
+## Examples and final custom brain thoughts
+
+These other projects make great use of all terminator systems aswell.
 See the [Nextbot Zambies](https://github.com/StrawWagen/nextbot_zambies) repo
 And the `terminator_nextbot_csoldier` NPCs inside this base
 
-But I can't make that process easy for you.
-Adding custom behaviour is extremely tough, fraught with pitfalls and lag.
-
-If you want to try anyway, your best bet is to reverse engineer those examples.
-
-### And make sure you take special note of how...
+When you're reverse engineering the above examples
+#### Make sure you take special note of how...
 1. They use `ENT:DoCustomTasks` to reuse base tasks, WITHOUT copying any code.
 2. They manage paths, (or avoid managing, with self:GotoPosSimple)
-3. They return the brain back to the generic `movement_handler` task for simpler logic flow
+3. They return the brain back to the generic "movement_handler" task for simpler logic flow
     (I didn't do this enough for the terminator brain, big mistake!)
 4. They all fully utilize `ENT:StartTask( taskName, taskData or nil, taskStartReason )`
     (start reasons exist for easy debugging of logic flow with `term_debugtasks 1`, thanks [l4d2 ai design doc](https://steamcdn-a.akamaihd.net/apps/valve/2009/ai_systems_of_l4d_mike_booth.pdf))
