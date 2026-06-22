@@ -598,7 +598,7 @@ The following are deprecated — use `MyClassTask` callbacks instead:
 ---
 
 
-### now you might be thinking..
+### ow you might be thinking..
 
 "That's great, but i want to add a custom brain to my npc!"
 
@@ -618,32 +618,30 @@ Manages acquiring, finding, losing enemies.
 Owns these variables
 - `self.IsSeeEnemy` true if there is no map geometry between bot and it's enemy.
 - `self.NothingOrBreakableBetweenEnemy` true if there's either breakable props, or nothing at all between the bot and it's enemy.
-- `self.DistToEnemy` distance to current enemy, or distance to last enemy if no valid enemy
-- `self.EnemiesVehicle` current enemy's vehicle if they are a player and inside a valid vehicle
-- `self.LastEnemySpotTime` last CurTime() we had a valid line of sight to an enemy
-- `self.LastEnemyShootPos` the GetShootPos of the last enemy we saw
-- `self.EnemyLastMoveDir` the direction of movement of the last enemy we saw
-- `self.EnemyLastPos` the last position we saw any enemy at
-- `self.EnemyLastPosOffsetted` above, but offsetted 150u in the direction of EnemyLastMoveDir
+- `self.DistToEnemy` Distance to current enemy, or distance to last enemy if no valid enemy.
+- `self.EnemiesVehicle` Current enemy's vehicle if they are a player and inside a valid vehicle.
+- `self.LastEnemySpotTime` Last CurTime() we had a valid line of sight to an enemy.
+- `self.LastEnemyShootPos` The GetShootPos of the last enemy we saw.
+- `self.EnemyLastMoveDir` The direction of movement of the last enemy we saw.
+- `self.EnemyLastPos` The last position we saw any enemy at.
+- `self.EnemyLastPosOffsetted` Above, but offsetted 150u in the direction of EnemyLastMoveDir
 
 ### "shooting_handler"
 Manages...
-- aiming. 
-- shooting at current enemy. 
-- dropping crappy weapons.
-- reloading weapons
-- looking around while pathing
+- Aiming. 
+- Shooting at current enemy. 
+- Dropping crappy weapons. (weapons that don't seem to do damage)
+- Reloading weapons.
+- looking around while pathing.
 
 ### "awareness_handler"
-Manages an essential local cache of nearby objects
+Manages an essential local cache of nearby objects.
 
 #### NPCs use this cache to...
 ##### Find objects blocking their path (to beat them up)
-To find SLAMs, harmful traps to path around
-
-To find explosive barrels nearby their enemy, to shoot!
-
-To find nearby weapons...
+1. To find SLAMs, harmful traps to path around.
+2. To find explosive barrels nearby their enemy, to shoot!
+3. To find nearby weapons...
 
 ##### The cache tables
 - `self.AwarenessCheckRange` radius of the cache (do not make this too big, will slow down bots A LOT)
@@ -721,7 +719,7 @@ function ENT:DoCustomTasks( defaultTasks )
         ["soldier_meleeattack_handler"] = { -- simple task that triggers the bot's TermSoldier_Melee special action
     --- brain continues below
 ```
-All the desired tasks are copied over into the bot's new self.TaskList, and the new brain continues below
+All the desired tasks are copied over into the bot's new self.TaskList, and the new brain continues below.
 
 
 ## Examples and final custom brain thoughts
@@ -732,16 +730,15 @@ And the `terminator_nextbot_csoldier` NPCs inside this base
 
 When you're reverse engineering the above examples
 #### Make sure you take special note of how...
-1. They use `ENT:DoCustomTasks` to reuse base tasks, WITHOUT copying any code.
-2. They manage paths, (or avoid managing, with self:GotoPosSimple)
-3. They return the brain back to the generic "movement_handler" task for simpler logic flow
+1. They manage paths, (or avoid managing, with self:GotoPosSimple)
+2. They return the brain back to the generic "movement_handler" task for simpler logic flow
     (I didn't do this enough for the terminator brain, big mistake!)
-4. They all fully utilize `ENT:StartTask( taskName, taskData or nil, taskStartReason )`
+3. They all fully utilize `ENT:StartTask( taskName, taskData or nil, taskStartReason )`
     (start reasons exist for easy debugging of logic flow with `term_debugtasks 1`, thanks [l4d2 ai design doc](https://steamcdn-a.akamaihd.net/apps/valve/2009/ai_systems_of_l4d_mike_booth.pdf))
-5. All the movement tasks start with `movement_`, because ai logic in the code expects moving tasks to start with it.
-6. They sometimes use `BehaveUpdatePriority` callbacks to bail path calculations and not just stand there when someones shooting them!
-7. They use the fickle `ENT:findValidNavResult` function to find navareas, to path to, in wandering routines, and more!
-8. they call `coroutine.yield()`... seemingly everywhere, but not too much?
+4. All the movement tasks start with `movement_`, because ai logic in the code expects moving tasks to start with it.
+5. They sometimes use `BehaveUpdatePriority` callbacks to bail path calculations and not just stand there when someones shooting them!
+6. They use the fickle `ENT:findValidNavResult` function to find navareas, to path to, in wandering routines, and more!
+7. they call `coroutine.yield()`... seemingly everywhere, but not too much?
     (The placement of coroutine_yields is usually honed with the `term_debug_worstoverbudgetyields` and `term_debug_totaloverbudgetyields` commands)
 
 *But most importantly...*
