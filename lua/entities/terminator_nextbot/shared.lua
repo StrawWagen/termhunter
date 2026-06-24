@@ -4044,13 +4044,17 @@ function ENT:DoDefaultTasks()
             end,
             OnDamaged = function( self, data, dmg )
                 if dmg:GetDamage() <= 1 then return end
+                if self:IsControlledByPlayer() then return end
+
+                local cur = CurTime()
+                if data.nextBreak > cur then return end
 
                 local myTbl = entMeta.GetTable( self )
                 local busy, busyFor = myTbl.IsBusyBuildingPath( self, myTbl )
                 if not busy then return end
                 if busyFor <= 4 then return end
 
-                data.nextBreak = CurTime() + 15
+                data.nextBreak = cur + 15
 
                 myTbl.KillAllTasksWith( self, "movement" )
                 if self:HasTask( "movement_backthehellup" ) then
