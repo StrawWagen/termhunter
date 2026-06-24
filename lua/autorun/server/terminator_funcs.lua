@@ -336,6 +336,7 @@ terminator_Extras.TeleportTermTo = function( term, pos )
     term:SetPosNoTeleport( pos ) -- set their pos without triggering clientside velocity visual bug
     term:RestartMotionCoroutine() -- kill any logic that's about to set our pos
     term:StopMoving() -- stop movement, reject path updates, start the movement_wait task
+    term:OnStuck()
 
 end
 

@@ -1,6 +1,7 @@
 local entMeta = FindMetaTable( "Entity" )
 local vecMeta = FindMetaTable( "Vector" )
 local pathMeta = FindMetaTable( "PathFollower" )
+local locoMeta = FindMetaTable( "CLuaLocomotion" )
 local physMeta = FindMetaTable( "PhysObj" )
 
 local coroutine_yield = coroutine.yield
@@ -354,7 +355,7 @@ local function TryStuck( self, endPos, t, tr, fodder, yieldable )
         local traceStruct = {
             start = entMeta.GetPos( self ) + centerOffset,
             endpos = endPos + centerOffset,
-            mask = MASK_SOLID,
+            mask = MASK_NPCSOLID,
             filter = TrFilterNoSelf( self ),
             mins = t.mins * 0.5,
             maxs = t.maxs * 0.5,
@@ -1582,9 +1583,13 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
 
     local swimming = self:IsSwimming( self:GetTable() )
 
+    local validCount = 0
+
     for index = 1, table.maxn( potentiallyVisible ) do
-        local potentialVisible = potentiallyVisible[ index ]
+        local potentialVisible = potentiallyVisible[index]
         if not potentialVisible then continue end
+
+        validCount = validCount + 1
 
         if potentialVisible.z < check.z or swimming then
             theTrace.mins = minsBelow
@@ -1602,16 +1607,21 @@ function ENT:ChooseBasedOnVisible( check, potentiallyVisible )
         local result = util.TraceHull( theTrace )
         local hitBreakable = self:hitBreakable( theTrace, result )
         if not result.Hit or hitBreakable or result.Entity == enemy then
-            --debugoverlay.Line( check, potentialVisible, 1, Color( 255,255,255 ), true )
+            --debugoverlay.Line( check, potentialVisible, 0.1, Color( 0, 255, 0 ), true )
+            --debugoverlay.Text( result.HitPos, tostring( index ), 0.25, false )
             return potentialVisible, index, hitBreakable
 
+        --[[
         else
-            --print( not result.Hit, hitBreakable, result.Entity == enemy )
-            --debugoverlay.Line( check, result.HitPos, 1, Color( 255,0,0 ), true )
-            --debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 1, Color( 255,255,255, 25 ) )
+            print( not result.Hit, hitBreakable, result.Entity == enemy )
+            debugoverlay.Line( check, result.HitPos, 0.1, Color( 255, 0, 0 ), true )
+            debugoverlay.Box( result.HitPos, theTrace.mins, theTrace.maxs, 0.1, Color( 255, 255, 255, 25 ) )
+            debugoverlay.Text( result.HitPos, tostring( index ), 0.25, false )
 
+        --]]
         end
     end
+
     return nil
 
 end
@@ -2041,7 +2051,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
     local sqrDistToGoal = myPos:DistToSqr( currSegment.pos )
     local closeToGoal = sqrDistToGoal < ( checkTolerance ^ 2 )
-    local validDroptypeInterpretedAsGap = dropIsReallyJustAGap and ( sqrDistToGoal < ( checkTolerance * 3 ) ^ 2 )
+    local validDroptypeInterpretedAsGap = dropIsReallyJustAGap and ( sqrDistToGoal < ( checkTolerance * 4 ) ^ 2 )
     local gapping = realGapJump or reallyJustAGap or validDroptypeInterpretedAsGap
     if gapping then
         checkTolerance = checkTolerance * 0.25
@@ -2252,10 +2262,16 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     if not iAmOnGround and aheadSegment then
 
         if myTbl.IsJumping( self, myTbl ) or iAmSwimming then
-            local nextPathArea = myTbl.GetNextPathArea( self, myTbl.GetTrueCurrentNavArea( self ) )
+            local myNav = myTbl.GetTrueCurrentNavArea( self )
+            if not IsValid( myNav ) and currSegment then
+                myNav = currSegment.area
+
+            end
+            local nextPathArea = myTbl.GetNextPathArea( self, myNav )
 
             local smallJumpEnd = nil
             local desiredSegmentPos = nil
+            local desiredSegmentMyHeight = nil
             local nextAreaCenter = nil
             local closestPoint = nil
             local closestPointForgiving = nil
@@ -2272,8 +2288,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             if aheadSegment.pos then
                 desiredSegmentPos = aheadSegment.pos
 
-            elseif currSegment.pos then
+            elseif currSegment.pos and not gapping then
                 desiredSegmentPos = currSegment.pos
+                desiredSegmentMyHeight = Vector( desiredSegmentPos.x, desiredSegmentPos.y, myPos.z )
 
             end
 
@@ -2317,8 +2334,9 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                 closestPointForgiving, -- 5
                 jumpingDestinationOffset, -- 6
                 destinationRelativeToBot, -- 7
-                validJumpableBotRelative, -- 8
+                desiredSegmentMyHeight, -- 8
                 validJumpablePathRelative, -- 9
+                validJumpableBotRelative, -- 10
             }
 
             if isFodder then coroutine_yield() end
@@ -2798,8 +2816,20 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
         end
         myTbl.term_LastApproachPos = pos
         myTbl.loco:Approach( pos, 10000 )
+
         --debugoverlay.Cross( pos, 10, 1, color_white, true )
 
+        if yieldable then
+            coroutine_yield()
+
+        end
+
+        local currentSpeed = vecMeta.Length2DSqr( locoMeta.GetVelocity( myTbl.loco ) )
+        if currentSpeed < terminator_Extras.term_DefaultSpeedToAimAtProps then
+            local towardsPos = myTbl.GetShootPos( self ) + dir * 50
+            myTbl.justLookAt( self, towardsPos )
+
+        end
     end
 end
 

@@ -3614,17 +3614,17 @@ function ENT:DoDefaultTasks()
                 data.historicNavs = {}
                 data.historicStucks = {}
                 data.maybeUnderCount = 0
-                data.extremeUnstucking = 0
+                data.extremeUnstuckingUntil = 0
                 data.nextUnstuckGotoEscape = 0
                 data.freedomGotoPosSimple = nil
                 data.nextUnderDisplacementCheck = 0
                 local myTbl  = entMeta.GetTable( self )
 
-                if myTbl.ReallyStuckDisable then -- DISABLE this for bots
+                if myTbl.ReallyStuckDisable then -- so you can DISABLE this for bots
                     self:TaskComplete( "reallystuck_handler", ".ReallyStuckDisable is true!" )
 
                 end
-                if myTbl.MoveSpeed <= 0 then
+                if myTbl.MoveSpeed <= 0 then -- disable this for bots that can't move
                     self:TaskComplete( "reallystuck_handler", ".MoveSpeed is 0!" )
 
                 end
@@ -3634,12 +3634,12 @@ function ENT:DoDefaultTasks()
 
                 local myTbl  = entMeta.GetTable( self )
                 local fodder = myTbl.IsFodder
-                if data.freedomGotoPosSimple and data.extremeUnstucking > CurTime() then -- try and unstuck without teleporting!
+                if data.freedomGotoPosSimple and data.extremeUnstuckingUntil > CurTime() then -- try and unstuck without teleporting!
                     local dist = self:GetPos():Distance2D( data.freedomGotoPosSimple )
                     if dist < 150 then
                         data.freedomGotoPosSimple = nil
                         myTbl.KillAllTasksWith( self, "movement" )
-                        myTbl.StartTask( self, "movement_handler", nil, "yay, i got back on the navmesh!" )
+                        myTbl.StartTask( self, "movement_handler", nil, "reallystuck SUCCESS" )
                         myTbl.RestartMotionCoroutine( self )
                         return
 
@@ -3654,6 +3654,12 @@ function ENT:DoDefaultTasks()
                         myTbl.delayNewPaths( self, 0.5 )
 
                     end
+                elseif data.freedomGotoPosSimple then
+                    data.freedomGotoPosSimple = nil
+                    myTbl.KillAllTasksWith( self, "movement" )
+                    myTbl.StartTask( self, "movement_handler", nil, "reallystuck partial FAIL" )
+                    myTbl.RestartMotionCoroutine( self )
+
                 end
 
                 coroutine_yield()
@@ -3787,8 +3793,9 @@ function ENT:DoDefaultTasks()
                         local nearestNavArea = navmesh.GetNearestNavArea( self:GetPos(), false, 10000, false, true, 2 )
 
                         local myShootPos = self:GetShootPos()
-                        local maxs = Vector( 1000, 1000, 1000 )
+                        local maxs = Vector( 3000, 3000, 3000 )
                         local bestDist = math.huge
+                        local wasVisible
                         for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do -- try and find a good freedomPos
                             if area == nearestNavArea then continue end -- TOO CLOSE, won't unstuck us
                             coroutine_yield()
@@ -3802,7 +3809,12 @@ function ENT:DoDefaultTasks()
                             if not freedomPos then -- always pick some area
                                 freedomPos = areasCenter
 
+                            elseif not wasVisible and distToMe < bestDist then
+                                bestDist = distToMe
+                                freedomPos = areasCenter
+
                             elseif distToMe < bestDist and area:IsVisible( myShootPos ) then -- perfect candidate, pick this one!
+                                wasVisible = true
                                 bestDist = distToMe
                                 freedomPos = areasCenter
 
@@ -3813,18 +3825,18 @@ function ENT:DoDefaultTasks()
                         --print( self:GetCreationID(), "bigunstuck ", stuck, sortastuck, underDisplacement, overrideStuck, noNavAndNotStaring )
 
                         local extremeStuck = underDisplacement or not freedomPos
-                        local canGotoEscape = data.nextUnstuckGotoEscape < CurTime() and data.extremeUnstucking < CurTime()
+                        local canGotoEscape = data.nextUnstuckGotoEscape < CurTime() and data.extremeUnstuckingUntil < CurTime()
 
                         -- teleports us to the unstuck position if we dont see an enemy and we've tried walking there
                         if not myTbl.IsSeeEnemy and extremeUnstucking:GetBool() and ( extremeStuck or not canGotoEscape ) then
-                            data.extremeUnstucking = 0
+                            data.extremeUnstuckingUntil = 0
                             data.freedomGotoPosSimple = nil
                             data.oldNavArea = nil
                             if freedomPos then -- teleport us there
                                 coroutine_yield()
 
-                                self:SetPosNoTeleport( freedomPos )
-                                self:InvalidatePath( "i was hard unstucked! bailing path." )
+                                terminator_Extras.TeleportTermTo( self, freedomPos )
+                                self:InvalidatePath( "i was hard unstucked! bailing path. 1" )
                                 myTbl.loco:SetVelocity( vec_zero )
                                 myTbl.loco:ClearStuck()
 
@@ -3834,7 +3846,7 @@ function ENT:DoDefaultTasks()
                                 if freedomPos then
                                     coroutine_yield()
 
-                                    self:SetPosNoTeleport( freedomPos )
+                                    terminator_Extras.TeleportTermTo( self, freedomPos )
                                     self:InvalidatePath( "i was hard unstucked! bailing path. 2" )
 
                                     myTbl.loco:SetVelocity( vec_zero )
@@ -3842,8 +3854,12 @@ function ENT:DoDefaultTasks()
 
                                 end
                             end
+
+                            self:KillAllTasksWith( "movement" )
+                            myTbl.StartTask( self, "movement_handler", nil, "reallystuck AFTER TELEPORT" )
+
                         -- walk to the freedomPos instead
-                        elseif data.extremeUnstucking < CurTime() then
+                        elseif data.extremeUnstuckingUntil < CurTime() then
                             coroutine_yield()
 
                             if not freedomPos then -- fallback
@@ -3857,7 +3873,7 @@ function ENT:DoDefaultTasks()
 
                             data.nextUnstuckGotoEscape = CurTime() + 80 -- if the walk to freedomPos finishes, but we're still stuck, do the teleporting
                             data.freedomGotoPosSimple = freedomPos
-                            data.extremeUnstucking = CurTime() + 10 -- try and walk to the freedomPos for this long
+                            data.extremeUnstuckingUntil = CurTime() + 10 -- try and walk to the freedomPos for this long
                             data.oldNavArea = currentNav
                             data.nextCache = CurTime() + 5
 
@@ -4298,6 +4314,10 @@ function ENT:DoDefaultTasks()
                     for _, area in ipairs( finalAreasToCheck ) do
                         coroutine_yield()
                         if area == myNav then continue end
+
+                        local smallestSize = math.min( area:GetSizeX(), area:GetSizeY() )
+                        if smallestSize <= 25 and #area:GetAdjacentAreas() <= 1 then continue end -- tiny deadends
+
                         local backupPos
                         if data.UseNearestPoints then
                             backupPos = area:GetClosestPointOnArea( myShoot )
@@ -4454,14 +4474,14 @@ function ENT:DoDefaultTasks()
                     if not IsValid( data.Wep ) then return end
                     if not self:HasTask( "movement_bashobject" ) then return end
                     if data.Wep:GetClass() ~= "item_item_crate" then return end
-                    if self.IsSeeEnemy and self:MyPathLength() > 500 and self.DistToEnemy < self.DuelEnemyDist then
+                    if self.IsSeeEnemy and self:MyPathLength() > 400 and self.DistToEnemy < self.DuelEnemyDist then
                         self:EnemyAcquired( "movement_getweapon" )
                         return true
 
                     end
                     if SqrDistLessThan( data.Wep:GetPos():DistToSqr( self:GetPos() ), 200 ) then
                         self:TaskFail( "movement_getweapon" )
-                        self:StartTask( "movement_bashobject", { object = data.Wep }, "the gun was right there" )
+                        self:StartTask( "movement_bashobject", { object = data.Wep, weaponSearchNow = true }, "the gun was right there" )
                         return true
 
                     end
@@ -4735,6 +4755,10 @@ function ENT:DoDefaultTasks()
 
                 end
                 if data.success then
+                    if data.weaponSearchNow then
+                        self:ResetWeaponSearchTimers()
+
+                    end
                     local canWep, potentialWep = self:canGetWeapon()
                     if data.frenzy then
                         if #self.awarenessBash > 0 then
@@ -5130,7 +5154,7 @@ function ENT:DoDefaultTasks()
                     self:StartTask( "movement_search", { searchWant = searchWant, searchCenter = soundPos }, "cant reach the sound" )
                     --debugoverlay.Cross( soundPos, 100, 10, Color( 0,255,255 ), true )
 
-                elseif IsValid( toBashAfterSound ) or ( math.random( 1, 2 ) == 1 and self:IsReallyAngry() ) then
+                elseif IsValid( toBashAfterSound ) and self:ClearOrBreakable( self:GetShootPos(), self:getBestPos( toBashAfterSound ), true ) then
                     Done = true
                     self:TaskComplete( "movement_followsound" )
                     self:StartTask( "movement_bashobject", { object = toBashAfterSound }, "the loud thing's breakable?!" )
@@ -7773,6 +7797,10 @@ function ENT:DoDefaultTasks()
 
                     end
                 elseif not self:primaryPathIsValid() then
+                    data.Want = data.Want - 1
+                    data.setupPath = false
+
+                elseif result == false then
                     self:TaskFail( "movement_inertia" )
                     self:StartTask( "movement_inertia", { Want = data.Want, Dir = -self:GetForward() }, "my path failed, ill try wandering behind me" )
 
@@ -7853,23 +7881,23 @@ function ENT:DoDefaultTasks()
                         local area2sId = area2:GetID()
 
                         if scoreData.beenAreas[area2sId] then -- avoid already been areas
-                            score = score * 0.0001
+                            score = score * 0.00001
                         else
                             foundSomewhereNotBeen = true
                         end
                         -- dont group up!
                         if scoreData.doSpreadOut and scoreData.spreadOutAvoidAreas[area2sId] then
-                            score = score * 0.001
+                            score = score * 0.00001
                         end
                         -- go forward
                         if math.abs( terminator_Extras.BearingToPos( scoreData.startPos, scoreData.forward, area2sCenter, scoreData.forward ) ) < 22.5 then
-                            score = score^1.5
+                            score = score^1.4
                         end
                         if not scoreData.canDoUnderWater and area2:IsUnderwater() then
-                            score = score * 0.001
+                            score = score * 0.000001
                         end
                         if math.abs( dropToArea ) > 100 then
-                            score = score * 0.001
+                            score = score * 0.000001
                         end
 
                         --debugoverlay.Text( area2sCenter, tostring( math.Round( score ) ), 8, false )
@@ -8007,8 +8035,10 @@ function ENT:DoDefaultTasks()
                         self:StartTask( "movement_biginertia", { Want = want, beenAreas = data.beenAreas }, "my path failed, but i still want to wander" )
                         self.bigInertiaPreserveBeenAreas = data.beenAreas
 
-                    end
+                    elseif not self:primaryPathIsValid() then
+                        data.setupPath = false
 
+                    end
                 else -- no want, end the inertia
                     self:TaskComplete( "movement_biginertia" )
                     self:StartTask( "movement_handler", nil, "im all done wandering" )
@@ -8729,7 +8759,7 @@ function ENT:DoDefaultTasks()
                             return
 
                         end
-                    else
+                    elseif not data.bestPos then
                         self:TaskFail( "movement_perch" )
                         self:StartTask( "movement_approachlastseen", nil, "i couldnt find a good spot" )
 

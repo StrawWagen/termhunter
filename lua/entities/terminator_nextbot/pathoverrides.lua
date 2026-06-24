@@ -677,26 +677,26 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
         if deltaZ >= jumpHeight then return -1 end
         if deltaZ > stepHeight * 4 then
             if hunterIsFlanking then
+                cost = cost * 5
+
+            else
+                cost = cost * 8
+
+            end
+        elseif deltaZ > stepHeight * 2 then
+            if hunterIsFlanking then
                 cost = cost * 2
 
             else
                 cost = cost * 5
 
             end
-        elseif deltaZ > stepHeight * 2 then
+        else
             if hunterIsFlanking then
                 cost = cost * 1.5
 
             else
                 cost = cost * 3
-
-            end
-        else
-            if hunterIsFlanking then
-                cost = cost * 1.25
-
-            else
-                cost = cost * 2
 
             end
         end
@@ -1197,7 +1197,6 @@ local function adjacentAreasSkippingLadders( area, canUseLadders )
 
     local ladders = navMeta.GetLadders( area )
     if #ladders > 0 then
-        local areasCenter = navMeta.GetCenter( area )
         local already = { [GetID( area )] = true }
         for _, areaData in ipairs( areaDatas ) do
             already[GetID( areaData.area )] = true
@@ -1295,9 +1294,21 @@ local function reconstruct_path( cameFrom, goalArea )
 
 end
 
-local function areaDistToPos( start, goalPos )
-    return vecMeta.Distance( navMeta.GetCenter( start ), goalPos )
+local areaDistToPos
 
+do
+    local function simple_abs( num )
+        if num < 0 then return -num end
+        return num
+
+    end
+
+    areaDistToPos = function( start, goalPos )
+        local startPos = navMeta.GetCenter( start )
+        local manhattanDist = simple_abs( startPos.x - goalPos.x ) + simple_abs( startPos.y - goalPos.y ) + simple_abs( startPos.z - goalPos.z )
+        return manhattanDist
+
+    end
 end
 
 local function getLowestScoring( seqSearchTbl, costs1, costs2 )
@@ -1388,7 +1399,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
         end
 
-        --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( smallestCost ) ), 5, color_white, true )
+        --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( costSoFar ) ), 1, color_white, true )
 
         if maxPathingIterations and currExtent > maxPathingIterations then -- all out :( guess the goal is whatever got closest
             local bestCompromiseId = getLowestScoring( openedSequential, costsToEnd, costsSoFar ) -- reverse the costs to get the best compromise of "got close to the goal" and "we know how to get here cheaply"
@@ -1456,12 +1467,6 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
                 costsSoFar[neighborsId] = neighborsCostSoFar
                 costsToEnd[neighborsId] = areaDistToPos( neighbor, goal )
 
-                if debugPathing then
-                    local currsCenter = navMeta.GetCenter( bestArea )
-                    local neighsCenter = navMeta.GetCenter( neighbor )
-                    debugoverlay.Line( currsCenter, neighsCenter, 15, Color( 255, 0, 0 ), true )
-                end
-
                 removeFrom( neighborsId, closedSequential, closed, closedPositions )
                 addTo( neighborsId, openedSequential, opened, openedPositions )
                 cameFrom[neighborsId] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
@@ -1489,11 +1494,10 @@ local areaCorridorNexts -- used to force the path:Compute to use a specific path
 -- generatorHack is a hack to allow us to use default path structure with a custom generator
 -- used to force the path:Compute to use a specific path, since we can't build a Path() manually
 local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- unthinkable HACK!!!
-    local areaId
     local fromNext
 
     if fromArea then
-        fromNext = areaCorridorNexts[GetID( fromArea )]
+        fromNext = areaCorridorNexts[fromArea]
         if not fromNext then -- not on the path
             allowedDeviations = allowedDeviations + -1 -- allow some deviations
             if allowedDeviations <= 0 then
@@ -1510,8 +1514,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
     end
 
     if area then
-        areaId = GetID( area )
-        local areaMask = areaCorridorNexts[areaId]
+        local areaMask = areaCorridorNexts[area]
         if not areaMask then
             return 10000000000000 -- not in corridor, try this last
 
@@ -1521,7 +1524,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
     if fromNext == true then -- special area
         return 1
 
-    elseif fromNext == areaId then -- the good ending, keep going
+    elseif fromNext == area then -- the good ending, keep going
         return 1
 
     end
@@ -1560,7 +1563,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
     for _, area in ipairs( areaCorridor ) do
         --debugoverlay.Cross( area:GetCenter(), 10, 5, color_white, true )
         if not IsValid( area ) then continue end
-        corridorIds[#corridorIds + 1] = GetID( area )
+        corridorIds[#corridorIds + 1] = area
 
     end
 
@@ -1570,27 +1573,27 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
     -- all this since building a Path() manually seemed to not be possible
     -- the things that must be done for coroutined pathfinding...
 
-    areaCorridorNexts = { [GetID( newGoalArea )] = true, [GetID( startArea )] = corridorIds[1] }
-    for i, currId in ipairs( corridorIds ) do
+    areaCorridorNexts = { [newGoalArea] = true, [startArea] = corridorIds[1] }
+    for i, curr in ipairs( corridorIds ) do
         local nextOne = corridorIds[i + 1]
         if nextOne then
-            areaCorridorNexts[currId] = nextOne -- force the compute to take the correct path
+            areaCorridorNexts[curr] = nextOne -- force the compute to take the correct path
 
         else
-            areaCorridorNexts[currId] = true
+            areaCorridorNexts[curr] = true
 
         end
 
         --[[
-        coroutine_yield(terminator_Extras.BOT_COROUTINE_RESULTS.WAIT)
-        local thisCenter = navMeta.GetCenter( getNavAreaOrLadderById( currId ) )
+        coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
+        local thisCenter = navMeta.GetCenter( curr )
         debugoverlay.Line( last, thisCenter, 5, color_white, true )
         last = thisCenter
         --]]
 
     end
 
-    allowedDeviations = 250
+    allowedDeviations = #corridorIds + 50
 
     local computed = path:Compute( me, goal, generatorHack ) -- "fake" path compute with overriden score func, forces it to stay on the rails defined by coroutined a*
     areaCorridorNexts = nil
