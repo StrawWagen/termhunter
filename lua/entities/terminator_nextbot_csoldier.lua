@@ -305,20 +305,20 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
     end
 end
 
-local supressedHealth = 35
-local supressedHealthMul = 35 / 100
+local suppressedHealth = 35
+local suppressedHealthMul = 35 / 100
 
-function ENT:EnemyIsSupressed( myTbl, enemy )
+function ENT:EnemyIsSuppressed( myTbl, enemy )
     myTbl = myTbl or entMeta.GetTable( self )
     enemy = enemy or myTbl.GetEnemy( self )
     if not IsValid( enemy ) then return false end
 
-    local enemsSupressedHealth = math.max( supressedHealth, entMeta.GetMaxHealth( enemy ) * supressedHealthMul )
+    local enemsSuppressedHealth = math.max( suppressedHealth, entMeta.GetMaxHealth( enemy ) * suppressedHealthMul )
 
-    local enemyIsLowHealth = entMeta.Health( enemy ) <= enemsSupressedHealth
-    local enemyIsSupressed = enemy.IsCrouching and enemy:IsCrouching() and enemy:OnGround() and enemy:GetVelocity():Length() <= 25
+    local enemyIsLowHealth = entMeta.Health( enemy ) <= enemsSuppressedHealth
+    local enemyIsSuppressed = enemy.IsCrouching and enemy:IsCrouching() and enemy:OnGround() and enemy:GetVelocity():Length() <= 25
 
-    return enemyIsLowHealth or enemyIsSupressed
+    return enemyIsLowHealth or enemyIsSuppressed
 
 end
 
@@ -454,6 +454,25 @@ function ENT:GetLeader( myTbl )
 
 end
 
+function ENT:LikesToSuppress( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+    if myTbl.TermSoldier_Fearless then
+        return false
+
+    elseif IsValid( myTbl.GetLeader( self, myTbl ) ) then
+        return false
+
+    else
+        return ( self:GetCreationID() % 2 ) == 0
+
+    end
+end
+
+function ENT:CanSuppress( myTbl )
+    return terminator_Extras.PosCanSeeComplex( self:GetShootPos(), myTbl.LastEnemyShootPos, self )
+
+end
+
 function ENT:DoCustomTasks( defaultTasks )
     self.TaskList = {
         ["enemy_handler"] = defaultTasks["enemy_handler"],
@@ -546,7 +565,6 @@ function ENT:DoCustomTasks( defaultTasks )
         -- custom movement starter
         ["movement_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
-            StopsWhenPlayerControlled = true,
             OnStart = function( self, data )
                 if self.HasBrains then
                     data.StartTheTask = CurTime() + math.Rand( 0.01, 0.05 ) -- wait a bit before starting this task
@@ -779,6 +797,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 if myTbl and myTbl.NothingOrBreakableBetweenEnemy and myTbl.DistToEnemy < myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.2 and myTbl.getLostHealth( self ) >= 5 then
                     self:TaskComplete( "movement_shootfromcover" )
                     myTbl.StartTask( self, "movement_backthehellup", "i'm too exposed and i got hurt!" )
+                    self:RestartMotionCoroutine()
 
                 end
             end,
@@ -989,7 +1008,11 @@ function ENT:DoCustomTasks( defaultTasks )
 
                     local scoreFunction = function( scoreData, area1, area2 )
                         local selfLocal = scoreData.self
+
+                        coroutine_yield()
                         if not scoreData.myTbl.areaIsReachable( selfLocal, area2 ) then return 0 end
+                        coroutine_yield()
+
                         if area2:IsBlocked() then return 0 end
 
                         local score = scoreData.decreasingScores[area1:GetID()] or 500
@@ -999,6 +1022,8 @@ function ENT:DoCustomTasks( defaultTasks )
                             score = 1
 
                         end
+
+                        coroutine_yield()
 
                         if scoreData.hasBrains then
                             -- cant jump back up
@@ -1179,7 +1204,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     myTbl.lastShootingType = "soldierfromcover_aimwheretheywere"
                     lookAlongPath = false
 
-                elseif hasBrains and not seeEnemy and sinceLastSpotted > 4 then
+                elseif not seeEnemy and sinceLastSpotted > 4 then
                     lookAlongPath = true
                     self:SimpleSearchNearbyAreas( myPos, myTbl.GetShootPos( self ) )
 
@@ -1197,9 +1222,9 @@ function ENT:DoCustomTasks( defaultTasks )
                     self:TaskFail( "movement_shootfromcover" )
                     myTbl.StartTask( self, "movement_fanout", { Count = 1, FanDistance = distToEnemy }, "i killed my enemy!" )
 
-                elseif hasBrains and goodEnemy and distToEnemy > fearfullyCloseDistance and data.NextAllowedRush < CurTime() and myTbl.areaIsReachable( self, enemysNav ) then
-                    local enemyIsSupressed = myTbl.EnemyIsSupressed( self, myTbl, enemy )
-                    if not exposedMoving and enemyIsSupressed and not needReloadingCovertypes then
+                elseif goodEnemy and distToEnemy > fearfullyCloseDistance and data.NextAllowedRush < CurTime() and myTbl.areaIsReachable( self, enemysNav ) then
+                    local enemyIsSuppressed = myTbl.EnemyIsSuppressed( self, myTbl, enemy )
+                    if not exposedMoving and enemyIsSuppressed and not needReloadingCovertypes then
                         self:TaskFail( "movement_shootfromcover" )
                         myTbl.StartTask( self, "movement_rushsmartandshoot", "enemy is low health, rush and shoot!" )
 
@@ -1207,20 +1232,19 @@ function ENT:DoCustomTasks( defaultTasks )
                 elseif result == true and sinceLastSpotted > 6 then
                     self:TaskFail( "movement_shootfromcover" )
                     if enemysNav and myTbl.areaIsReachable( self, enemysNav ) then
-                        if myTbl.HasBrains then
-                            myTbl.StartTask( self, "movement_rushsmartandshoot", "i lost my enemy, ill flank to where i last saw em!" )
+                        myTbl.StartTask( self, "movement_rushsmartandshoot", "i lost my enemy, ill flank to where i last saw em!" )
 
-                        else
-                            myTbl.StartTask( self, "movement_approachenemy", "i lost my enemy, ill go where i last saw em" )
-
-                        end
                     else
                         myTbl.StartTask( self, "movement_handler", "got to the end of my path and i've lost my enemy!" )
 
                     end
-                elseif hasBrains and result == true and self:enemyBearingToMeAbs() > 15 and not seeEnemy then
+                elseif result == true and self:enemyBearingToMeAbs() > 15 and not seeEnemy then
                     self:TaskFail( "movement_shootfromcover" )
                     myTbl.StartTask( self, "movement_rushsmartandshoot", "i feel like flanking my enemy" )
+
+                elseif self:enemyBearingToMeAbs() > 15 and not seeEnemy and myTbl.LikesToSuppress( self, myTbl ) and myTbl.CanSuppress( self, myTbl ) then
+                    self:TaskFail( "movement_shootfromcover" )
+                    myTbl.StartTask( self, "movement_suppress", "i feel like supressing my enemy" )
 
                 elseif distToEnemy > wepRange * 1.15 and not seeEnemy then
                     self:TaskComplete( "movement_shootfromcover" )
@@ -1228,7 +1252,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 elseif not seeEnemy and sinceLastSpotted > 1 and not self:primaryPathIsValid() then
                     self:TaskFail( "movement_shootfromcover" )
-                    if goodEnemy and myTbl.HasBrains and enemysNav and myTbl.areaIsReachable( self, enemysNav ) then
+                    if goodEnemy and enemysNav and myTbl.areaIsReachable( self, enemysNav ) then
                         myTbl.StartTask( self, "movement_rushsmartandshoot", "i haven't seen my enemy in a bit, i'll flank to where i last saw em!" )
 
                     elseif enemysNav and not myTbl.areaIsReachable( self, enemysNav ) then
@@ -1296,17 +1320,23 @@ function ENT:DoCustomTasks( defaultTasks )
                 coroutine_yield()
 
                 if not seeEnemy then
+                    local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
                     if not IsValid( enemy ) then
                         self:TaskComplete( "movement_walkslowtowardsenemy" )
                         myTbl.StartTask( self, "movement_handler", "durr i lost my enemy!" )
+                        return
+
+                    elseif myTbl.LikesToSuppress( self, myTbl ) and sinceLastSpotted < 4 and myTbl.CanSuppress( self, myTbl ) then
+                        self:TaskComplete( "movement_walkslowtowardsenemy" )
+                        myTbl.StartTask( self, "movement_suppress", "durr, no enemy to shoot at, i'll shoot where i last saw them!" )
+                        return
 
                     else
                         self:TaskComplete( "movement_walkslowtowardsenemy" )
                         myTbl.StartTask( self, "movement_standandshoot", "durr i cant see them" )
+                        return
 
                     end
-                    return
-
                 end
 
                 coroutine_yield()
@@ -1339,6 +1369,9 @@ function ENT:DoCustomTasks( defaultTasks )
                     local bestChargePos
                     local bestChargeDist = distToEnemy
                     for _, area in ipairs( finalAreasToCheck ) do
+                        local roughConnectHeight = area:GetCenter().z - myNav:GetCenter().z
+                        if roughConnectHeight > myTbl.JumpHeight then continue end
+
                         coroutine_yield()
                         local posOnArea
                         if area:Contains( enemysPos ) then
@@ -1367,9 +1400,22 @@ function ENT:DoCustomTasks( defaultTasks )
                         data.CurrentTaskGoalPos = bestChargePos
 
                     else
-                        myTbl.TaskFail( self, "movement_walkslowtowardsenemy" )
-                        myTbl.StartTask( self, "movement_standandshoot", "durr i can't walk slow to my enemy, they're unreachable" )
+                        local enemysNav = terminator_Extras.getNearestNav( enemysPos )
+                        if enemysNav == myNav then
+                            data.CurrentTaskGoalPos = enemysPos
+                            return
 
+                        end
+                        local enemyIsReachable = myTbl.areaIsReachable( self, enemysNav )
+                        if not enemyIsReachable then
+                            myTbl.TaskFail( self, "movement_walkslowtowardsenemy" )
+                            myTbl.StartTask( self, "movement_standandshoot", "durr i can't walk slow to my enemy, they're unreachable" )
+
+                        else
+                            myTbl.TaskFail( self, "movement_walkslowtowardsenemy" )
+                            myTbl.StartTask( self, "movement_approachenemy", "durr i couldnt find a simple way to the enemy" )
+
+                        end
                     end
                 end
 
@@ -1440,6 +1486,9 @@ function ENT:DoCustomTasks( defaultTasks )
                     local bestStandPos
 
                     for _, area in ipairs( finalAreasToCheck ) do
+                        local roughConnectHeight = area:GetCenter().z - myNav:GetCenter().z
+                        if roughConnectHeight > myTbl.JumpHeight then continue end
+
                         coroutine_yield()
                         local visible, visiblePos = area:IsVisible( enemysShoot )
                         if not visible then continue end
@@ -1458,6 +1507,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     else
                         myTbl.TaskFail( self, "movement_standandshoot" )
                         myTbl.StartTask( self, "movement_handler", "durr i can't find somewhere to shoot my enemy" )
+                        return
 
                     end
                 end
@@ -1475,15 +1525,26 @@ function ENT:DoCustomTasks( defaultTasks )
                 coroutine_yield()
 
                 if not IsValid( enemy ) or not myTbl.IsSeeEnemy then
-                    local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
-                    if sinceLastSpotted < 5 then return end
+                    if myTbl.LikesToSuppress( self, myTbl ) and myTbl.CanSuppress( self, myTbl ) then
+                        self:TaskComplete( "movement_standandshoot" )
+                        myTbl.StartTask( self, "movement_suppress", "durr, no enemy to shoot at, i'll shoot where i last saw them!" )
+                        return
 
-                    if data.LookAt then self:justLookAt( data.LookAt ) end
+                    else
+                        local sinceLastSpotted = myTbl.TimeSinceEnemySpotted( self, myTbl )
+                        if sinceLastSpotted < 5 then return end
 
-                    self:TaskComplete( "movement_standandshoot" )
-                    myTbl.StartTask( self, "movement_handler", "no enemy to shoot at!" )
-                    return
+                        if data.LookAt then
+                            self:justLookAt( data.LookAt )
+                            self.lastShootingType = "soldierstandandshoot_aimwheretheywere"
 
+                        end
+
+                        self:TaskComplete( "movement_standandshoot" )
+                        myTbl.StartTask( self, "movement_handler", "no enemy to shoot at!" )
+                        return
+
+                    end
                 elseif data.NextReachableCheck < CurTime() then
                     data.NextReachableCheck = CurTime() + math.Rand( 2, 4 )
                     local enemysPos = entMeta.GetPos( enemy )
@@ -1495,6 +1556,194 @@ function ENT:DoCustomTasks( defaultTasks )
 
                     myTbl.TaskComplete( self, "movement_standandshoot" )
                     myTbl.StartTask( self, "movement_walkslowtowardsenemy", "durr my enemy is reachable now" )
+
+                end
+            end,
+        },
+
+        -- durr shoot at where we last saw the enemy and maintain LOS
+        ["movement_suppress"] = { -- durr
+            OnStart = function( self, data )
+                data.StopSuppressing = CurTime() + math.Rand( 6, 12 )
+                data.CurrentTaskGoalPos = nil
+                data.PausedUntil = 0
+                data.NextAllyCheck = CurTime() + 0.5
+
+            end,
+            BehaveUpdateMotion = function( self, data )
+                local myTbl  = entMeta.GetTable( self )
+                local enemy = myTbl.GetEnemy( self )
+                local seeEnemy = myTbl.IsSeeEnemy
+                local enemysShoot = myTbl.LastEnemyShootPos
+
+                coroutine_yield()
+
+                local canWep, potentialWep = self:canGetWeapon()
+                if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_suppress", potentialWep ) then
+                    return
+
+                end
+
+                coroutine_yield()
+
+                local myShoot = myTbl.GetShootPos( self )
+                local canSeeSpot = myTbl.ClearOrBreakable( self, myShoot, enemysShoot, true )
+
+                -- durr just keep blasting where we last saw em
+                if canSeeSpot then
+                    local aimPos = enemysShoot
+                    local wep = myTbl.GetActiveLuaWeapon( self, myTbl )
+                    if wep and wep.terminatorAimingFunc then
+                        aimPos = wep:terminatorAimingFunc()
+
+                    end
+                    local prevent = not canSeeSpot
+                    self:shootAt( aimPos, prevent )
+                    myTbl.lastShootingType = "soldiersuppress_aimwheretheywere"
+
+                end
+
+                if data.NextAllyCheck < CurTime() then
+                    data.NextAllyCheck = CurTime() + math.Rand( 0.5, 1.5 )
+                    local _, allyCheckResult = myTbl.ClearOrBreakable( self, myShoot, enemysShoot, nil, 0.5 )
+                    if IsValid( allyCheckResult.Entity ) and allyCheckResult.Entity.isTerminatorHunterChummy == myTbl.isTerminatorHunterChummy then
+                        myTbl.TaskComplete( self, "movement_suppress" )
+                        myTbl.StartTask( self, "movement_approachenemy", "durr one of my dumb allies got in the way, no more suppress" )
+                        return
+
+                    end
+                end
+
+                coroutine_yield()
+
+                if seeEnemy then -- i can see em again, go fight properly
+                    self:TaskComplete( "movement_suppress" )
+                    if myTbl.HasBrains then
+                        myTbl.StartTask( self, "movement_shootfromcover", "i can see em again!" )
+
+                    else
+                        myTbl.StartTask( self, "movement_standandshoot", "durr i can see em again!" )
+
+                    end
+                    return
+
+                elseif data.StopSuppressing < CurTime() then -- done blasting, figure out what to do
+                    self:TaskComplete( "movement_suppress" )
+                    if myTbl.HasBrains then
+                        myTbl.StartTask( self, "movement_approachenemy", "im done suppressing" )
+
+                    else
+                        myTbl.StartTask( self, "movement_standandshoot", "durr im done suppressing" )
+
+                    end
+                    return
+
+                elseif not IsValid( enemy ) then -- durr i lost my enemy, go find em
+                    self:TaskComplete( "movement_suppress" )
+                    myTbl.StartTask( self, "movement_handler", "durr i lost my enemy!" )
+                    return
+
+                elseif myShoot:Distance( enemysShoot ) < myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.25 then
+                    self:TaskComplete( "movement_suppress" )
+                    myTbl.StartTask( self, "movement_handler", "durr im too close to what i want to suppress" )
+                    return
+
+                end
+
+                coroutine_yield()
+
+                -- durr keep shuffling to a new spot that can still see where we last saw em
+                local myPos = entMeta.GetPos( self )
+
+                -- reached our goal? stop and catch our breath for a couple secs before pushing on
+                if data.CurrentTaskGoalPos and myPos:Distance( data.CurrentTaskGoalPos ) < 35 then
+                    data.CurrentTaskGoalPos = nil
+                    data.PausedUntil = CurTime() + math.Rand( 1.5, 2.5 )
+
+                end
+
+                if canSeeSpot and data.PausedUntil > CurTime() then return end -- holding still, just keep blasting
+
+                local myNav = myTbl.GetCurrentNavArea( self, myTbl )
+                local needsNewPathGoal = not data.CurrentTaskGoalPos
+
+                if needsNewPathGoal then
+                    coroutine_yield()
+                    local areasToCheck = myNav:GetAdjacentAreas()
+                    local areasAlreadyAdded = { [myNav] = true }
+                    for _, area in ipairs( areasToCheck ) do
+                        areasAlreadyAdded[area] = true
+
+                    end
+                    coroutine_yield()
+                    local finalAreasToCheck = {}
+                    for _, area in ipairs( areasToCheck ) do
+                        local areasNeighbors = area:GetAdjacentAreas()
+                        for _, neighbor in ipairs( areasNeighbors ) do
+                            if areasAlreadyAdded[neighbor] then continue end
+                            areasAlreadyAdded[neighbor] = true
+                            finalAreasToCheck[#finalAreasToCheck + 1] = neighbor
+
+                        end
+                    end
+                    local myViewOffset = myTbl.GetViewOffset( self )
+                    local goodStandPositions = {}
+
+                    for _, area in ipairs( finalAreasToCheck ) do
+                        local roughConnectHeight = area:GetCenter().z - myNav:GetCenter().z
+                        if roughConnectHeight > myTbl.JumpHeight then continue end
+
+                        coroutine_yield()
+                        local visible, visiblePos = area:IsVisible( enemysShoot )
+                        if not visible then continue end
+
+                        local myShootWhenImThere = area:GetRandomPoint() + myViewOffset
+                        if not terminator_Extras.PosCanSeeComplex( myShoot, myShootWhenImThere, self ) then continue end
+
+                        if not terminator_Extras.PosCanSeeComplex( visiblePos + myViewOffset, enemysShoot, self ) then continue end
+                        goodStandPositions[#goodStandPositions + 1] = visiblePos
+
+                    end
+
+                    coroutine_yield()
+
+                    if #goodStandPositions > 0 then
+                        data.CurrentTaskGoalPos = goodStandPositions[math.random( #goodStandPositions )]
+
+                    elseif not canSeeSpot then -- durr cant see em and nowhere to shuffle to, give up suppressing
+                        myTbl.TaskFail( self, "movement_suppress" )
+                        if myTbl.HasBrains then
+                            myTbl.StartTask( self, "movement_approachenemy", "i cant see where i last saw em" )
+
+                        else
+                            myTbl.StartTask( self, "movement_standandshoot", "durr i cant see where i last saw em" )
+
+                        end
+                        return
+
+                    else -- durr nowhere new to go, just hold here and keep blasting
+                        data.CurrentTaskGoalPos = nil
+
+                    end
+                end
+
+                if data.CurrentTaskGoalPos then
+                    coroutine_yield()
+                    myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 5 )
+
+                end
+            end,
+            ShouldRun = function( self, data )
+                -- if we see enemy, override default behaviour
+                if not self.NothingOrBreakableBetweenEnemy then
+                    return false
+
+                end
+
+            end,
+            ShouldWalk = function( self, data )
+                if not self.NothingOrBreakableBetweenEnemy then
+                    return true
 
                 end
             end,
@@ -1512,6 +1761,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 if myTbl and myTbl.NothingOrBreakableBetweenEnemy and myTbl.DistToEnemy < myTbl.GetRealDuelEnemyDist( self, myTbl ) * 0.5 and myTbl.getLostHealth( self ) >= 5 then
                     self:TaskComplete( "movement_shootfromcover" )
                     myTbl.StartTask( self, "movement_backthehellup", "i'm too exposed and i got hurt!" )
+                    self:RestartMotionCoroutine()
 
                 end
             end,
@@ -1525,7 +1775,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 local enemysShoot = myTbl.LastEnemyShootPos
                 local enemysNav
                 local enemyIsReachable
-                local enemyIsSupressed
+                local enemyIsSuppressed
                 local enemysBearingToMe
                 if IsValid( enemy ) then
                     coroutine_yield()
@@ -1534,7 +1784,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     enemysShoot = myTbl.EntShootPos( self, enemy )
                     enemysNav = terminator_Extras.getNearestNav( enemysShoot )
                     enemyIsReachable = myTbl.areaIsReachable( self, enemysNav )
-                    enemyIsSupressed = myTbl.EnemyIsSupressed( self, myTbl, enemy )
+                    enemyIsSuppressed = myTbl.EnemyIsSuppressed( self, myTbl, enemy )
                     enemysBearingToMe = myTbl.enemyBearingToMeAbs( self, enemy )
 
                 end
@@ -1606,7 +1856,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
-                local notFeelingSupressed = ( enemysBearingToMe and enemysBearingToMe < 8 and clearOrBreakable ) or ( not enemyIsSupressed and clearOrBreakable ) 
+                local notFeelingSuppressed = ( enemysBearingToMe and enemysBearingToMe < 8 and clearOrBreakable ) or ( not enemyIsSuppressed and clearOrBreakable ) 
                 local sinceStartedRush = CurTime() - data.StartedRush
 
                 coroutine_yield()
@@ -1616,9 +1866,9 @@ function ENT:DoCustomTasks( defaultTasks )
                 if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_shootfromcover", potentialWep ) then
                     return
 
-                elseif sinceStartedRush > 4 and myTbl.HasBrains and notFeelingSupressed and myTbl.DistToEnemy < wepRange then
+                elseif sinceStartedRush > 4 and myTbl.HasBrains and notFeelingSuppressed and myTbl.DistToEnemy < wepRange then
                     self:TaskFail( "movement_rushsmartandshoot" )
-                    myTbl.StartTask( self, "movement_shootfromcover", "they aren't supressed anymore!" )
+                    myTbl.StartTask( self, "movement_shootfromcover", "they aren't suppressed anymore!" )
 
                 elseif result == true then
                     if not seeEnemy then
@@ -1670,8 +1920,9 @@ function ENT:DoCustomTasks( defaultTasks )
                 local myTbl  = entMeta.GetTable( self )
                 if not myTbl.IsSeeEnemy then return end
 
-                self:TaskComplete( "movement_patrol" )
+                self:TaskComplete( "movement_intercept" )
                 self:StartTask( "movement_handler", "i found an enemy!" )
+                self:RestartMotionCoroutine()
 
             end,
             BehaveUpdateMotion = function( self, data )
@@ -1689,13 +1940,13 @@ function ENT:DoCustomTasks( defaultTasks )
                         myTbl.TaskComplete( self, "movement_intercept" )
                         if myTbl.HasBrains then
                             myTbl.StartTask( self, "movement_shootfromcover", "my buddy found an enemy, im gonna shoot them from here!" )
+                            return
 
                         else
                             myTbl.StartTask( self, "movement_standandshoot", { LookAt = lastInterceptPos + self:GetViewOffset() }, "durr my buddy found an enemy and i can see them!" )
+                            return
 
                         end
-                        return
-
                     end
                 end
 
@@ -1804,6 +2055,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 if not self.IsSeeEnemy then return end
                 self:TaskComplete( "movement_fanout" )
                 self:StartTask( "movement_handler", "i found an enemy!" )
+                self:RestartMotionCoroutine()
 
             end,
             BehaveUpdateMotion = function( self, data )
@@ -1985,6 +2237,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 self:TaskComplete( "movement_patrol" )
                 self:StartTask( "movement_handler", "i found an enemy!" )
+                self:RestartMotionCoroutine()
 
             end,
             BehaveUpdateMotion = function( self, data )

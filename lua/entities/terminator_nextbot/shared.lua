@@ -2927,6 +2927,7 @@ function ENT:Initialize()
 
     -- just here so these are never nil
     myTbl.EnemyLastPos = myPos
+    myTbl.LastEnemyShootPos = myPos
     myTbl.EnemyLastPosOffsetted = myPos
 
     myTbl.LineOfSightMask = myTbl.LineOfSightMask or LineOfSightMask
@@ -3091,7 +3092,6 @@ function ENT:DoDefaultTasks()
                 myTbl.NothingOrBreakableBetweenEnemy = false
                 myTbl.DistToEnemy = 0
                 myTbl.LastEnemySpotTime = 0
-                myTbl.LastEnemyShootPos = Vector( 0, 0, 0 )
                 myTbl.EnemyLastMoveDir = Vector( 0, 0, 0 )
                 myTbl.SetEnemy( self, NULL )
                 function data.ResetVisVariables()
@@ -3283,18 +3283,19 @@ function ENT:DoDefaultTasks()
                     coroutine_yield()
 
                     if isSeeEnemy then
-                        local nothinOrBreakable, _, hitNothing = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot )
+                        local nothinOrBreakable, _, hitNothing = myTbl.ClearOrBreakable( self, myShoot, newEnemsShoot, true )
                         if not hitNothing and myTbl.DontShootThroughProps then
                             local shotTr = util.TraceLine( {
                                 start = myShoot,
                                 endpos = newEnemsShoot,
                                 filter = { self, newEnemy },
-                                mask = myTbl.LineOfSightMask,
+                                mask = MASK_SHOT,
                             } )
                             nothinOrBreakable = nothinOrBreakable and not shotTr.Hit
 
                         end
                         myTbl.NothingOrBreakableBetweenEnemy = nothinOrBreakable
+
                     end
 
                     coroutine_yield()
@@ -3319,10 +3320,10 @@ function ENT:DoDefaultTasks()
                     -- we cheatily store the enemy's stuff for a second to make bot feel smarter
                     -- people can intuit where someone ran off to after 1 second, so bot can too
                     local posCheatsLeft = data.EnemyPosCheatsLeft or 0
-                    if myTbl.IsSeeEnemy then
+                    if isSeeEnemy then
                         myTbl.LastEnemySpotTime = cur
                         posCheatsLeft = 5
-                        myTbl.LastEnemyShootPos = newEnemsShoot
+                        myTbl.LastEnemyShootPos = newEnemsShoot -- EnemyLastShootPos
 
                     elseif myTbl.DistToEnemy < 500 and posCheatsLeft >= 1 then -- doesn't time out if we are too close to them
                         --debugoverlay.Line( enemyPos, self:GetPos(), 0.3, Color( 255,255,255 ), true )
@@ -3330,7 +3331,7 @@ function ENT:DoDefaultTasks()
 
                     end
 
-                    if ( myTbl.IsSeeEnemy or posCheatsLeft > 0 ) and newEnemsHealth > 0 then -- health check fixed some silly problems
+                    if ( isSeeEnemy or posCheatsLeft > 0 ) and newEnemsHealth > 0 then -- health check fixed some silly problems
                         if fodder then
                             coroutine_yield()
 
@@ -3546,7 +3547,7 @@ function ENT:DoDefaultTasks()
 
                             end
                             myTbl.shootAt( self, myTbl.LastEnemyShootPos, doShootingPrevent )
-                            myTbl.lastShootingType = "normalRanged"
+                            myTbl.lastShootingType = "normalRanged - " .. tostring( doShootingPrevent )
 
                         end
                     --melee
@@ -3898,9 +3899,11 @@ function ENT:DoDefaultTasks()
                 data.GarboInformCount = 0
                 data.NeedsToDoInform = nil
                 data.Inform = function( enemy, pos, senderPos )
+                    local myTbl = entMeta.GetTable( self )
                     data.NeedsToDoInform = { -- make sure the actual informing happens inside coroutine
                         enemy = enemy,
                         pos = pos,
+                        shootPos = myTbl.EntShootPos( self, enemy ),
                         senderPos = senderPos,
                         sender = self
                     }
@@ -3968,6 +3971,7 @@ function ENT:DoDefaultTasks()
             InformReceive = function( self, data, informData )
                 local enemy = informData.enemy
                 local pos = informData.pos
+                local shootPos = informData.shootPos
                 local senderPos = informData.senderPos
                 local sender = informData.sender
 
@@ -4002,6 +4006,7 @@ function ENT:DoDefaultTasks()
                 myTbl.MakeFeud( self, enemy )
 
                 myTbl.EnemyLastPos = pos or myTbl.EnemyLastPos
+                myTbl.LastEnemyShootPos = shootPos or myTbl.LastEnemyShootPos
 
                 myTbl.interceptPeekTowardsEnemy  = myTbl.CanSeePosition( self, enemy, myTbl, enemyTbl ) and math.random( 1, 100 ) < 75
                 myTbl.lastInterceptTime          = CurTime()
@@ -5182,9 +5187,11 @@ function ENT:DoDefaultTasks()
             end,
             ShouldRun = function( self, data )
                 return self:canDoRun()
+
             end,
             ShouldWalk = function( self, data )
                 return self:shouldDoWalk()
+
             end,
         },
         -- search around an area for our enemy

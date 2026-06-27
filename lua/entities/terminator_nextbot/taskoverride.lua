@@ -148,6 +148,12 @@ end
     Arg3: string | reason | Reason for starting task, used for debugging, can also be passed as Arg2 if no data is needed.
 --]]------------------------------------
 function ENT:StartTask( task, data, reason )
+    if isstring( data ) then -- if data is a string, it is the reason for starting the task
+        reason = data
+        data = nil
+
+    end
+
     local myTbl = entMeta.GetTable( self )
     if myTbl.IsTaskActive( self, task ) then
         if printTasks then
@@ -168,12 +174,6 @@ function ENT:StartTask( task, data, reason )
 
         end
         return
-
-    end
-
-    if isstring( data ) then -- if data is a string, it is the reason for starting the task
-        reason = data
-        data = nil
 
     end
 

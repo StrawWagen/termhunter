@@ -71,7 +71,7 @@ function ENT:SetPosNoTeleport( pos )
 
 end
 
-local smallHull = Vector( 1, 1, 1 )
+local smallHull = Vector( 2, 2, 2 )
 
 function ENT:ClearOrBreakable( start, endpos, doSmallHull, hullMul )
     local b1
@@ -962,8 +962,8 @@ function ENT:CanStandAtPos( myTbl, pos, endPos )
 
 end
 
-local fivePositiveZ = Vector( 0,0,5 )
-local fiftyZOffset = Vector( 0,0,50 )
+local fivePositiveZ = Vector( 0, 0, 5 )
+local fiftyZOffset = Vector( 0, 0, 50 )
 local vector25Z = Vector( 0, 0, 25 )
 
 function ENT:BoundsAdjusted( hullSizeMul, assumeCrouch )
@@ -2823,6 +2823,8 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             coroutine_yield()
 
         end
+
+        if not myTbl.TERM_FISTS then return end -- only look towards goal if we have fists
 
         local currentSpeed = vecMeta.Length2DSqr( locoMeta.GetVelocity( myTbl.loco ) )
         if currentSpeed < terminator_Extras.term_DefaultSpeedToAimAtProps then
