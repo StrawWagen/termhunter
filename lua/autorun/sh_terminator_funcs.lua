@@ -235,6 +235,7 @@ terminator_Extras.posIsUnderDisplacement = function( pos, dir )
 
 end
 
+local bigPositiveZ = Vector( 0, 0, 3000 )
 local function getSkyTr( pos )
     local traceDat = {
         mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
