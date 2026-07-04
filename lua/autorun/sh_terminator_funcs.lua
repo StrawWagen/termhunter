@@ -190,6 +190,7 @@ terminator_Extras.GetAreasNookScore = function( area )
 end
 
 
+local fiftyPowerOfTwo = 50^2
 local vector6000ZUp = Vector( 0, 0, 6000 )
 local vector1000ZDown = Vector( 0, 0, -1000 )
 
@@ -225,12 +226,27 @@ terminator_Extras.posIsUnderDisplacement = function( pos, dir )
         mask = MASK_SOLID_BRUSHONLY,
     }
     local thirdTraceResult = util.TraceLine( thirdTraceDat )
-    if thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" then return nil, true, firstTraceResult end -- we are probably under a displacement
+
+    local isANestedDisplacement = thirdTraceResult.HitTexture == "**displacement**" and secondTraceResult.HitPos:DistToSqr( thirdTraceResult.HitPos ) > fiftyPowerOfTwo
+    if thirdTraceResult.Hit and thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" and not isANestedDisplacement then return nil, true, firstTraceResult end -- we are probably under a displacement
 
     -- we are DEFINITely under one
     return true, nil, firstTraceResult
 
 end
+
+local function getSkyTr( pos )
+    local traceDat = {
+        mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
+        start = pos,
+        endpos = pos + bigPositiveZ
+    }
+
+    local trace = util.TraceLine( traceDat )
+    return trace
+
+end
+terminator_Extras.getSkyTr = getSkyTr
 
 function terminator_Extras.copyMatsOver( from, to )
     for ind = 0, #from:GetMaterials() do

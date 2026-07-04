@@ -53,7 +53,7 @@ if CLIENT then
             local velPosBased = getVelocityDelta( thrown, thrown:GetTable() )
             if not velPosBased then
                 noVelFailures = noVelFailures + 1
-                if noVelFailures > 5 then StopAirSound( true ) end
+                if noVelFailures > 15 then StopAirSound( true ) end
                 return
 
             end
@@ -62,9 +62,10 @@ if CLIENT then
 
             local pitch = velPosBased / 10
             local volume = velPosBased / 1500
+
             if pitch < 10 then
                 noVelFailures = noVelFailures + 1
-                if noVelFailures > 5 then StopAirSound( true ) end
+                if noVelFailures > 15 then StopAirSound( true ) end
                 return
 
             end
@@ -247,7 +248,7 @@ function SWEP:Swing()
         end
 
         if force > 15000 then
-            self:DoFlyingSound( thrownFake, aimVec, force )
+            self:DoFlyingSound( thrownFake, force )
 
         end
 
@@ -316,7 +317,7 @@ function SWEP:Equip()
 
 end
 
-function SWEP:DoFlyingSound( thrown, direction, force )
+function SWEP:DoFlyingSound( thrown, force )
     local filterAll = RecipientFilter()
     filterAll:AddAllPlayers()
 

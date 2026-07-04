@@ -583,6 +583,7 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
     local crouching
 
     if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not transientAreaPathable( nil, toArea, toAreasId ) then return -1 end
+
     coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end

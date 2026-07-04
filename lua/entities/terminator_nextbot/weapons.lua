@@ -1053,7 +1053,9 @@ function ENT:GiveAmmo()
 end
 
 function ENT:GetAmmoCount()
-    return self:GetActiveWeapon():Clip1() or 0
+    local actWep = self:GetActiveWeapon()
+    if not IsValid( actWep ) then return 0 end
+    return actWep:Clip1() or 0
 
 end
 
