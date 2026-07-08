@@ -5,7 +5,7 @@
 	Arg1: table | list | List of tasks add new tasks to.
 	Ret1: 
 --]]------------------------------------
-function ENT:SetupTaskList(list)
+function ENT:SetupTaskList( list )
 end
 
 --[[------------------------------------
@@ -17,6 +17,41 @@ end
 function ENT:SetupTasks()
 end
 
+-- If a task callback returned a value ( non-nil first return ), pass it back up.
+-- Shared by RunCurrentTask, mirrors the same logic in RunTask.
+local function unpackTaskReturn( args )
+	if args[1] == nil then return end
+	if args[2] == nil then return args[1] end
+	return unpack( args )
+
+end
+
+-- Removes a task from both the lookup table and the ordered list.
+local function removeActiveTask( self, task )
+	self.m_ActiveTasks[task] = nil
+
+	local m_ActiveTasksNum = self.m_ActiveTasksNum
+	for i = 1, #m_ActiveTasksNum do
+		if m_ActiveTasksNum[i][1] == task then
+			table.remove( m_ActiveTasksNum, i )
+			break
+
+		end
+	end
+end
+
+-- Shared body of TaskComplete/TaskFail: run the end event ( OnComplete or OnFail ),
+-- then OnEnd, then delete the task. Callbacks run while the task is still active.
+local function endTask( self, task, endEvent )
+	if !self:IsTaskActive( task ) then return end
+
+	self:RunCurrentTask( task, endEvent )
+	self:RunCurrentTask( task, "OnEnd" )
+
+	removeActiveTask( self, task )
+
+end
+
 --[[------------------------------------
 	Name: NEXTBOT:RunCurrentTask
 	Desc: Runs one given task callback with given event.
@@ -25,23 +60,16 @@ end
 	Arg*: vararg | Arguments to callback. NOTE: In callback, first argument is always bot entity, second argument is always task data, passed arguments from NEXTBOT:RunTask starts at third argument.
 	Ret*: vararg | Callback return.
 --]]------------------------------------
-function ENT:RunCurrentTask(task,event,...)
-	if !self:IsTaskActive(task) then return end
+function ENT:RunCurrentTask( task, event, ... )
+	if !self:IsTaskActive( task ) then return end
 
-	local k,v = task,self.m_ActiveTasks[task]
-	
-	local dt = self.m_TaskList[k]
+	local data = self.m_ActiveTasks[task]
+
+	local dt = self.m_TaskList[task]
 	if !dt or !dt[event] then return end
-	
-	local args = {dt[event](self,v,...)}
-	
-	if args[1]!=nil then
-		if args[2]==nil then
-			return args[1]
-		else
-			return unpack(args)
-		end
-	end
+
+	return unpackTaskReturn( { dt[event]( self, data, ... ) } )
+
 end
 
 --[[------------------------------------
@@ -50,21 +78,9 @@ end
 	Arg1: any | task | Task name.
 	Ret1: 
 --]]------------------------------------
-function ENT:TaskComplete(task)
-	if !self:IsTaskActive(task) then return end
-	
-	self:RunCurrentTask(task,"OnComplete")
-	self:RunCurrentTask(task,"OnEnd")
+function ENT:TaskComplete( task )
+	endTask( self, task, "OnComplete" )
 
-	self.m_ActiveTasks[task] = nil
-	
-	local m_ActiveTasksNum = self.m_ActiveTasksNum
-	for i=1,#m_ActiveTasksNum do
-		if m_ActiveTasksNum[i][1]==task then
-			table.remove(m_ActiveTasksNum,i)
-			break
-		end
-	end
 end
 
 --[[------------------------------------
@@ -73,21 +89,9 @@ end
 	Arg1: any | task | Task name.
 	Ret1: 
 --]]------------------------------------
-function ENT:TaskFail(task)
-	if !self:IsTaskActive(task) then return end
-	
-	self:RunCurrentTask(task,"OnFail")
-	self:RunCurrentTask(task,"OnEnd")
-	
-	self.m_ActiveTasks[task] = nil
+function ENT:TaskFail( task )
+	endTask( self, task, "OnFail" )
 
-	local m_ActiveTasksNum = self.m_ActiveTasksNum
-	for index, currTask in ipairs( m_ActiveTasksNum ) do
-		if currTask[1] == task then
-			table.remove( m_ActiveTasksNum, index )
-			break
-		end
-	end
 end
 
 --[[------------------------------------
@@ -96,6 +100,7 @@ end
 	Arg1: any | task | Task name.
 	Ret1: bool | Returns true if task exists, false otherwise.
 --]]------------------------------------
-function ENT:IsTaskActive(task)
+function ENT:IsTaskActive( task )
 	return self.m_ActiveTasks[task] and true or false
+
 end

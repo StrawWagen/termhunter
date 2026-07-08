@@ -118,36 +118,6 @@ function ENT:WeaponSecondaryAttack()
 end
 
 --[[------------------------------------
-	Name: NEXTBOT:DoRangeGesture
-	Desc: Make primary attack range animation.
-	Arg1: 
-	Ret1: number | Animation duration.
---]]------------------------------------
-function ENT:DoRangeGesture()
-	local act = self:TranslateActivity(ACT_MP_ATTACK_STAND_PRIMARYFIRE)
-	local seq = self:SelectWeightedSequence(act)
-	
-	self:DoGesture(act)
-	
-	return self:SequenceDuration(seq)
-end
-
---[[------------------------------------
-	Name: NEXTBOT:DoReloadGesture
-	Desc: Make reload animation.
-	Arg1: 
-	Ret1: number | Animation duration.
---]]------------------------------------
-function ENT:DoReloadGesture()
-	local act = self:TranslateActivity(ACT_MP_RELOAD_STAND)
-	local seq = self:SelectWeightedSequence(act)
-	
-	self:DoGesture(act)
-	
-	return self:SequenceDuration(seq)
-end
-
---[[------------------------------------
 	Name: NEXTBOT:WeaponReload
 	Desc: Reloads active weapon and do reload animation. Does nothing if we reloading already or if weapon clip is full.
 	Arg1: 

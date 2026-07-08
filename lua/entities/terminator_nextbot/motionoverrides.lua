@@ -1857,16 +1857,20 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
         end
 
-        -- failed
-        local _, _, seePos = self:ClearOrBreakable( myPos + vec_up15, obstacleAvoid + vec_up15 )
-        local _, _, seeGoal = self:ClearOrBreakable( myPos + vec_up15, obstacleTarget + vec_up15 )
+        local seeGoal, _ = true, nil
 
-        if not ( seePos or seeGoal ) then
-            --debugoverlay.Line( myPos + vec_up15, obstacleAvoid + vec_up15, 5, color_white, true )
-            --debugoverlay.Line( myPos + vec_up15, obstacleTarget + vec_up15, 5, color_green, true )
-            self:InvalidatePath( "obstacle avoid 2" )
-            return
+        if entMeta.IsSolid( self ) then
+            -- failed
+            local _, _, seePos = self:ClearOrBreakable( myPos + vec_up15, obstacleAvoid + vec_up15 )
+            _, _, seeGoal = self:ClearOrBreakable( myPos + vec_up15, obstacleTarget + vec_up15 )
 
+            if not ( seePos or seeGoal ) then
+                --debugoverlay.Line( myPos + vec_up15, obstacleAvoid + vec_up15, 5, color_white, true )
+                --debugoverlay.Line( myPos + vec_up15, obstacleTarget + vec_up15, 5, color_green, true )
+                self:InvalidatePath( "obstacle avoid 2" )
+                return
+
+            end
         end
 
         if isFodder then coroutine_yield() end
@@ -3485,6 +3489,11 @@ function ENT:OnLandOnGround( ent )
         if self.TakesFallDamage and fallHeight > heightToStartTakingDamage then
             local damage = math.abs( fallHeight - heightToStartTakingDamage )
             damage = damage * self.FallDamagePerHeight
+            local newDamage = hook.Run( "GetTermFallDamage", self, landedOn, damage )
+            if newDamage then
+                damage = newDamage
+
+            end
             self:TakeDamage( damage )
 
         end
@@ -3661,6 +3670,7 @@ ENT.IdleActivityTranslations = {
 function ENT:TranslateActivity( act )
     local myTbl = self:GetTable()
 
+    -- way #1, TranslateActivity task callback
     local translated
     local task = myTbl.RunTask( self, "TranslateActivity", act )
     if task then
@@ -3668,11 +3678,15 @@ function ENT:TranslateActivity( act )
 
     end
 
+    -- way #2, get it from our weapon
     if not translated and myTbl.HasWeapon( self, myTbl ) then
-        myTbl.DontRegisterAsNpc( self )
+        myTbl.DontRegisterAsNpc( self ) -- ask for player animations by not registering as IsNPC()
         local newact
         local luaWep = myTbl.GetActiveLuaWeapon( self, myTbl )
-        ProtectedCall( function() newact = luaWep:TranslateActivity( act ) end ) -- ?????
+        ProtectedCall( function() -- ?????
+            newact = luaWep:TranslateActivity( act )
+
+        end )
         myTbl.ReRegisterAsNpc( self )
 
         if newact then
@@ -3680,18 +3694,22 @@ function ENT:TranslateActivity( act )
 
         end
     end
+
+    -- get it from our ENT.IdleActivityTranslations table
     if not translated then
         translated = myTbl.IdleActivityTranslations[act]
 
     end
-    if isfunction( translated ) then
+    if isfunction( translated ) then -- yes, the translations can be functions!
         translated = translated( self )
 
     end
 
+    -- found one!
     if translated then
         return translated
 
+    -- didnt find one!
     else
         local activity = myTbl.IdleActivity
         if isfunction( activity ) then

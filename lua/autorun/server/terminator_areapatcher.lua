@@ -638,6 +638,7 @@ local function patchCoroutine()
             coroutine_yield( "wait" )
 
             local additionalSize = math_max( patchTbl.gridSize, smallGridSize )
+            additionalSize = additionalSize * 0.95 -- bit smaller than grid size, so we dont connect over areas too far
             local additional = Vector( additionalSize, additionalSize, additionalSize )
             local upOff = patchTbl.upCrouch / 2
 

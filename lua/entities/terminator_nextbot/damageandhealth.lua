@@ -250,8 +250,13 @@ function ENT:OnTakeDamage( Damage )
 
     -- horrible evil immortal zombie torso bug
     if Damage:GetDamage() >= 1 and self:Health() <= 0 and ( not self.Term_DyingUntil or self.Term_DyingUntil < CurTime() ) then -- HACK!
-        SafeRemoveEntityDelayed( self, 1 )
+        timer.Simple( 1, function()
+            if not IsValid( self ) then return end
+            if self.Term_DyingUntil and self.Term_DyingUntil > CurTime() then return end
 
+            SafeRemoveEntity( self )
+
+        end )
     end
 
     -- metal skeleton damage resist and sounds
@@ -720,6 +725,7 @@ function ENT:OnKilled( dmg )
     end
 
     if deathAniming then return end
+
     self:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePos, damageForce )
 
 end
@@ -788,8 +794,6 @@ function ENT:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePo
     else
         inflictor = IsValid( inflictor ) and inflictor or attacker
 
-        hook.Run( "OnTerminatorKilledScripted", self, attacker, inflictor, damageType, damagePos, damageForce )
-
         dmg = DamageInfo() -- scripted death, the dmg object is definitely a new damageevent by now
         dmg:SetAttacker( attacker )
         dmg:SetInflictor( inflictor )
@@ -798,6 +802,8 @@ function ENT:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePo
         dmg:SetDamagePosition( damagePos )
         dmg:SetDamageForce( damageForce )
         ragdoll = self:BecomeRagdoll( dmg )
+
+        hook.Run( "OnTerminatorKilledScripted", self, dmg )
 
     end
 
