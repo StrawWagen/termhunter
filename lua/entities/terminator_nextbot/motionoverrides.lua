@@ -3485,15 +3485,19 @@ function ENT:OnLandOnGround( ent )
 
         end
 
+        local damage = 0
         local heightToStartTakingDamage = self.HeightToStartTakingDamage
         if self.TakesFallDamage and fallHeight > heightToStartTakingDamage then
-            local damage = math.abs( fallHeight - heightToStartTakingDamage )
+            damage = math.abs( fallHeight - heightToStartTakingDamage )
             damage = damage * self.FallDamagePerHeight
-            local newDamage = hook.Run( "GetTermFallDamage", self, landedOn, damage )
-            if newDamage then
-                damage = newDamage
 
-            end
+        end
+        local newDamage = hook.Run( "GetTermFallDamage", self, ent, fallHeight, damage )
+        if newDamage then
+            damage = newDamage
+
+        end
+        if damage > 0 then
             self:TakeDamage( damage )
 
         end
