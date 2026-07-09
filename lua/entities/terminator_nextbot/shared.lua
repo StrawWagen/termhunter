@@ -2624,16 +2624,6 @@ function ENT:SimpleSearchNearbyAreas( myPos, myShootPos )
     end
 end
 
-function ENT:EnemyIsReachable()
-    local enemy = self:GetEnemy()
-    if not IsValid( enemy ) then return end
-    local enemyPos = enemy:GetPos()
-
-    local enemyNavArea = terminator_Extras.getNearestNav( enemyPos ) or NULL
-    return self:areaIsReachable( enemyNavArea )
-
-end
-
 
 -- did we already try, and fail, to path there?
 function ENT:areaIsReachable( area )
@@ -6618,7 +6608,7 @@ function ENT:DoDefaultTasks()
                     exit = true
 
                 -- really lame to get close and have it run away
-                elseif self.NothingOrBreakableBetweenEnemy and farFarTooClose and reachable and not tooDangerousToApproach then
+                elseif self.NothingOrBreakableBetweenEnemy and farFarTooClose and reachable and not tooDangerousToApproach and self:CanMoveRightUpToEnemy( enemy ) then
                     self:TaskComplete( "movement_stalkenemy" )
                     self:StartTask( "movement_duelenemy_near", { wasStalk = true }, "hey pal, you're way too close" )
                     exit = true
@@ -6889,7 +6879,7 @@ function ENT:DoDefaultTasks()
                     self:BashLockedDoor( "movement_flankenemy" )
                     exit = true
 
-                elseif self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < duelEnemyDistInt and ( self:MyPathLength() * 0.5 ) < self.DistToEnemy then
+                elseif self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < duelEnemyDistInt and ( self:MyPathLength() * 0.5 ) < self.DistToEnemy and self:CanMoveRightUpToEnemy( enemy ) then
                     self:TaskComplete( "movement_flankenemy" )
                     self:StartTask( "movement_duelenemy_near", nil, "im close enough!" )
                     exit = true
@@ -7227,7 +7217,7 @@ function ENT:DoDefaultTasks()
                     self:TaskFail( "movement_followenemy" )
                     self:GetTheBestWeapon()
                     self:StartTask( "movement_search", { searchCenter = self.EnemyLastPosOffsetted, searchWant = 10 }, "i cant get there, and they're gone" )
-                elseif GoodEnemy and self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < distToExit and ( self:MyPathLength() * 0.5 ) < self.DistToEnemy then
+                elseif GoodEnemy and self.NothingOrBreakableBetweenEnemy and self.DistToEnemy < distToExit and ( self:MyPathLength() * 0.5 ) < self.DistToEnemy and self:CanMoveRightUpToEnemy( enemy ) then
                     if data.baitcrouching then
                         enemy.terminator_CantConvinceImFriendly = true
                         self.PreventShooting = nil
@@ -7336,7 +7326,12 @@ function ENT:DoDefaultTasks()
                 if IsValid( enemy ) and enemy:Health() <= 0 then
                     badEnemy = true
 
-                elseif not IsValid( enemy ) or ( not canCover and not self.NothingOrBreakableBetweenEnemy ) or ( canCover and not self.IsSeeEnemy ) then
+                elseif
+                    not IsValid( enemy )
+                    or ( not canCover and not self.NothingOrBreakableBetweenEnemy )
+                    or ( canCover and not self.IsSeeEnemy )
+                    or not self:CanMoveRightUpToEnemy( enemy )
+                then
                     badEnemy = true
 
                 end

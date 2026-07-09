@@ -111,11 +111,11 @@ end
 --[[------------------------------------
     Name: ENT:enemyBearingToMeAbs
     Desc: Returns the absolute bearing of the enemy to me.
-    Arg1: 
+    Arg1: enemy - ( optional )
     Ret1: number - Absolute bearing of the enemy to me.
 --]]------------------------------------
-function ENT:enemyBearingToMeAbs()
-    local enemy = self:GetEnemy()
+function ENT:enemyBearingToMeAbs( enemy )
+    local enemy = enemy or self:GetEnemy()
     if not IsValid( enemy ) then return 0 end
     local myPos = self:GetPos()
     local enemyPos = enemy:GetPos()
@@ -128,11 +128,11 @@ end
 --[[------------------------------------
     Name: ENT:enemyPitchToMeAbs
     Desc: Returns the absolute pitch of the enemy to me.
-    Arg1: 
+    Arg1: enemy - ( optional )
     Ret1: number - Absolute pitch of the enemy to me.
 --]]------------------------------------
-function ENT:enemyPitchToMeAbs()
-    local enemy = self:GetEnemy()
+function ENT:enemyPitchToMeAbs( enemy )
+    local enemy = enemy or self:GetEnemy()
     if not IsValid( enemy ) then return 0 end
     local myPos = self:GetPos()
     local enemyPos = enemy:GetPos()
@@ -494,6 +494,13 @@ function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
 
 end
 
+--[[------------------------------------
+    Name: ENT:ClearEnemyMemory
+    Desc: Forgets everything the bot knows about an entity.
+        If it was the bot's current enemy, drops it and runs the terminator_engagedenemywasbad hook.
+    Arg1: Entity | enemy | Entity to forget. Defaults to the current enemy.
+    Ret1:
+--]]------------------------------------
 function ENT:ClearEnemyMemory( enemy )
     enemy = enemy or self:GetEnemy()
     self.m_EnemiesMemory[enemy] = nil
@@ -501,6 +508,7 @@ function ENT:ClearEnemyMemory( enemy )
     if self:GetEnemy() == enemy then
         self:SetEnemy( NULL )
         hook.Run( "terminator_engagedenemywasbad", self, enemy )
+
     end
 end
 
@@ -540,7 +548,7 @@ do
     local coroutine_yield = coroutine.yield
 
     local function processFindingEnt( self, myTbl, ent, fodder, myFov, ShouldBeEnemy, CanSeePosition, UpdateEnemyMemory, EntShootPos )
-        if notEnemyCache[ ent ] then return end
+        if notEnemyCache[ent] then return end
 
         if ent == self then return end
 
@@ -599,7 +607,7 @@ do
 end
 
 --[[------------------------------------
-    Name: NEXTBOT:ForgetOldEnemies
+    Name: ENT:ForgetOldEnemies
     Desc: (INTERNAL) Clears bot memory from enemies that not valid, not updating very long time or not should be enemy.
     Arg1: 
     Ret1: 
@@ -608,10 +616,27 @@ function ENT:ForgetOldEnemies( myTbl )
     local cur = CurTime()
     local myFov = myTbl.Term_FOV
     local forgetEnemyTime = myTbl.ForgetEnemyTime
+    local clearEnemyMemory = myTbl.ClearEnemyMemory
+    local shouldBeEnemy = myTbl.ShouldBeEnemy
 
-    for ent, memory in pairs( myTbl.m_EnemiesMemory ) do
-        if ( not IsValid( ent ) ) or ( ( cur - memory.lastupdate ) >= forgetEnemyTime ) or ( not myTbl.ShouldBeEnemy( self, ent, myFov, myTbl, ent:GetTable() ) ) then
-            myTbl.ClearEnemyMemory( self, ent )
+    -- all this bs below to stop undefined behaviour when forgetting current enemy
+    -- ShouldBeEnemy/ClearEnemyMemory run 3rd party code that can reach UpdateEnemyMemory,
+    -- adding NEW keys to m_EnemiesMemory. adding keys mid pairs() is undefined in lua,
+    -- so snapshot the keys, then do the callback-y stuff outside the traversal
+    local memories = myTbl.m_EnemiesMemory
+
+    local plsCheck = {}
+    for ent in pairs( memories ) do
+        plsCheck[#plsCheck + 1] = ent
+
+    end
+
+    for _, ent in ipairs( plsCheck ) do
+        local memory = memories[ent]
+        if not memory then continue end
+
+        if ( not IsValid( ent ) ) or ( ( cur - memory.lastupdate ) >= forgetEnemyTime ) or ( not shouldBeEnemy( self, ent, myFov, myTbl, entMeta.GetTable( ent ) ) ) then
+            clearEnemyMemory( self, ent )
 
         end
     end
@@ -675,9 +700,9 @@ do
     local DEF_RELATIONSHIP_PRIORITY = INT_MIN
 
     --[[------------------------------------
-        Name: NEXTBOT:TERM_GetRelationship
+        Name: ENT:TERM_GetRelationship
         Desc: Returns how bot feels about this entity, optimized.
-        Arg1: self's GetTable
+        Arg1: _index optimisation table
         Arg2: Entity | ent | Entity to get disposition from.
         Ret1: number | Priority disposition. See D_* Enums.
         Ret2: number | Priority of disposition.
@@ -1023,6 +1048,87 @@ do
     end
 end
 
+--[[------------------------------------
+    Name: ENT:EnemyIsReachable
+    Desc: Have we already tried, and failed, to path to the enemy's nav area?
+        Optimistic, only checks the unreachableAreas memory, never builds a path.
+    Arg1: Entity | enemy | Entity to check. Defaults to the current enemy.
+    Ret1: bool | true if we haven't given up on pathing there. false if the enemy is invalid, nil if we already failed to path there.
+--]]------------------------------------
+function ENT:EnemyIsReachable( enemy )
+    enemy = enemy or self:GetEnemy()
+    if not IsValid( enemy ) then return false end
+
+    local enemyPos = entMeta.GetPos( enemy )
+    local enemyNavArea = terminator_Extras.getNearestNav( enemyPos ) or NULL
+    return self:areaIsReachable( enemyNavArea )
+
+end
+
+do
+    local betweenPosVec = Vector( 0, 0, 0 )
+    local bottomPosVec = Vector( 0, 0, 0 )
+    local resultTbl = {}
+
+    -- is there a big pit between us and enemy?
+    -- simple, cached check
+    function ENT:GetIsFlatGroundToEnemy( myTbl, enemy )
+        local nextCache = myTbl.term_NextWasFlatToEnemyCache
+
+        if nextCache and nextCache > CurTime() then
+            local cachedWasFlat = myTbl.term_CachedWasFlatGroundToEnemy
+            if cachedWasFlat ~= nil then return cachedWasFlat end
+
+        end
+
+        myTbl.term_NextWasFlatToEnemyCache = CurTime() + 0.5
+
+        enemy = enemy or self:GetEnemy()
+        if not IsValid( enemy ) then myTbl.term_CachedWasFlatGroundToEnemy = nil return end
+
+        local enemyPos = entMeta.GetPos( enemy )
+        local myPos = entMeta.GetPos( self )
+        betweenPosVec.x = enemyPos.x + myPos.x
+        betweenPosVec.y = enemyPos.y + myPos.y
+        betweenPosVec.z = enemyPos.z + myPos.z
+
+        betweenPosVec.x = betweenPosVec.x / 2
+        betweenPosVec.y = betweenPosVec.y / 2
+        betweenPosVec.z = betweenPosVec.z / 2
+
+        bottomPosVec.x = betweenPosVec.x
+        bottomPosVec.y = betweenPosVec.y
+        bottomPosVec.z = betweenPosVec.z + -myTbl.StepHeight
+
+        local traceDat = {
+            mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
+            start = betweenPosVec,
+            endpos = bottomPosVec,
+            output = resultTbl,
+        }
+
+        util.TraceLine( traceDat )
+
+        local flatTo = resultTbl.Hit or resultTbl.StartSolid
+        myTbl.term_CachedWasFlatGroundToEnemy = flatTo
+        return flatTo
+
+    end
+
+    function ENT:CanMoveRightUpToEnemy( enemy )
+        local myTbl = entMeta.GetTable( self )
+        if myTbl.Term_Leaps then return true end
+
+        return myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy )
+
+    end
+
+    hook.Add( "terminator_nextbot_noterms_exist", "term_cleanup_flatground_resulttbl", function()
+        table.Empty( resultTbl )
+
+    end )
+end
+
 do
     local dirToPos = terminator_Extras.dirToPos
     local PosCanSeeComplex = terminator_Extras.PosCanSeeComplex
@@ -1106,6 +1212,14 @@ function ENT:SaveSoundHint( source, valuable, emitter, dangerous )
 
 end
 
+--[[------------------------------------
+    Name: ENT:validSoundHint
+    Desc: Is the last heard sound hint still worth chasing?
+        NOT a pure check. Every call tallies the emitter in heardThingCounts,
+        and an emitter that's distracted us too often gets ignored, clearing the hint.
+    Arg1:
+    Ret1: bool | true if the hint is worth following. false if the emitter is too noisy, nil if there's no hint, or a non-valuable one went stale.
+--]]------------------------------------
 function ENT:validSoundHint()
     local hint = self.lastHeardSoundHint
     if not hint then return end
@@ -1584,13 +1698,13 @@ end
     Name: ENT:TimeSinceEnemySpotted
     Desc: Returns how long ago the enemy was spotted.
     Arg1: myTbl | table | Table of the entity.
-    Ret1: number | Seconds since enemy was spotted.
+    Ret1: number | Seconds since enemy was spotted. inf if never spotted.
 --]]-------------------------------------
 function ENT:TimeSinceEnemySpotted( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
 
     local lastSeen = myTbl.LastEnemySpotTime
-    if not lastSeen then return 0 end
+    if not lastSeen then return math.huge end
 
     return CurTime() - lastSeen
 

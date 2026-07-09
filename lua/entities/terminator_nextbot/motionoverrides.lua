@@ -2658,6 +2658,7 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
         local aboveUsJumpHeight
 
         local onGround = myTbl.loco:IsOnGround()
+        local leaps = myTbl.Term_Leaps
 
         if onGround then
             local heightDiffNeededToJump = simpleJumpMinHeight + 20
@@ -2687,13 +2688,20 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                         pos = pos + dir * 50
 
                     end
-                elseif myTbl.Term_Leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos and dist2d < myTbl.JumpHeight then
+
+                elseif leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos and dist2d < myTbl.JumpHeight then
                     doJumpTowards = true
 
                 end
             end
             if yieldable then
                 coroutine_yield()
+
+            end
+
+            if not doJumpTowards and leaps and not myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy ) then
+                doJumpTowards = true
+                zToPos = zToPos + myTbl.JumpHeight
 
             end
 
