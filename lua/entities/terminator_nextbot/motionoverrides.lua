@@ -2693,15 +2693,13 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                     doJumpTowards = true
 
                 end
+            elseif not doJumpTowards and leaps and not myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy ) then
+                doJumpTowards = true
+                zToPos = zToPos + myTbl.JumpHeight
+
             end
             if yieldable then
                 coroutine_yield()
-
-            end
-
-            if not doJumpTowards and leaps and not myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy ) then
-                doJumpTowards = true
-                zToPos = zToPos + myTbl.JumpHeight
 
             end
 
