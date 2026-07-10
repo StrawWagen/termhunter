@@ -1592,6 +1592,10 @@ local function addTrackedDamage( me, myTbl, wepOrClass, add )
         dmgTracker.isBurst = true
 
     end
+    if dmgTracker.isBurst and dmgTracker.smallestDamageInterval < 1 then
+        dmgTracker.isBurst = false
+
+    end
 
     if me:IsCrouching() then
         dmgTracker.dmgWhileCrouching = dmgTracker.dmgWhileCrouching + add
@@ -1856,7 +1860,7 @@ function ENT:TryAndUseWeaponRight( myTbl, _wep, dmgTracker )
     if not ready then return end -- wait until weapon has been used a bit
 
     if myTbl.enemyBearingToMeAbs( self ) < 10 and myTbl.IsReallyAngry( self ) then return end
-    if myTbl.inSeriousDanger( self ) then return end -- AAAAH
+    if myTbl.inSeriousDanger( self ) and ( CurTime() + self:EntIndex() ) % 5 < 9 then return end -- AAAAH
 
     local enemy = myTbl.GetEnemy( self )
     -- dont crouch if enemy's stronger than us and really close

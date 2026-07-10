@@ -291,7 +291,7 @@ function terminator_Extras.DrawInHand( wep, posOffset, angOffset )
     end
 end
 
--- table.Add without saftey checks, without using table.insert
+-- simple, fast table.Add without saftey checks, without using table.insert
 -- everything is added to dest from source
 -- does not unpack source
 function terminator_Extras.tableAdd( dest, source )
@@ -301,7 +301,7 @@ function terminator_Extras.tableAdd( dest, source )
     end
 end
 
--- simple sequential table copier
+-- simple, fast sequential table copier
 function terminator_Extras.tableCopySimple( source )
     local new = {}
     for _, v in ipairs( source ) do

@@ -115,8 +115,9 @@ end
     Ret1: number - Absolute bearing of the enemy to me.
 --]]------------------------------------
 function ENT:enemyBearingToMeAbs( enemy )
-    local enemy = enemy or self:GetEnemy()
+    enemy = enemy or self:GetEnemy()
     if not IsValid( enemy ) then return 0 end
+
     local myPos = self:GetPos()
     local enemyPos = enemy:GetPos()
     local enemyAngle = enemy:EyeAngles()
@@ -132,8 +133,9 @@ end
     Ret1: number - Absolute pitch of the enemy to me.
 --]]------------------------------------
 function ENT:enemyPitchToMeAbs( enemy )
-    local enemy = enemy or self:GetEnemy()
+    enemy = enemy or self:GetEnemy()
     if not IsValid( enemy ) then return 0 end
+
     local myPos = self:GetPos()
     local enemyPos = enemy:GetPos()
     local enemyAngle = enemy:EyeAngles()
@@ -240,258 +242,289 @@ do
     end
 end
 
--- if alpha is below this, start the seeing calcs
-local maxSeen = 150
+do
+    local bearingToPos = terminator_Extras.BearingToPos
+    local math_abs = math.abs
 
--- massive savings with lots of enemies
-local function cacheShouldNotSee( ent, seen )
-    ent.term_CachedShouldNotSee = seen
-    timer.Simple( 0.02, function()
-        if not IsValid( ent ) then return end
-        ent.term_CachedShouldNotSee = nil
+    --[[------------------------------------
+        Name: ENT:PosIsInFov
+        Desc: Is this position inside our view cone?
+            Only the left/right bearing counts, how far above or below us it sits doesn't.
+        Arg1: Angle | myAng | Angles to look from. nil for self:GetEyeAngles()
+        Arg2: Vector | myPos | Position to look from. nil for self:GetPos()
+        Arg3: Vector | checkPos | Position to test.
+        Arg4: number | fov | Degrees to either side of our aim, NOT the whole cone. nil for self.Term_FOV, which defaults to 95. 180 or more sees everything.
+        Ret1: bool | Is checkPos inside the cone?
+    --]]------------------------------------
+    local function PosIsInFov( self, myAng, myPos, checkPos, fov )
+        fov = fov or self.Term_FOV
+        if not fov or fov >= 180 then return true end
 
-    end )
-    return seen
-
-end
-
-local function shouldNotSeeEnemy( me, enemy ) -- return true to block seeing, false to see
-    if enemy.term_CachedShouldNotSee then
-        return enemy.term_CachedShouldNotSee
-
-    end
-    if not enemy.GetColor then return end
-
-    local color = enemy:GetColor()
-    local a = color.a
-    if not a then cacheShouldNotSee( enemy, false ) return end
-    if a >= maxSeen then cacheShouldNotSee( enemy, false ) return end -- dont waste any more performance
-    if enemy:IsOnFire() then cacheShouldNotSee( enemy, false ) return end -- they are visible!
-    if isPlayer( enemy ) then
-        if enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
-        if IsValid( enemy:GetEntityInUse() ) then cacheShouldNotSee( enemy, false ) return end -- damn hows that thing floating???
+        myAng = myAng or self:GetEyeAngles()
+        myPos = myPos or self:GetPos()
+        -- this is dumb
+        local fovInverse = bearingToPos( myPos, myAng, checkPos, myAng )
+        return ( math_abs( fovInverse ) - 180 ) > -fov
 
     end
+    ENT.PosIsInFov = PosIsInFov
 
-    -- seen threshold
-    -- if alpha is 125, seen is 25, if 50, seen is 100
-    -- the more transparent, the more likely random nums are gonna fall under this threshold
-    -- bigger seen means harder to see
-    local seen = math.abs( a - maxSeen )
-    local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )
 
-    local weapBite = 0
-    local weap = nil
-    if enemy.GetActiveWeapon then
-        weap = enemy:GetActiveWeapon()
+    --[[------------------------------------
+        Name: ENT:IsInMyFov
+        Desc: Is this entity's origin inside our view cone? Looks from our eyes, at their feet.
+        Arg1: Entity | ent | Entity to test.
+        Arg2: number | fov | Degrees to either side of our aim, NOT the whole cone. nil for self.Term_FOV.
+        Ret1: bool | Is the entity inside the cone?
+    --]]------------------------------------
+    local function IsInMyFov( self, ent, fov )
+        fov = fov or self.Term_FOV
+        if not fov or fov >= 180 then return true end
 
-    end
-
-    -- weapon in hand, bump
-    if weap and weap.GetHoldType and weap:GetHoldType() ~= "normal" then
-        weapBite = 80
+        return PosIsInFov( self, nil, self:GetPos(), ent:GetPos(), fov )
 
     end
+    ENT.IsInMyFov = IsInMyFov
 
-    -- flashlight is on, bump
-    if enemy:FlashlightIsOn() or enemy.glee_Thirdperson_Flashlight then
-        weapBite = weapBite + 80
+
+    -- massive savings with lots of enemies ( like, 40+ enemies )
+    local function cacheShouldNotSee( ent, seen )
+        ent.term_CachedShouldNotSee = seen
+        timer.Simple( 0.02, function()
+            if not IsValid( ent ) then return end
+            ent.term_CachedShouldNotSee = nil
+
+        end )
+        return seen
 
     end
 
-    local getEnemyResult = me:GetEnemy()
-    local isAnOldEnemy = getEnemyResult == enemy
-    local oldEnemyThatISee = isAnOldEnemy and me.IsSeeEnemy
 
-    local investigateRadius = nil
+    -- if alpha is below this, start the seeing calcs
+    local maxSeen = 150
 
-    local trulyInvisible = a < 15
-    local randomSeed = math.random( 0, maxSeen ) + weapBite
+    -- handles transparent enemy seeing ( and not seeing )
+    local function shouldNotSeeEnemy( me, enemy )
+        if enemy.term_CachedShouldNotSee then
+            return enemy.term_CachedShouldNotSee
 
-    -- i see enemy, make the chance of losing them really small
-    local obviousEnemy = oldEnemyThatISee and randomSeed > seen * 0.01
+        end
+        if not enemy.GetColor then return end
 
-    -- seen
-    if obviousEnemy then cacheShouldNotSee( enemy, false ) return end
-
-    local heardBump = 0
-
-    -- if we can hear and the enemy just made sound, bump
-    local lastEmit = enemy.term_LastSoundEmit
-    if me.CanHearStuff and lastEmit and lastEmit.time < CurTime() + 1 then
-        local sndDist = lastEmit.range
-        local sndDistSqr = sndDist^2
-
-        investigateRadius = 500 - sndDist -- the louder, the closer the hint gets to target
-
-        if sndDistSqr > enemDistSqr then
-            heardBump = 20 + sndDist / 150
+        local color = enemy:GetColor()
+        local a = color.a
+        if not a then cacheShouldNotSee( enemy, false ) return end
+        if a >= maxSeen then cacheShouldNotSee( enemy, false ) return end -- dont waste any more performance
+        if enemy:IsOnFire() then cacheShouldNotSee( enemy, false ) return end -- they are visible!
+        if isPlayer( enemy ) then
+            if enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
+            if IsValid( enemy:GetEntityInUse() ) then cacheShouldNotSee( enemy, false ) return end -- damn hows that thing floating???
 
         end
 
-    end
+        -- seen threshold
+        -- if alpha is 125, seen is 25, if 50, seen is 100
+        -- the more transparent, the more likely random nums are gonna fall under this threshold
+        -- bigger seen means harder to see
+        local seen = math.abs( a - maxSeen )
+        local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )
 
-    local seedIsGreater = ( math.random( 0, maxSeen ) + heardBump ) > seen * 0.9
+        local weapBite = 0
+        local weap = nil
+        if enemy.GetActiveWeapon then
+            weap = enemy:GetActiveWeapon()
 
-    local investigateNearby = enemDistSqr < 3000^2 and seedIsGreater
+        end
 
-    if investigateNearby then
-        investigateRadius = investigateRadius or 500
+        -- weapon in hand, bump
+        if weap and weap.GetHoldType and weap:GetHoldType() ~= "normal" then
+            weapBite = 80
 
-        local randNoZ = VectorRand()
-        randNoZ.z = 0
+        end
 
-        local potentialPos = enemy:GetPos() + ( randNoZ * investigateRadius )
+        -- flashlight is on, bump
+        if enemy:FlashlightIsOn() or enemy.glee_Thirdperson_Flashlight then
+            weapBite = weapBite + 80
 
-        if terminator_Extras.PosCanSee( enemy:GetShootPos(), potentialPos ) then
-            me:UpdateEnemyMemory( enemy, potentialPos )
-            me.EnemyLastPos = potentialPos
-            me.EnemyLastHint = potentialPos
+        end
+
+        local getEnemyResult = me:GetEnemy()
+        local isAnOldEnemy = getEnemyResult == enemy
+        local oldEnemyThatISee = isAnOldEnemy and me.IsSeeEnemy
+
+        local investigateRadius = nil
+
+        local trulyInvisible = a < 15
+        local randomSeed = math.random( 0, maxSeen ) + weapBite
+
+        -- i see enemy, make the chance of losing them really small
+        local obviousEnemy = oldEnemyThatISee and randomSeed > seen * 0.01
+
+        -- seen
+        if obviousEnemy then cacheShouldNotSee( enemy, false ) return end
+
+        local heardBump = 0
+
+        -- if we can hear and the enemy just made sound, bump
+        local lastEmit = enemy.term_LastSoundEmit
+        if me.CanHearStuff and lastEmit and lastEmit.time < CurTime() + 1 then
+            local sndDist = lastEmit.range
+            local sndDistSqr = sndDist^2
+
+            investigateRadius = 500 - sndDist -- the louder, the closer the hint gets to target
+
+            if sndDistSqr > enemDistSqr then
+                heardBump = 20 + sndDist / 150
+
+            end
+
+        end
+
+        local seedIsGreater = ( math.random( 0, maxSeen ) + heardBump ) > seen * 0.9
+
+        local investigateNearby = enemDistSqr < 3000^2 and seedIsGreater
+
+        if investigateNearby then
+            investigateRadius = investigateRadius or 500
+
+            local randNoZ = VectorRand()
+            randNoZ.z = 0
+
+            local potentialPos = enemy:GetPos() + ( randNoZ * investigateRadius )
+
+            if terminator_Extras.PosCanSee( enemy:GetShootPos(), potentialPos ) then
+                me:UpdateEnemyMemory( enemy, potentialPos )
+                me.EnemyLastPos = potentialPos
+                me.EnemyLastHint = potentialPos
+
+            end
+        end
+
+        -- REALLY close, see
+        if enemDistSqr < 100^2 then
+            return cacheShouldNotSee( enemy, false )
+
+        -- NOT visible
+        elseif randomSeed < seen or trulyInvisible then
+            return cacheShouldNotSee( enemy, true )
+
+        -- failed seen check, visible
+        else
+            return cacheShouldNotSee( enemy, false )
 
         end
     end
 
-    -- REALLY close, see
-    if enemDistSqr < 100^2 then
-        return cacheShouldNotSee( enemy, false )
+    local FL_NOTARGET = FL_NOTARGET
+    local FL_OBJECT = FL_OBJECT
 
-    -- NOT visible
-    elseif randomSeed < seen or trulyInvisible then
-        return cacheShouldNotSee( enemy, true )
+    --[[------------------------------------
+        Name: ENT:ShouldBeEnemy
+        Desc: Is this entity worth fighting? Most ents never make it past the first few checks.
+            Addons can veto any target with the terminator_blocktarget hook.
+        Arg1: Entity | ent | Entity to judge.
+        Arg2: number | fov | Our Term_FOV. Ents outside it are ignored, unless they're within 200 units.
+        Arg3: table | myTbl | Optimisation, entMeta.GetTable( self )
+        Arg4: table | entsTbl | Optimisation, entMeta.GetTable( ent )
+        Ret1: bool | Should we treat this entity as an enemy?
+    --]]------------------------------------
+    function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
+        if notEnemyCache[ent] then return false end
 
-    -- failed seen check, visible
-    else
-        return cacheShouldNotSee( enemy, false )
-
-    end
-end
-
-local bearingToPos = terminator_Extras.BearingToPos
-local math_abs = math.abs
-
-local function PosIsInFov( self, myAng, myPos, checkPos, fov )
-    fov = fov or self.Term_FOV
-    if not fov or fov >= 180 then return true end
-
-    myAng = myAng or self:GetEyeAngles()
-    myPos = myPos or self:GetPos()
-    -- this is dumb
-    local fovInverse = bearingToPos( myPos, myAng, checkPos, myAng )
-    return ( math_abs( fovInverse ) - 180 ) > -fov
-
-end
-
-ENT.PosIsInFov = PosIsInFov
-
-local function IsInMyFov( self, ent, fov )
-    fov = fov or self.Term_FOV
-    if not fov or fov >= 180 then return true end
-
-    return PosIsInFov( self, nil, self:GetPos(), ent:GetPos() )
-
-end
-
-ENT.IsInMyFov = IsInMyFov
-
-local FL_NOTARGET = FL_NOTARGET
-local FL_OBJECT = FL_OBJECT
-
-function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
-    if notEnemyCache[ent] then return false end
-
-    if IsFlagSet( ent, FL_NOTARGET ) then
-        return false
-
-    end
-    local isObject = IsFlagSet( ent, FL_OBJECT )
-    local isPly = isPlayer( ent )
-
-    local killer
-    local krangledKiller
-    local class
-
-    if not ent.isTerminatorHunterKiller then
-        -- the normal logic
-
-        local interesting = isPly or isNextbotEnt( ent ) or isNpcEnt( ent )
-        if not isObject and not interesting then
-            notEnemyCache[ent] = true
+        if IsFlagSet( ent, FL_NOTARGET ) then
             return false
 
         end
-    else
-        -- the rare logic
+        local isObject = IsFlagSet( ent, FL_OBJECT )
+        local isPly = isPlayer( ent )
 
-        -- if an ent has killed terminators
-        -- we do more thorough checks on it!
-        -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-        class = entMeta.GetClass( ent )
-        if not ( isPly or isNextbotEnt( ent ) or isNpcEnt( ent ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) or pals( self, ent ) then
+        local killer
+        local krangledKiller
+        local class
+
+        if not ent.isTerminatorHunterKiller then
+            -- the normal logic
+
+            local interesting = isPly or isNextbotEnt( ent ) or isNpcEnt( ent )
+            if not isObject and not interesting then
+                notEnemyCache[ent] = true
+                return false
+
+            end
+        else
+            -- the rare logic
+
+            -- if an ent has killed terminators
+            -- we do more thorough checks on it!
+            -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
+            class = entMeta.GetClass( ent )
+            if not ( isPly or isNextbotEnt( ent ) or isNpcEnt( ent ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) or pals( self, ent ) then
+                return false
+
+            end
+            krangledKiller = true
+
+        end
+        -- most ents never get past this point!
+
+        entsTbl = entsTbl or entMeta.GetTable( ent )
+        myTbl = myTbl or entMeta.GetTable( self )
+
+        if isPly and myTbl.IgnoringPlayers( self ) then
             return false
 
         end
-        krangledKiller = true
 
-    end
-    -- most ents never get past this point!
+        if not class then
+            class = entMeta.GetClass( ent )
 
-    entsTbl = entsTbl or entMeta.GetTable( ent )
-    myTbl = myTbl or entMeta.GetTable( self )
+        end
 
-    if isPly and myTbl.IgnoringPlayers( self ) then
-        return false
+        if class == "rpg_missile" then return false end
+        if class == "env_flare" then return false end
 
-    end
+        local isDeadNPC = isNpcEnt( ent, class ) and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and entMeta.GetInternalVariable( ent, "m_takedamage" ) == 0 )
 
-    if not class then
-        class = entMeta.GetClass( ent )
+        if not entsTbl.TerminatorNextBot and isDeadNPC then return false end
+        if ( entsTbl.TerminatorNextBot or not isNpcEnt( ent, class ) ) and entMeta.Health( ent ) <= 0 then return false end
 
-    end
+        local killerNotChummy = killer and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
+        local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
+        local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.TERM_GetRelationship( self, myTbl, ent ) == D_HT or krangledKiller or killerNotChummy
+        if not knowsItsAnEnemy then return false end
 
-    if class == "rpg_missile" then return false end
-    if class == "env_flare" then return false end
+        if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
 
-    local isDeadNPC = isNpcEnt( ent, class ) and ( ent:GetNPCState() == NPC_STATE_DEAD or class == "npc_barnacle" and entMeta.GetInternalVariable( ent, "m_takedamage" ) == 0 )
+        local inFov = IsInMyFov( self, ent, fov or myTbl.Term_FOV )
+        local rangeTo = self:GetRangeTo( ent )
 
-    if not entsTbl.TerminatorNextBot and isDeadNPC then return false end
-    if ( entsTbl.TerminatorNextBot or not isNpcEnt( ent, class ) ) and entMeta.Health( ent ) <= 0 then return false end
+        local maxSeeingDist = myTbl.MaxSeeEnemyDistance
 
-    local killerNotChummy = killer and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
-    local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
-    local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.TERM_GetRelationship( self, myTbl, ent ) == D_HT or krangledKiller or killerNotChummy
-    if not knowsItsAnEnemy then return false end
+        if not inFov and rangeTo > 200 then return false end -- ignore fov if really close
 
-    if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
+        if isPly then -- ignore maxSeeingDist for plys
+            if isBeyondFog( nil, rangeTo ) then -- but dont ignore fog 
+                return false
 
-    local inFov = IsInMyFov( self, ent, fov )
-    local rangeTo = self:GetRangeTo( ent )
-
-    local maxSeeingDist = myTbl.MaxSeeEnemyDistance
-
-    if not inFov and rangeTo > 200 then return false end -- ignore fov if really close
-
-    if isPly then -- ignore maxSeeingDist for plys
-        if isBeyondFog( nil, rangeTo ) then -- but dont ignore fog 
+            end
+        elseif rangeTo > maxSeeingDist then
             return false
 
         end
-    elseif rangeTo > maxSeeingDist then
-        return false
+
+        -- if player then, if they are transparent, randomly don't see them, unless we already saw them.
+        if isPly and shouldNotSeeEnemy( self, ent ) then return false end
+
+        local noHealthChangeCount = entsTbl.term_NoHealthChangeCount
+        if myTbl.JudgesEnemies and noHealthChangeCount then
+            local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 100 + ( entMeta.GetCreationID( self ) % 100 ) )
+            if weirdUnkillable then return false end
+
+        end
+
+        return true
 
     end
-
-    -- if player then, if they are transparent, randomly don't see them, unless we already saw them.
-    if isPly and shouldNotSeeEnemy( self, ent ) then return false end
-
-    local noHealthChangeCount = entsTbl.term_NoHealthChangeCount
-    if myTbl.JudgesEnemies and noHealthChangeCount then
-        local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 100 + ( entMeta.GetCreationID( self ) % 100 ) )
-        if weirdUnkillable then return false end
-
-    end
-
-    return true
-
 end
 
 --[[------------------------------------
@@ -643,19 +676,40 @@ function ENT:ForgetOldEnemies( myTbl )
 end
 
 do
-    local Either = Either
-
+    --[[------------------------------------
+        Name: ENT:FindPriorityEnemy
+        Desc: Picks the best enemy out of everything the bot remembers.
+            If any visible enemy is within CloseEnemyDistance, the nearest one wins and priority stops mattering.
+            Otherwise highest relationship priority wins, ties broken by nearest.
+            If it can't see any of them, falls back to the nearest last-known position.
+        Arg1: table | myTbl | Optimisation, self:GetTable()
+        Ret1: Entity | Best enemy, or NULL if there are none.
+    --]]------------------------------------
     function ENT:FindPriorityEnemy( myTbl )
         myTbl = myTbl or self:GetTable()
         local notsee = {}
-        local enemy, bestRange, priority
-        local ignorePriority = false
         local myFov = myTbl.Term_FOV
         local closeEnemDistSqr = myTbl.CloseEnemyDistance^2
 
-        for curr, _ in pairs( myTbl.m_EnemiesMemory ) do
+        local nearest, nearestRange
+        local bestPr, bestPrPriority, bestPrRange
+        local anyClose = false
+
+        -- ShouldBeEnemy runs 3rd party code that can reach UpdateEnemyMemory,
+        -- adding NEW keys to m_EnemiesMemory. adding keys mid pairs() is undefined
+        -- https://www.lua.org/manual/5.1/manual.html#pdf-next
+        -- so snapshot the keys, then do the callback-y stuff outside the traversal
+        local memories = myTbl.m_EnemiesMemory
+        local plsCheck = {}
+        for ent in pairs( memories ) do
+            plsCheck[#plsCheck + 1] = ent
+
+        end
+
+        for _, curr in ipairs( plsCheck ) do
+            if not memories[curr] then continue end -- a hook forgot it while we worked
             if not IsValid( curr ) then continue end
-            local entsTbl = curr:GetTable()
+            local entsTbl = entMeta.GetTable( curr )
             if not myTbl.ShouldBeEnemy( self, curr, myFov, myTbl, entsTbl ) then continue end
 
             if not myTbl.CanSeePosition( self, curr, myTbl, entsTbl ) then
@@ -664,22 +718,36 @@ do
             end
 
             local rang = self:GetRangeSquaredTo( curr )
-            if not rang then continue end -- ???????
             local _, pr = myTbl.TERM_GetRelationship( self, myTbl, curr )
 
-            if not ignorePriority and rang <= closeEnemDistSqr then
-                -- too close, we now ignore priority for all enemies, focus on proximity
-                ignorePriority = true
+            if rang <= closeEnemDistSqr then
+                anyClose = true
 
             end
-            if not enemy or Either( ignorePriority, rang < bestRange, Either( pr == priority, rang < bestRange, pr > priority ) ) then
-                enemy, bestRange, priority = curr, rang, pr
+
+            if not nearest or rang < nearestRange then
+                nearest, nearestRange = curr, rang
+
+            end
+            if not bestPr or pr > bestPrPriority or ( pr == bestPrPriority and rang < bestPrRange ) then
+                bestPr, bestPrPriority, bestPrRange = curr, pr, rang
 
             end
         end
 
+        -- one enemy close enough and we stop caring about priority, for all of them
+        local enemy
+        if anyClose then
+            enemy = nearest
+
+        else
+            enemy = bestPr
+
+        end
+
         if not enemy then
             -- we dont see any enemy, but we know last position
+            local bestRange
 
             for _, curr in ipairs( notsee ) do
                 local lastPos = self:GetLastEnemyPosition( curr )
@@ -749,6 +817,15 @@ do
     end
 end
 
+--[[------------------------------------
+    Name: ENT:SetupEntityRelationship
+    Desc: Sets our disposition toward ent right now, then next tick sets the reciprocal,
+        how ent feels about us, giving ent a tick to finish spawning first.
+    Arg1: table | myTbl | Optimisation, entMeta.GetTable( self )
+    Arg2: Entity | ent | Entity to set up a relationship with.
+    Arg3: table | entsTbl | Optimisation, entMeta.GetTable( ent )
+    Ret1:
+--]]------------------------------------
 function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
     if notEnemyCache[ent] then return end
     local disp, priority, theirDisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl, true )
@@ -758,8 +835,7 @@ function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
         if not IsValid( self ) then return end
         --print( ent, "has relation with", self, theirDisp )
 
-        if entsTbl.TerminatorNextBot then
-            myTbl.Term_SetEntityRelationship( self, ent, theirDisp, nil )
+        if entsTbl.TerminatorNextBot then -- they definitely setup with us already
             return
 
         end
@@ -770,6 +846,23 @@ function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
     end )
 end
 
+--[[------------------------------------
+    Name: ENT:GetDesiredEnemyRelationship
+    Desc: Works out how we should feel about an entity, and how it should feel about us.
+        term_HardCodedRelations wins outright.
+        Then: isTerminatorHunterChummy teammates like each other.
+        other chummy factions hate us.
+        players are hated at high priority.
+        npcs/non-term nextbots are treated as D_NU until they harm us.
+        everything else is hated.
+    Arg1: table | myTbl | Optimisation, entMeta.GetTable( self )
+    Arg2: Entity | ent | Entity to judge.
+    Arg3: table | entsTbl | Optimisation, entMeta.GetTable( ent )
+    Arg4: bool | isFirst | First time setting up this player? Lets OnFirstRelationWithPlayer adjust the disposition, used for boss hp scaling.
+    Ret1: number | Our disposition toward ent. D_* enum.
+    Ret2: number | Priority of that disposition.
+    Ret3: number | The disposition ent should have toward us. D_* enum.
+--]]------------------------------------
 function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
     local disp
     local theirDisp
@@ -824,6 +917,8 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
 
         else
             -- what usually happens, npc is flagged as boring
+            -- we will then hate them via MakeFeud if they manage to damage us
+            -- makes bot ignore npc_seagull but hate eg, zombies, without a big hardcoded table
             disp = D_NU
             --print("boringent" )
             priority = priority + 100
@@ -879,19 +974,23 @@ function ENT:SetupRelationships( myTbl )
     end )
 end
 
-function ENT:IsManiacTerm()
+function ENT:IsManiacTerm() -- (very) rare infighting
     if self.neverManiac then return end
     if self.term_BecameManiac then return true end
 
     local maniacHunter = self.alwaysManiac
-    if isfunction( maniacHunter ) then -- script infighting
+     -- script infighting
+    if isfunction( maniacHunter ) then
         maniacHunter = maniacHunter( self )
     end
-    if not maniacHunter and not blockRandomInfighting:GetBool() and ( not terminator_Extras.nextManaiacNPC or terminator_Extras.nextManaiacNPC < CurTime() ) then
-        terminator_Extras.nextManaiacNPC = CurTime() + math.Rand( 60, 60 * 4 ) -- not too often pls
-        maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- random infighting funny
+
+    -- this was much more common before, made astronomically rare now
+    if not maniacHunter and not blockRandomInfighting:GetBool() and ( not terminator_Extras.nextManiacNPC or terminator_Extras.nextManiacNPC < CurTime() ) then
+        terminator_Extras.nextManiacNPC = CurTime() + math.Rand( 60, 60 * 4 ) -- check between every 1-4 minutes
+        maniacHunter = ( self:GetCreationID() % 40 ) == 1 -- and a 1/40 chance chance per-bot
 
     end
+
     if maniacHunter then
         self.term_BecameManiac = maniacHunter -- condition was met, save result!
 
@@ -1070,8 +1169,17 @@ do
     local bottomPosVec = Vector( 0, 0, 0 )
     local resultTbl = {}
 
-    -- is there a big pit between us and enemy?
-    -- simple, cached check
+    --[[------------------------------------
+        Name: ENT:GetIsFlatGroundToEnemy
+        Desc: Is there ground under the point halfway to the enemy, or a drop we'd fall into?
+            Traces down one StepHeight from that single midpoint, so it only samples that one spot, not the whole path.
+            Cached per caller for 0.5s.
+            Cache persists if enemy changes, very lazy check.
+            NOTE: use CanMoveRightUpToEnemy instead for bots that might have children classes that can .Term_Leaps
+        Arg1: table | myTbl | Optimisation, entMeta.GetTable( self )
+        Arg2: Entity | enemy | Enemy to check. Defaults to the current enemy. Only read on a cache miss.
+        Ret1: bool | true if there's ground there, false if it's a drop. nil if the enemy is invalid.
+    --]]------------------------------------
     function ENT:GetIsFlatGroundToEnemy( myTbl, enemy )
         local nextCache = myTbl.term_NextWasFlatToEnemyCache
 
@@ -1115,6 +1223,14 @@ do
 
     end
 
+    --[[------------------------------------
+        Name: ENT:CanMoveRightUpToEnemy
+        Desc: Can we walk straight at the enemy without falling into a drop?
+            Made for deciding whether to start GotoPosSimple (ing) towards an enemy
+            Leaping enemies will simply jump over the gap
+        Arg1: Entity | enemy | Enemy to check. Defaults to the current enemy.
+        Ret1: bool | true if we can, false if there's a drop in the way.
+    --]]------------------------------------
     function ENT:CanMoveRightUpToEnemy( enemy )
         local myTbl = entMeta.GetTable( self )
         if myTbl.Term_Leaps then return true end
@@ -1134,137 +1250,228 @@ do
     local PosCanSeeComplex = terminator_Extras.PosCanSeeComplex
     local vecUp25 = Vector( 0, 0, 25 )
 
+    --[[------------------------------------
+        Name: ENT:AnotherHunterIsHeadingToEnemy
+        Desc: Is one of our teammates sneaking up on our enemy from a different angle?
+            Made for deciding to hang back and bait, while the ally lands the surprise.
+            Only counts allies who can't see the enemy yet (still sneaky), are pathing near them,
+            are coming in from a different direction than us, and whose path end can actually see them.
+        Ret1: bool | true if someone's flanking our enemy. nil if not, or we have no enemy.
+    --]]------------------------------------
     function ENT:AnotherHunterIsHeadingToEnemy()
         local myEnemy = self:GetEnemy()
         if not IsValid( myEnemy ) then return end
 
         local enemysPos = myEnemy:GetPos()
         local enemysShootPos = self:EntShootPos( myEnemy )
-
-        local otherHunters = ents.FindByClass( "terminator_nextbot*" )
-        table.Shuffle( otherHunters )
-
         local myDirToEnemy = dirToPos( self:GetPos(), enemysPos )
 
-        for _, hunter in ipairs( otherHunters ) do
-            if hunter ~= self and pals( self, hunter ) and hunter:PathIsValid() then
-                -- its not being sneaky!
-                if hunter.IsSeeEnemy then continue end
+        local otherHunters = self:GetNearbyAllies()
 
-                local path = hunter:GetPath()
-                local pathEnd = path:GetEnd()
-                local moveSpeed = hunter.MoveSpeed
-                local distNeeded = moveSpeed * 6
+        for _, hunter in RandomPairs( otherHunters ) do
+            if not IsValid( hunter ) then continue end
+            -- its not heading anywhere!
+            if not hunter:PathIsValid() then continue end
 
-                local pathEndDistToEnemy = pathEnd:DistToSqr( enemysPos )
-                -- way too far to be going to enemy
-                if pathEndDistToEnemy > distNeeded^2 then continue end
+            -- its not being sneaky!
+            if hunter.IsSeeEnemy then continue end
 
-                -- is it coming in from another direction, or is it just going straight to enemy
-                local dirDifference = ( myDirToEnemy - dirToPos( pathEnd, enemysPos ) ):Length()
-                if dirDifference < 0.25 and pathEndDistToEnemy > moveSpeed^2 then continue end
+            local path = hunter:GetPath()
+            local pathEnd = path:GetEnd()
+            local moveSpeed = hunter.MoveSpeed
+            local distNeeded = moveSpeed * 6
 
-                -- finally
-                if not PosCanSeeComplex( pathEnd + vecUp25, enemysShootPos, { myEnemy } ) then continue end
+            local pathEndDistToEnemy = pathEnd:DistToSqr( enemysPos )
+            -- way too far to be going to enemy
+            if pathEndDistToEnemy > distNeeded^2 then continue end
 
-                return true
+            -- is it coming in from another direction, or is it just going straight to enemy
+            -- both dirs are unit vectors, so a difference under 0.25 is roughly 14 degrees apart
+            local dirDifference = ( myDirToEnemy - dirToPos( pathEnd, enemysPos ) ):Length()
+            if dirDifference < 0.25 and pathEndDistToEnemy > moveSpeed^2 then continue end
 
-            end
-        end
-    end
-end
+            -- finally
+            if not PosCanSeeComplex( pathEnd + vecUp25, enemysShootPos, { myEnemy } ) then continue end
 
-function ENT:GetOtherHuntersProbableEntrance()
-    local otherHunters = ents.FindByClass( "terminator_nextbot*" )
-    table.Shuffle( otherHunters )
-
-    -- find a long path
-    for _, hunter in ipairs( otherHunters ) do
-        if hunter ~= self and pals( self, hunter ) and hunter:PathIsValid() and hunter:GetPath():GetLength() > 750 then
-            return hunter:GetPathHalfwayPoint()
+            return true
 
         end
     end
-    -- no other long paths! just avoid the other guys if we can
-    for _, hunter in ipairs( otherHunters ) do
-        if hunter ~= self and pals( self, hunter ) then
-            if hunter.IsSeeEnemy and IsValid( hunter:GetEnemy() ) then
-                -- between hunter and enemy
-                return ( hunter:GetPos() + hunter:GetEnemy():GetPos() ) / 2
-
-            else
-                return hunter:GetPos()
-
-            end
-        end
-    end
-end
-
-function ENT:SaveSoundHint( source, valuable, emitter, dangerous )
-    local soundHint = {}
-    soundHint.emitter = emitter
-    soundHint.source = source
-    soundHint.valuable = valuable
-    soundHint.dangerous = dangerous
-    soundHint.time = CurTime()
-
-    self.lastHeardSoundHint = soundHint
-
 end
 
 --[[------------------------------------
-    Name: ENT:validSoundHint
-    Desc: Is the last heard sound hint still worth chasing?
-        NOT a pure check. Every call tallies the emitter in heardThingCounts,
-        and an emitter that's distracted us too often gets ignored, clearing the hint.
-    Arg1:
-    Ret1: bool | true if the hint is worth following. false if the emitter is too noisy, nil if there's no hint, or a non-valuable one went stale.
+    Name: ENT:GetOtherHuntersProbableEntrance
+    Desc: A spot a teammate is probably coming from, so we can pick a different route and not clump up.
+        Prefers the halfway point of an ally's long path. Failing that, a point between an ally and their enemy, or just an ally's position.
+        Picks a random ally each call, so the answer jumps around between calls.
+    Ret1: Vector | A teammate's probable approach spot. nil if we have no teammates.
 --]]------------------------------------
-function ENT:validSoundHint()
-    local hint = self.lastHeardSoundHint
-    if not hint then return end
+function ENT:GetOtherHuntersProbableEntrance()
+    local otherHunters = self:GetNearbyAllies()
 
-    if not hint.valuable then
-        local since = CurTime() - hint.time
-        if since > 10 then return end
+    -- find a long path
+    for _, hunter in RandomPairs( otherHunters ) do
+        if not IsValid( hunter ) then continue end
+        if not hunter:PathIsValid() then continue end
+        if hunter:GetPath():GetLength() < 750 then continue end
+
+        return hunter:GetPathHalfwayPoint()
 
     end
+    -- no other long paths! just avoid the other guys if we can
+    for _, hunter in RandomPairs( otherHunters ) do
+        if not IsValid( hunter ) then continue end
+        if hunter.IsSeeEnemy and IsValid( hunter:GetEnemy() ) then
+            -- between hunter and enemy
+            return ( hunter:GetPos() + hunter:GetEnemy():GetPos() ) / 2
 
-    local emitter = hint.emitter
-    if IsValid( emitter ) then
-        local interesting = isPlayer( emitter ) or isNextbotOrNpcEnt( emitter )
-        if interesting then return true end
-
-        local id = emitter:GetCreationID()
-        local oldCount = self.heardThingCounts[ id ] or 0
-        self.heardThingCounts[ id ] = oldCount + 1
-
-        --print( emitter, oldCount )
-
-        timer.Simple( 120, function()
-            if not IsValid( self ) then return end
-            self.heardThingCounts[ id ] = self.heardThingCounts[ id ] + -1
-
-        end )
-
-        if oldCount > 8 then
-            self.lastHeardSoundHint = nil
-            return false
+        else
+            return hunter:GetPos()
 
         end
     end
-    return true
-
 end
 
+do
+    local debugging = GetConVar( "term_debughearing" ):GetBool()
+    cvars.AddChangeCallback( "term_debughearing", function( _name, _old, new )
+        debugging = tobool( new )
+
+    end )
+
+    local function hearingDebugPrint( ... )
+        if not debugging then return end
+        permaPrint( "debughearing: " .. ... )
+
+    end
+
+    -- bots tune out things that make noise constantly
+    -- scores decay, so they measure how often something makes noise
+    -- a one off noise scores 1, so it always gets investigated
+    local boredomHalfLife = 30
+    local boredomIgnoreStart = 3 -- quieter than this, always investigate
+    local boredomIgnoreAlways = 8 -- noisier than this, never investigate
+    local boredomWeight = 1 -- a normal, boring noise
+    local boredomValuableWeight = 0.25 -- gunshots and the like, barely habituate
+    local boredomForget = 0.1 -- drop records that decayed below this
+    local boredomPruneDelay = 60
+
+    local function decayedBoredom( rec, now )
+        return rec.score * 0.5 ^ ( ( now - rec.lastHeard ) / boredomHalfLife )
+
+    end
+
+    local function pruneBoredom( self, heardCounts, now )
+        if ( self.nextBoredomPrune or 0 ) > now then return end
+        self.nextBoredomPrune = now + boredomPruneDelay
+
+        for id, rec in pairs( heardCounts ) do
+            if decayedBoredom( rec, now ) < boredomForget then
+                heardCounts[id] = nil
+
+            end
+        end
+    end
+
+    --[[------------------------------------
+        Name: ENT:SaveSoundHint
+        Desc: Remembers a sound for the bot to go investigate, replacing the last one.
+            Emitters that make noise too often get tuned out, their sounds are dropped here.
+            Players/npcs/nextbots are always worth hearing, they never get tuned out.
+        Arg1: Vector | source | Where the sound came from.
+        Arg2: bool | valuable | Worth caring about? Never goes stale, and barely habituates.
+        Arg3: Entity | emitter | What made the sound. Optional, no emitter means no habituation.
+        Ret1:
+    --]]------------------------------------
+    function ENT:SaveSoundHint( source, valuable, emitter )
+        local now = CurTime()
+
+        if IsValid( emitter ) then
+            -- from someone on my team? ignore this sound
+            if pals( self, emitter ) then
+                return
+
+            -- not from a player or npc? ignore this emitter if its spamming sounds
+            elseif not ( isPlayer( emitter ) or isNextbotOrNpcEnt( emitter ) ) then
+                local heardCounts = self.heardThingCounts
+                local id = emitter:GetCreationID()
+
+                local rec = heardCounts[id]
+                if rec then
+                    rec.score = decayedBoredom( rec, now )
+
+                else
+                    rec = { score = 0 }
+                    heardCounts[id] = rec
+
+                end
+                rec.score = rec.score + ( valuable and boredomValuableWeight or boredomWeight )
+                rec.lastHeard = now
+
+                pruneBoredom( self, heardCounts, now )
+
+                local ignoreChance = ( rec.score - boredomIgnoreStart ) / ( boredomIgnoreAlways - boredomIgnoreStart )
+                if ignoreChance > 0 and math.random() < ignoreChance then return end
+
+            end
+        end
+
+        if debugging then -- only do string assembly if debugging
+            hearingDebugPrint( tostring( self ) .. " heard " .. tostring( emitter ) )
+            local color = Color( 200, 200, 200, 50 )
+            if valuable then
+                color:SetUnpacked( 0, 255, 0, 100 )
+
+            end
+            debugoverlay.Line( self:GetPos(), source, 5, color, true )
+
+        end
+
+        local soundHint = {}
+        soundHint.emitter = emitter
+        soundHint.source = source
+        soundHint.valuable = valuable
+        soundHint.time = now
+
+        self.lastHeardSoundHint = soundHint
+
+    end
+
+    --[[------------------------------------
+        Name: ENT:validSoundHint
+        Desc: Is the last heard sound hint still worth chasing?
+            Sounds from emitters we've tuned out never get stored, see SaveSoundHint.
+        Arg1:
+        Ret1: bool | true if the hint is worth following. false if there's no hint, or a non-valuable one went stale.
+    --]]------------------------------------
+    function ENT:validSoundHint()
+        local hint = self.lastHeardSoundHint
+        if not hint then return false end
+
+        if not hint.valuable and ( CurTime() - hint.time ) > 10 then return false end
+
+        return true
+
+    end
+end
+
+--[[------------------------------------
+    Name: ENT:RegisterForcedEnemyCheckPos
+    Desc: Remembers where an enemy was, keyed by their creation id, so movement_approachforcedcheckposition can go sweep those spots later.
+        returns early if bot doesn't have the movement_approachforcedcheckposition task
+        Fodder never bother.
+    Arg1: Entity | enemy | Enemy whose position to stash.
+    Ret1:
+--]]------------------------------------
 function ENT:RegisterForcedEnemyCheckPos( enemy )
     local myTbl = entMeta.GetTable( self )
-    if myTbl.IsFodder then return end
 
-    if not IsValid( enemy ) then return end
+    if myTbl.IsFodder then return end
 
     local checkPositions = myTbl.forcedCheckPositions
     if checkPositions == false then return end
+
+    if not IsValid( enemy ) then return end
 
     if not checkPositions then
         if not self:HasTask( "movement_approachforcedcheckposition" ) then
@@ -1278,7 +1485,7 @@ function ENT:RegisterForcedEnemyCheckPos( enemy )
         end
     end
 
-    checkPositions[ enemy:GetCreationID() ] = enemy:GetPos()
+    checkPositions[enemy:GetCreationID()] = enemy:GetPos()
 
 end
 
@@ -1364,6 +1571,13 @@ function ENT:HandleFakeCrouching( data, enemy )
     end
 end
 
+--[[------------------------------------
+    Name: ENT:GetNearbyAllies
+    Desc: Living bots on our team within InformRadius, excluding ourselves.
+        Returns a table cached for 2 seconds, don't mutate it, copy it first.
+        The bots in it are not revalidated, an ally can die within those 2 seconds, so IsValid them.
+    Ret1: table | Sequential list of ally entities. Empty if InformRadius is 0.
+--]]------------------------------------
 function ENT:GetNearbyAllies()
     local cache = self.term_NearbyAlliesCache
     if cache then return cache end
@@ -1372,17 +1586,27 @@ function ENT:GetNearbyAllies()
 
     local allies = {}
     local informRad = myTbl.InformRadius
-    if informRad <= 0 then return allies end
 
-    local myPos = self:GetPos()
-    local classNameStart = string.match( self:GetClass(), "^(.-)_" ) -- terminator_nextbot_slower becomes terminator_nextbot, etc
-    for _, ent in ipairs( ents.FindByClass( classNameStart .. "*" ) ) do
-        if ent == self or not pals( self, ent ) or myPos:DistToSqr( ent:GetPos() ) > informRad^2 then continue end
-        table.insert( allies, ent )
+    if informRad > 0 then
+        local myPos = self:GetPos()
+        -- first chunk of the class, terminator_nextbot_slower becomes terminator
+        -- for stuff based off this with stuff that doesnt start with terminator_
+        -- pals() does the real filtering, this only narrows the ents scan
+        local classNameStart = string.match( self:GetClass(), "^(.-)_" )
+        for _, ent in ipairs( ents.FindByClass( classNameStart .. "*" ) ) do
+            if ent == self or not pals( self, ent ) or myPos:DistToSqr( ent:GetPos() ) > informRad^2 then continue end
+            table.insert( allies, ent )
+
+        end
+    end
+
+    myTbl.term_NearbyAlliesCache = allies
+    local invalidateDelay = 2
+    if self.IsFodder then
+        invalidateDelay = 4
 
     end
-    myTbl.term_NearbyAlliesCache = allies
-    timer.Simple( 2, function()
+    timer.Simple( invalidateDelay, function()
         if not IsValid( self ) then return end
         myTbl.term_NearbyAlliesCache = nil
 
@@ -1394,6 +1618,9 @@ end
 -- ignore enemies that aren't taking damage!
 -- this is reset in damageandhealth when bots are damaged
 -- and when players respawn
+-- any damage snaps the count down to -1000, and every hit after that takes off another 100,
+-- there's no floor. it only climbs back 1 per judge, so the longer a fight goes,
+-- the longer a bot has to watch an enemy shrug off damage before it writes them off
 function ENT:JudgeEnemy( enemy )
     if not self.JudgesEnemies then return end
     local judgeableWeapon = self:IsFists()

@@ -535,7 +535,7 @@ function ENT:PostTookDamage( dmg )
         self:Anger( math.random( 5, 10 ) )
 
         for _, ally in ipairs( self:GetNearbyAllies() ) do
-            if not IsValid( ally ) then return end -- GetNearbyAllies is cached
+            if not IsValid( ally ) then continue end -- GetNearbyAllies is cached
             if ally:GetEnemy() ~= attacker then continue end
 
             local delay = math.Rand( 0.5, 1.5 )

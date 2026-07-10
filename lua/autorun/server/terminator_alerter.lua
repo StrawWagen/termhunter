@@ -6,6 +6,19 @@ local FL_NOTARGET = FL_NOTARGET
 local IsValid = IsValid
 local math = math
 
+local debuggingVar = CreateConVar( "term_debughearing", 0, FCVAR_NONE, "Enable debug prints and visualizers for terminator hearing system?", 0, 1 )
+local debugging = debuggingVar:GetBool()
+cvars.AddChangeCallback( "term_debughearing", function( _name, _old, new )
+    debugging = tobool( new )
+
+end )
+
+local function debugPrint( ... )
+    if not debugging then return end
+    permaPrint( "debughearing: " .. ... )
+
+end
+
 terminator_Extras = terminator_Extras or {}
 terminator_Extras.listeners = terminator_Extras.listeners or {}
 
@@ -14,6 +27,8 @@ local lastSoundLevels
 
 local function cleanupListenerTbl()
     if not listening then
+        debugPrint( "STARTING HEARING" )
+
         listening = true
         goodClassCache = {}
         lastSoundLevels = {}
@@ -29,6 +44,8 @@ local function cleanupListenerTbl()
     end
 
     if #listeners <= 0 then
+        debugPrint( "STOPPING HEARING" )
+
         listening = nil
         goodClassCache = nil
         lastSoundLevels = nil
@@ -108,9 +125,27 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     local listeners = terminator_Extras.listeners
     local pleaseCleanup
 
+    if debugging then
+        local color = Color( 150, 150, 150, 50 )
+        if valuable then
+            color:SetUnpacked( 150, 200, 0, 100 )
+            debugPrint( "Valuable sound from " .. tostring( thing ) )
+
+        end
+        local sphereSrc = src
+        if thing and thing:IsPlayer() then
+            sphereSrc = thing:GetPos() + thing:GetAimVector() * 10
+
+        end
+        debugoverlay.Cross( sphereSrc, range, 5, color, true )
+
+    end
+
     -- time to alert!
     for _, currTerm in ipairs( listeners ) do
         if thing == currTerm then continue end
+
+        if thing and not thing:Alive() then return end
 
         local termsTbl = entMeta.GetTable( currTerm )
         if not termsTbl then -- null ent
@@ -178,7 +213,7 @@ hook.Add( "PostEntityFireBullets", "termalerter_firebullets", function( entity, 
 
     end
 
-    local src = data.Src
+    local src = data.Trace.StartPos
     terminatorsSendSoundHint( entity, src, range, true )
 
 end )
@@ -206,6 +241,7 @@ hook.Add( "Term_SoundEmitHint", "termalerter_soundhint", function( hint, pos, vo
     local valuable = nil
     if owner and owner:IsPlayer() then
         valuable = true
+
     end
 
     terminatorsSendSoundHint( owner, pos, radius, valuable )

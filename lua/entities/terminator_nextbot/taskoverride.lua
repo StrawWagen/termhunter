@@ -94,6 +94,19 @@ function ENT:RunTask( event, ... )
     end
 end
 
+local printTasksCvar = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks? Also enables a task history dump on bot +use." )
+local printTasks = printTasksCvar:GetBool()
+cvars.AddChangeCallback( "term_debugtasks", function( _, _, newValue )
+    printTasks = tobool( newValue )
+    if not printTasks then
+        permaPrint( "Term task debugging disabled." )
+
+    elseif printTasks then
+        permaPrint( "Term task debugging enabled.\nNOTE: this enables some laggy debug trackers." )
+
+    end
+end, "TerminatorDebugTasks" )
+
 
 --[[------------------------------------
     Name: NEXTBOT:KillAllTasksWith
@@ -105,29 +118,25 @@ function ENT:KillAllTasksWith( withStr )
     local m_ActiveTasksNum = self.m_ActiveTasksNum
     if not m_ActiveTasksNum then return end
 
+    local count = 0
+
     for _, activeTaskDat in ipairs( m_ActiveTasksNum ) do
         if not activeTaskDat then break end
 
         local taskName = activeTaskDat[1]
         if string_find( taskName, withStr ) then
             self:TaskFail( taskName, "KillAllTasksWith" )
+            count = count + 1
 
         end
     end
+
+    if not printTasks then return end
+
+    permaPrint( self:EntIndex(), "KILLED " .. tostring( count ) .. " TASKS CONTAINING: " .. withStr )
+
 end
 
-local printTasksCvar = CreateConVar( "term_debugtasks", 0, FCVAR_NONE, "Debug terminator tasks? Also enables a task history dump on bot +use." )
-local printTasks = printTasksCvar:GetBool()
-cvars.AddChangeCallback( "term_debugtasks", function( _, _, newValue )
-    printTasks = tobool( newValue )
-    if not printTasks then
-        permaPrint( "Term task debugging disabled." )
-
-    else
-        permaPrint( "Term task debugging enabled." )
-
-    end
-end, "TerminatorDebugTasks" )
 
 --[[------------------------------------
     Name: NEXTBOT:HasTask

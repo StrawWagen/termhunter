@@ -69,6 +69,8 @@ end
 function SWEP:terminatorAimingFunc()
     local owner = self:GetOwner()
     local enemy = owner:GetEnemy()
+    if not IsValid( enemy ) then return end
+
     local myShootPos = owner:GetShootPos()
     local enemShootPos = owner:EntShootPos( enemy )
 
