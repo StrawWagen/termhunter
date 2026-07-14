@@ -17,19 +17,12 @@ ENT.Spawnable = false -- dont show up in entity spawn category
 ENT.Author = "Boomertaters"
 
 if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
-    list.Set( "NPC", "terminator_nextbot_crocketeer", {
-        Name = "Combine Rocketeer",
-        Class = "terminator_nextbot_crocketeer",
-        Category = "Terminator Nextbot",
+    terminator_Extras.RegisterNPC( "terminator_nextbot_crocketeer", ENT, {
         Weapons = { ENT.DefaultWeapon },
     } )
 end
 
-if CLIENT then
-    language.Add( "terminator_nextbot_crocketeer", ENT.PrintName )
-    return
-
-end
+if CLIENT then return end
 
 ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 4
 ENT.MaxPathingIterations = 2500

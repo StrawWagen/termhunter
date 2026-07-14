@@ -1192,7 +1192,11 @@ do
         myTbl.term_NextWasFlatToEnemyCache = CurTime() + 0.5
 
         enemy = enemy or self:GetEnemy()
-        if not IsValid( enemy ) then myTbl.term_CachedWasFlatGroundToEnemy = nil return end
+        if not IsValid( enemy ) then
+            myTbl.term_CachedWasFlatGroundToEnemy = true
+            return true
+
+        end
 
         local enemyPos = entMeta.GetPos( enemy )
         local myPos = entMeta.GetPos( self )

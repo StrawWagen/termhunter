@@ -3,21 +3,14 @@ AddCSLuaFile()
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Lore Accurate Terminator"
-list.Set( "NPC", "terminator_nextbot_loreaccurate", {
-    Name = ENT.PrintName,
-    Class = "terminator_nextbot_loreaccurate",
-    Category = "Terminator Nextbot",
+terminator_Extras.RegisterNPC( "terminator_nextbot_loreaccurate", ENT, {
     Weapons = { "weapon_terminatorfists_term" },
     AdminOnly = true,
 } )
 
 ENT.AdminOnly = true
 
-if CLIENT then
-    language.Add( "terminator_nextbot_loreaccurate", ENT.PrintName )
-    return
-
-end
+if CLIENT then return end
 
 ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh * 1.25 -- boss, think a bit faster than normal
 

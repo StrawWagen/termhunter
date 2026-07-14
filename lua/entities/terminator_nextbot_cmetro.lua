@@ -15,21 +15,14 @@ ENT.PrintName = "Metro-Police"
 ENT.Spawnable = false -- dont show up in entity spawn category
 
 if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
-    list.Set( "NPC", "terminator_nextbot_cmetro", {
-        Name = "Combine Metro-Police",
-        Class = "terminator_nextbot_cmetro",
-        Category = "Terminator Nextbot",
+    terminator_Extras.RegisterNPC( "terminator_nextbot_cmetro", ENT, {
         Weapons = ENT.DefaultWeapon,
     } )
 end
 
 ENT.PlayerColorVec = Vector( 0, 0, 0 ) -- used for player color
 
-if CLIENT then
-    language.Add( "terminator_nextbot_cmetro", ENT.PrintName )
-    return
-
-end
+if CLIENT then return end
 
 ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 15
 ENT.MaxPathingIterations = 2500

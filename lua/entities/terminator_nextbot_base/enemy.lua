@@ -98,25 +98,6 @@ function ENT:ClearEnemyMemory(enemy)
 end
 
 --[[------------------------------------
-	Name: NEXTBOT:FindEnemies
-	Desc: Finds all enemies that can be seen from bot position and updates memory.
-	Arg1: 
-	Ret1: 
---]]------------------------------------
-function ENT:FindEnemies()
-	local ShouldBeEnemy = self.ShouldBeEnemy
-	local CanSeePosition = self.CanSeePosition
-	local UpdateEnemyMemory = self.UpdateEnemyMemory
-	local EntShootPos = self.EntShootPos
-
-	for k,v in ents.Iterator() do
-		if v==self or !ShouldBeEnemy(self,v) or !CanSeePosition(self,v) then continue end
-		
-		UpdateEnemyMemory(self,v,EntShootPos(self,v))
-	end
-end
-
---[[------------------------------------
 	Name: NEXTBOT:GetKnownEnemies
 	Desc: Returns all entities that in bot's enemy memory.
 	Arg1: 

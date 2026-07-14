@@ -29,12 +29,10 @@ ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Combine Soldier"
 ENT.Spawnable = false -- dont show up in entity spawn category
+ENT.SubCategory = "Combine"
 
 if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
-    list.Set( "NPC", "terminator_nextbot_csoldier", {
-        Name = "Combine Soldier",
-        Class = "terminator_nextbot_csoldier",
-        Category = "Terminator Nextbot",
+    terminator_Extras.RegisterNPC( "terminator_nextbot_csoldier", ENT, {
         Weapons = ENT.DefaultWeapon,
     } )
 end
@@ -90,11 +88,7 @@ ENT.MySpecialActions = {
     },
 }
 
-if CLIENT then
-    language.Add( "terminator_nextbot_csoldier", ENT.PrintName )
-    return
-
-end
+if CLIENT then return end
 
 local function Distance2D( pos1, pos2 )
     local product = pos1 - pos2

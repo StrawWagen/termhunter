@@ -2690,11 +2690,11 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
                     end
 
                 elseif leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos and dist2d < myTbl.JumpHeight then
-                    doJumpTowards = true
+                    doJumpTowards = "towards1"
 
                 end
-            elseif not doJumpTowards and leaps and not myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy ) then
-                doJumpTowards = true
+            elseif leaps and not doJumpTowards and not myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy ) and myTbl.CanJumpToPos( self, myTbl, pos ) then
+                doJumpTowards = "towards2"
                 zToPos = zToPos + myTbl.JumpHeight
 
             end
@@ -3349,6 +3349,8 @@ function ENT:HandleInAir( myTbl )
 
             end
         end
+        self:RunTask( "NewWaterLevelWhileFalling", waterLevel, oldLevel )
+
     end
 end
 

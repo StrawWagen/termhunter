@@ -18,17 +18,13 @@ terminator_Extras.SetupAnalogWeight( SWEP )
 
 SWEP.PickupSound = "Grenade.ImpactSoft"
 SWEP.Range = 1800
-SWEP.MeleeWeaponDistance = SWEP.Range
 SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.worksWithoutSightline = true
 SWEP.PreOverrideClass = "weapon_frag"
 SWEP.MinForceMul = 1
 
-SWEP.SmackDamage = 10
-SWEP.SmackSwingSound = "Weapon_Crowbar.Single"
-SWEP.SmackHitSound = "Grenade.ImpactHard"
-SWEP.SmackDelay = 1
+SWEP.CanSmack = false
 
 function SWEP:CanPrimaryAttack()
     if self:GetNextPrimaryFire() > CurTime() then return false end

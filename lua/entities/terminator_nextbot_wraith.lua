@@ -7,19 +7,12 @@ ENT.PrintName = "Terminator Wraith"
 ENT.Author = "Broadcloth0"
 ENT.Spawnable = false
 
-list.Set( "NPC", "terminator_nextbot_wraith", {
-    Name = ENT.PrintName,
-    Class = "terminator_nextbot_wraith",
-    Category = "Terminator Nextbot",
+terminator_Extras.RegisterNPC( "terminator_nextbot_wraith", ENT, {
     Weapons = { "weapon_terminatorfists_term" },
 
 } )
 
-if CLIENT then
-    language.Add( "terminator_nextbot_wraith", ENT.PrintName )
-    return
-
-end
+if CLIENT then return end
 
 ENT.FistDamageMul = 1.565
 ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_VERY_GOOD

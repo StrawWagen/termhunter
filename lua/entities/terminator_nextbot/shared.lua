@@ -5,13 +5,10 @@ DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator Overcharged"
 ENT.Author = "StrawWagen"
 ENT.Purpose = "Run from this thing! OH GOD IT'S GOT A GUN!"
+ENT.Category = "Terminator Nextbot"
+ENT.SubCategory = "Terminators"
 
-list.Set( "NPC", "terminator_nextbot", {
-    Name = ENT.PrintName,
-    Class = "terminator_nextbot",
-    Category = "Terminator Nextbot",
-    Weapons = { "weapon_terminatorfists_term" },
-} )
+terminator_Extras.RegisterNPC( "terminator_nextbot", ENT, { Weapons = { "weapon_terminatorfists_term" } } )
 
 include( "sharedextras.lua" )
 
@@ -4093,9 +4090,9 @@ function ENT:DoDefaultTasks()
                 local myTbl = entMeta.GetTable( self )
                 local busy, busyFor = myTbl.IsBusyBuildingPath( self, myTbl )
                 if not busy then return end
-                if busyFor <= 4 then return end
+                if busyFor <= 3 then return end
 
-                data.nextBreak = cur + 15
+                data.nextBreak = cur + 8
 
                 myTbl.KillAllTasksWith( self, "movement" )
                 if self:HasTask( "movement_backthehellup" ) then

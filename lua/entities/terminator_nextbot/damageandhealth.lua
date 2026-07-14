@@ -867,6 +867,7 @@ function ENT:OnFirstRelationWithPlayer( ply ) -- for boss npcs, etc
 
 end
 
+
 local lungSize = 15
 
 function ENT:InitializeDrowning( myTbl )

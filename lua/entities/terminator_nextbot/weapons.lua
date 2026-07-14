@@ -235,12 +235,11 @@ end
     Ret1: Weapon | Parented weapon. If there's a lua analog for a class ( engine weapon, special case weapon ), creates and uses the analog. Returns nil if failed to setup.
 --]]------------------------------------
 function ENT:SetupWeapon( wep )
-
     if not IsValid( wep ) or wep == self:GetActiveWeapon() then return end
 
     local wepsClass = entMeta.GetClass( wep )
     -- Cannot hold engine weapons
-    if not wep:IsScripted() and not EngineAnalogs[ wepsClass ] then return end
+    if not wep:IsScripted() and not EngineAnalogs[wepsClass] then return end
 
     local myTbl = entMeta.GetTable( self )
 
@@ -263,8 +262,8 @@ function ENT:SetupWeapon( wep )
     self:SetActiveWeapon( wep )
 
     -- Custom lua weapon analog for engine weapon, this need to have WEAPON metatable
-    if EngineAnalogs[ wepsClass ] then
-        local actwep = ents.Create( EngineAnalogs[ wepsClass ] )
+    if EngineAnalogs[wepsClass] then
+        local actwep = ents.Create( EngineAnalogs[wepsClass] )
         actwep:SetOwner( self )
         actwep:SetParent( wep )
         actwep:Spawn()
@@ -330,7 +329,6 @@ function ENT:SetupWeapon( wep )
 
     -- setup fixes for specifc wep bases
     myTbl.DoWeaponHacks( self, wep )
-
     successful = ProtectedCall( function() actwep:OwnerChanged() end )
     myTbl.HateBuggyWeapon( self, wep, successful )
     successful = ProtectedCall( function() actwep:Equip( self ) end )

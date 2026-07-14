@@ -3,17 +3,11 @@ AddCSLuaFile()
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator Hard"
-list.Set( "NPC", "terminator_nextbot_slower", {
-    Name = ENT.PrintName,
-    Class = "terminator_nextbot_slower",
-    Category = "Terminator Nextbot",
+terminator_Extras.RegisterNPC( "terminator_nextbot_slower", ENT, {
     Weapons = { "weapon_terminatorfists_term" },
 } )
 
-if CLIENT then
-    language.Add( "terminator_nextbot_slower", ENT.PrintName )
-    return
-end
+if CLIENT then return end
 
 ENT.WalkSpeed = 130
 ENT.MoveSpeed = 250

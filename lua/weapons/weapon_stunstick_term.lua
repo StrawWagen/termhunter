@@ -17,8 +17,8 @@ SWEP.Weight = terminator_Extras.GoodWeight + -2
 terminator_Extras.SetupAnalogWeight( SWEP )
 
 SWEP.PickupSound = "weapons/stunstick/spark3.wav"
-SWEP.Range = 1800
-SWEP.MeleeWeaponDistance = SWEP.Range
+SWEP.ThrowRange = 1800
+SWEP.Range = SWEP.ThrowRange -- the actual value the ai uses
 SWEP.HoldType = "melee"
 SWEP.SpawningOffset = 50
 SWEP.ThrowForce = 25000

@@ -4,10 +4,8 @@ ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Paparazzi"
 ENT.Spawnable = false
-list.Set( "NPC", "terminator_nextbot_fakeply", {
-    Name = "Paparazzi",
-    Class = "terminator_nextbot_fakeply",
-    Category = "Terminator Nextbot",
+ENT.SubCategory = "Other"
+terminator_Extras.RegisterNPC( "terminator_nextbot_fakeply", ENT, {
     Weapons = {
         "gmod_camera",
         "gmod_camera",
@@ -31,11 +29,7 @@ list.Set( "NPC", "terminator_nextbot_fakeply", {
     },
 } )
 
-if CLIENT then
-    language.Add( "terminator_nextbot_fakeply", ENT.PrintName )
-    return
-
-end
+if CLIENT then return end
 
 ENT.DefaultWeapon = false
 ENT.TERM_FISTS = false

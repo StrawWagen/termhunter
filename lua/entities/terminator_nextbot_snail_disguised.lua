@@ -3,17 +3,11 @@ AddCSLuaFile()
 ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Terminator Doppelganger"
-list.Set( "NPC", "terminator_nextbot_snail_disguised", {
-    Name = ENT.PrintName,
-    Class = "terminator_nextbot_snail_disguised",
-    Category = "Terminator Nextbot",
+terminator_Extras.RegisterNPC( "terminator_nextbot_snail_disguised", ENT, {
     Weapons = { "weapon_terminatorfists_term" },
 } )
 
-if CLIENT then
-    language.Add( "terminator_nextbot_snail_disguised", ENT.PrintName )
-
-end
+if CLIENT then return end
 
 local isADoppelGanger
 

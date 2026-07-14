@@ -145,7 +145,7 @@ local function terminatorsSendSoundHint( thing, src, range, valuable )
     for _, currTerm in ipairs( listeners ) do
         if thing == currTerm then continue end
 
-        if thing and not thing:Alive() then return end
+        if IsValid( thing ) and not thing:Alive() then return end
 
         local termsTbl = entMeta.GetTable( currTerm )
         if not termsTbl then -- null ent

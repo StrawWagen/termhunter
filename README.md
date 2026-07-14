@@ -318,6 +318,10 @@ ENT.MyClassTask = {
     -- OnLandOnGround = function( self, data, groundEnt, fallHeight )
         -- Called when bot lands after falling/jumping
     -- end,
+
+    -- NewWaterLevelWhileFalling = function( self, data, newWaterLevel, oldWaterLevel )
+        -- Called when bot's WaterLevel changes, while it's in the air/falling
+    -- end,
     
     -- DealtGoobmaDamage = function( self, data, damage, fallHeight, dealt )
         -- Called when self.ReallyHeavy bots fall far,

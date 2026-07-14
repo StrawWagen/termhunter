@@ -110,14 +110,16 @@ SWEP.Secondary = {
 terminator_Extras.SetupAnalogWeight( SWEP )
 
 SWEP.PickupSound = "weapons/crowbar/crowbar_impact2.wav"
-SWEP.Range = 2200
-SWEP.MeleeWeaponDistance = SWEP.Range
+SWEP.ThrowRange = 2200
+SWEP.Range = SWEP.ThrowRange -- the actual value the ai uses
+SWEP.SpawningOffset = 50 -- also melee weapon range
+SWEP.MeleeWeaponDistance = SWEP.SpawningOffset
 SWEP.HoldType = "melee"
-SWEP.SpawningOffset = 50
 SWEP.ThrowForce = 28000
 SWEP.PreOverrideClass = "weapon_crowbar"
 SWEP.MinForceMul = 0
 
+SWEP.CanSmack = true
 SWEP.SmackDamage = 25
 SWEP.SmackSwingSound = "Weapon_Crowbar.Single"
 SWEP.SmackHitSound = "Weapon_Crowbar.Melee_HitWorld"
@@ -163,14 +165,30 @@ end
 function SWEP:PrimaryAttack()
     if not self:CanPrimaryAttack() then return end
 
-    local shouldThrow = terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID )
-    if shouldThrow then
+    local owner = self:GetOwner()
+    local strengthToThrow = owner.ThrowingForceMul and owner.ThrowingForceMul > 0.5
+    local canThrow = strengthToThrow and terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID )
+
+    if canThrow then
         self:Swing()
 
-    else
+    elseif self.CanSmack then
         self:Smack()
 
     end
+end
+
+function SWEP:OwnerChanged()
+    local owner = self:GetOwner()
+    if not IsValid( owner ) then return end
+
+    local rangeForThisOwner = self.ThrowRange
+    if owner.ThrowingForceMul and owner.ThrowingForceMul <= 0.5 then
+        rangeForThisOwner = self.MeleeWeaponDistance
+
+    end
+    self.Range = rangeForThisOwner
+
 end
 
 function SWEP:SecondaryAttack()
@@ -242,6 +260,7 @@ function SWEP:Swing()
 
         end
         if owner.ThrowingForceMul then
+            -- MinForceMul is for like grenades, anything can throw those far
             local forceMul = math.Clamp( owner.ThrowingForceMul, self.MinForceMul, math.huge )
             force = force * forceMul
 
@@ -407,9 +426,6 @@ function SWEP:Smack()
             dmginfo:SetDamageType( DMG_CLUB )
         end,
     } )
-end
-
-function SWEP:OwnerChanged()
 end
 
 function SWEP:OnDrop()
