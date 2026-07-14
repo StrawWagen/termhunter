@@ -46,7 +46,7 @@ end )
         Exists so that .SubCategory, etc, can propogate down the BaseClass tree
         Means you just have to change .Category, .SubCategory, in one npc and all it's children will follow
     Arg1: string | class | Your entity's class.
-    Arg2: table | rawENTTbl | Your ENT table. Its PrintName/Category/SubCategory ( or its Base's ) fill the spawn icon.
+    Arg2: table | rawENTTbl | Your ENT table. Its PrintName/Category/SubCategory ( or its .Base's ) fill the spawn icon.
     Arg3: table | overrides | Override the rawENTTbl values, or add other things that the "NPC" list accepts, like .Weapons
     Ret1:
 --]]------------------------------------
