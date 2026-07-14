@@ -49,6 +49,19 @@ end )
     Arg2: table | rawENTTbl | Your ENT table. Its PrintName/Category/SubCategory ( or its .Base's ) fill the spawn icon.
     Arg3: table | overrides | Override the rawENTTbl values, or add other things that the "NPC" list accepts, like .Weapons
     Ret1:
+
+    EG;
+    terminator_nextbot_yourbaseclass
+    ENT.Category = "Evil Guys"
+    ENT.SubCategory = "Guys"
+    terminator_Extras.RegisterNPC( "terminator_nextbot_yourbaseclass", ENT )
+
+    terminator_nextbot_yourbaseclass_evilbossguy
+    ENT.Base = "terminator_nextbot_yourbaseclass"
+    -- don't need to define category, inherited from base
+    ENT.SubCategory = "Bosses"
+    terminator_Extras.RegisterNPC( "terminator_nextbot_yourbaseclass_evilbossguy", ENT )
+
 --]]------------------------------------
 terminator_Extras.RegisterNPC = function( class, rawENTTbl, overrides )
     if hasInitialized then -- auto re fresh, make sure to call spawnmenu_reload!

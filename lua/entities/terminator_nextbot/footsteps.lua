@@ -6,6 +6,13 @@ local locoMeta = FindMetaTable( "CLuaLocomotion" )
 
 local TrFilterNoSelf = terminator_Extras.TrFilterNoSelf
 
+local debugCvar = CreateConVar( "terminator_footsteps_debug", 0, "Debug the term footstep system?" )
+local debugging = debugCvar:GetBool()
+cvars.AddChangeCallback( "terminator_footsteps_debug", function( _, _, new )
+    debugging = tobool( new )
+
+end )
+
 --[[
     Two footstep types
     1. Human footsteps, tries to match player footstep behaviour
@@ -122,8 +129,26 @@ function ENT:ProcessFootsteps( myTbl )
             local footPos, footAng = entMeta.GetBonePosition( self, entMeta.LookupBone( self, foot ) )
             local dot = vecMeta.Dot( angMeta.Forward( footAng ), dotVec )
 
+            if debugging then
+                local curr = CurTime()
+                self.Term_FootstepTimingLastCheck = self.Term_FootstepTimingLastCheck or {}
+                local sinceLast = curr - ( self.Term_FootstepTimingLastCheck[foot] or curr )
+                self.Term_FootstepTimingLastCheck[foot] = curr
+
+                debugoverlay.Text( footPos, tostring( math.Round( dot, 2 ) ), sinceLast, false )
+                debugoverlay.Line( footPos, footPos + footAng:Forward() * 25, sinceLast, Color( 255, 25, 25, 255 ) )
+                debugoverlay.Line( footPos, footPos + dotVec * 25, sinceLast, Color( 255, 255, 255, 255 ) )
+
+            end
+
             currStepping[foot] = dot < criteria
             if currStepping[foot] and not oldStepping[foot] then -- only step, when the foot goes from outside the :Dot criteria, into it
+                if debugging then
+                    debugoverlay.Text( footPos, tostring( math.Round( dot, 2 ) ), 4, false )
+                    debugoverlay.Line( footPos, footPos + footAng:Forward() * 25, 4, Color( 25, 255, 25, 255 ) )
+                    debugoverlay.Line( footPos, footPos + dotVec * 25, 4, Color( 255, 255, 255, 255 ) )
+
+                end
                 myTbl.MakeFootstepSound( self, myTbl, 1, 1, footPos, curSpeed )
 
             end
