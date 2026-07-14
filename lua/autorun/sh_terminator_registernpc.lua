@@ -14,7 +14,10 @@ local function actuallyRegister( class, rawENTTbl, overrides )
         Category = thatOrMember( "Category", class, rawENTTbl ),
         SubCategory = thatOrMember( "SubCategory", class, rawENTTbl ),
     }
-    table.Merge( listMember, overrides, true )
+    if overrides then
+        table.Merge( listMember, overrides, true )
+
+    end
     list.Set( "NPC", class, listMember )
 
     if CLIENT then
@@ -44,7 +47,7 @@ end )
         Means you just have to change .Category, .SubCategory, in one npc and all it's children will follow
     Arg1: string | class | Your entity's class.
     Arg2: table | rawENTTbl | Your ENT table. Its PrintName/Category/SubCategory ( or its Base's ) fill the spawn icon.
-    Arg3: table | overrides | Extra spawnlist fields like Weapons, win over the defaults.
+    Arg3: table | overrides | Override the rawENTTbl values, or add other things that the "NPC" list accepts, like .Weapons
     Ret1:
 --]]------------------------------------
 terminator_Extras.RegisterNPC = function( class, rawENTTbl, overrides )
