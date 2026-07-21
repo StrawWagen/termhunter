@@ -839,7 +839,7 @@ function ENT:InitializeHealthRegen()
     self.HealthRegenInterval = currRegenInterval
 
     local timerName = "term_healthregen_" .. self:GetCreationID()
-    timer.Create( timerName, interval, 0, function()
+    timer.Create( timerName, currRegenInterval, 0, function()
         if not IsValid( self ) then timer.Remove( timerName ) return end
 
         local myTbl = entMeta.GetTable( self )
