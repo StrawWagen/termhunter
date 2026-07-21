@@ -364,14 +364,20 @@ end
 	Arg1: 
 	Ret1: 
 --]]------------------------------------
+
+local angZero = Angle( 0, 0, 0 ) -- maybe fix bugs with the shadow :(
+
 function ENT:SetupCollisionBounds( myTbl )
 	myTbl = myTbl or entMeta.GetTable( self )
 	local data = myTbl.GetCrouching( self ) and myTbl.CrouchCollisionBounds or myTbl.CollisionBounds
 
 	entMeta.SetCollisionBounds( self, data[1], data[2] )
-	
-	if entMeta.PhysicsInitShadow( self, false, false) then
-		entMeta.GetPhysicsObject( self ):SetMass( myTbl.MyPhysicsMass )
+
+	if entMeta.PhysicsInitShadow( self, false, false ) then
+		local mass = myTbl.MyPhysicsMass
+
+		entMeta.GetPhysicsObject( self ):SetMass( mass )
+
 	end
 end
 
@@ -382,34 +388,29 @@ end
 	Ret1: 
 --]]------------------------------------
 
-local ang_zero = Angle( 0, 0 ,0 ) -- maybe fix bugs with the shadow :(
+function ENT:UpdatePhysicsObject( myTbl )
+	local phys = entMeta.GetPhysicsObject( self )
 
-function ENT:UpdatePhysicsObject()
-	local phys = self:GetPhysicsObject()
+	if not IsValid( phys ) then return end
 
-	if IsValid(phys) then
-		phys:SetAngles(ang_zero)
+	local myPos = entMeta.GetPos( self )
 
-		if self:GetModelScale() ~= 1 then -- HACK, to fix the horrible blowing up collision bounds bug
-			local data = self:IsCrouching() and self.CrouchCollisionBounds or self.CollisionBounds
-			self:SetCollisionBounds( data[1], data[2] )
+	-- this is the wrong way to do it but all the physics shadow updating things DO NOT WORK for this :(
+	phys:SetAngles( angZero )
+	phys:SetPos( myPos )
 
-		end
 
-		phys:UpdateShadow( self:GetPos(), ang_zero, self.BehaveInterval )
-
-		phys:SetPos(self:GetPos())
-	end
 end
 
 --[[------------------------------------
 	Name: NEXTBOT:PhysicsObjectCollide
 	Desc: Called when physics object collides something. Works like ENT:PhysicsCollide.
+	    Callback is only created if the function is valid
 	Arg1: table | data | The collision data.
 	Ret1: 
 --]]------------------------------------
-function ENT:PhysicsObjectCollide(data)
-end
+--function ENT:PhysicsObjectCollide( data )
+--end
 
 --[[------------------------------------
 	Name: NEXTBOT:OnContact

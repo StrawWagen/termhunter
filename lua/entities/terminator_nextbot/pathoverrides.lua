@@ -1136,7 +1136,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
             for _, currClosedId in ipairs( closedSequential ) do
                 local currClosedScore = scores[currClosedId]
 
-                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and isLadder[ currClosedId ] ~= true then
+                if isnumber( currClosedScore ) and currClosedScore > bestClosedScore and isLadder[currClosedId] ~= true then
                     bestClosedScore = currClosedScore
                     bestClosedAreaId = currClosedId
 
@@ -1187,6 +1187,9 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
                     isLadder[adjID] = true
 
                 end
+
+                if theScore == inf then break end
+
             end
         end
     end

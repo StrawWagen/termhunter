@@ -493,6 +493,7 @@ do
         local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.TERM_GetRelationship( self, myTbl, ent ) == D_HT or krangledKiller or killerNotChummy
         if not knowsItsAnEnemy then return false end
 
+        -- this should not be an enemy
         if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
 
         local inFov = IsInMyFov( self, ent, fov or myTbl.Term_FOV )
@@ -500,7 +501,8 @@ do
 
         local maxSeeingDist = myTbl.MaxSeeEnemyDistance
 
-        if not inFov and rangeTo > 200 then return false end -- ignore fov if really close
+        -- ignore fov if really close
+        if not inFov and rangeTo > 200 then return false end
 
         if isPly then -- ignore maxSeeingDist for plys
             if isBeyondFog( nil, rangeTo ) then -- but dont ignore fog 
@@ -515,6 +517,8 @@ do
         -- if player then, if they are transparent, randomly don't see them, unless we already saw them.
         if isPly and shouldNotSeeEnemy( self, ent ) then return false end
 
+        -- if we're attacking this enemy but they aren't attacking back, or taking any damage
+        -- probably some kind of unkillable thing we shouldn't be attacking
         local noHealthChangeCount = entsTbl.term_NoHealthChangeCount
         if myTbl.JudgesEnemies and noHealthChangeCount then
             local weirdUnkillable = noHealthChangeCount > 50 and noHealthChangeCount >= ( 100 + ( entMeta.GetCreationID( self ) % 100 ) )
@@ -637,40 +641,42 @@ do
 
         end
     end
-end
 
---[[------------------------------------
-    Name: ENT:ForgetOldEnemies
-    Desc: (INTERNAL) Clears bot memory from enemies that not valid, not updating very long time or not should be enemy.
-    Arg1: 
-    Ret1: 
---]]------------------------------------
-function ENT:ForgetOldEnemies( myTbl )
-    local cur = CurTime()
-    local myFov = myTbl.Term_FOV
-    local forgetEnemyTime = myTbl.ForgetEnemyTime
-    local clearEnemyMemory = myTbl.ClearEnemyMemory
-    local shouldBeEnemy = myTbl.ShouldBeEnemy
+    --[[------------------------------------
+        Name: ENT:ForgetOldEnemies
+        Desc: (INTERNAL) Clears bot memory from enemies that not valid, not updating very long time or not should be enemy.
+        Arg1: 
+        Ret1: 
+    --]]------------------------------------
+    function ENT:ForgetOldEnemies( myTbl )
+        local cur = CurTime()
+        local myFov = myTbl.Term_FOV
+        local forgetEnemyTime = myTbl.ForgetEnemyTime
+        local clearEnemyMemory = myTbl.ClearEnemyMemory
+        local shouldBeEnemy = myTbl.ShouldBeEnemy
 
-    -- all this bs below to stop undefined behaviour when forgetting current enemy
-    -- ShouldBeEnemy/ClearEnemyMemory run 3rd party code that can reach UpdateEnemyMemory,
-    -- adding NEW keys to m_EnemiesMemory. adding keys mid pairs() is undefined in lua,
-    -- so snapshot the keys, then do the callback-y stuff outside the traversal
-    local memories = myTbl.m_EnemiesMemory
+        -- all this bs below to stop undefined behaviour when forgetting current enemy
+        -- ShouldBeEnemy/ClearEnemyMemory run 3rd party code that can reach UpdateEnemyMemory,
+        -- adding NEW keys to m_EnemiesMemory. adding keys mid pairs() is undefined in lua,
+        -- so snapshot the keys, then do the callback-y stuff outside the traversal
+        local memories = myTbl.m_EnemiesMemory
 
-    local plsCheck = {}
-    for ent in pairs( memories ) do
-        plsCheck[#plsCheck + 1] = ent
+        local plsCheck = {}
+        for ent in pairs( memories ) do
+            plsCheck[#plsCheck + 1] = ent
 
-    end
+        end
 
-    for _, ent in ipairs( plsCheck ) do
-        local memory = memories[ent]
-        if not memory then continue end
+        for _, ent in ipairs( plsCheck ) do
+            local memory = memories[ent]
+            if not memory then continue end
 
-        if ( not IsValid( ent ) ) or ( ( cur - memory.lastupdate ) >= forgetEnemyTime ) or ( not shouldBeEnemy( self, ent, myFov, myTbl, entMeta.GetTable( ent ) ) ) then
-            clearEnemyMemory( self, ent )
+            coroutine_yield()
 
+            if ( not IsValid( ent ) ) or ( ( cur - memory.lastupdate ) >= forgetEnemyTime ) or ( not shouldBeEnemy( self, ent, myFov, myTbl, entMeta.GetTable( ent ) ) ) then
+                clearEnemyMemory( self, ent )
+
+            end
         end
     end
 end
@@ -1724,6 +1730,7 @@ function ENT:Term_LookAround( myTbl )
     coroutine_yield()
 
     local lookAtPos
+    local looksForwardWhenRunning = myTbl.LooksForwardWhenRunning
     local myVelLengSqr = myTbl.loco:GetVelocity():LengthSqr()
     local movingSlow = myVelLengSqr < speedToStopLookingFarAhead
     local sndHint = myTbl.lastHeardSoundHint
@@ -1731,10 +1738,10 @@ function ENT:Term_LookAround( myTbl )
     local sndCuriosity = 0.5
 
     local freshnessFocus = 0.25
-    if self:IsReallyAngry() then
+    if myTbl.IsReallyAngry( self ) then
         freshnessFocus = 1.5
 
-    elseif self:IsAngry() then
+    elseif myTbl.IsAngry( self ) then
         freshnessFocus = 0.75
 
     end
@@ -1754,8 +1761,12 @@ function ENT:Term_LookAround( myTbl )
     local seeEnem = myTbl.IsSeeEnemy
     --local lookAtType
 
+    -- we look forward when running, look at last approach pos!
+    if looksForwardWhenRunning and not movingSlow and myTbl.loco:GetDesiredSpeed() >= myTbl.RunSpeed then
+        lookAtPos = term_LastApproachPos + vec_up25
+
     -- look at last intercept pos
-    if not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
+    elseif not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
         lookAtPos = myTbl.lastInterceptPos
         --lookAtType = "intercept"
 

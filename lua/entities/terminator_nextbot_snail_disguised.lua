@@ -44,6 +44,9 @@ function ENT:AdditionalClientInitialize()
 end
 
 function ENT:AdditionalInitialize()
+
+    if IsValid( self.MimicTarget ) then return end
+
     local stuffWeCanMimic = {}
     local someoneDead
     local plys = player.GetAll()

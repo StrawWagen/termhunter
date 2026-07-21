@@ -157,12 +157,14 @@ function ENT:Initialize()
 	loco:SetJumpHeight( myTbl.JumpHeight )
 	loco:SetDeathDropHeight( myTbl.DeathDropHeight )
 
-	myTbl.SetupCollisionBounds( self, myTbl )
 	myTbl.ReloadWeaponData( self )
 	myTbl.SetDesiredEyeAngles( self, entMeta.GetAngles( self ) )
 	self:SetupDefaultCapabilities()
 
-	entMeta.AddCallback( self, "PhysicsCollide", myTbl.PhysicsObjectCollide )
+	if myTbl.PhysicsObjectCollide then -- only add expensive callback if PhysicsObjectCollide stub exists
+		entMeta.AddCallback( self, "PhysicsCollide", myTbl.PhysicsObjectCollide )
+
+	end
 end
 
 --[[------------------------------------

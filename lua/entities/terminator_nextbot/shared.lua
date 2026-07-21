@@ -2884,13 +2884,6 @@ function ENT:TermThink( myTbl ) -- inside coroutine :)
         myTbl.SpokenLinesThink( self, myTbl )
 
     end
-    if myTbl.HealthRegen then
-        if fodder then
-            coroutine_yield()
-        end
-        myTbl.HealthRegenThink( self )
-
-    end
     if myTbl.DrowningThink then
         if fodder then
             coroutine_yield()
@@ -3005,7 +2998,8 @@ function ENT:Initialize()
         scale = scale( self )
 
     end
-    self:SetModelScale( scale, .00001 )
+    self:SetModelScale( scale )
+    self:SetModelScale( scale, .0000001 )
 
     -- "config" stuff, ONLY edit if you DONT know what you're doing!
     myTbl.Term_FOV = myTbl.Term_FOV or fovCached
@@ -3041,12 +3035,15 @@ function ENT:Initialize()
 
     timer.Simple( 0, function()
         if not IsValid( self ) then return end
-        self:GiveDefaultWeapons()
+
+        myTbl.SetupCollisionBounds( self, myTbl )
+        myTbl.GiveDefaultWeapons( self, myTbl )
 
         if myTbl.NPCTable then -- make name in killfeed ALWAYS .PrintName
             myTbl.NPCTable.Name = myTbl.PrintName
 
         end
+
         if navmesh.GetNavAreaCount() <= 0 then
             local myCreator = self:GetCreator()
             if not IsValid( myCreator ) and CPPI then
@@ -3832,7 +3829,7 @@ function ENT:DoDefaultTasks()
                         local wasVisible
                         for _, area in ipairs( navmesh.FindInBox( myPos + maxs, myPos + -maxs ) ) do -- try and find a good freedomPos
                             if area == nearestNavArea then continue end -- TOO CLOSE, won't unstuck us
-                            coroutine_yield()
+                            coroutine_yield() -- TODO; heavy yield
                             if not IsValid( area ) then continue end
 
                             local areasCenter = area:GetCenter()

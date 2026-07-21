@@ -147,10 +147,10 @@ end
     Name: NEXTBOT:GiveDefaultWeapons
     Desc: Gives default weapons to bot. This is used in init.lua.
 --]]------------------------------------
-function ENT:GiveDefaultWeapons()
-    if self.DefaultSidearms and self.CanHolsterWeapons then
-        local myPos = self:GetPos()
-        for _, sidearm in ipairs( self.DefaultSidearms ) do
+function ENT:GiveDefaultWeapons( myTbl )
+    if myTbl.DefaultSidearms and myTbl.CanHolsterWeapons then
+        local myPos = entMeta.GetPos( self )
+        for _, sidearm in ipairs( myTbl.DefaultSidearms ) do
             if istable( sidearm ) then
                 sidearm = sidearm[math.random( 1, #sidearm )]
                 if not sidearm or sidearm == "" then continue end
@@ -165,9 +165,9 @@ function ENT:GiveDefaultWeapons()
         end
     end
 
-    local fistsClass = self.TERM_FISTS
+    local fistsClass = myTbl.TERM_FISTS
 
-    local trueDefaultWeps = self.DefaultWeapon
+    local trueDefaultWeps = myTbl.DefaultWeapon
     if isstring( trueDefaultWeps ) then
         trueDefaultWeps = { trueDefaultWeps }
 

@@ -1,7 +1,3 @@
-function ENT:BehaveStart()
-    self:SetupCollisionBounds()
-
-end
 
 local entMeta = FindMetaTable( "Entity" )
 local locoMeta = FindMetaTable( "CLuaLocomotion" )
@@ -143,7 +139,6 @@ function ENT:BehaveUpdate( interval )
 
     myTbl.ProcessFootsteps( self, myTbl )
     myTbl.SetupEyeAngles( self, myTbl )
-    myTbl.UpdatePhysicsObject( self )
     myTbl.HandlePathRemovedWhileOnladder( self )
 
     local ply = myTbl.GetControlPlayer( self )
@@ -480,6 +475,8 @@ function ENT:Think()
     -- BECAUSE ~10X PERF GAINS!
     -- always pass this beautiful table, else reckon the fps-draining scourge of the _index call....
     local myTbl = entMeta.GetTable( self )
+
+    myTbl.UpdatePhysicsObject( self, myTbl )
 
     local threads = myTbl.BehaviourThreads
     if not threads then

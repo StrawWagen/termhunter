@@ -835,20 +835,37 @@ end
 
 function ENT:InitializeHealthRegen()
     if not isnumber( self.HealthRegen ) then return end -- what is this? a non-number in my number machine???
-    self.HealthRegenInterval = isnumber( self.HealthRegenInterval ) and self.HealthRegenInterval or 1
+    local currRegenInterval = isnumber( self.HealthRegenInterval ) and self.HealthRegenInterval or 1 -- default to 1s interval
+    self.HealthRegenInterval = currRegenInterval
 
-    self.NextRegenHeal = 0
-    self.HealthRegenThink = function( me )
-        if me.NextRegenHeal > CurTime() then return end
-        me.NextRegenHeal = CurTime() + me.HealthRegenInterval
+    local timerName = "term_healthregen_" .. self:GetCreationID()
+    timer.Create( timerName, interval, 0, function()
+        if not IsValid( self ) then timer.Remove( timerName ) return end
 
-        local oldHealth = me:Health()
+        local myTbl = entMeta.GetTable( self )
+
+        local regenAmnt = myTbl.HealthRegen
+        if regenAmnt == 0 then return end
+
+        local regenInterval = myTbl.HealthRegenInterval
+        if regenInterval and regenInterval ~= currRegenInterval then
+            timer.Adjust( timerName, regenInterval )
+            currRegenInterval = regenInterval
+
+        end
+
+        local oldHealth = self:Health()
         if oldHealth <= 0 then return end -- dont cause resurrect issues
 
-        local newHealth = math.Clamp( oldHealth + me.HealthRegen, 0, me:GetMaxHealth() )
-        me:SetHealth( newHealth )
+        if regenAmnt < 0 then -- negative, waste away
+            self:TakeDamage( regenAmnt, self, self )
 
-    end
+        else -- positive, heal
+            local newHealth = math.Clamp( oldHealth + regenAmnt, 0, self:GetMaxHealth() )
+            self:SetHealth( newHealth )
+
+        end
+    end )
 end
 
 

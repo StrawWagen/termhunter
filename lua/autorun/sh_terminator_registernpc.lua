@@ -64,6 +64,11 @@ end )
 
 --]]------------------------------------
 terminator_Extras.RegisterNPC = function( class, rawENTTbl, overrides )
+    if istable( class ) then
+        ErrorNoHaltWithStack( "terminator_Extras.RegisterNPC INVALID ARGS, should be ( class, ENT, overrides )" )
+        return
+
+    end
     if hasInitialized then -- auto re fresh, make sure to call spawnmenu_reload!
         actuallyRegister( class, rawENTTbl, overrides )
         return

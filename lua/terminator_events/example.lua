@@ -51,7 +51,7 @@ local newEvent = {
                     class = "terminator_nextbot_fakeply",
                     spawnAlgo = "steppedRandomRadiusNearby", -- spawns it far from players, but within at least 4000 units of them
                     onSpawnedFunc = giveCamera,
-                    repeats = 2, -- X count of this will exist in the unspawnedStuff list, so 3 total will spawn including the scout
+                    repeats = 2, -- X count of this will exist in the unspawnedStuff list, so 2 will spawn, 3 including the above scout
 
                 },
             },
