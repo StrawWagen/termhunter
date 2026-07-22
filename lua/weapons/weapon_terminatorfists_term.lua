@@ -9,6 +9,14 @@ SWEP.Range    = 80
 SWEP.Weight = 0
 SWEP.HitMask = MASK_SOLID
 
+SWEP.DamageMin = 40
+SWEP.DamageMax = 50
+SWEP.DamageType = DMG_CLUB
+
+-- added to the owner's FistDamageMul, so a strength 4 owner hits props for 5x, not 4x
+SWEP.PropDamageBonusMul = 1
+SWEP.NPCDamageBonusMul = 1
+
 local className = "weapon_terminatorfists_term"
 if CLIENT then
     language.Add( className, SWEP.PrintName )
@@ -16,8 +24,14 @@ if CLIENT then
 
 end
 
-local SwingSound = Sound( "WeaponFrag.Throw" )
-local HitSound = Sound( "Flesh.ImpactHard" )
+local entMeta = FindMetaTable( "Entity" )
+local vecMeta = FindMetaTable( "Vector" )
+local distToSqr = vecMeta.DistToSqr
+
+SWEP.SwingSound = Sound( "WeaponFrag.Throw" )
+SWEP.HitSound = Sound( "Flesh.ImpactHard" )
+SWEP.PoundSound = Sound( "npc/zombie/zombie_pound_door.wav" )
+SWEP.ShoveSound = Sound( "npc/antlion_guard/shove1.wav" )
 
 SWEP.Primary = {
     Automatic = true,
@@ -106,9 +120,8 @@ local slidingDoors = {
 
 }
 
-function SWEP:HandleDoor( tr, strength )
-    if CLIENT or not IsValid( tr.Entity ) then return end
-    local door = tr.Entity
+function SWEP:HandleDoor( door, strength )
+    if CLIENT or not IsValid( door ) then return end
     if door.realDoor then
         door = door.realDoor
 
@@ -130,7 +143,7 @@ function SWEP:HandleDoor( tr, strength )
     local isProperDoor = class == "prop_door_rotating"
     local isSlidingDoor = slidingDoors[class]
     local isBashableSlidDoor
-    if isSlidingDoor then
+    if isSlidingDoor and IsValid( doorsObj ) then
         isBashableSlidDoor = doorsObj:GetVolume() < 48880 -- magic number! 10x mass of doors on terrortrain
 
     end
@@ -209,9 +222,9 @@ function SWEP:HandleDoor( tr, strength )
                 terminator_Extras.DoorHitSound( door )
                 terminator_Extras.StrainSound( door )
 
-                if ( HitCount % 3 ) == 4 then
+                if ( HitCount % 3 ) == 0 then
                     if owner.Use2 then
-                        self:Use2( door )
+                        owner:Use2( door )
 
                     else
                         door:Use( self, self )
@@ -335,57 +348,167 @@ function SWEP:PrimaryAttack()
     self:SetLastShootTime()
 end
 
+function SWEP:PlayHitSound( owner, pitchShift )
+    self:EmitSound( self.HitSound, 75, 100 + pitchShift )
+    self:EmitSound( "physics/flesh/flesh_strider_impact_bullet1.wav", 80, math.random( 130, 160 ) + pitchShift, 1, CHAN_STATIC )
+
+end
+
+function SWEP:PlaySwingSound( owner, pitchShift )
+    self:EmitSound( self.SwingSound, 75, 100 + pitchShift )
+    self:EmitSound( "weapons/slam/throw.wav", 80, 80 + pitchShift )
+
+end
+
 local MEMORY_BREAKABLE = 4
 
 function SWEP:DealDamage()
+    if not SERVER then return end
 
     local owner = self:GetOwner()
+    local ownersShoot = owner:GetShootPos()
+    local aimVec = owner:GetAimVector()
+    local strength = owner.FistDamageMul or 1
+    local rangeMul = owner.FistRangeMul or 1
+
+    local sizeMul = 1 + ( strength / 8 )
+    local range = self.Range * rangeMul
 
     local tr = util.TraceLine( {
-        start = owner:GetShootPos(),
-        endpos = owner:GetShootPos() + owner:GetAimVector() * self.Range,
+        start = ownersShoot,
+        endpos = ownersShoot + aimVec * range,
         filter = owner,
         mask = bit.bor( self.HitMask ),
     } )
 
-    if not IsValid( tr.Entity ) then
-        tr = util.TraceHull( {
-            start = owner:GetShootPos(),
-            endpos = owner:GetShootPos() + owner:GetAimVector() * self.Range,
-            filter = owner,
-            mins = Vector( -10, -10, -8 ),
-            maxs = Vector( 10, 10, 8 ),
-            mask = bit.bor( self.HitMask ),
-        } )
+    local firstTirDist = tr.Fraction * range
+    local hitEnts
+
+    -- traceLine hit, use that
+    if IsValid( tr.Entity ) then
+        hitEnts = { tr.Entity }
+
+    -- traceLine did not hit, find things to hit with ents.FindAlongRay
+    else
+        local startPos = ownersShoot
+        local smallerDist = math.min( firstTirDist, range * 0.75 )
+
+        if sizeMul > 25 then -- sanity clamp
+            local _, myMaxs = owner:GetCollisionBounds()
+            sizeMul = math.min( sizeMul, myMaxs.z )
+
+        end
+
+        local maxs = Vector( 10, 10, 8 ) * sizeMul
+        local mins = -maxs
+        mins.z = mins.z * 1.5
+
+        if owner:GetModelScale() > terminator_Extras.MDLSCALE_LARGE then
+            local _, ownersMaxs = owner:BoundsAdjusted( 0.75 )
+            if ownersMaxs.z > maxs.z then -- big owner, hit guys at our toes too
+                maxs.z = ownersMaxs.z
+                startPos = owner:WorldSpaceCenter()
+
+            end
+        end
+
+        local endPos = startPos + aimVec * smallerDist
+
+        hitEnts = ents.FindAlongRay( startPos, endPos, mins, maxs )
+
     end
 
-    local scale = 3
-    local hitEnt = tr.Entity
+    local startingDamage = math.random( self.DamageMin, self.DamageMax )
+    local totalDamage = startingDamage
 
-    if SERVER and IsValid( hitEnt ) then
-        local Class = hitEnt:GetClass()
-        local IsGlass = Class == "func_breakable_surf"
-        -- teamkilling is funny but also stupid
-        local friendly = hitEnt:IsNPC() and hitEnt.isTerminatorHunterChummy == owner.isTerminatorHunterChummy and owner:Disposition( hitEnt ) ~= D_HT
+    if #hitEnts > 1 then
+        local centers = {}
+        for _, ent in ipairs( hitEnts ) do
+            centers[ent] = entMeta.WorldSpaceCenter( ent )
 
-        local strength = owner.FistDamageMul or 1
+        end
 
+        table.sort( hitEnts, function( a, b ) -- sort ents by distance to me
+            local ADist = distToSqr( centers[a], ownersShoot )
+            local BDist = distToSqr( centers[b], ownersShoot )
+            return ADist < BDist
+
+        end )
+    end
+
+    local hitSomething
+    local hitAlready = {}
+    local playedPoundSound
+    local playedShoveSound
+
+    for _, hitEnt in ipairs( hitEnts ) do
+        if totalDamage < startingDamage * 0.05 then break end
+        if hitEnt == owner then continue end -- stop hitting yourself
+        if not hitEnt:IsSolid() then continue end -- dont hit non-solid stuff
+
+        local hitEntsOwner = hitEnt:GetOwner()
+        local hitEntsParent = hitEnt:GetParent()
+        if IsValid( hitEntsOwner ) and IsValid( hitEntsParent ) and hitEntsOwner == hitEntsParent then continue end -- just in case
+
+        local vehicle = hitEnt.GetVehicle and hitEnt:GetVehicle() or nil
+        if IsValid( vehicle ) then
+            if hitAlready[vehicle] then continue end -- dont hit the same vehicle twice
+            hitEnt = vehicle -- vehicle protects driver
+
+        end
+
+        local class = hitEnt:GetClass()
+        local IsGlass = class == "func_breakable_surf"
         if IsGlass then
             hitEnt:Fire( "Shatter", tr.HitPos )
+
         else
+            local obj = hitEnt:GetPhysicsObject()
+            local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()
+            -- teamkilling is funny but also stupid
+            local friendly = isSignificant and hitEnt.isTerminatorHunterChummy == owner.isTerminatorHunterChummy and owner:Disposition( hitEnt ) ~= D_HT
+
             local dmgMul = strength
+
             if friendly then
-                dmgMul = 0.05
+                dmgMul = 0.1
                 hitEnt.overrideMiniStuck = true
 
-            end
-            -- break not plauer stuff fast
-            if not hitEnt:IsPlayer() then
-                dmgMul = dmgMul + 1
+            -- break props really fast
+            elseif not isSignificant then
+                if not IsValid( obj ) then
+                    dmgMul = 0.05
+
+                else
+                    dmgMul = dmgMul + self.PropDamageBonusMul
+
+                end
+
+            elseif hitEnt:Health() <= 0 then
+                -- dont hit dead stuff
+                dmgMul = 0
+
+            -- break not player stuff fast
+            elseif not hitEnt:IsPlayer() then
+                dmgMul = dmgMul + self.NPCDamageBonusMul
 
             end
 
-            local damageToDeal = math.random( 40, 50 ) * dmgMul
+            if dmgMul == 0 then continue end -- dont waste perf
+
+            if dmgMul >= 0.5 then
+                hitSomething = true
+
+            end
+
+            hitAlready[hitEnt] = true
+
+            -- damage dealt this time
+            local damageThisTime = totalDamage * dmgMul
+
+            -- march down total damage a bit, dont just do all the damage to everything
+            totalDamage = totalDamage - math.max( damageThisTime * 0.1, 5 )
+
             local dmginfo = DamageInfo()
 
             local attacker = owner
@@ -393,15 +516,17 @@ function SWEP:DealDamage()
             dmginfo:SetAttacker( attacker )
 
             dmginfo:SetInflictor( self )
-            dmginfo:SetDamage( damageToDeal )
-            dmginfo:SetDamageType( DMG_CLUB )
+            dmginfo:SetDamage( damageThisTime )
+            dmginfo:SetDamageType( owner.FistDamageType or self.DamageType )
             dmginfo:SetDamagePosition( tr.HitPos )
 
-            if hitEnt:IsPlayer() or hitEnt:IsNextBot() or hitEnt:IsNPC() then -- HIGH FORCE for npc ragdolls
-                dmginfo:SetDamageForce( owner:GetAimVector() * 6998 * scale )
+            local forceMul = owner.FistForceMul or 1
+
+            if isSignificant then -- HIGH FORCE for npc ragdolls
+                dmginfo:SetDamageForce( aimVec * 6998 * 3 * forceMul )
 
             else -- LOW force for props
-                dmginfo:SetDamageForce( owner:GetAimVector() * 100 )
+                dmginfo:SetDamageForce( aimVec * 100 * forceMul )
 
             end
 
@@ -409,60 +534,81 @@ function SWEP:DealDamage()
             hitEnt:TakeDamageInfo( dmginfo )
             SuppressHostEvents( owner )
 
-            if owner:IsOnFire() then
-                hitEnt:Ignite( damageToDeal / 40 )
+            if hitEnt:IsPlayer() then
+                hitEnt:ViewPunch( Angle( -damageThisTime, damageThisTime * math.Rand( -0.5, 0.5 ), damageThisTime * math.Rand( -0.1, 0.1 ) ) )
 
             end
 
             if owner.PostHitObject then
-                owner:PostHitObject( hitEnt, damageToDeal )
+                owner:PostHitObject( hitEnt, damageThisTime )
 
             end
 
-        end
-        local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()
-
-        if not isSignificant then
-            hitEnt:ForcePlayerDrop()
-            local oldHealth = hitEnt:Health()
-            local _, entMemoryKey = owner.getMemoryOfObject and owner:getMemoryOfObject( owner:GetTable(), hitEnt )
-
-            timer.Simple( 0.1, function()
-                if not IsValid( self ) then return end
-                -- small things dont take the damage's force when in water????
-                if IsValid( hitEnt ) and hitEnt:GetVelocity():LengthSqr() < 25 ^ 2 and IsValid( hitEnt:GetPhysicsObject() ) then
-                    hitEnt:GetPhysicsObject():ApplyForceCenter( owner:GetAimVector() * 9998 )
-
-                end
-
-                if owner.memorizeEntAs and not IsValid( hitEnt ) or ( IsValid( hitEnt ) and oldHealth > 0 and hitEnt:Health() <= 0 ) then
-                    owner:memorizeEntAs( entMemoryKey, MEMORY_BREAKABLE )
-
-                end
-            end )
-        end
-        self:HandleDoor( tr, strength )
-    end
-    if SERVER then
-        if IsValid( hitEnt ) then
-            self:EmitSound( HitSound )
-            self:EmitSound( "physics/flesh/flesh_strider_impact_bullet1.wav", 80, math.random( 130, 160 ), 1, CHAN_STATIC )
-            local phys = hitEnt:GetPhysicsObject()
-            local punchForce = owner:GetAimVector()
-            if IsValid( phys ) then
-                punchForce = punchForce * math.Clamp( phys:GetMass() / 500, 0.25, 1 )
-                punchForce = punchForce * 100000
-                phys:ApplyForceOffset( punchForce, tr.HitPos )
+            if owner:IsOnFire() then
+                hitEnt:Ignite( damageThisTime / 20 )
 
             end
-        else
-            self:EmitSound( SwingSound )
-            self:EmitSound( "weapons/slam/throw.wav", 80, 80 )
+
+            if not playedPoundSound and ( damageThisTime > 40 or string.find( class, "prop" ) ) then
+                playedPoundSound = true
+                local lvl = 75 + damageThisTime * 0.1
+                local pitch = math.Clamp( 120 + -( damageThisTime * 0.25 ), 85, 120 )
+                hitEnt:EmitSound( self.PoundSound, lvl, pitch, 1, CHAN_STATIC )
+                util.ScreenShake( self:GetPos(), damageThisTime * 0.1, 20, 0.15, math.Clamp( damageThisTime * 5, 0, 2000 ) )
+
+            end
+            if not playedShoveSound and damageThisTime > 200 then
+                playedShoveSound = true
+                local lvl = math.Clamp( 80 + damageThisTime * 0.1, 80, 150 )
+                local pitch = math.Clamp( 120 + -( damageThisTime * 0.35 ), 85, 120 )
+                hitEnt:EmitSound( self.ShoveSound, lvl, pitch, 1, CHAN_STATIC )
+                util.ScreenShake( self:GetPos(), damageThisTime * 0.005, 2, 3, math.Clamp( damageThisTime * 5, 0, 2000 ) )
+
+                if owner.Use2 and math.random( 1, 100 ) < 5 then -- really heavy hitters will eventually open USE doors
+                    owner:Use2( hitEnt )
+
+                end
+            end
+
+            if not isSignificant then
+                hitEnt:ForcePlayerDrop()
+                local oldHealth = hitEnt:Health()
+                local _, entMemoryKey = owner.getMemoryOfObject and owner:getMemoryOfObject( owner:GetTable(), hitEnt )
+
+                timer.Simple( 0.1, function()
+                    if not IsValid( self ) then return end
+                    -- small things dont take the damage's force when in water????
+                    if IsValid( hitEnt ) and hitEnt:GetVelocity():LengthSqr() < 25 ^ 2 and IsValid( obj ) then
+                        obj:ApplyForceCenter( aimVec * 9998 )
+
+                    end
+
+                    if owner.memorizeEntAs and ( not IsValid( hitEnt ) or ( oldHealth > 0 and hitEnt:Health() <= 0 ) ) then
+                        owner:memorizeEntAs( entMemoryKey, MEMORY_BREAKABLE )
+
+                    end
+                end )
+
+                if IsValid( obj ) then
+                    local punchForce = aimVec * math.Clamp( obj:GetMass() / 500, 0.25, 1 ) * 100000
+                    obj:ApplyForceOffset( punchForce, tr.HitPos )
+
+                end
+            end
         end
+        self:HandleDoor( hitEnt, strength )
+
     end
-    if tr.Hit then
+
+    local pitchShift = owner.term_SoundPitchShift or 0
+    if hitSomething then
+        self:PlayHitSound( owner, pitchShift )
         util.ScreenShake( owner:GetPos(), 10, 10, 0.1, 400 )
         util.ScreenShake( owner:GetPos(), 1, 10, 0.5, 750 )
+
+    else
+        self:PlaySwingSound( owner, pitchShift )
+
     end
 end
 
@@ -480,6 +626,7 @@ function SWEP:Equip()
 
     local timerName = "terminator_fists_manageholdtype_" .. self:GetCreationID()
 
+    -- TODO investigate holdtype
     timer.Create( timerName, 0.1, 0, function()
         if not IsValid( self ) then timer.Remove( timerName ) return end
         if not IsValid( self:GetOwner() ) then timer.Remove( timerName ) return end
