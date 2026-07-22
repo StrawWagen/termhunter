@@ -32,6 +32,7 @@ SWEP.SwingSound = Sound( "WeaponFrag.Throw" )
 SWEP.HitSound = Sound( "Flesh.ImpactHard" )
 SWEP.PoundSound = Sound( "npc/zombie/zombie_pound_door.wav" )
 SWEP.ShoveSound = Sound( "npc/antlion_guard/shove1.wav" )
+SWEP.ViewPunchMul = 1
 
 SWEP.Primary = {
     Automatic = true,
@@ -496,7 +497,7 @@ function SWEP:DealDamage()
 
             if dmgMul == 0 then continue end -- dont waste perf
 
-            if dmgMul >= 0.5 then
+            if dmgMul >= strength * 0.5 then
                 hitSomething = true
 
             end
@@ -526,7 +527,7 @@ function SWEP:DealDamage()
                 dmginfo:SetDamageForce( aimVec * 6998 * 3 * forceMul )
 
             else -- LOW force for props
-                dmginfo:SetDamageForce( aimVec * 100 * forceMul )
+                dmginfo:SetDamageForce( aimVec * 50 * forceMul )
 
             end
 
@@ -535,7 +536,8 @@ function SWEP:DealDamage()
             SuppressHostEvents( owner )
 
             if hitEnt:IsPlayer() then
-                hitEnt:ViewPunch( Angle( -damageThisTime, damageThisTime * math.Rand( -0.5, 0.5 ), damageThisTime * math.Rand( -0.1, 0.1 ) ) )
+                local punchSize = damageThisTime * self.ViewPunchMul
+                hitEnt:ViewPunch( Angle( -punchSize * 0.5, damageThisTime * math.Rand( -0.1, 0.1 ), damageThisTime * math.Rand( -0.05, 0.05 ) ) )
 
             end
 
@@ -549,7 +551,7 @@ function SWEP:DealDamage()
 
             end
 
-            if not playedPoundSound and ( damageThisTime > 40 or string.find( class, "prop" ) ) then
+            if not playedPoundSound and ( damageThisTime > 100 or string.find( class, "prop" ) ) then
                 playedPoundSound = true
                 local lvl = 75 + damageThisTime * 0.1
                 local pitch = math.Clamp( 120 + -( damageThisTime * 0.25 ), 85, 120 )
