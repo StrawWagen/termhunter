@@ -80,23 +80,6 @@ end
 
 ENT.Models = finalModels
 
-function ENT:GetAimVector()
-    local dir = self:GetEyeAngles():Forward()
-
-    if self:HasWeapon() then
-        local deg = 0.01
-        local active = self:GetActiveLuaWeapon()
-        if isfunction( active.GetNPCBulletSpread ) then
-            deg = active:GetNPCBulletSpread( self:GetCurrentWeaponProficiency() )
-            deg = math.sin( math.rad( deg ) )
-        end
-
-        dir:Add(Vector(math.Rand(-deg,deg),math.Rand(-deg,deg),math.Rand(-deg,deg)))
-    end
-
-    return dir
-end
-
 
 -- randomize bodygroups and skins
 function ENT:AdditionalInitialize()

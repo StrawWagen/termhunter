@@ -1689,6 +1689,8 @@ do
     local vecMeta = FindMetaTable( "Vector" )
     local angMeta = FindMetaTable( "Angle" )
 
+    local math_Rand = math.Rand
+
     --[[------------------------------------
         Name: NEXTBOT:GetAimVector
         Desc: Returns direction that used for weapon, including spread.
@@ -1714,12 +1716,28 @@ do
             local range = myTbl.GetWeaponRange( self, myTbl, active, activeTbl )
             if range and range < 150 then return dir end -- skip the calcs, melee weapon
 
-            local prof = myTbl.GetCurrentWeaponProficiency( self ) + 0.95
-            local deg = 0 + ( 1 / prof )
+            local prof = myTbl.GetCurrentWeaponProficiency( self )
+            local deg
+            local maxDeg
+            if prof == 0 then -- WEAPON_PROFICIENCY_POOR
+                deg = math_Rand( 5, 11.25 )
+                maxDeg = 22.5
 
-            local velLeng = myTbl.GetCurrentSpeed( self )
-            if velLeng > 10 then
-                deg = ( velLeng / 10 ) / prof
+            elseif prof == 1 then -- WEAPON_PROFICIENCY_AVERAGE
+                deg = math_Rand( 1, 6 )
+                maxDeg = 11.25
+
+            elseif prof == 2 then -- WEAPON_PROFICIENCY_GOOD
+                deg = math_Rand( 0.5, 4 )
+                maxDeg = 10
+
+            elseif prof == 3 then -- WEAPON_PROFICIENCY_VERY_GOOD
+                deg = math_Rand( 0, 3 )
+                maxDeg = 8
+
+            elseif prof == 4 then -- WEAPON_PROFICIENCY_PERFECT
+                deg = math_Rand( 0, 2 )
+                maxDeg = 6
 
             end
 
@@ -1740,8 +1758,15 @@ do
 
             end
 
+            local velLeng = myTbl.GetCurrentSpeed( self )
+            if velLeng > 10 then
+                local lengAdd = ( velLeng / 25 )
+                deg = deg + lengAdd
+
+            end
+
             if myTbl.IsCrouching( self ) then
-                deg = deg / 100
+                deg = deg / 10
 
             end
 
@@ -1759,6 +1784,8 @@ do
 
                 end
             end
+
+            deg = math_min( deg, maxDeg )
 
             deg = deg / 180
 

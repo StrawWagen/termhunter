@@ -15,6 +15,16 @@ local table_insert = table.insert
 local bit_bor = bit.bor
 local math_abs = math.abs
 
+function permaPrint( ... ) -- literally only exists so i can ctrl-f " print" to find stray debug prints
+    print( ... )
+
+end
+
+function permaPrintTable( ... ) -- ditto
+    PrintTable( ... )
+
+end
+
 local vecUpOff = Vector( 0, 0, 25 )
 
 -- not localizing trace funcs
@@ -262,16 +272,6 @@ function terminator_Extras.copyMatsOver( from, to )
         to:SetMaterial( myMat )
 
     end
-end
-
-function permaPrint( ... ) -- literally only exists so i can ctrl-f " print" to find stray debug prints
-    print( ... )
-
-end
-
-function permaPrintTable( ... ) -- ditto
-    PrintTable( ... )
-
 end
 
 local LocalToWorld = LocalToWorld

@@ -151,7 +151,7 @@ function SWEP:CanBePickedUpByNPCs()
 end
 
 function SWEP:GetNPCBulletSpread(prof)
-	local spread = {7,5,3,5/3,1}
+	local spread = {12,8,4,3,1}
 	return spread[prof+1]
 end
 

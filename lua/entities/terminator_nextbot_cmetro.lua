@@ -32,6 +32,7 @@ ENT.IsFodder = false
 
 ENT.JumpHeight = 50
 ENT.SpawnHealth = 40
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_POOR
 ENT.AimSpeed = 300
 ENT.WalkSpeed = 75
 ENT.MoveSpeed = 100

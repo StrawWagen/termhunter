@@ -144,8 +144,6 @@ function SWEP:CanPrimaryAttack()
     local owner = self:GetOwner()
     if owner:IsControlledByPlayer() then return true end
 
-    if not owner.NothingOrBreakableBetweenEnemy then return end
-
     local enemy = self:GetOwner():GetEnemy()
     if not IsValid( enemy ) then return true end
 
@@ -166,7 +164,8 @@ function SWEP:PrimaryAttack()
     if not self:CanPrimaryAttack() then return end
 
     local owner = self:GetOwner()
-    local strengthToThrow = owner.ThrowingForceMul and owner.ThrowingForceMul > 0.5
+    local forceMul = math.max( self.MinForceMul, owner.ThrowingForceMul and owner.ThrowingForceMul or 0 )
+    local strengthToThrow = forceMul > 0.5
     local canThrow = strengthToThrow and terminator_Extras.PosCanSeeComplex( self:GetOwner():GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID )
 
     if canThrow then
@@ -183,7 +182,7 @@ function SWEP:OwnerChanged()
     if not IsValid( owner ) then return end
 
     local rangeForThisOwner = self.ThrowRange
-    if owner.ThrowingForceMul and owner.ThrowingForceMul <= 0.5 then
+    if math.max( self.MinForceMul, owner.ThrowingForceMul and owner.ThrowingForceMul or 0 ) <= 0.5 then
         rangeForThisOwner = self.MeleeWeaponDistance
 
     end

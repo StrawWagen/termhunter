@@ -3321,7 +3321,7 @@ function ENT:DoDefaultTasks()
                                 filter = { self, newEnemy },
                                 mask = MASK_SHOT,
                             } )
-                            nothinOrBreakable = nothinOrBreakable and not shotTr.Hit
+                            nothinOrBreakable = nothinOrBreakable or not shotTr.Hit
 
                         end
                         myTbl.NothingOrBreakableBetweenEnemy = nothinOrBreakable
@@ -3549,18 +3549,19 @@ function ENT:DoDefaultTasks()
                             shootableVolatile = myTbl.getShootableVolatile( self, myTbl, enemy )
 
                         end
-                        if shootableVolatile and IsValid( shootableVolatile ) then
-                            myTbl.shootAt( self, myTbl.getBestPos( self, shootableVolatile ), nil )
-                            myTbl.lastShootingType = "shootVolatile"
 
                         -- does the weapon know better than us?
-                        elseif wep.terminatorAimingFunc then
+                        if wep.terminatorAimingFunc then
                             if wep.worksWithoutSightline then
                                 doShootingPrevent = nil
 
                             end
                             myTbl.shootAt( self, wep:terminatorAimingFunc(), doShootingPrevent )
                             myTbl.lastShootingType = "aimingFuncRanged"
+
+                        elseif shootableVolatile and IsValid( shootableVolatile ) then
+                            myTbl.shootAt( self, myTbl.getBestPos( self, shootableVolatile ), nil )
+                            myTbl.lastShootingType = "shootVolatile"
 
                         else
                             local distToEnemy = myTbl.DistToEnemy
@@ -3576,7 +3577,12 @@ function ENT:DoDefaultTasks()
                                 doShootingPrevent = true
 
                             end
-                            myTbl.shootAt( self, myTbl.LastEnemyShootPos, doShootingPrevent )
+                            local shootAtPos = myTbl.LastEnemyShootPos
+                            if myTbl.DistToEnemy < myTbl.CloseEnemyDistance then
+                                shootAtPos = myTbl.EntShootPos( self, enemy )
+
+                            end
+                            myTbl.shootAt( self, shootAtPos, doShootingPrevent )
                             myTbl.lastShootingType = "normalRanged - " .. tostring( doShootingPrevent )
 
                         end
@@ -4456,6 +4462,169 @@ function ENT:DoDefaultTasks()
                 elseif awayFromScaryEnemy then
                     self:TaskComplete( "movement_backthehellup" )
                     myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "current enemy has less than half health of the starting enemy" )
+
+                end
+            end,
+            ShouldRun = function( self, data )
+                return self:canDoRun()
+
+            end,
+        },
+        -- like movement_backthehellup, but backs away from data.BackupFromPos instead of the current enemy
+        -- caller supplies data.BackupFromPos ( vector ), and usually data.DistToQuit
+        ["movement_backthehellup_frompos"] = {
+            OnStart = function( self, data )
+                local myTbl  = entMeta.GetTable( self )
+                data.BackupFromPos = data.BackupFromPos or nil 
+                data.DistToQuit = data.DistToQuit or 1000
+                data.BackupUntil = data.BackupUntil or CurTime() + 2
+                data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
+                data.AfterwardsTaskData = data.AfterwardsTaskData or nil
+                data.NormalBackupIfEnemy = data.NormalBackupIfEnemy or true
+
+                data.CurrentTaskGoalPos = nil
+                data.BackedUpAreaCounts = {}
+                myTbl.InvalidatePath( self, "we gotta back the hell up" )
+
+            end,
+            BehaveUpdateMotion = function( self, data )
+                local myTbl  = entMeta.GetTable( self )
+                local backupFrom = data.BackupFromPos
+                if not backupFrom then
+                    ErrorNoHalt( "movement_backthehellup_frompos: data.BackupFromPos is nil\n" )
+                    self:TaskComplete( "movement_backthehellup_frompos" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "no position to back up from" )
+
+                    return
+
+                end
+
+                if myTbl.IsSeeEnemy and data.NormalBackupIfEnemy then
+                    self:TaskComplete( "movement_backthehellup_frompos" )
+                    myTbl.StartTask( self, "movement_backthehellup", {
+                        DistToQuit = data.DistToQuit,
+                        AfterwardsTask = data.AfterwardsTask,
+                        AfterwardsTaskData = data.AfterwardsTaskData,
+                    }, "i can see the enemy, back up from them instead" )
+
+                    return
+
+                end
+
+                local myNav = myTbl.GetCurrentNavArea( self, myTbl )
+                if not IsValid( myNav ) then
+                    myTbl.overrideVeryStuck = true
+                    self:TaskComplete( "movement_backthehellup_frompos" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "i dont know where i am!" )
+
+                    return
+
+                end
+                local myPos = entMeta.GetPos( self )
+                local myShoot = myTbl.GetShootPos( self )
+
+                local needsNewBackupPos = not data.CurrentTaskGoalPos or myPos:Distance( data.CurrentTaskGoalPos ) < 25
+                if needsNewBackupPos then
+                    local areasToCheck = myNav:GetAdjacentAreas()
+                    local areasAlreadyAdded = { myNav = true }
+                    for _, area in ipairs( areasToCheck ) do
+                        areasAlreadyAdded[area] = true
+
+                    end
+                    coroutine_yield()
+                    local finalAreasToCheck = {}
+                    for _, area in ipairs( areasToCheck ) do
+                        local areasNeighbors = area:GetAdjacentAreas()
+                        for _, neighbor in ipairs( areasNeighbors ) do
+                            if areasAlreadyAdded[neighbor] then continue end
+                            areasAlreadyAdded[neighbor] = true
+                            finalAreasToCheck[#finalAreasToCheck + 1] = neighbor
+
+                        end
+                    end
+                    local backedUpCounts = data.BackedUpAreaCounts
+                    local myViewOffset = myTbl.GetViewOffset( self )
+                    local bestBackupPos
+                    local bestBackupArea
+                    local bestBackupDist
+                    for _, area in ipairs( finalAreasToCheck ) do
+                        coroutine_yield()
+                        if area == myNav then continue end
+
+                        local smallestSize = math.min( area:GetSizeX(), area:GetSizeY() )
+                        if smallestSize <= 25 and #area:GetAdjacentAreas() <= 1 then continue end -- tiny deadends
+
+                        local backupPos
+                        if data.UseNearestPoints then
+                            backupPos = area:GetClosestPointOnArea( myShoot )
+
+                        else
+                            backupPos = area:GetCenter()
+
+                        end
+                        local myShootWhenImThere = backupPos + myViewOffset
+                        if not terminator_Extras.PosCanSeeComplex( myShoot, myShootWhenImThere, self ) then continue end
+
+                        local dropoff = myNav:ComputeAdjacentConnectionHeightChange( area )
+                        local dirToThere = terminator_Extras.dirToPos( myShoot, myShootWhenImThere )
+                        local distWeGet = util.DistanceToLine( myShoot + dirToThere * 10, myShootWhenImThere, backupFrom )
+                        distWeGet = distWeGet / dropoff
+
+                        if not terminator_Extras.PosCanSeeComplex( myShootWhenImThere, backupFrom, self ) then -- try and break LOS
+                            distWeGet = distWeGet * 2
+
+                        end
+
+                        local beenThereBeforeCount = backedUpCounts[area]
+                        if beenThereBeforeCount then
+                            distWeGet = distWeGet / beenThereBeforeCount
+
+                        end
+
+                        if not bestBackupDist or distWeGet > bestBackupDist then
+                            bestBackupArea = area
+                            bestBackupDist = distWeGet
+                            bestBackupPos = backupPos
+
+                        end
+                    end
+                    if not bestBackupPos then
+                        if not data.UseNearestPoints then
+                            data.UseNearestPoints = true
+                            return
+
+                        else
+                            myTbl.TaskFail( self, "movement_backthehellup_frompos" )
+                            myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "i can't find a good backup position!" )
+                            return
+
+                        end
+                    end
+                    local oldCount = backedUpCounts[bestBackupArea] or 0
+                    backedUpCounts[bestBackupArea] = oldCount + 1
+                    data.UseNearestPoints = nil
+                    data.CurrentTaskGoalPos = bestBackupPos
+
+                end
+
+                if data.CurrentTaskGoalPos then
+                    coroutine_yield()
+                    myTbl.GotoPosSimple( self, myTbl, data.CurrentTaskGoalPos, 5 )
+
+                end
+
+                -- if we have a holstered weapon, consider pulling it out!
+                local canWep, potentialWep = self:canGetWeapon()
+                if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_backthehellup_frompos", potentialWep ) then
+                    return
+
+                end
+
+                if data.BackupUntil > CurTime() then return end
+
+                if myShoot:Distance( backupFrom ) > data.DistToQuit then
+                    self:TaskComplete( "movement_backthehellup_frompos" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "i got far enough from the position!" )
 
                 end
             end,
@@ -5904,7 +6073,7 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdateMotion = function( self, data )
                 local enemy = self:GetEnemy()
-                local enemyPos = self:GetLastEnemyPosition( enemy ) or nil
+                local enemyPos = self:GetLastEnemyPosition( enemy )
                 local enemyBearingToMeAbs = math.huge
                 local goodEnemy = nil
                 local enemShootPos = enemyPos

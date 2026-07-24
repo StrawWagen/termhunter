@@ -1090,8 +1090,13 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
     end
 
+    local yieldable = coroutine_running()
+
     while not table_IsEmpty( opened ) do
-        yieldIfWeCan()
+        if yieldable then
+            coroutine_yield()
+
+        end
         local bestScore = 0
         local bestArea = nil
 
@@ -1117,8 +1122,9 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
         local area = getNavAreaOrLadderById( areaId )
 
         opCount = opCount + 1
-        if fodder or ( opCount % 5 ) == 0 then
-            yieldIfWeCan()
+        if yieldable then
+            coroutine_yield()
+
             if not IsValid( area ) then
                 -- area was removed while we were yielding, damn areapatcher
                 return nil, NULL, nil, nil
@@ -1165,6 +1171,13 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
             local adjID = AreaOrLadderGetID( adjArea )
 
             if not closed[adjID] then
+                if yieldable and fodder then
+                    coroutine_yield()
+                    if not ( IsValid( area ) and IsValid( adjArea ) ) then
+                        continue
+
+                    end
+                end
                 local theScore = 0
                 if area.GetTop or adjArea.GetTop then
                     -- just let the algorithm pass through this
@@ -1174,7 +1187,11 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
                     theScore = scoreFunc( data, area, adjArea )
 
                 end
-                if theScore <= 0 then continue end
+                if theScore <= 0 then
+                    addTo( areaId, closedSequential, closed, closedPositions )
+                    continue
+
+                end
 
                 local adjDist = AreaOrLadderGetCenter( area ):Distance( AreaOrLadderGetCenter( adjArea ) )
                 local distance = myDist + adjDist

@@ -111,7 +111,7 @@ ENT.SpawnHealth = 75
 ENT.FriendlyFireMul = 0.5
 ENT.DoMetallicDamage = false
 ENT.DontShootThroughProps = true -- only attack if MASK_SHOT is clear
-ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_POOR
+ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_AVERAGE
 ENT.WalkSpeed = 75
 ENT.MoveSpeed = 125
 ENT.RunSpeed = 200
@@ -244,7 +244,7 @@ function ENT:GetCoverStatusOfPos( myTbl, coverPos, enemy, enemysShoot )
     local trStruc = {
         start = posIfStanding,
         endpos = enemysShoot,
-        mask = MASK_SOLID,
+        mask = MASK_SHOT,
         filter = { self, enemy },
     }
 
@@ -479,6 +479,41 @@ function ENT:DoCustomTasks( defaultTasks )
         ["movement_getweapon"] = defaultTasks["movement_getweapon"],
         ["movement_followtarget"] = defaultTasks["movement_followtarget"],
         ["movement_backthehellup"] = defaultTasks["movement_backthehellup"],
+        ["movement_backthehellup_frompos"] = defaultTasks["movement_backthehellup_frompos"],
+
+        ["soldier_fearsounds_handler"] = {
+            StartsOnInitialize = true,
+            OnStart = function( self, data )
+                data.nextSoundListen = 0
+
+            end,
+            BehaveUpdatePriority = function( self, data )
+                if data.nextSoundListen > CurTime() then return end
+                data.nextSoundListen = CurTime() + math.Rand( 0.5, 1 )
+
+                local scarySound = sound.GetLoudestSoundHint( SOUND_DANGER, entMeta.GetPos( self ) )
+                if not scarySound then return end
+
+                local myTbl = entMeta.GetTable( self )
+
+                myTbl.KillAllTasksWith( self, "movement" )
+
+                local afterData = {
+                    BackupFromPos = scarySound.origin
+
+                }
+                if myTbl.HasBrains then
+                    afterData.AfterwardsTask = "movement_rushsmartandshoot"
+
+                else
+                    afterData.AfterwardsTask = "movement_standandshoot"
+
+                end
+                myTbl.StartTask( self, "movement_backthehellup_frompos", afterData, "aaaah! grenade!" )
+                self:RestartMotionCoroutine()
+
+            end,
+        },
 
         ["soldier_meleeattack_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
@@ -1748,6 +1783,7 @@ function ENT:DoCustomTasks( defaultTasks )
             OnStart = function( self, data )
                 data.CurrentTaskGoalPos = nil
                 data.StartedRush = CurTime()
+                data.TriesCrouchingAmbush = self:EntIndex() % 10 <= 4
 
             end,
             OnDamaged = function( self, data ) -- break out of our trance!
@@ -1790,7 +1826,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
-                local needsNewPathGoal = not data.CurrentTaskGoalPos or data.CurrentTaskGoalPos:Distance( enemysShoot )
+                local needsNewPathGoal = not data.CurrentTaskGoalPos or data.CurrentTaskGoalPos:Distance( enemysShoot ) > 250
 
                 coroutine_yield()
                 if needsNewPathGoal and enemyIsReachable and IsValid( enemysNav ) then
@@ -1809,6 +1845,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         if distToEnemy > furthestGoalDist then
                             furthestGoalDist = distToEnemy
                             furthestGoal = closestToEnemy
+                            debugoverlay.Cross( furthestGoal, 10, 5, color_white, true )
 
                         end
                     end
@@ -1892,13 +1929,23 @@ function ENT:DoCustomTasks( defaultTasks )
                 return self:shouldDoWalk()
 
             end,
+            ShouldCrouch = function( self, data )
+                if not data.TriesCrouchingAmbush then return end
+
+                local myTbl = entMeta.GetTable( self )
+                if not myTbl.HasBrains then return end
+
+                local duelDist = myTbl.GetRealDuelEnemyDist( self, myTbl )
+                if self:GetPathDistanceToGoal() < duelDist / 4 then return true end -- TODO; confirm this works
+
+            end,
         },
         ["movement_intercept"] = {
             OnStart = function( self, data )
-                local myTbl  = entMeta.GetTable( self )
                 data.NextCheckIfSeeEnemy = CurTime() + 1
                 data.CurrentTaskGoalPos = nil
                 data.CheckIfWeCanJustSee = true
+                data.TriesCrouchingAmbush = self:EntIndex() % 10 <= 4
                 if self.HasBrains then
                     data.StartTheTask = CurTime() + math.Rand( 0.1, 0.25 )
 
@@ -2027,6 +2074,16 @@ function ENT:DoCustomTasks( defaultTasks )
             end,
             ShouldWalk = function( self, data )
                 return self:shouldDoWalk()
+
+            end,
+            ShouldCrouch = function( self, data )
+                if not data.TriesCrouchingAmbush then return end
+
+                local myTbl = entMeta.GetTable( self )
+                if not myTbl.HasBrains then return end
+
+                local duelDist = myTbl.GetRealDuelEnemyDist( self, myTbl )
+                if self:GetPathDistanceToGoal() < duelDist / 4 then return true end
 
             end,
         },
