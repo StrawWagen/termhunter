@@ -297,6 +297,7 @@ function ENT:Disposition(ent) return self:GetRelationship(ent) end
 
 local terms = {}
 terminator_Extras.isNpcHack_Tbl = terms
+terminator_Extras.old_TermCount = terminator_Extras.old_TermCount or 0
 
 local function onTermsTableUpdate()
 	local count = 0
@@ -311,15 +312,18 @@ local function onTermsTableUpdate()
 		end
 	end
 
-	if count > 0 then
+	if count == 1 and terminator_Extras.old_TermCount == 0 then
 		terminator_Extras.setupExpensiveHacks()
 		hook.Run( "terminator_nextbot_oneterm_exists" )
 
-	else
+	elseif count == 0 then
 		terminator_Extras.teardownExpensiveHacks()
 		hook.Run( "terminator_nextbot_noterms_exist" )
 
 	end
+
+	terminator_Extras.old_TermCount = count
+
 end
 
 function ENT:IsNPCHackRegister()

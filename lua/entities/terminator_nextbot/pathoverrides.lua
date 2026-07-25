@@ -494,7 +494,6 @@ local band = bit.band
 
 local navMeta = FindMetaTable( "CNavArea" )
 local ladMeta = FindMetaTable( "CNavLadder" )
-local vecMeta = FindMetaTable( "Vector" )
 
 local GetID = navMeta.GetID
 local LaddGetID = ladMeta.GetID

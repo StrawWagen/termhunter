@@ -1688,6 +1688,7 @@ do
     local Vector = Vector
     local vecMeta = FindMetaTable( "Vector" )
     local angMeta = FindMetaTable( "Angle" )
+    local locoMeta = FindMetaTable( "CLuaLocomotion" )
 
     local math_Rand = math.Rand
 
@@ -1761,6 +1762,10 @@ do
             local velLeng = myTbl.GetCurrentSpeed( self )
             if velLeng > 10 then
                 local lengAdd = ( velLeng / 25 )
+                if not locoMeta.IsOnGround( myTbl.loco ) then
+                    lengAdd = lengAdd * 2
+
+                end
                 deg = deg + lengAdd
 
             end
