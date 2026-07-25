@@ -879,7 +879,7 @@ end
 --]]------------------------------------
 function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
     if notEnemyCache[ent] then return end
-    local disp, priority, theirDisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl, true )
+    local disp, priority, theirDisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl )
     myTbl.Term_SetEntityRelationship( self, ent, disp, priority )
     timer.Simple( 0, function()
         if not IsValid( ent ) then return end
@@ -909,12 +909,11 @@ end
     Arg1: table | myTbl | Optimisation, entMeta.GetTable( self )
     Arg2: Entity | ent | Entity to judge.
     Arg3: table | entsTbl | Optimisation, entMeta.GetTable( ent )
-    Arg4: bool | isFirst | First time setting up this player? Lets OnFirstRelationWithPlayer adjust the disposition, used for boss hp scaling.
     Ret1: number | Our disposition toward ent. D_* enum.
     Ret2: number | Priority of that disposition.
     Ret3: number | The disposition ent should have toward us. D_* enum.
 --]]------------------------------------
-function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
+function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl )
     local disp
     local theirDisp
     local priority = 1
@@ -944,12 +943,11 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
         theirDisp = D_HT
 
         priority = 1000
-        if isFirst then
-            local newDisp = myTbl.OnFirstRelationWithPlayer( self, ent, disp, priority, theirDisp )
-            if newDisp then
-                disp = newDisp
 
-            end
+        local newDisp = myTbl.OnFirstRelationWithPlayer( self, ent, disp, priority, theirDisp )
+        if newDisp then
+            disp = newDisp
+
         end
 
     elseif isNextbotOrNpcEnt( ent ) then
