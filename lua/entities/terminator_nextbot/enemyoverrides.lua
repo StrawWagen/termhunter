@@ -10,100 +10,23 @@ local IsFlagSet = entMeta.IsFlagSet
 local blockRandomInfighting = CreateConVar( "terminator_block_random_infighting", 0, FCVAR_ARCHIVE, "Block random infighting?" )
 local blockAllInfighting = CreateConVar( "terminator_block_infighting", 0, FCVAR_ARCHIVE, "Disable ALL infighting, even non-random infighting?" )
 
-local isPotentiallyAnEnemy -- func, defined above ShouldBeEnemy
 
-terminator_Extras.enemyoverrides_potentialEnemyList = {}
-local potentialEnemyList = terminator_Extras.enemyoverrides_potentialEnemyList
-terminator_Extras.enemyoverrides_potentialEnemyMask = {}
-local potentialEnemyMask = terminator_Extras.enemyoverrides_potentialEnemyMask
+-- i love overoptimisation
+-- this cache is used to skip alot of _index calls, perf, on checking if props, static things are enemies
+terminator_Extras.enemyoverrides_notEnemyCache = {}
+local notEnemyCache = terminator_Extras.enemyoverrides_notEnemyCache
 
-local nextPotentialEnemyListRebuild = 0
-local minRebuildInterval = 5
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_shouldbeenemy_notenemycache", function()
+    timer.Create( "term_cache_isnotenemy", 5, 0, function()
+        terminator_Extras.enemyoverrides_notEnemyCache = {}
+        notEnemyCache = terminator_Extras.enemyoverrides_notEnemyCache
 
-local listToProcess
-local wipList
-local wipMask
-
-local function addPotentialEnemy( ent )
-    if potentialEnemyList[ent] then return end
-
-    table.insert( potentialEnemyList, ent )
-    potentialEnemyMask[ent] = true
-
-end
-
-hook.Add( "terminator_nextbot_oneterm_exists", "setup_potentialenemy_list", function()
-    local CurTime = CurTime
-
-    for _, curr in ents.Iterator() do
-        if isPotentiallyAnEnemy( curr ) then
-            addPotentialEnemy( curr )
-
-        end
-    end
-
-    hook.Add( "Think", "terminator_nextbot_potentialEnemyListManager", function()
-        if not listToProcess and nextPotentialEnemyListRebuild < CurTime() then
-            listToProcess = ents.GetAll()
-            wipList = {}
-            wipMask = {}
-            nextPotentialEnemyListRebuild = CurTime() + minRebuildInterval
-
-        elseif listToProcess then
-            for _ = 1, 10 do
-                local count = #listToProcess
-                if count <= 0 then
-                    listToProcess = nil
-                    terminator_Extras.enemyoverrides_potentialEnemyList = wipList
-                    terminator_Extras.enemyoverrides_potentialEnemyMask = wipMask
-                    break
-
-                end
-
-                local curr = listToProcess[count]
-
-                if IsValid( curr ) and isPotentiallyAnEnemy( curr ) then
-                    table.insert( wipList, curr )
-                    wipMask[curr] = true
-
-                end
-
-                listToProcess[count] = nil
-
-            end
-        end
-    end )
-    hook.Add( "EntityRemoved", "terminator_nextbot_potentialEnemyListActiveCleanup", function( removed )
-        if potentialEnemyMask[removed] then
-            for i, ent in ipairs( potentialEnemyList ) do
-                if ent == removed then
-                    table.remove( potentialEnemyList, i )
-
-                end
-            end
-            potentialEnemyMask[removed] = nil
-
-        end
-        if wipMask[removed] then
-            for i, ent in ipairs( wipList ) do
-                if ent == removed then
-                    table.remove( wipList, i )
-
-                end
-            end
-            wipMask[removed] = nil
-
-        end
     end )
 end )
-
-hook.Add( "terminator_nextbot_noterms_exist", "teardown_potentialenemy_list", function()
-    hook.Remove( "Think", "terminator_nextbot_potentialEnemyListManager" )
-    hook.Remove( "EntityRemoved", "terminator_nextbot_potentialEnemyListActiveCleanup" )
-    wipList = {}
-    wipMask = {}
-    terminator_Extras.enemyoverrides_potentialEnemyList = {}
-    terminator_Extras.enemyoverrides_potentialEnemyMask = {}
+hook.Add( "terminator_nextbot_noterms_exist", "teardown_shouldbeenemy_notenemycache", function()
+    timer.Remove( "term_cache_isnotenemy" )
+    terminator_Extras.enemyoverrides_notEnemyCache = {}
+    notEnemyCache = terminator_Extras.enemyoverrides_notEnemyCache
 
 end )
 
@@ -224,11 +147,13 @@ end
 do
     local matrixMeta = FindMetaTable( "VMatrix" )
 
-    local CurTime = CurTime
-
-    local function cacheEntShootPos( _ent, entsTbl, pos )
+    local function cacheEntShootPos( ent, entsTbl, pos )
         entsTbl.term_cachedEntShootPos = pos
-        entsTbl.term_nextEntShootPosCache = CurTime() + 0.05
+        timer.Simple( 0.01, function() -- cache this for barely more than a tick, HUGE perf save if there's lots and lots and lots of bots
+            if not IsValid( ent ) then return end
+            entsTbl.term_cachedEntShootPos = nil
+
+        end )
         return pos
 
     end
@@ -246,8 +171,8 @@ do
         if not entsTbl and not IsValid( ent ) then return end -- entstbl is supplied if the ent is already valid, so we dont need to check
         entsTbl = entsTbl or entMeta.GetTable( ent )
 
-        local nextCache = entsTbl.term_nextEntShootPosCache or 0
-        if nextCache > CurTime() then return entsTbl.term_cachedEntShootPos end
+        local cachedShootPos = entsTbl.term_cachedEntShootPos
+        if cachedShootPos then return cachedShootPos end
 
         local isPly = isPlayer( ent )
         local isPlayerInVehicle = isPly and ent:InVehicle()
@@ -493,39 +418,6 @@ do
     local FL_NOTARGET = FL_NOTARGET
     local FL_OBJECT = FL_OBJECT
 
-    isPotentiallyAnEnemy = function( ent )
-        local isObject = IsFlagSet( ent, FL_OBJECT )
-        local isPly = isPlayer( ent )
-
-        local killer = ent.isTerminatorHunterKiller
-        local krangledKiller
-        local class
-
-        if not killer then
-            -- the normal logic
-
-            local interesting = isPly or isNextbotEnt( ent ) or isNpcEnt( ent )
-            if not isObject and not interesting then return false end
-
-        else
-            -- the rare logic
-
-            -- if an ent has killed terminators
-            -- we do more thorough checks on it!
-            -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
-            class = entMeta.GetClass( ent )
-            if not ( isPly or isNextbotEnt( ent ) or isNpcEnt( ent ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) then
-                return false
-
-            end
-            krangledKiller = true
-
-        end
-
-        return true, killer, krangledKiller
-
-    end
-
     --[[------------------------------------
         Name: ENT:ShouldBeEnemy
         Desc: Is this entity worth fighting? Most ents never make it past the first few checks.
@@ -537,18 +429,46 @@ do
         Ret1: bool | Should we treat this entity as an enemy?
     --]]------------------------------------
     function ENT:ShouldBeEnemy( ent, fov, myTbl, entsTbl )
-        if not potentialEnemyMask[ent] then return false end
+        if notEnemyCache[ent] then return false end
 
         if IsFlagSet( ent, FL_NOTARGET ) then
             return false
+
+        end
+        local isObject = IsFlagSet( ent, FL_OBJECT )
+        local isPly = isPlayer( ent )
+
+        local killer
+        local krangledKiller
+        local class
+
+        if not ent.isTerminatorHunterKiller then
+            -- the normal logic
+
+            local interesting = isPly or isNextbotEnt( ent ) or isNpcEnt( ent )
+            if not isObject and not interesting then
+                notEnemyCache[ent] = true
+                return false
+
+            end
+        else
+            -- the rare logic
+
+            -- if an ent has killed terminators
+            -- we do more thorough checks on it!
+            -- made to allow targeting nextbots/npcs that arent setup correctly, if they killed terminators!
+            class = entMeta.GetClass( ent )
+            if not ( isPly or isNextbotEnt( ent ) or isNpcEnt( ent ) or string.find( class, "npc" ) or string.find( class, "nextbot" ) ) or pals( self, ent ) then
+                return false
+
+            end
+            krangledKiller = true
 
         end
         -- most ents never get past this point!
 
         entsTbl = entsTbl or entMeta.GetTable( ent )
         myTbl = myTbl or entMeta.GetTable( self )
-
-        local isPly = isPlayer( ent )
 
         if isPly and myTbl.IgnoringPlayers( self ) then
             return false
@@ -568,11 +488,9 @@ do
         if not entsTbl.TerminatorNextBot and isDeadNPC then return false end
         if ( entsTbl.TerminatorNextBot or not isNpcEnt( ent, class ) ) and entMeta.Health( ent ) <= 0 then return false end
 
-        local _, killer, krangledKiller = isPotentiallyAnEnemy( ent )
-
-        local killerNotChummy = ( killer or krangledKiller ) and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
+        local killerNotChummy = killer and entsTbl.isTerminatorHunterChummy ~= myTbl.isTerminatorHunterChummy
         local memory, _ = myTbl.getMemoryOfObject( self, myTbl, ent )
-        local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.TERM_GetRelationship( self, myTbl, ent ) == D_HT or killerNotChummy
+        local knowsItsAnEnemy = memory == MEMORY_WEAPONIZEDNPC or myTbl.TERM_GetRelationship( self, myTbl, ent ) == D_HT or krangledKiller or killerNotChummy
         if not knowsItsAnEnemy then return false end
 
         -- this should not be an enemy
@@ -667,7 +585,7 @@ do
     local coroutine_yield = coroutine.yield
 
     local function processFindingEnt( self, myTbl, ent, fodder, myFov, ShouldBeEnemy, CanSeePosition, UpdateEnemyMemory, EntShootPos )
-        if not potentialEnemyMask[ent] then return end
+        if notEnemyCache[ent] then return end
 
         if ent == self then return end
 
@@ -798,7 +716,6 @@ do
             if not memories[curr] then continue end -- a hook forgot it while we worked
             if not IsValid( curr ) then continue end
             local entsTbl = entMeta.GetTable( curr )
-
             if not myTbl.ShouldBeEnemy( self, curr, myFov, myTbl, entsTbl ) then continue end
 
             if not myTbl.CanSeePosition( self, curr, myTbl, entsTbl ) then
@@ -807,8 +724,6 @@ do
             end
 
             local rang = self:GetRangeSquaredTo( curr )
-            if not rang then continue end -- WEIRD devplat revolver bug
-
             local _, pr = myTbl.TERM_GetRelationship( self, myTbl, curr )
 
             if rang <= closeEnemDistSqr then
@@ -908,6 +823,51 @@ do
     end
 end
 
+
+hook.Add( "terminator_nextbot_oneterm_exists", "setup_postentitycreated_hook", function()
+    hook.Add( "OnEntityCreated", "terminator_postentitycreated", function( ent )
+        if not ( isPlayer( ent ) or isNextbotOrNpcEnt( ent ) ) then return end
+
+        timer.Simple( 0, function()
+            if not IsValid( ent ) then return end
+
+            local entsTbl = entMeta.GetTable( ent )
+            hook.Run( "terminator_postentitycreated", ent, entsTbl )
+
+        end )
+    end )
+end )
+
+hook.Add( "terminator_nextbot_noterms_exist", "teardown_postentitycreated_hook", function()
+    hook.Remove( "OnEntityCreated", "terminator_postentitycreated" )
+
+end )
+
+function ENT:SetupRelationships( myTbl )
+    local SetupEntityRelationship = myTbl.SetupEntityRelationship
+    for _, ent in ents.Iterator() do
+        if notEnemyCache[ent] then continue end
+
+        local entsTbl = entMeta.GetTable( ent )
+        if not ( isPlayer( ent ) or isNextbotOrNpcEnt( ent ) or IsFlagSet( ent, FL_OBJECT ) or entsTbl.isTerminatorHunterKiller ) then continue end
+
+        SetupEntityRelationship( self, myTbl, ent, entsTbl )
+
+    end
+
+    local hookName = tostring( self ) .. "_" .. tostring( self:GetCreationID() ) .. "_relationshipsetuphook"
+    hook.Add( "terminator_postentitycreated", hookName, function( ent, entsTbl )
+        if not IsValid( self ) then return end
+        SetupEntityRelationship( self, myTbl, ent, entsTbl )
+
+    end )
+
+    self:CallOnRemove( "teardown_relationshipsetuphook", function()
+        hook.Remove( "terminator_postentitycreated", hookName )
+
+    end )
+end
+
 --[[------------------------------------
     Name: ENT:SetupEntityRelationship
     Desc: Sets our disposition toward ent right now, then next tick sets the reciprocal,
@@ -918,8 +878,7 @@ end
     Ret1:
 --]]------------------------------------
 function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
-    if not potentialEnemyMask[ent] then return end
-
+    if notEnemyCache[ent] then return end
     local disp, priority, theirDisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl, true )
     myTbl.Term_SetEntityRelationship( self, ent, disp, priority )
     timer.Simple( 0, function()
@@ -1007,7 +966,7 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
         if memory == MEMORY_WEAPONIZEDNPC then
             priority = priority + 200
 
-        else
+        elseif not myTbl.IsStupid then
             -- what usually happens, npc is flagged as boring
             -- we will then hate them via MakeFeud if they manage to damage us
             -- makes bot ignore npc_seagull but hate eg, zombies, without a big hardcoded table
@@ -1033,45 +992,6 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl, isFirst )
 
 end
 
-hook.Add( "terminator_nextbot_oneterm_exists", "setup_postentitycreated_hook", function()
-    hook.Add( "OnEntityCreated", "terminator_postentitycreated", function( ent )
-        if not isPotentiallyAnEnemy( ent ) then return end
-
-        timer.Simple( 0, function()
-            if not IsValid( ent ) then return end
-
-            local entsTbl = entMeta.GetTable( ent )
-            hook.Run( "terminator_postentitycreated", ent, entsTbl )
-
-        end )
-    end )
-end )
-
-hook.Add( "terminator_nextbot_noterms_exist", "teardown_postentitycreated_hook", function()
-    hook.Remove( "OnEntityCreated", "terminator_postentitycreated" )
-
-end )
-
-function ENT:SetupRelationships( myTbl )
-    local SetupEntityRelationship = myTbl.SetupEntityRelationship
-    for _, ent in ipairs( potentialEnemyList ) do
-        local entsTbl = ent:GetTable()
-        SetupEntityRelationship( self, myTbl, ent, entsTbl )
-
-    end
-
-    local hookName = tostring( self ) .. "_" .. tostring( self:GetCreationID() ) .. "_relationshipsetuphook"
-    hook.Add( "terminator_postentitycreated", hookName, function( ent, entsTbl )
-        if not IsValid( self ) then return end
-        SetupEntityRelationship( self, myTbl, ent, entsTbl )
-
-    end )
-
-    self:CallOnRemove( "teardown_relationshipsetuphook", function()
-        hook.Remove( "OnEntityCreated", hookName )
-
-    end )
-end
 
 function ENT:IsManiacTerm() -- (very) rare infighting
     if self.neverManiac then return end
