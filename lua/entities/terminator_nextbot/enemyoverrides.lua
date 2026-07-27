@@ -1773,19 +1773,19 @@ function ENT:Term_LookAround( myTbl )
     local seeEnem = myTbl.IsSeeEnemy
     --local lookAtType
 
+    -- look at what just damaged us
+    if myTbl.TookDamagePos and ( not seeEnem or ( myTbl.TookDamagePos:Distance( myPos ) < ( myTbl.DistToEnemy * 0.75 ) and not myTbl.IsReallyAngry( self ) ) ) then
+        lookAtPos = myTbl.TookDamagePos
+        --lookAtType = "tookdamage"
+
     -- we look forward when running, look at last approach pos!
-    if looksForwardWhenRunning and not movingSlow and myTbl.loco:GetDesiredSpeed() >= myTbl.RunSpeed then
+    elseif looksForwardWhenRunning and not movingSlow and myTbl.loco:GetDesiredSpeed() >= myTbl.RunSpeed then
         lookAtPos = term_LastApproachPos + vec_up25
 
     -- look at last intercept pos
     elseif not seeEnem and myTbl.interceptPeekTowardsEnemy and myTbl.lastInterceptTime + 2 > cur then
         lookAtPos = myTbl.lastInterceptPos
         --lookAtType = "intercept"
-
-    -- look at what just damaged us
-    elseif myTbl.TookDamagePos and ( not seeEnem or ( myTbl.TookDamagePos:Distance( myPos ) < ( myTbl.DistToEnemy * 0.75 ) and not myTbl.IsReallyAngry( self ) ) ) then
-        lookAtPos = myTbl.TookDamagePos
-        --lookAtType = "tookdamage"
 
     -- look at sound hint
     elseif not seeEnem and sndHint and sndHint.time + sndCuriosity > cur then

@@ -389,6 +389,12 @@ end
 --]]------------------------------------
 
 function ENT:UpdatePhysicsObject( myTbl )
+	if entMeta.GetModelScale( self ) ~= 1 then -- HACK, to fix the horrible blowing up collision bounds bug
+		local data = myTbl.IsCrouching( self ) and myTbl.CrouchCollisionBounds or myTbl.CollisionBounds
+		entMeta.SetCollisionBounds( self, data[1], data[2] )
+
+	end
+
 	local phys = entMeta.GetPhysicsObject( self )
 
 	if not IsValid( phys ) then return end

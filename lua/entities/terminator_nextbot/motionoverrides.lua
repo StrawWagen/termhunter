@@ -862,6 +862,7 @@ function ENT:ShouldCrouch( myTbl )
         end
 
         return false
+
     else
         if myTbl.overrideCrouch and myTbl.overrideCrouch > CurTime() then return true end
 

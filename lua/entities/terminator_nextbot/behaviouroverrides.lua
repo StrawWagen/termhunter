@@ -98,6 +98,7 @@ function ENT:BehaveUpdate( interval )
 
     if myTbl.m_Physguned then
         myTbl.loco:SetVelocity( vector_origin )
+
     end
 
     local disable = myTbl.DisableBehaviour( self, myTbl )
