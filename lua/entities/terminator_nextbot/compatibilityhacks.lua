@@ -355,6 +355,12 @@ if SERVER then
 
     end
 
+    function ENT:ClearGoal()
+        self:SetEnemy( NULL )
+        self:InvalidatePath( "ClearGoal" )
+
+    end
+
     function ENT:Crouching()
         return self:IsCrouching()
 

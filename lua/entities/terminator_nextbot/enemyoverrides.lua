@@ -174,16 +174,29 @@ do
         local cachedShootPos = entsTbl.term_cachedEntShootPos
         if cachedShootPos then return cachedShootPos end
 
+        local isCrouchingPlayer
         local isPly = isPlayer( ent )
-        local isPlayerInVehicle = isPly and ent:InVehicle()
+        if isPly then
+            local isPlayerInVehicle = ent:InVehicle()
 
-        if isPlayerInVehicle then
-            local pos = self:getBestPos( ent:GetVehicle() )
-            return cacheEntShootPos( ent, entsTbl, pos )
+            if isPlayerInVehicle then
+                local pos = self:getBestPos( ent:GetVehicle() )
+                return cacheEntShootPos( ent, entsTbl, pos )
+
+            end
+
+            local isGradRagdoll = entsTbl.fake
+            if isGradRagdoll then
+                local ragdoll = ent:GetNWEntity( "DeathRagdoll" )
+                if IsValid( ragdoll ) then
+                    return ragdoll:GetPos()
+
+                end
+            end
+
+            isCrouchingPlayer = ent:Crouching()
 
         end
-
-        local isCrouchingPlayer = isPly and ent:Crouching()
 
         if not isCrouchingPlayer then
             local sets = entMeta.GetHitboxSetCount( ent )
@@ -792,6 +805,7 @@ do
         local classr = myTbl.m_ClassRelationships[ entMeta.GetClass( ent )]
         if classr and ( not priority or classr[2] > priority ) then
             d, priority = classr[1], classr[2]
+
         end
 
         -- killers are higher priority
