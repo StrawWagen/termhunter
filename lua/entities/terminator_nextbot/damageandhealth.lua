@@ -693,6 +693,7 @@ function ENT:OnKilled( dmg )
         local deathAct = deathAnimDat.act
         if deathAct and not ( isnumber( deathAct ) and deathAct <= 0 ) then
             deathAniming = true
+            damageForce = Vector( 1, 1, 1 ) -- don't make ragdoll go crazy, the force happened a while ago
 
             local startFunc = deathAnimDat.startFunc
             if startFunc then

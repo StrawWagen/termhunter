@@ -299,6 +299,9 @@ function ENT:SetupGesturePosture()
 		local wait = newGesture[3]
 		self.m_DoGesture = nil
 
+		local oldGesture = self.m_CurGesture
+		if !wait and oldGesture and oldGesture[3] and oldGesture[2] > CurTime() then return end
+
 		self:StopGesture()
 
 		if isstring( act ) then
