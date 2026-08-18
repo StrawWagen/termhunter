@@ -31,11 +31,10 @@ ENT.PrintName = "Combine Soldier"
 ENT.Spawnable = false -- dont show up in entity spawn category
 ENT.SubCategory = "Combine"
 
-if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
-    terminator_Extras.RegisterNPC( "terminator_nextbot_csoldier", ENT, {
-        Weapons = ENT.DefaultWeapon,
-    } )
-end
+terminator_Extras.RegisterNPC( "terminator_nextbot_csoldier", ENT, {
+    Weapons = ENT.DefaultWeapon,
+    Spawnable = GetConVar( "developer" ):GetBool()
+} )
 
 ENT.PlayerColorVec = Vector( 0.4, 0.4, 0.6 ) -- changes ENT:GetPlayerColor result
 

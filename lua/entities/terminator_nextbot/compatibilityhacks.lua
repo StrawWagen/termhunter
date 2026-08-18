@@ -218,6 +218,14 @@ function ENT:GetCurrentCommand()
 
 end
 
+function ENT:GetEyeTrace()
+    local start = self:GetShootPos()
+    local endOffs = self:GetEyeAngles():Forward() * 32768
+    local _, trResult = terminator_Extras.PosCanSeeComplex( start, start + endOffs, self )
+    return trResult
+
+end
+
 if SERVER then
 
     include( "weaponhacks.lua" )
@@ -281,14 +289,6 @@ if SERVER then
     function ENT:StripWeapon()
         if not IsValid( self:GetWeapon() ) then return end
         SafeRemoveEntityDelayed( self:DropWeapon( true ), 0 )
-
-    end
-
-    function ENT:GetEyeTrace()
-        local start = self:GetShootPos()
-        local endOffs = self:GetEyeAngles():Forward() * 32768
-        local _, trResult = terminator_Extras.PosCanSeeComplex( start, start + endOffs, self )
-        return trResult
 
     end
 
