@@ -3893,4 +3893,8 @@ function ENT:InitializeCollisionBounds( mdlScale )
     local sizeScale = ( maxsZ + -self.CollisionBounds[1].z ) / defaultHeight
     self:SetControlCameraOffset( defaultDriveViewOffset * sizeScale )
 
+    -- wont make paths thru an area if its thinner than this
+    local minWidth = math.floor( self.MinPathingAreaWidth or self.CrouchCollisionBounds[2].x * mdlScale * 0.5 )
+    self.MinPathingAreaWidth = minWidth
+
 end

@@ -16,11 +16,9 @@ ENT.PrintName = "Combine Rocketeer"
 ENT.Spawnable = false -- dont show up in entity spawn category
 ENT.Author = "Boomertaters"
 
-if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
-    terminator_Extras.RegisterNPC( "terminator_nextbot_crocketeer", ENT, {
-        Weapons = { ENT.DefaultWeapon },
-    } )
-end
+terminator_Extras.RegisterNPC( "terminator_nextbot_crocketeer", ENT, {
+    Weapons = { ENT.DefaultWeapon },
+} )
 
 if CLIENT then return end
 

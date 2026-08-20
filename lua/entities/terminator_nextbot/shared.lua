@@ -141,6 +141,8 @@ ENT.IsFodder = nil -- enables optimisations for enemies you want to spawn in hor
 ENT.IsStupid = nil -- enables optimisations/simplifications for zombie, animal type enemies
 ENT.HasBrains = true -- enables less optimisations, mostly used by ents based on this
 
+ENT.Term_SecondsAttentionOnLostEnemy = 0.25
+
 ENT.TakesFallDamage = true
 ENT.HeightToStartTakingDamage = ENT.JumpHeight
 ENT.FallDamagePerHeight = 0.05
@@ -2303,7 +2305,7 @@ function ENT:beatupVehicleIfWeCan( currTask )
     if not seeVehicle then return end
 
     self:TaskComplete( currTask )
-    self:StartTask( "movement_bashobject", { object = vehicleIHate, insane = self:IsReallyAngry() }, "i found your car, i will now destroy it!" )
+    self:StartTask( "movement_bashobject", { ToBash = vehicleIHate, Insane = self:IsReallyAngry() }, "i found your car, i will now destroy it!" )
     return true
 
 end
@@ -2347,7 +2349,7 @@ function ENT:BashLockedDoor( currentTask )
     self.encounteredABlockedAreaWhenPathing = nil
 
     self:TaskComplete( currentTask )
-    self:StartTask( "movement_bashobject", { object = theDoor, insane = true, doorBash = true }, "there's a locked door and one of them blocked my path earlier" )
+    self:StartTask( "movement_bashobject", { ToBash = theDoor, Insane = true, doorBash = true }, "there's a locked door and one of them blocked my path earlier" )
 
     local oldCount = terminator_Extras.lockedDoorAttempts[theDoor:GetCreationID()] or 0
     terminator_Extras.lockedDoorAttempts[theDoor:GetCreationID()] = oldCount + 1
@@ -4475,13 +4477,15 @@ function ENT:DoDefaultTasks()
         ["movement_backthehellup_frompos"] = {
             OnStart = function( self, data )
                 local myTbl  = entMeta.GetTable( self )
-                data.BackupFromPos = data.BackupFromPos or nil 
+                data.BackupFromPos = data.BackupFromPos or nil
+                data.BackupFromEnt = data.BackupFromEnt or nil 
                 data.DistToQuit = data.DistToQuit or 1000
                 data.BackupUntil = data.BackupUntil or CurTime() + 2
                 data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
                 data.AfterwardsTaskData = data.AfterwardsTaskData or nil
                 data.NormalBackupIfEnemy = data.NormalBackupIfEnemy or true
 
+                data.WasValidEnt = IsValid( data.BackupFromEnt )
                 data.CurrentTaskGoalPos = nil
                 data.BackedUpAreaCounts = {}
                 myTbl.InvalidatePath( self, "we gotta back the hell up" )
@@ -4496,6 +4500,12 @@ function ENT:DoDefaultTasks()
                     myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "no position to back up from" )
 
                     return
+
+                end
+
+                if data.WasValidEnt and not IsValid( data.BackupFromEnt ) then
+                    self:TaskComplete( "movement_backthehellup_frompos" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "nothing to back up from anymore" )
 
                 end
 
@@ -4713,7 +4723,7 @@ function ENT:DoDefaultTasks()
                     end
                     if SqrDistLessThan( data.Wep:GetPos():DistToSqr( self:GetPos() ), 200 ) then
                         self:TaskFail( "movement_getweapon" )
-                        self:StartTask( "movement_bashobject", { object = data.Wep, weaponSearchNow = true }, "the gun was right there" )
+                        self:StartTask( "movement_bashobject", { ToBash = data.Wep, weaponSearchNow = true }, "the gun was right there" )
                         return true
 
                     end
@@ -4869,27 +4879,28 @@ function ENT:DoDefaultTasks()
                 return self:shouldDoWalk()
             end,
         },
-        -- bash either a specific data.object, or the first object in our awarenessBash list
+        -- bash either a specific data.ToBash, or the first object in our awarenessBash list
         -- this was originally gonna be a whole learning system where bots figured out entity's properties
         -- but even the terms dont live long enough to encounter enough separate stuff
         -- it was cool though because it laid the groundwork for alot of stuff, and them beating up random stuff can be really funny
         ["movement_bashobject"] = {
             OnStart = function( self, data )
-                if not IsValid( data.object ) then
-                    data.object = self.awarenessBash[1]
+                if not IsValid( data.ToBash ) then
+                    data.ToBash = self.awarenessBash[1]
                     table.remove( self.awarenessBash, 1 )
+
                 end
 
-                if not IsValid( data.object ) then data.fail = true return end
+                if not IsValid( data.ToBash ) then data.fail = true return end
 
-                if data.object.huntersglee_breakablenails then
+                if data.ToBash.huntersglee_breakablenails then
                     self:GetTheBestWeapon()
                     data.insane = true
 
                 end
 
-                data.readHealth = data.object:Health()
-                if data.insane then
+                data.readHealth = data.ToBash:Health()
+                if data.Insane then
                     data.timeout = CurTime() + 50
 
                 else
@@ -4911,59 +4922,59 @@ function ENT:DoDefaultTasks()
                 -- thinking
                 if not data.fail and not data.success then
                     local tooMuchHealthLost = 10
-                    if data.insane then
+                    if data.Insane then
                         tooMuchHealthLost = 100
 
                     end
                     local canBash, toBash = self:CanBashLockedDoor( self:GetPos(), 4000 )
-                    if canBash and toBash and data.objectand and toBash ~= data.object and self:BashLockedDoor( "movement_bashobject" ) then
+                    if canBash and toBash and data.ToBash and toBash ~= data.ToBash and self:BashLockedDoor( "movement_bashobject" ) then
                         return
 
                     elseif self:getLostHealth() > tooMuchHealthLost or self:inSeriousDanger() then
                         self:EnemyAcquired( "movement_bashobject" )
 
-                        self:ignoreEnt( data.object, 15 )
+                        self:ignoreEnt( data.ToBash, 15 )
                         return
 
-                    elseif self.IsSeeEnemy and self:GetEnemy() and not data.frenzy and not data.insane then
+                    elseif self.IsSeeEnemy and self:GetEnemy() and not data.frenzy and not data.Insane then
                         self:EnemyAcquired( "movement_bashobject" )
                         return
 
-                    elseif not data.frenzy and not data.insane and self:interceptIfWeCan( "movement_bashobject", data ) then
+                    elseif not data.frenzy and not data.Insane and self:interceptIfWeCan( "movement_bashobject", data ) then
                         return
 
                     -- get broken nerd
-                    elseif not IsValid( data.object ) or ( data.object:GetClass() == "prop_door_rotating" and not terminator_Extras.CanBashDoor( data.object ) ) then
+                    elseif not IsValid( data.ToBash ) or ( data.ToBash:GetClass() == "prop_door_rotating" and not terminator_Extras.CanBashDoor( data.ToBash ) ) then
                         data.success = true
 
-                    elseif data.readHealth > 0 and data.object:Health() <= 0 then
+                    elseif data.readHealth > 0 and data.ToBash:Health() <= 0 then
                         data.success = true
 
-                    elseif self:validSoundHint() and data.gotAHitIn and not data.frenzy and not data.insane then
+                    elseif self:validSoundHint() and data.gotAHitIn and not data.frenzy and not data.Insane then
                         self:TaskComplete( "movement_bashobject" )
                         self:StartTask( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
                         return
 
                      -- dont just do this forever
-                    elseif data.timeout < CurTime() or not data.object:IsSolid() then
+                    elseif data.timeout < CurTime() or not data.ToBash:IsSolid() then
                         data.fail = true
 
                     end
 
-                    if IsValid( data.object ) then
+                    if IsValid( data.ToBash ) then
                         -- BEATUP
                         local old = SysTime()
-                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = myTbl.beatUpEnt( self, myTbl, data.object )
+                        local valid, attacked, nearAndCanHit, closeAndCanHit, isNear, isClose, visible = myTbl.beatUpEnt( self, myTbl, data.ToBash )
                         data.gotAHitIn = data.gotAHitIn or attacked
 
-                        if data.insane and not isClose and visible and self:GetWeaponRange() > 500 then
+                        if data.Insane and not isClose and visible and self:GetWeaponRange() > 500 then
                             self:shootAt( toBeat )
                             myTbl.lastShootingType = "bashObject_insane"
 
                         end
                         -- edge case
-                        if not valid and visible and IsValid( data.object ) then
-                            myTbl.GotoPosSimple( self, myTbl, data.object:WorldSpaceCenter(), 5 )
+                        if not valid and visible and IsValid( data.ToBash ) then
+                            myTbl.GotoPosSimple( self, myTbl, data.ToBash:WorldSpaceCenter(), 5 )
                             self:Anger( 1 )
 
                         elseif not valid and not visible then
@@ -5007,7 +5018,7 @@ function ENT:DoDefaultTasks()
                         return
 
                     else
-                        if data.insane then
+                        if data.Insane then
                             self:TaskComplete( "movement_bashobject" )
                             self:StartTask( "movement_searchlastdir", { Want = 8 }, "destroyed thing, time to search behind it!" )
                             return
@@ -5036,21 +5047,21 @@ function ENT:DoDefaultTasks()
         -- most stuff is hardcoded now, like barrels and slams, but this system works sorta ok enough to be worth keeping
         ["movement_understandobject"] = {
             OnStart = function( self, data )
-                data.object = self.awarenessUnknown[1]
+                data.ToUnderstand = self.awarenessUnknown[1]
                 table.remove( self.awarenessUnknown, 1 )
-                if not IsValid( data.object ) then return end
+                if not IsValid( data.ToUnderstand ) then return end
 
                 data.timeout = CurTime() + 15
-                data.objectKey = self:getAwarenessKey( data.object )
-                data.objectHealth = data.object:Health() or 0
-                data.initToggleState = data.object:GetInternalVariable( "m_toggle_state" )
+                data.ToUnderstandKey = self:getAwarenessKey( data.ToUnderstand )
+                data.ToUnderstandHealth = data.ToUnderstand:Health() or 0
+                data.initToggleState = data.ToUnderstand:GetInternalVariable( "m_toggle_state" )
 
                 if not istable( self.understandAttempts ) then
                     self.understandAttempts = {}
                 end
 
-                data.understandAttempts = self.understandAttempts[data.objectKey] or 0
-                --print( data.object )
+                data.understandAttempts = self.understandAttempts[data.ToUnderstandKey] or 0
+                --print( data.ToUnderstand )
 
             end,
             BehaveUpdateMotion = function( self, data, interval )
@@ -5059,14 +5070,14 @@ function ENT:DoDefaultTasks()
                 local internalUnderstandAtt = data.understandAttempts or 0
                 local pathLength = self:MyPathLength() or 0
 
-                local unreachable = internalUnderstandAtt > 2 and SqrDistLessThan( self:GetPos():DistToSqr( data.object ), 400 )
+                local unreachable = internalUnderstandAtt > 2 and SqrDistLessThan( self:GetPos():DistToSqr( data.ToUnderstand ), 400 )
 
                 if self:CanBashLockedDoor( self:GetPos(), 500 ) and self:BashLockedDoor( "movement_understandobject" ) then
                     return
 
                 elseif self.IsSeeEnemy and self:GetEnemy() then
-                    if data.object == self:GetEnemy() then
-                        self:ignoreEnt( data.object )
+                    if data.ToUnderstand == self:GetEnemy() then
+                        self:ignoreEnt( data.ToUnderstand )
 
                     end
                     self:EnemyAcquired( "movement_understandobject" )
@@ -5078,7 +5089,7 @@ function ENT:DoDefaultTasks()
                 elseif self:beatupVehicleIfWeCan( "movement_understandobject" ) then
                     return
 
-                elseif not IsValid( data.object ) or not data.object:IsSolid() then -- we lost the object OR we broke it
+                elseif not IsValid( data.ToUnderstand ) or not data.ToUnderstand:IsSolid() then -- we lost the object OR we broke it
                     if not data.trackingBreakable then
                         data.fail = true
 
@@ -5088,12 +5099,12 @@ function ENT:DoDefaultTasks()
                         --print("break" )
 
                         if lastTimeAdd > CurTime() then -- breaking it damaged me!!!!
-                            self:memorizeEntAs( data.objectKey, MEMORY_VOLATILE )
+                            self:memorizeEntAs( data.ToUnderstandKey, MEMORY_VOLATILE )
                             self.lastHeardSoundHint = nil
                             --print("volatile" )
 
                         else
-                            self:memorizeEntAs( data.objectKey, MEMORY_BREAKABLE )
+                            self:memorizeEntAs( data.ToUnderstandKey, MEMORY_BREAKABLE )
 
                         end
                         data.success = true
@@ -5109,39 +5120,39 @@ function ENT:DoDefaultTasks()
                     self:StartTask( "movement_followsound", { Sound = self.lastHeardSoundHint }, "i heard something" )
                     return
 
-                elseif self.awarenessMemory[ self:getAwarenessKey( data.object ) ] ~= MEMORY_MEMORIZING then -- we memorized this already
+                elseif self.awarenessMemory[ self:getAwarenessKey( data.ToUnderstand ) ] ~= MEMORY_MEMORIZING then -- we memorized this already
                     data.fail = true
 
-                elseif data.object:GetParent() == self then
-                    self:ignoreEnt( data.object )
+                elseif data.ToUnderstand:GetParent() == self then
+                    self:ignoreEnt( data.ToUnderstand )
                     data.fail = true
 
                 elseif data.timeout < CurTime() then -- dont just do this forever
                     if data.attacked then
-                        self:memorizeEntAs( data.object, MEMORY_INERT )
+                        self:memorizeEntAs( data.ToUnderstand, MEMORY_INERT )
 
                     elseif pathLength < pathLengthThresh or not self:primaryPathIsValid() or data.understandAttempts > 3 or unreachable then
-                        self:ignoreEnt( data.object )
+                        self:ignoreEnt( data.ToUnderstand )
 
                     else
-                        self:memorizeEntAs( data.object, MEMORY_INERT )
+                        self:memorizeEntAs( data.ToUnderstand, MEMORY_INERT )
 
                     end
 
                     data.fail = true
                 elseif data.checkedUse and definitelyAttacked and not data.entTakingDamage and not data.isButton then -- eliminate if it's inert
-                    self:memorizeEntAs( data.object, MEMORY_INERT )
+                    self:memorizeEntAs( data.ToUnderstand, MEMORY_INERT )
                     data.success = true
 
                 end
                 -- do understanding
                 if not data.fail and not data.success then
                     local valid, attacked, nearAndCanHit, closeAndCanHit, isClose
-                    if not self.isUnstucking and IsValid( data.object ) then
+                    if not self.isUnstucking and IsValid( data.ToUnderstand ) then
                         -- UNDERSTAND
-                        valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose = self:beatUpEnt( entMeta.GetTable( self ), data.object )
+                        valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose = self:beatUpEnt( entMeta.GetTable( self ), data.ToUnderstand )
                         --print( valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose )
-                        --debugoverlay.Cross( data.object:GetPos(), 100, 1, Color( 255,0,0 ), true )
+                        --debugoverlay.Cross( data.ToUnderstand:GetPos(), 100, 1, Color( 255,0,0 ), true )
                         if valid == false then
                             data.fail = true
 
@@ -5156,18 +5167,18 @@ function ENT:DoDefaultTasks()
                         data.timeout = CurTime() + 5
 
                     end
-                    if ( nearAndCanHit or closeAndCanHit ) and IsValid( data.object ) then
+                    if ( nearAndCanHit or closeAndCanHit ) and IsValid( data.ToUnderstand ) then
                         -- button
-                        if data.object:GetInternalVariable( "m_toggle_state" ) ~= data.initToggleState then
+                        if data.ToUnderstand:GetInternalVariable( "m_toggle_state" ) ~= data.initToggleState then
                             data.isButton = true
-                            self:memorizeEntAs( data.object, MEMORY_INERT )
+                            self:memorizeEntAs( data.ToUnderstand, MEMORY_INERT )
                             data.success = true
 
                         end
-                        if data.objectHealth > 0 then
+                        if data.ToUnderstandHealth > 0 then
                             -- im not breaking this
-                            if not hasReasonableHealth( data.object ) then
-                                self:memorizeEntAs( data.object, MEMORY_INERT )
+                            if not hasReasonableHealth( data.ToUnderstand ) then
+                                self:memorizeEntAs( data.ToUnderstand, MEMORY_INERT )
                                 data.success = true
 
                             -- start the tracking
@@ -5176,7 +5187,7 @@ function ENT:DoDefaultTasks()
 
                             end
                             -- ok its taking damage
-                            if not data.entTakingDamage and data.object:Health() < data.objectHealth then
+                            if not data.entTakingDamage and data.ToUnderstand:Health() < data.ToUnderstandHealth then
                                 data.entTakingDamage = true
                                 data.timeout = CurTime() + 10
 
@@ -5191,7 +5202,7 @@ function ENT:DoDefaultTasks()
                         -- spam use on it
                         if ( data.nextUse or 0 ) < CurTime() and nearAndCanHit then
                             data.nextUse = CurTime() + math.random( 0.1, 1 )
-                            self:Use2( data.object )
+                            self:Use2( data.ToUnderstand )
                             data.checkedUse = true
 
                         end
@@ -5389,7 +5400,7 @@ function ENT:DoDefaultTasks()
                 elseif IsValid( toBashAfterSound ) and self:ClearOrBreakable( self:GetShootPos(), self:getBestPos( toBashAfterSound ), true ) then
                     Done = true
                     self:TaskComplete( "movement_followsound" )
-                    self:StartTask( "movement_bashobject", { object = toBashAfterSound }, "the loud thing's breakable?!" )
+                    self:StartTask( "movement_bashobject", { ToBash = toBashAfterSound }, "the loud thing's breakable?!" )
 
                 elseif reachedSound then
                     Done = true

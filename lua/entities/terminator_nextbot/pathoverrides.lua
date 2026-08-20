@@ -613,14 +613,24 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
         end
     end
 
+    if band( attributes, NAV_MESH_AVOID ) ~= 0 then
+        cost = cost * 20
+
+    end
+
     coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
     if not IsValid( fromArea ) then return -1 end
     if not IsValid( toArea ) then return -1 end
 
     local sizeX = navMeta.GetSizeX( toArea )
     local sizeY = navMeta.GetSizeY( toArea )
+    local smallestSize = sizeX < sizeY and sizeX or sizeY
 
-    if sizeX < 26 or sizeY < 26 then
+    local minWidth = locoData.minPathingAreaWidth
+    if smallestSize < minWidth then
+        return -1
+
+    elseif smallestSize < 26 then
         -- generator often makes small 1x1 areas with this attribute, on very complex terrain
         if band( attributes, NAV_MESH_NO_MERGE ) ~= 0 then
             cost = cost * 4
@@ -629,13 +639,8 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
             cost = cost * 1.25
 
         end
-    elseif sizeX > 151 and sizeY > 151 and not hunterIsFlanking then -- this makes us prefer paths thru simple terrain, it's cheaper!
+    elseif smallestSize > 151 and not hunterIsFlanking then -- this makes us prefer paths thru simple terrain, it's cheaper!
         cost = cost * 0.7
-
-    end
-
-    if band( attributes, NAV_MESH_AVOID ) ~= 0 then
-        cost = cost * 20
 
     end
 
@@ -1386,6 +1391,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
         pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost,
         hunterIsFlanking = myTbl.hunterIsFlanking,
         flankingIsReallyAngry = myTbl.flankingIsReallyAngry,
+        minPathingAreaWidth = myTbl.MinPathingAreaWidth,
         stepHeight = locoMeta.GetStepHeight( myTbl.loco ),
         jumpHeight = locoMeta.GetJumpHeight( myTbl.loco ),
         deathDropHeight = locoMeta.GetDeathDropHeight( myTbl.loco ),

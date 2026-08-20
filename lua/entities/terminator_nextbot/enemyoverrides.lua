@@ -1763,12 +1763,12 @@ function ENT:Term_LookAround( myTbl )
     local genericHint = myTbl.term_GenericLookAtPos
     local sndCuriosity = 0.5
 
-    local freshnessFocus = 0.25
+    local freshnessFocus = myTbl.Term_SecondsAttentionOnLostEnemy
     if myTbl.IsReallyAngry( self ) then
-        freshnessFocus = 1.5
+        freshnessFocus = freshnessFocus * 6
 
     elseif myTbl.IsAngry( self ) then
-        freshnessFocus = 0.75
+        freshnessFocus = freshnessFocus * 3
 
     end
 

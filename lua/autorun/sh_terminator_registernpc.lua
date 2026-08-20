@@ -18,7 +18,10 @@ local function actuallyRegister( class, rawENTTbl, overrides )
         table.Merge( listMember, overrides, true )
 
     end
-    list.Set( "NPC", class, listMember )
+    if listMember.Spawnable ~= false then -- nil is spawnable
+        list.Set( "NPC", class, listMember )
+
+    end
 
     if CLIENT then
         language.Add( class, listMember.Name )

@@ -548,7 +548,7 @@ function ENT:Think()
                 break
 
             end
-            if printTasks then
+            if printTasks and index ~= "disabledCor" then
                 myTbl.lastYieldLocation = stackBefore
 
             end

@@ -14,11 +14,9 @@ DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Metro-Police"
 ENT.Spawnable = false -- dont show up in entity spawn category
 
-if GetConVar( "developer" ):GetBool() then -- todo, MAKE THESE SPAWNABLE
-    terminator_Extras.RegisterNPC( "terminator_nextbot_cmetro", ENT, {
-        Weapons = ENT.DefaultWeapon,
-    } )
-end
+terminator_Extras.RegisterNPC( "terminator_nextbot_cmetro", ENT, {
+    Weapons = ENT.DefaultWeapon,
+} )
 
 ENT.PlayerColorVec = Vector( 0, 0, 0 ) -- used for player color
 

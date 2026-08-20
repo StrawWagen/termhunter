@@ -29,11 +29,10 @@ ENT.Base = "terminator_nextbot"
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Combine Soldier"
 ENT.Spawnable = false -- dont show up in entity spawn category
-ENT.SubCategory = "Combine"
+ENT.SubCategory = "The Combine"
 
 terminator_Extras.RegisterNPC( "terminator_nextbot_csoldier", ENT, {
     Weapons = ENT.DefaultWeapon,
-    Spawnable = GetConVar( "developer" ):GetBool()
 } )
 
 ENT.PlayerColorVec = Vector( 0.4, 0.4, 0.6 ) -- changes ENT:GetPlayerColor result
@@ -58,6 +57,7 @@ ENT.MySpecialActions = {
 
         svAction = function( _drive, _driver, bot )
             bot:DoGesture( bot.TermSoldier_MeleeAttackGesture, 1, false )
+            bot:BlockWeaponFiringUntil( CurTime() + 1 )
             timer.Simple( bot.TermSoldier_MeleeAttackHitDelay or 0.2, function()
                 if not IsValid( bot ) then return end
                 bot:EmitSound( bot.TermSoldier_MeleeAttackSound, 75, math.random( 95, 105 ), 1, CHAN_WEAPON )
@@ -122,6 +122,7 @@ ENT.CanHolsterWeapons = true
 ENT.CanSwim = true
 ENT.BreathesAir = true
 ENT.ThrowingForceMul = 0.5
+ENT.Term_SecondsAttentionOnLostEnemy = 0.75
 
 ENT.neverManiac = true
 ENT.HasBrains = true -- false hasbrains means REALLY STUPID for these guys
@@ -447,6 +448,12 @@ function ENT:GetLeader( myTbl )
 
 end
 
+function ENT:IsLeader( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+    return leaderTbl.TermSoldier_FollowerCount > 0
+
+end
+
 function ENT:LikesToSuppress( myTbl )
     myTbl = myTbl or entMeta.GetTable( self )
     if myTbl.TermSoldier_Fearless then
@@ -482,6 +489,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
         ["soldier_fearsounds_handler"] = {
             StartsOnInitialize = true,
+            StopsWhenPlayerControlled = true,
             OnStart = function( self, data )
                 data.nextSoundListen = 0
 
@@ -492,13 +500,16 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local scarySound = sound.GetLoudestSoundHint( SOUND_DANGER, entMeta.GetPos( self ) )
                 if not scarySound then return end
+                if not IsValid( scarySound.owner ) then return end
 
                 local myTbl = entMeta.GetTable( self )
 
                 myTbl.KillAllTasksWith( self, "movement" )
 
                 local afterData = {
-                    BackupFromPos = scarySound.origin
+                    BackupFromPos = scarySound.origin,
+                    BackupFromEnt = scarySound.owner,
+                    BackupUntil = scarySound.expiration + 1,
 
                 }
                 if myTbl.HasBrains then
@@ -516,6 +527,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
         ["soldier_meleeattack_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
+            StopsWhenPlayerControlled = true,
             OnStart = function( self, data )
                 data.NextMeleeAttack = 0
 
@@ -557,6 +569,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
         ["soldier_handler"] = {
             StartsOnInitialize = true, -- starts on spawn
+            StopsWhenPlayerControlled = true,
             OnStart = function( self, data )
                 -- custom anim translation support
                 local IdleActivity = ACT_HL2MP_IDLE_PASSIVE
@@ -572,6 +585,19 @@ function ENT:DoCustomTasks( defaultTasks )
                     [ACT_MP_RELOAD_CROUCH]              = IdleActivity + 7,
                     [ACT_MP_SWIM]                       = IdleActivity + 9,
                 }
+
+                data.nextLeaderUpdate = CurTime()
+                data.UpdateLeader = function( myTbl )
+                    local leader = myTbl.GetLeader( self )
+                    if IsValid( leader ) then return leader end
+
+                    local newLeader = myTbl.FindANearbyRecruitingLeader( self, myTbl )
+                    if not IsValid( newLeader ) then return end
+
+                    myTbl.JoinLeader( self, myTbl, newLeader, entMeta.GetTable( newLeader ) )
+                    return newLeader
+
+                end
             end,
             TranslateActivity = function( self, data, act )
                 local myTbl  = entMeta.GetTable( self )
@@ -586,7 +612,17 @@ function ENT:DoCustomTasks( defaultTasks )
                 local translation = data.passiveTranslations[act]
                 if translation then return translation end
 
-            end
+            end,
+            BehaveUpdatePriority = function( self, data )
+                local myTbl = entMeta.GetTable( self )
+                if not myTbl.HasBrains then return end
+
+                if data.nextLeaderUpdate > CurTime() then return end
+                data.nextLeaderUpdate = CurTime() + 5
+
+                data.UpdateLeader( myTbl )
+
+            end,
             -- TODO; death sounds and stuff
         },
 
@@ -609,7 +645,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
                 local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
-                local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 10 ) -- last intercept pos is valid and was set less than 10 seconds ago
+                local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 5 ) -- last intercept pos is valid and was set less than 10 seconds ago
                 local canWep, potentialWep = myTbl.canGetWeapon( self )
                 local enemyLastPos = myTbl.EnemyLastPos
                 if canWep and self:getTheWeapon( "movement_handler", potentialWep ) then
@@ -906,11 +942,6 @@ function ENT:DoCustomTasks( defaultTasks )
                 hardMaxRadius = math.min( wepRange, hardMaxRadius )
 
                 local hardMinRadius = math.min( duelEnemyDist * 0.25, hardMaxRadius * 0.5 )
-                if scaryEnemy then
-                    hardMinRadius = math.max( duelEnemyDist * 0.5, 500 )
-                    hardMaxRadius = math.max( duelEnemyDist * 1.5, hardMinRadius + 500 ) -- if the enemy is scary, we want to be further away
-
-                end
 
                 local fearfullyCloseDistance = hardMinRadius * 0.25
 
@@ -927,6 +958,11 @@ function ENT:DoCustomTasks( defaultTasks )
                 end
                 if enemysShoot then
                     enemysNav = terminator_Extras.getNearestNav( enemysShoot )
+
+                end
+                if scaryEnemy then
+                    hardMinRadius = math.max( duelEnemyDist * 0.5, 500 )
+                    hardMaxRadius = math.max( duelEnemyDist * 1.5, hardMinRadius + 500 ) -- if the enemy is scary, we want to be further away
 
                 end
 
@@ -1242,6 +1278,8 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 local result = myTbl.ControlPath2( self, not seeEnemy and lookAlongPath )
 
+                coroutine_yield()
+
                 local canWep, potentialWep = self:canGetWeapon()
                 if canWep and self:IsHolsteredWeap( potentialWep ) and self:getTheWeapon( "movement_shootfromcover", potentialWep ) then -- switch weapons
                     return
@@ -1257,7 +1295,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         myTbl.StartTask( self, "movement_rushsmartandshoot", "enemy is low health, rush and shoot!" )
 
                     end
-                elseif result == true and sinceLastSpotted > 6 then
+                elseif ( result == true or not self:primaryPathIsValid() ) and sinceLastSpotted > 6 then
                     self:TaskFail( "movement_shootfromcover" )
                     if enemysNav and myTbl.areaIsReachable( self, enemysNav ) then
                         myTbl.StartTask( self, "movement_rushsmartandshoot", "i lost my enemy, ill flank to where i last saw em!" )
@@ -1910,7 +1948,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         myTbl.StartTask( self, "movement_shootfromcover", "i rushed them, time to back off for a bit" )
 
                     end
-                elseif goodEnemy and myTbl.HasBrains and clearOrBreakable and ( scaryEnemy or myTbl.DistToEnemy < wepRange * 0.25 ) then -- fallback
+                elseif goodEnemy and myTbl.HasBrains and clearOrBreakable and ( scaryEnemy or myTbl.DistToEnemy < wepRange * 0.15 ) then -- fallback
                     self:TaskComplete( "movement_rushsmartandshoot" )
                     myTbl.StartTask( self, "movement_backthehellup", "im way too close to em" )
 
@@ -1978,6 +2016,7 @@ function ENT:DoCustomTasks( defaultTasks )
                     local canJustSee = self:CanSeePosition( lastInterceptPos + self:GetViewOffset() )
                     if canJustSee then
                         myTbl.TaskComplete( self, "movement_intercept" )
+                        myTbl.lastInterceptPos = nil
                         if myTbl.HasBrains then
                             myTbl.StartTask( self, "movement_shootfromcover", "my buddy found an enemy, im gonna shoot them from here!" )
                             return
@@ -2217,7 +2256,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
-                local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 25 ) -- last intercept pos is valid and was set less than 25 seconds ago
+                local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 10 ) -- last intercept pos is valid and was set less than 25 seconds ago
                 coroutine_yield()
 
                 if result == true or ( data.CurrentTaskGoalPos and self:GetRangeTo( data.CurrentTaskGoalPos ) < 25 ) then
@@ -2265,18 +2304,7 @@ function ENT:DoCustomTasks( defaultTasks )
                 data.NextNewPath = 0
                 data.AlreadyPatrolledAreas = {}
                 data.NextCheckIfSeeEnemy = CurTime() + 1
-                data.UpdateLeader = function()
-                    local leader = myTbl.GetLeader( self )
-                    if IsValid( leader ) then return leader end
 
-                    local newLeader = myTbl.FindANearbyRecruitingLeader( self, myTbl )
-                    if not IsValid( newLeader ) then return end
-
-                    myTbl.JoinLeader( self, myTbl, newLeader, entMeta.GetTable( newLeader ) )
-                    return newLeader
-
-                end
-                data.UpdateLeader()
             end,
             BehaveUpdatePriority = function( self, data ) -- break our trance
                 if data.NextCheckIfSeeEnemy > CurTime() then return end
@@ -2313,7 +2341,7 @@ function ENT:DoCustomTasks( defaultTasks )
                         coroutine_yield()
                         --debugoverlay.Text( self:GetShootPos(), "getgoal1", 1, false )
                         data.WatchFromArea = nil
-                        local leader = data.UpdateLeader()
+                        local leader = myTbl.GetLeader( self )
                         if not IsValid( leader ) then
                             data.OverrideWanderOff = cur + math.Rand( 20, 40 ) -- dont check again for a while
                             shouldWanderOff = true -- no leader, wander off
@@ -2484,7 +2512,7 @@ function ENT:DoCustomTasks( defaultTasks )
 
                 end
 
-                local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 40 ) -- last intercept pos is valid and was set less than 40 seconds ago
+                local canIntercept = myTbl.lastInterceptPos and myTbl.lastInterceptReachable and myTbl.lastInterceptTime > ( CurTime() - 20 ) -- last intercept pos is valid and was set less than 40 seconds ago
 
                 if myTbl.IsSeeEnemy then
                     self:TaskComplete( "movement_patrol" )
