@@ -1201,6 +1201,9 @@ do
     local bottomPosVec = Vector( 0, 0, 0 )
     local resultTbl = {}
 
+    local posIsDisplacement = terminator_Extras.posIsDisplacement
+    local posIsUnderDisplacement = terminator_Extras.posIsUnderDisplacement
+
     --[[------------------------------------
         Name: ENT:GetIsFlatGroundToEnemy
         Desc: Is there ground under the point halfway to the enemy, or a drop we'd fall into?
@@ -1254,6 +1257,15 @@ do
         util.TraceLine( traceDat )
 
         local flatTo = resultTbl.Hit or resultTbl.StartSolid
+        if not flatTo and posIsDisplacement( myPos ) then
+            -- expensive!
+            myTbl.term_NextWasFlatToEnemyCache = CurTime() + 1
+            local underDisplacement = posIsUnderDisplacement( resultTbl.HitPos )
+            if underDisplacement then
+                flatTo = true
+
+            end
+        end
         myTbl.term_CachedWasFlatGroundToEnemy = flatTo
         return flatTo
 

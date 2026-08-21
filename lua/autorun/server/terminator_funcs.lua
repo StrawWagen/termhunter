@@ -257,21 +257,26 @@ for _, ent in ipairs( ents.FindByClass( "terminator_nextbot*" ) ) do
 
 end--]]
 
-local bigNegativeZ = Vector( 0, 0, -6000 )
-local startOffset = Vector( 0, 0, 100 )
-local function getFloorTr( pos )
-    local traceDat = {
-        mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
-        start = pos + startOffset,
-        endpos = pos + bigNegativeZ
-    }
+local getFloorTr
+do
+    local start = Vector( 0, 0, 0 )
+    local endpos = Vector( 0, 0, 0 )
+    function getFloorTr( pos )
+        vecMeta.SetUnpacked( start, pos.x, pos.y, pos.z + 50 )
+        vecMeta.SetUnpacked( endpos, pos.x, pos.y, pos.z - 6000 )
+        local traceDat = {
+            mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
+            start = start,
+            endpos = endpos,
+        }
 
-    local trace = util.TraceLine( traceDat )
-    return trace
+        local trace = util.TraceLine( traceDat )
+        return trace
 
+    end
 end
-terminator_Extras.getFloorTr = getFloorTr
 
+terminator_Extras.getFloorTr = getFloorTr
 
 --[[--------------------------
     posIsDisplacement

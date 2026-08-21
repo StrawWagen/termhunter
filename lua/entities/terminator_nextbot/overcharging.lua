@@ -37,6 +37,8 @@ function ENT:Overcharge()
         if self:IsSilentStepping() then return end
 
         local hitboxSetCount = self:GetHitboxSetCount()
+        if not hitboxSetCount then return end -- ???
+
         local randomSet = math.random( 0, hitboxSetCount - 1 )
 
         local hitboxCount = self:GetHitBoxCount( randomSet )

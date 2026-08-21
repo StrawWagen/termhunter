@@ -877,27 +877,25 @@ function ENT:ShouldCrouch( myTbl )
 
         end
 
-        if myTbl.PathIsValid( self ) then
-            local currArea = myTbl.GetCurrentNavArea( self, myTbl )
-            local nextArea = myTbl.GetNextPathArea( self )
+        local currArea = myTbl.GetCurrentNavArea( self, myTbl )
+        if IsValid( currArea ) and currArea:HasAttributes( NAV_MESH_CROUCH ) then
+            myTbl.overrideCrouch = CurTime() + 0.35
+            return true
 
-            if IsValid( currArea ) and currArea:HasAttributes( NAV_MESH_CROUCH ) then
-                myTbl.overrideCrouch = CurTime() + 0.35
-                return true
+        end
 
-            end
-            local validNext = IsValid( nextArea )
-            local nextsClosest = validNext and nextArea:GetClosestPointOnArea( myPos ) or nil
-            local crouchNextArea = validNext and nextsClosest:Distance( myPos ) < 60 and ( nextArea:HasAttributes( NAV_MESH_CROUCH ) or math.min( nextArea:GetSizeX(), nextArea:GetSizeY() ) <= 20 or not canFitSimple( nextArea:GetCenter(), myScale ) or not canFitSimple( nextsClosest, myScale ) )
+        local approachPos = myTbl.term_LastApproachPos
+        if approachPos then
+            local crouchToApproach = myPos:DistToSqr( approachPos ) < 3600 and not canFitSimple( approachPos, myScale )
 
-            if not crouchNextArea and validNext and myScale >= MDLSCALE_LARGE then -- if we're very large
-                local flattenedDirToNext = terminator_Extras.dirToPos( myPos, nextsClosest )
-                flattenedDirToNext.z = flattenedDirToNext.z * 0.1 -- flatten it, 'dir to next' is straight down when we're about to get to the next area
-                crouchNextArea = not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + flattenedDirToNext * 25 * myScale )
+            if not crouchToApproach and myScale >= MDLSCALE_LARGE then -- if we're very large
+                local flattenedDirToApproach = terminator_Extras.dirToPos( myPos, approachPos )
+                flattenedDirToApproach.z = flattenedDirToApproach.z * 0.1 -- flatten it, 'dir to approach pos' is straight down when we're about to get there
+                crouchToApproach = not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + flattenedDirToApproach * 25 * myScale )
 
             end
 
-            if crouchNextArea then
+            if crouchToApproach then
                 myTbl.overrideCrouch = CurTime() + 0.35
                 return true
 

@@ -9,6 +9,7 @@ terminator_Extras.baseCoroutineThresh = 0.05 -- base coroutine thresh, so you ca
 
 local entMeta = FindMetaTable( "Entity" )
 local areaMeta = FindMetaTable( "CNavArea" )
+local vecMeta = FindMetaTable( "Vector" )
 
 local IsValid = IsValid
 local table_insert = table.insert
@@ -201,8 +202,6 @@ end
 
 
 local fiftyPowerOfTwo = 50^2
-local vector6000ZUp = Vector( 0, 0, 6000 )
-local vector1000ZDown = Vector( 0, 0, -1000 )
 
 -- takes pos
 -- returns definitelyUnderDisplacement, maybeUnderDisplacement, firstTraceResult
@@ -211,38 +210,55 @@ local vector1000ZDown = Vector( 0, 0, -1000 )
 -- ret3 is if you want to do stuff with the first trace result
 -- good to do like, underDisplacement = ret1 or ret2
 
-terminator_Extras.posIsUnderDisplacement = function( pos, dir )
-    -- get the sky
-    local firstTraceDat = {
-        start = pos,
-        endpos = pos + ( dir and dir * 6000 or vector6000ZUp ),
+do
+    local upEndPos = Vector( 0, 0, 0 )
+    local downEndPos = Vector( 0, 0, 0 )
+    local upTraceDat = {
+        endpos = upEndPos,
         mask = MASK_SOLID_BRUSHONLY,
     }
-    local firstTraceResult = util.TraceLine( firstTraceDat )
-
-    -- go back down
-    local secondTraceDat = {
-        start = firstTraceResult.HitPos,
-        endpos = pos,
+    local backDownTraceDat = {
         mask = MASK_SOLID_BRUSHONLY,
     }
-    local secondTraceResult = util.TraceLine( secondTraceDat )
-    if secondTraceResult.HitTexture ~= "**displacement**" then return nil, nil, firstTraceResult end
-
-    -- final check to make sure
-    local thirdTraceDat = {
-        start = pos,
-        endpos = pos + ( dir and dir * -1000 or vector1000ZDown ),
+    local downTraceDat = {
+        endpos = downEndPos,
         mask = MASK_SOLID_BRUSHONLY,
     }
-    local thirdTraceResult = util.TraceLine( thirdTraceDat )
 
-    local isANestedDisplacement = thirdTraceResult.HitTexture == "**displacement**" and secondTraceResult.HitPos:DistToSqr( thirdTraceResult.HitPos ) > fiftyPowerOfTwo
-    if thirdTraceResult.Hit and thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" and not isANestedDisplacement then return nil, true, firstTraceResult end -- we are probably under a displacement
+    terminator_Extras.posIsUnderDisplacement = function( pos, dir )
+        local posX, posY, posZ = pos.x, pos.y, pos.z
+        local dirX, dirY, dirZ
+        if dir then
+            dirX, dirY, dirZ = dir.x, dir.y, dir.z
 
-    -- we are DEFINITely under one
-    return true, nil, firstTraceResult
+        else
+            dirX, dirY, dirZ = 0, 0, 1
 
+        end
+
+        -- get the sky
+        vecMeta.SetUnpacked( upEndPos, posX + dirX * 6000, posY + dirY * 6000, posZ + dirZ * 6000 )
+        upTraceDat.start = pos
+        local firstTraceResult = util.TraceLine( upTraceDat )
+
+        -- go back down
+        backDownTraceDat.start = firstTraceResult.HitPos
+        backDownTraceDat.endpos = pos
+        local secondTraceResult = util.TraceLine( backDownTraceDat )
+        if secondTraceResult.HitTexture ~= "**displacement**" then return nil, nil, firstTraceResult end
+
+        -- final check to make sure
+        vecMeta.SetUnpacked( downEndPos, posX - dirX * 1000, posY - dirY * 1000, posZ - dirZ * 1000 )
+        downTraceDat.start = pos
+        local thirdTraceResult = util.TraceLine( downTraceDat )
+
+        local isANestedDisplacement = thirdTraceResult.HitTexture == "**displacement**" and vecMeta.DistToSqr( secondTraceResult.HitPos, thirdTraceResult.HitPos ) > fiftyPowerOfTwo
+        if thirdTraceResult.Hit and thirdTraceResult.HitTexture ~= "TOOLS/TOOLSNODRAW" and not isANestedDisplacement then return nil, true, firstTraceResult end -- we are probably under a displacement
+
+        -- we are DEFINITely under one
+        return true, nil, firstTraceResult
+
+    end
 end
 
 local bigPositiveZ = Vector( 0, 0, 3000 )
