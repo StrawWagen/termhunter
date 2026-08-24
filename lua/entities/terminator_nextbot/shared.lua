@@ -6665,17 +6665,28 @@ function ENT:DoDefaultTasks()
                     if self.IsSeeEnemy then
                         -- missing a fail here caused massive cascade
                         local oldUpHighFails = data.standUpHighFails or 0
-                        local doBackupCamp = oldUpHighFails > 5 and self.IsSeeEnemy
+                        local upHighFail = oldUpHighFails > 5 and self.IsSeeEnemy
                         self:GetTheBestWeapon()
 
                         if reachable and not tooDangerousToApproach then
                             self:TaskFail( "movement_stalkenemy" )
                             self:StartTask( "movement_flankenemy", { Time = 0.2 }, "i can reach them, ill just go around" )
 
-                        elseif doBackupCamp then
-                            self:TaskFail( "movement_stalkenemy" )
-                            self:StartTask( "movement_camp", { maxNoSeeing = 300 }, "i failed to stand somewhere high too much, SHOOT!" )
+                        elseif upHighFail then
+                            local close = self.DistToEnemy < self.DuelEnemyDist * 2
+                            if close and tooDangerousToApproach then
+                                self:TaskFail( "movement_stalkenemy" )
+                                self:StartTask( "movement_backthehellup", "AAH they're right there!" )
 
+                            elseif close then
+                                self:TaskFail( "movement_stalkenemy" )
+                                self:StartTask( "movement_duelenemy_near", { AlwaysReachable = true }, "im just gonna try beating this unreachable guy up!" )
+
+                            else
+                                self:TaskFail( "movement_stalkenemy" )
+                                self:StartTask( "movement_camp", { maxNoSeeing = 300 }, "i failed to stand somewhere high too much, SHOOT!" )
+
+                            end
                         else
                             self:TaskFail( "movement_stalkenemy" )
                             self:StartTask( "movement_stalkenemy", { Time = 0.2, perchWhenHidden = true, standUpHighFails = oldUpHighFails + 1, bearingAdded = data.bearingAdded }, "i cant reach them, ill stand somewhere high up i can see them" )
@@ -7563,7 +7574,7 @@ function ENT:DoDefaultTasks()
                 local myPos = self:GetPos()
                 local maxDuelDist = self.DuelEnemyDist + 200
                 local enemyNavArea = terminator_Extras.getNearestNav( enemyPos ) or NULL
-                local enemyIsReachable = self:areaIsReachable( enemyNavArea )
+                local enemyIsReachable = data.AlwaysReachable or self:areaIsReachable( enemyNavArea )
 
                 local badEnemy
                 local badEnemyCounts = data.badEnemyCounts or 0

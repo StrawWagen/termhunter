@@ -5,6 +5,7 @@ local GetCorner = navMeta.GetCorner
 local table = table
 local navmesh = navmesh
 local bit = bit
+local coroutine_yield = coroutine.yield
 
 local math = math
 local math_min = math.min
@@ -17,8 +18,8 @@ local IsValid = IsValid
 local Vector = Vector
 
 
-local dedicatedRate = 0.002
-local otherwiseRate = 0.005
+local dedicatedRate = 0.003
+local otherwiseRate = 0.006
 
 local debuggingVar = CreateConVar( "terminator_areapatching_debugging", 0, FCVAR_NONE, "Enable areapatcher debug-prints/visualizers." )
 local doAreaPatchingVar = CreateConVar( "terminator_areapatching_enable", 1, FCVAR_ARCHIVE, "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned." )
@@ -113,14 +114,6 @@ local function updateGridSize( newSize )
     patchTbl.finalAreaCheckMins = Vector( -patchTbl.gridSize, -patchTbl.gridSize, -35 )
     patchTbl.finalAreaCheckMaxs = Vector( patchTbl.gridSize, patchTbl.gridSize, 35 )
 
-    patchTbl.directionOffsets = {
-        [0] = Vector( 0, patchTbl.gridSize, 0 ),    -- north
-        [1] = Vector( patchTbl.gridSize, 0, 0 ),    -- east
-        [2] = Vector( 0, -patchTbl.gridSize, 0 ),   -- south
-        [3] = Vector( -patchTbl.gridSize, 0, 0 )    -- west
-
-    }
-
     patchTbl.initialResult = {} -- just do this optimisation for the initial trace, it does most of the hard work
     patchTbl.trStrucInitial = {
         mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
@@ -162,132 +155,363 @@ local function tempVector( id, x, y, z )
 
 end
 
-local function findOrthogonalUnmergedNeighborsInDir( data, dir, vecsToPlace )
-    local neighbors = {}
-
-    local offset = patchTbl.directionOffsets[dir]
-    if not offset then return neighbors end
-
-    for key, vec in pairs( vecsToPlace ) do
-        if key ~= data.key then
-            local isNeighbor = false
-            -- Check for orthogonal match, allowing different sized areas
-            if dir == 0 or dir == 2 then -- north/south (y-axis)
-                local withinXBounds = ( data.corner1.x < vec.corner2.x ) and ( data.corner2.x > vec.corner1.x )
-                local goodY = vec.corner1.y == data.corner1.y + offset.y
-                isNeighbor = withinXBounds and goodY
-
-            elseif dir == 1 or dir == 3 then -- east/west (x-axis)
-                local withinYBounds = ( data.corner1.y < vec.corner2.y ) and ( data.corner2.y > vec.corner1.y )
-                local goodX = vec.corner1.x == data.corner1.x + offset.x
-                isNeighbor = withinYBounds and goodX
-
-            end
-            if isNeighbor then
-                table.insert( neighbors, vec )
-
-            end
-        end
-    end
-    return neighbors
-
-end
-
+-- how far a row of cells, or one of the rectangle's two side edges, may sit off the
+-- straight line its own two ends describe
 local maxMergeDiff = 10
 
-local function getCornersIfMerged( toMergeSet )
-    local invalid
-    local doneOne
-    local oldCrouch
+-- steepest step allowed between two cells side by side, on either axis. A staircase's
+-- treads are each perfectly flat, so without this they'd merge into one smooth ramp
+local maxMergeSlope = 0.6
 
-    local minX, maxX = math.huge, -math.huge
-    local minY, maxY = math.huge, -math.huge
-    local minZ, maxZ = math.huge, -math.huge
+-- floors this far out of parallel belong to different surfaces, whatever their heights
+-- say. About 18 degrees
+local minNormalDot = 0.95
 
-    for _, tbl in ipairs( toMergeSet ) do
-        minX = math_min( minX, tbl.corner1.x, tbl.corner2.x )
-        maxX = math_max( maxX, tbl.corner1.x, tbl.corner2.x )
-        minY = math_min( minY, tbl.corner1.y, tbl.corner2.y )
-        maxY = math_max( maxY, tbl.corner1.y, tbl.corner2.y )
+-- mirrors the caps in navAreasCanMerge, terminator_optimizerhack.lua
+local maxMergedSide = 800
+local maxMergedSurface = 300000
 
-        local newMinZ = math_min( tbl.corner1.z, tbl.corner2.z )
-        local newMaxZ = math_max( tbl.corner1.z, tbl.corner2.z )
+-- The cell at this spot that belongs with seed's rectangle, or nothing if this spot has
+-- none to offer it.
+local function pickCell( stack, seed, consumed, nearZ, tolerance )
+    if not stack then return end
 
-        if doneOne and math_abs( newMinZ - minZ ) > maxMergeDiff then
-            invalid = true
+    -- buildCellGrid sorted these, so this takes the lowest floor that fits
+    for _, cand in ipairs( stack ) do
+        if consumed[cand] then continue end
+        if cand.crouch ~= seed.crouch then continue end
+        if math_abs( cand.z - nearZ ) > tolerance then continue end
+        if cand.normal:Dot( seed.normal ) < minNormalDot then continue end
 
-        end
-        if doneOne and math_abs( newMaxZ - maxZ ) > maxMergeDiff then
-            invalid = true
-
-        end
-
-        if ( oldCrouch ~= nil ) and ( oldCrouch ~= tbl.crouch ) then
-            invalid = true
-
-        end
-
-        if invalid then break end
-
-        oldCrouch = tbl.crouch
-
-        doneOne = true
-
-        minZ = math_min( minZ, newMinZ )
-        maxZ = math_max( maxZ, newMaxZ )
+        return cand
 
     end
+end
 
-    if invalid then return end
-    return true, minX, maxX, minY, maxY, minZ, maxZ
+-- Fills out[1..width] with the row of cells at iy spanning ix..ix + width - 1 and returns
+-- whether it found every one. Claims nothing, so a caller that gives up owes nothing.
+local function probeWholeRow( cellGrid, ix, iy, width, seed, consumed, prevZ, maxStep, out )
+    -- each cell only has to be one step off the cell west of it, and the first one step
+    -- off the row above. Nothing here stops a row stepping its way into a bulge, fitsLine
+    -- at the caller is what does that
+    local anchor = prevZ
+    for ind = 0, width - 1 do
+        local column = cellGrid[ix + ind]
+        -- no cell was ever placed anywhere at this x
+        if not column then return end
+
+        local cand = pickCell( column[iy], seed, consumed, anchor, maxStep )
+        -- missing, taken by another rectangle, or too far off to join. A row is all or
+        -- nothing, so the whole probe fails on any one of them
+        if not cand then return end
+
+        out[ind + 1] = cand
+        anchor = cand.z
+
+    end
+    return true
 
 end
 
-local function mergeWithNeighbors( data, vecsToPlace )
-    local neighbors
-    for dir = 0, 3 do
+-- Fills out[1..height] with the column of cells at ix spanning iy..iy + height - 1 and
+-- returns whether it found every one. Claims nothing.
+local function probeWholeColumn( cellGrid, ix, iy, height, seed, consumed, rowCellZs, width, maxStep, out )
+    local column = cellGrid[ix]
+    if not column then return end
 
-        neighbors = findOrthogonalUnmergedNeighborsInDir( data, dir, vecsToPlace )
-        if #neighbors <= 0 then continue end
+    for ind = 0, height - 1 do
+        -- each of these extends the row beside it, so it steps off that row's east end
+        -- rather than off the cell above it
+        local cand = pickCell( column[iy + ind], seed, consumed, rowCellZs[ind + 1][width], maxStep )
+        if not cand then return end
 
-        local allGood, minX, maxX, minY, maxY, minZ, maxZ = getCornersIfMerged( neighbors )
-        if not allGood then continue end
-
-
-        local center1 = ( data.corner1 + data.corner2 ) / 2
-        local center2 = ( tempVector( "mergeneighbors1", minX, minY, minZ ) + tempVector( "mergeneighbors2", maxX, maxY, maxZ ) ) / 2
-        local sameX = center1.x == center2.x
-        local sameY = center1.y == center2.y
-
-        local startSizeX = math_abs( data.corner1.x - data.corner2.x )
-        local nextSizeX = math_abs( minX - maxX )
-        local startSizeY = math_abs( data.corner1.y - data.corner2.y )
-        local nextSizeY = math_abs( minY - maxY )
-
-        local sameXSize = startSizeX == nextSizeX
-        local sameYSize = startSizeY == nextSizeY
-
-        local mergable = ( sameX and sameXSize ) or ( sameY and sameYSize )
-        if not mergable then continue end
-
-
-        local toMergeSet = { data }
-        terminator_Extras.tableAdd( toMergeSet, neighbors )
-
-        allGood, minX, maxX, minY, maxY, minZ, maxZ = getCornersIfMerged( toMergeSet )
-        if not allGood then continue end
-
-        for _, toMerge in ipairs( neighbors ) do
-            vecsToPlace[toMerge.key] = nil
-
-        end
-
-        data.corner1 = Vector( minX, minY, minZ )
-        data.corner2 = Vector( maxX, maxY, maxZ )
-
-        return true
+        out[ind + 1] = cand
 
     end
+    return true
+
+end
+
+-- CNavArea interpolates its four corners, so the built surface runs straight between the
+-- ends of every row and straight between the ends of every edge. This is what holds the
+-- cells in between to that, on both axes.
+local function fitsLine( zs, count )
+    -- two of anything are a straight line by definition
+    if count <= 2 then return true end
+
+    local first = zs[1]
+    local step = ( zs[count] - first ) / ( count - 1 )
+    for ind = 2, count - 1 do
+        if math_abs( zs[ind] - ( first + step * ( ind - 1 ) ) ) > maxMergeDiff then return false end
+
+    end
+    return true
+
+end
+
+-- fitsLine down one side of the rectangle, whose heights sit a row apart rather than side
+-- by side. col is 1 for the west edge, the row width for the east.
+local function edgeFitsLine( rowCellZs, count, col )
+    if count <= 2 then return true end
+
+    local first = rowCellZs[1][col]
+    local step = ( rowCellZs[count][col] - first ) / ( count - 1 )
+    for ind = 2, count - 1 do
+        if math_abs( rowCellZs[ind][col] - ( first + step * ( ind - 1 ) ) ) > maxMergeDiff then return false end
+
+    end
+    return true
+
+end
+
+-- Whether a size x size square of cells with its min corner at ix, iy all belongs with
+-- seed. Claims nothing.
+local function fitsSquare( cellGrid, ix, iy, size, seed, consumed, maxStep, rowCellZs, pending )
+    local prevZ = seed.z
+    for ind = 0, size - 1 do
+        if not probeWholeRow( cellGrid, ix, iy + ind, size, seed, consumed, prevZ, maxStep, pending ) then return false end
+
+        local row = rowCellZs[ind + 1]
+        if not row then
+            row = {}
+            rowCellZs[ind + 1] = row
+
+        end
+        for col = 1, size do
+            row[col] = pending[col].z
+
+        end
+        if not fitsLine( row, size ) then return false end
+
+        prevZ = row[1]
+
+    end
+    -- rowCellZs and pending are growRect's scratch, borrowed to answer the question. It
+    -- refills both from its own seed before it reads them
+    return edgeFitsLine( rowCellZs, size, 1 ) and edgeFitsLine( rowCellZs, size, size )
+
+end
+
+-- Sorts the placed cells into cellGrid[ix][iy], plus the extent of the whole thing so
+-- callers can walk it. Returns nothing at all if there were no cells.
+local function buildCellGrid( vecsToPlace )
+    local cellGrid = {}
+    local minIx, maxIx = math.huge, -math.huge
+    local minIy, maxIy = math.huge, -math.huge
+    local any
+
+    for _, data in pairs( vecsToPlace ) do
+        local ix, iy = data.ix, data.iy
+
+        local column = cellGrid[ix]
+        if not column then
+            column = {}
+            cellGrid[ix] = column
+
+        end
+        local stack = column[iy]
+        if not stack then
+            stack = {}
+            column[iy] = stack
+
+        end
+        stack[#stack + 1] = data
+
+        minIx = math_min( minIx, ix )
+        maxIx = math_max( maxIx, ix )
+        minIy = math_min( minIy, iy )
+        maxIy = math_max( maxIy, iy )
+        any = true
+
+    end
+
+    if not any then return end
+
+    -- one spot can hold several floors stacked over each other, a walkway above a
+    -- street. Lowest first, which is the order pickCell relies on
+    for _, column in pairs( cellGrid ) do
+        for _, stack in pairs( column ) do
+            if #stack > 1 then
+                table.sort( stack, function( a, b ) return a.z < b.z end )
+
+            end
+        end
+    end
+
+    return cellGrid, minIx, maxIx, minIy, maxIy
+
+end
+
+local function claimCells( consumed, cells, count )
+    for ind = 1, count do
+        consumed[cells[ind]] = true
+
+    end
+end
+
+-- Grows seed's rectangle out from its min corner, returning its size in cells.
+local function growRect( cellGrid, ix, iy, seed, consumed, limits, rowCellZs, pending )
+    local width, height = 1, 1
+    -- rowCellZs[row][col] is the floor traced under every cell the rectangle covers. Its
+    -- four outer values are the corner heights the nav area gets built from
+    local firstRow = rowCellZs[1]
+    if not firstRow then
+        firstRow = {}
+        rowCellZs[1] = firstRow
+
+    end
+    firstRow[1] = seed.z
+
+    local canEast, canSouth = true, true
+    while canEast or canSouth do
+        -- extend whichever side is shorter, so this comes out blocky instead of running
+        -- east as far as it can and stopping
+        if canEast and ( not canSouth or width <= height ) then
+            if width >= limits.perSide or ( ( width + 1 ) * height ) > limits.total then
+                canEast = false
+
+            elseif probeWholeColumn( cellGrid, ix + width, iy, height, seed, consumed, rowCellZs, width, limits.cellRise, pending ) then
+                -- the new column becomes every row's east end, so it moves each row's own
+                -- line and the east edge's line with it. Writing past width before that is
+                -- checked is safe, nothing reads there unless the rectangle really grows
+                local fits = true
+                for ind = 1, height do
+                    local row = rowCellZs[ind]
+                    row[width + 1] = pending[ind].z
+                    if not fitsLine( row, width + 1 ) then
+                        fits = false
+                        break
+
+                    end
+                end
+                if fits and edgeFitsLine( rowCellZs, height, width + 1 ) then
+                    claimCells( consumed, pending, height )
+                    width = width + 1
+
+                else
+                    canEast = false
+
+                end
+            else
+                -- growing south only adds cells to what this probe already couldn't
+                -- find, so east never opens back up
+                canEast = false
+
+            end
+        elseif height >= limits.perSide or ( width * ( height + 1 ) ) > limits.total then
+            canSouth = false
+
+        else
+            local blocked = true
+            if probeWholeRow( cellGrid, ix, iy + height, width, seed, consumed, rowCellZs[height][1], limits.cellRise, pending ) then
+                local row = rowCellZs[height + 1]
+                if not row then
+                    row = {}
+                    rowCellZs[height + 1] = row
+
+                end
+                for ind = 1, width do
+                    row[ind] = pending[ind].z
+
+                end
+                -- the row has to sit on its own line, and both edges still on theirs
+                if fitsLine( row, width ) and edgeFitsLine( rowCellZs, height + 1, 1 ) and edgeFitsLine( rowCellZs, height + 1, width ) then
+                    blocked = nil
+
+                end
+            end
+            if blocked then
+                canSouth = false
+
+            else
+                claimCells( consumed, pending, width )
+                height = height + 1
+
+            end
+        end
+    end
+    -- every pass above either claimed cells or retired a side, so this always ends
+    return width, height
+
+end
+
+-- Covers the placed cells with as few rectangles as will hold them, for the caller to
+-- build nav areas out of. Every cell ends up under exactly one of them.
+local function greedyMergeCells( vecsToPlace )
+    local cellGrid, minIx, maxIx, minIy, maxIy = buildCellGrid( vecsToPlace )
+    if not cellGrid then return {} end
+
+    local gridSize = patchTbl.gridSize
+    -- in cells, so growing can measure itself against width and height directly
+    local limits = {
+        cellRise = gridSize * maxMergeSlope,
+        perSide = math_max( 1, math.floor( maxMergedSide / gridSize ) ),
+        total = math_max( 1, math.floor( maxMergedSurface / ( gridSize * gridSize ) ) ),
+
+    }
+
+    local consumed = {}
+    local merged = {}
+    local rowCellZs = {}
+    local pending = {}
+
+    -- Scan order alone hands the first rectangle whatever ground the scan reached first,
+    -- and along an irregular edge that is a one cell fringe, so it grows into a strip and
+    -- leaves more fringe behind it. Seeding where a square actually fits, largest square
+    -- down, leaves the awkward shapes for last instead of building out of them.
+    --
+    -- Each threshold costs another walk of the grid, so halve it rather than step it.
+    local threshold = 1
+    local biggestSquare = math_min( limits.perSide, maxIx - minIx + 1, maxIy - minIy + 1 )
+    while threshold * 2 <= biggestSquare do
+        threshold = threshold * 2
+
+    end
+
+    while threshold >= 1 do
+        for iy = minIy, maxIy do
+            coroutine_yield()
+
+            for ix = minIx, maxIx do
+                local column = cellGrid[ix]
+                local stack = column and column[iy]
+                if not stack then continue end
+
+                for _, seed in ipairs( stack ) do
+                    -- an earlier pass, or an earlier rectangle in this one, already has it
+                    if consumed[seed] then continue end
+                    -- leave it for a smaller square. The threshold 1 pass has no test to
+                    -- fail, so nothing is left behind at the end
+                    if threshold > 1 and not fitsSquare( cellGrid, ix, iy, threshold, seed, consumed, limits.cellRise, rowCellZs, pending ) then continue end
+
+                    -- growRect claims the rest as it probes, this one is on us
+                    consumed[seed] = true
+
+                    local width, height = growRect( cellGrid, ix, iy, seed, consumed, limits, rowCellZs, pending )
+
+                    local corner1 = seed.corner1
+                    local minX, minY = corner1.x, corner1.y
+                    local maxX, maxY = minX + width * gridSize, minY + height * gridSize
+
+                    -- all four, at the floor traced under each. CreateNavArea reads only
+                    -- corner1 and corner2, so the caller has to put the others back
+                    merged[#merged + 1] = {
+                        corner1 = Vector( minX, minY, rowCellZs[1][1] ),
+                        corner2 = Vector( maxX, maxY, rowCellZs[height][width] ),
+                        northEast = Vector( maxX, minY, rowCellZs[1][width] ),
+                        southWest = Vector( minX, maxY, rowCellZs[height][1] ),
+                        crouch = seed.crouch,
+
+                    }
+                end
+            end
+        end
+        threshold = math.floor( threshold / 2 )
+
+    end
+
+    return merged
+
 end
 
 local roundDec = 2
@@ -444,7 +668,8 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     if patchTbl.initialResult.HitSky then return end -- dont place on skybox, probably an "endless" pit
 
     -- slope check
-    if patchTbl.initialResult.HitNormal:Dot( up ) < 0.5 then return end
+    local hitNormal = patchTbl.initialResult.HitNormal
+    if hitNormal:Dot( up ) < 0.5 then return end
 
 
     -- if this is a massive overhang, skip it
@@ -500,13 +725,22 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     end
 
     local key = vecAsKey( snapped )
+    local corner1 = hitPos + patchTbl.areaCenteringOffset
     vecsToPlace[key] = {
         key = key,
         truePos = hitPos,
-        corner1 = hitPos + patchTbl.areaCenteringOffset,
+        corner1 = corner1,
         corner2 = hitPos + patchTbl.oppCornerOffset,
         headroom = voxelsHeadroom,
-        crouch = voxelsHeadroom <= HEADROOM_CROUCH
+        -- voxelsHeadroom was measured at voxel, which can sit many grid steps above the
+        -- floor we're actually placing on. finalHeadroomDist is the clearance at hitPos
+        crouch = finalHeadroomDist < patchTbl.headroomStandRaw,
+        -- the voxel column's spot on the grid, so merging is integer work
+        ix = math_Round( ( voxel.x - mins.x ) / patchTbl.gridSize ),
+        iy = math_Round( ( voxel.y - mins.y ) / patchTbl.gridSize ),
+        z = corner1.z,
+        -- initialResult is reused by every trace, this has to be our own copy
+        normal = Vector( hitNormal.x, hitNormal.y, hitNormal.z ),
 
     }
 
@@ -516,7 +750,6 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     end
 end
 
-local coroutine_yield = coroutine.yield
 local oldGenCenter
 
 -- Coroutine function to handle patching regions one-by-one
@@ -598,21 +831,9 @@ local function patchCoroutine()
         if next( vecsToPlace ) then
             debugPrint( "Pre-merging areas..." )
 
-            local merged = true
-            while merged do
-                coroutine_yield()
-                merged = nil
-                for _, data in pairs( vecsToPlace ) do
-                    coroutine_yield()
-                    if mergeWithNeighbors( data, vecsToPlace ) then
-                        merged = true
-                        break
+            vecsToPlace = greedyMergeCells( vecsToPlace )
 
-                    end
-                end
-            end
-
-            local count = table.Count( vecsToPlace )
+            local count = #vecsToPlace
             debugPrint( "Placing " .. count .. " navareas..." )
 
             local justNewAreas = {}
@@ -620,11 +841,22 @@ local function patchCoroutine()
             for _, data in pairs( vecsToPlace ) do
                 coroutine_yield()
                 if debugging then
-                    debugoverlay.Cross( data.corner1, 5, 10, Color( 0, 255, 0 ), true )
-                    debugoverlay.Cross( data.corner2, 5, 10, Color( 0, 255, 0 ), true )
+                    debugoverlay.Cross( data.corner1, 5, 15, Color( 0, 255, 0 ), true )
+                    debugoverlay.Cross( data.corner2, 5, 15, Color( 0, 255, 0 ), true )
+                    debugoverlay.Cross( data.northEast, 3, 15, Color( 0, 200, 0 ), true )
+                    debugoverlay.Cross( data.southWest, 3, 15, Color( 0, 200, 0 ), true )
 
                 end
                 local newArea = navmesh.CreateNavArea( data.corner1, data.corner2 )
+                -- CreateNavArea leveled these two off against the corners it was handed,
+                -- put the traced floor back under them. Only their heights differ from
+                -- what it built, so the area keeps the footprint FindInBox indexed it by
+
+                newArea:SetCorner( 0, data.corner1 )
+                newArea:SetCorner( 1, data.northEast )
+                newArea:SetCorner( 2, data.corner2 )
+                newArea:SetCorner( 3, data.southWest )
+
                 table.insert( justNewAreasSeq, newArea )
                 justNewAreas[newArea] = true
                 data.newArea = newArea
@@ -670,7 +902,7 @@ local function patchCoroutine()
             coroutine_yield( "wait" )
 
             local mergedArea
-            merged = true
+            local merged = true
             while merged do
                 coroutine_yield()
                 merged = nil
@@ -794,6 +1026,21 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
     end )
 end
 
+local function snapToNavmeshCornerIfFurther( toSnap, ref, tooFar )
+    local area = navmesh.GetNearestNavArea( toSnap )
+    if not area then return toSnap end
+
+    local closestOnArea = area:GetClosestPointOnArea( toSnap )
+
+    local originalDist = toSnap:Distance( ref )
+    local distToArea = closestOnArea:Distance( ref )
+    if distToArea < originalDist then return toSnap end -- its closer
+    if closestOnArea:Distance( toSnap ) > tooFar then return toSnap end -- snap is too big
+
+    return closestOnArea
+
+end
+
 local smallSize = Vector( 100, 100, 50 )
 local bigSize = Vector( 175, 175, 100 )
 local hugeSize = Vector( 500, 500, 150 )
@@ -805,15 +1052,27 @@ function terminator_Extras.dynamicallyPatchPos( pos )
 
     local areasInSmallSize = navmesh.FindInBox( pos + -smallSize * 1.5, pos + smallSize * 1.5 )
     if areasInSmallSize and #areasInSmallSize >= 1 then
-        terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, smallGridSize )
+        local pos1 = pos + -smallSize
+        local pos2 = pos + smallSize
+        pos1 = snapToNavmeshCornerIfFurther( pos1, pos, smallGridSize * 8 )
+        pos2 = snapToNavmeshCornerIfFurther( pos2, pos, smallGridSize * 8 )
+        terminator_Extras.AddRegionToPatch( pos1, pos2, smallGridSize )
 
     else
-        local areasInBigSize = navmesh.FindInBox( pos + -bigSize, pos + bigSize )
+        local areasInBigSize = navmesh.FindInBox( pos + -bigSize * 1.5, pos + bigSize * 1.5 )
         if areasInBigSize and #areasInBigSize >= 1 then
-            terminator_Extras.AddRegionToPatch( pos + -bigSize, pos + bigSize, 25 )
+            local pos1 = pos + -bigSize
+            local pos2 = pos + bigSize
+            pos1 = snapToNavmeshCornerIfFurther( pos1, pos, 25 * 4 )
+            pos2 = snapToNavmeshCornerIfFurther( pos2, pos, 25 * 4 )
+            terminator_Extras.AddRegionToPatch( pos1, pos2, 25 )
 
         else
-            terminator_Extras.AddRegionToPatch( pos + -hugeSize, pos + hugeSize, 50 )
+            local pos1 = pos + -hugeSize
+            local pos2 = pos + hugeSize
+            pos1 = snapToNavmeshCornerIfFurther( pos1, pos, 25 * 6 )
+            pos2 = snapToNavmeshCornerIfFurther( pos2, pos, 25 * 6 )
+            terminator_Extras.AddRegionToPatch( pos1, pos2, 25 )
 
         end
     end
@@ -828,7 +1087,16 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
 
     end
 
-    local gridSize = tonumber( args[1] ) or smallGridSize
+    local gridSize = tonumber( args[1] )
+    local allowedExpansion = tonumber( args[2] )
+    if not gridSize then
+        gridSize = smallGridSize
+        allowedExpansion = gridSize * 8
+
+    elseif not allowedExpansion then
+        allowedExpansion = gridSize * 4
+
+    end
 
     local tr = ply:GetEyeTrace()
     if not tr or not tr.HitPos then return end
@@ -836,7 +1104,11 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
     local pos = tr.HitPos
     SnapToGrid( pos, gridSize, 0 )
 
-    terminator_Extras.AddRegionToPatch( pos + -smallSize, pos + smallSize, gridSize )
+    local pos1 = pos + -smallSize
+    local pos2 = pos + smallSize
+    pos1 = snapToNavmeshCornerIfFurther( pos1, pos, gridSize * 8 )
+    pos2 = snapToNavmeshCornerIfFurther( pos2, pos, gridSize * 8 )
+    terminator_Extras.AddRegionToPatch( pos1, pos2, gridSize )
 
     -- always show region being queued with a debug box
     local boxMins = -smallSize

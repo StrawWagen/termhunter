@@ -369,7 +369,7 @@ do
     local Vector = Vector
 
     local upMagicNum = 20
-    local speedToPatchAhead = 100^2
+    local speedToPatchAhead = 75^2
     local doorCheckHull = Vector( 18, 18, 1 )
     local flattener = Vector( 1, 1, 0.5 )
     local tooFarDistSqr = 40^2
@@ -415,15 +415,23 @@ do
         -- start a patch ahead of the player
         -- rare
         if patchABitAhead then
-            local aheadOffset = vecMeta.GetNormalized( ply:GetVelocity() * flattener ) * 250
+            local aheadOffset = vecMeta.GetNormalized( ply:GetVelocity() * flattener ) * 350
             local aheadPos = plyPos + aheadOffset
+            aheadPos.z = aheadPos.z + 25
             if util.IsInWorld( aheadPos ) and terminator_Extras.PosCanSee( plyPos, aheadPos ) then
-                local aheadArea = navmesh.GetNearestNavArea( aheadPos, false, 150, false, true, -2 )
+                if debugging then
+                    debugoverlay.Line( plyPos, aheadPos, 5, Color( 255, 255, 255 ), true )
+
+                end
+                local aheadArea = navmesh.GetNearestNavArea( aheadPos, true, 150, false, true, -2 )
 
                 if not IsValid( aheadArea ) then
                     terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
 
                 end
+            elseif debugging then
+                debugoverlay.Line( plyPos, aheadPos, 1, Color( 255, 0, 0 ), true )
+
             end
         end
 

@@ -361,28 +361,7 @@ function ENT:BodyUpdate()
 	self:RunTask("BodyUpdate")
 end
 
---[[------------------------------------
-	Name: NEXTBOT:SetupCollisionBounds
-	Desc: (INTERNAL) Sets collision bounds сonsidering crouch status. Also recreating physics object using new bounds
-	Arg1: 
-	Ret1: 
---]]------------------------------------
-
 local angZero = Angle( 0, 0, 0 ) -- maybe fix bugs with the shadow :(
-
-function ENT:SetupCollisionBounds( myTbl )
-	myTbl = myTbl or entMeta.GetTable( self )
-	local data = myTbl.GetCrouching( self ) and myTbl.CrouchCollisionBounds or myTbl.CollisionBounds
-
-	entMeta.SetCollisionBounds( self, data[1], data[2] )
-
-	if entMeta.PhysicsInitShadow( self, false, false ) then
-		local mass = myTbl.MyPhysicsMass
-
-		entMeta.GetPhysicsObject( self ):SetMass( mass )
-
-	end
-end
 
 --[[------------------------------------
 	Name: NEXTBOT:UpdatePhysicsObject

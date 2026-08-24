@@ -422,8 +422,16 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
     local crouch = hasAttributeFast( startA, NAV_MESH_CROUCH ) or hasAttributeFast( nextA, NAV_MESH_CROUCH )
     local stairs = hasAttributeFast( startA, NAV_MESH_STAIRS ) or hasAttributeFast( nextA, NAV_MESH_STAIRS )
 
-    local newArea = navmesh.CreateNavArea( NECorner, SWCorner )
+    -- CreateNavArea reads two heights and smears them across the min-y and max-y edges,
+    -- so hand it the corners it names and set the other two back. Both are done before
+    -- the areas these came out of are removed
+    local newArea = navmesh.CreateNavArea( NWCorner, SECorner )
     if not IsValid( newArea ) then return false, 0, NULL end -- this failed, dont delete the old areas
+
+    newArea:SetCorner( 0, NWCorner )
+    newArea:SetCorner( 1, NECorner )
+    newArea:SetCorner( 2, SECorner )
+    newArea:SetCorner( 3, SWCorner )
 
     start:Remove()
     next:Remove()
@@ -453,9 +461,6 @@ function terminator_Extras.navmeshAttemptMerge( start, next )
         newArea:ConnectTo( twoWayArea )
         twoWayArea:ConnectTo( newArea )
     end
-
-    newArea:SetCorner( 0, NWCorner )
-    newArea:SetCorner( 2, SECorner )
 
     --debugoverlay.Line( center1, center2, 3, Color( 255, 255, 255 ), true )
 

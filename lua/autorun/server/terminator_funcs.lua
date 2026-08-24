@@ -320,6 +320,7 @@ end
 --[[--------------------------
     TeleportTermTo
     Helper that 'safely' teleports a term npc to a position, kills the coroutine so any in-progress stuff won't setpos it back
+    For teleporting terms reliably from outside their task environment
     @param term Entity
     @param pos Vector
 --]]--------------------------

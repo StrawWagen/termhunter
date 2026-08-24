@@ -1683,6 +1683,7 @@ function ENT:MoveOffGroundTowardsVisible( myTbl, toChoose, destinationArea )
         local beginSetposCrouchJump = IsValid( destinationArea ) and indexThatWasVisible <= 4 and destinationArea:HasAttributes( NAV_MESH_CROUCH ) and not hitBreakable
         local justSetposUsThere = IsValid( destinationArea ) and ( myTbl.WasSetposCrouchJump or beginSetposCrouchJump ) and myPos:DistToSqr( destinationArea:GetClosestPointOnArea( myPos ) ) < 40^2
 
+        --print( beginSetposCrouchJump, justSetposUsThere )
         -- i HATE VENTS!
         if justSetposUsThere then
             local setPosDist = math.Clamp( dist2d, 5, 35 )
@@ -1761,7 +1762,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     if isFodder then coroutine_yield() end
 
     local currSegment = pathMeta.GetCurrentGoal( path ) -- maybe bottom of the jump, paths are stupid
-    local _, aheadSegment = myTbl.GetNextPathArea( self, myArea ) -- always top of the jump
+    local nextPathArea, aheadSegment = myTbl.GetNextPathArea( self, myArea ) -- always top of the jump
     if isFodder then coroutine_yield() end
 
     local iAmOnGround = myTbl.loco:IsOnGround()
@@ -1770,6 +1771,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
     if not aheadSegment then
         aheadSegment = currSegment
+        nextPathArea = aheadSegment.area
 
     end
 
@@ -1793,8 +1795,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local aheadType = aheadSegment.type
     local currType = currSegment.type
 
-    local aheadArea = aheadSegment.area
-    if not IsValid( aheadArea ) then
+    if not IsValid( nextPathArea ) then
         self:Anger( 10 )
         self:InvalidatePath( "Navmesh was modified!" )
         return
@@ -1820,7 +1821,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     end
 
     -- respect transient areas!
-    if aheadArea:HasAttributes( NAV_MESH_TRANSIENT ) and not self:transientAreaPathable( aheadArea, aheadArea:GetID() ) then
+    if nextPathArea:HasAttributes( NAV_MESH_TRANSIENT ) and not self:transientAreaPathable( nextPathArea, nextPathArea:GetID() ) then
         self:Anger( 10 )
         self:InvalidatePath( "was going into untraversable transient area" )
         return
@@ -1990,6 +1991,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             if hitBelowDest and not result.StartSolid then
                 dropIsReallyJustAGap = true
                 aheadSegment = segAfterTheDrop
+                nextPathArea = aheadSegment.area
                 myTbl.m_PathObstacleAvoidPos = nil
                 myTbl.wasADropTypeInterpretedAsAGap = true
 
@@ -2073,7 +2075,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local dropTypeToDealWith
     local segAfterTheDrop
     if potentialdropTypeToDealWith then
-        local _, segDropdownBottom = self:GetNextPathArea( aheadArea, 1 )
+        local _, segDropdownBottom = self:GetNextPathArea( nextPathArea, 1 )
         segAfterTheDrop = segDropdownBottom or aheadSegment
         dropTypeToDealWith = math.abs( segAfterTheDrop.pos.z - myPos.z ) > ( myTbl.StepHeight * 2 )
 
@@ -2087,8 +2089,8 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
         -- dont jump if we're trying to jump up stairs!
         local tryingToJumpUpStairs = areaSimple:HasAttributes( NAV_MESH_STAIRS )
-        if tryingToJumpUpStairs and aheadArea ~= areaSimple then
-            tryingToJumpUpStairs = aheadArea:IsFlat() or areaSimple:IsFlat() or aheadArea:HasAttributes( NAV_MESH_STAIRS )
+        if tryingToJumpUpStairs and nextPathArea ~= areaSimple then
+            tryingToJumpUpStairs = nextPathArea:IsFlat() or areaSimple:IsFlat() or nextPathArea:HasAttributes( NAV_MESH_STAIRS )
 
         end
         local blockJump = areaSimple:HasAttributes( NAV_MESH_NO_JUMP ) or tryingToJumpUpStairs or prematureGapJump
@@ -2138,7 +2140,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
             local needsToFeelAround
             if jumpstate == 2 then
-                local nextAreasClosestPoint = aheadArea:GetClosestPointOnArea( myPos )
+                local nextAreasClosestPoint = nextPathArea:GetClosestPointOnArea( myPos )
                 local myAreasClosestPointToNext = areaSimple:GetClosestPointOnArea( nextAreasClosestPoint )
                 needsToFeelAround = ( nextAreasClosestPoint.z - myAreasClosestPointToNext.z ) > myTbl.loco:GetStepHeight()
 
@@ -2164,6 +2166,10 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
                 -- obstacle, we have to move around if we want to go past it
                 if jumpstate == 2 then
+                    if nextPathArea:HasAttributes( NAV_MESH_CROUCH ) then
+                        self.overrideCrouch = CurTime() + 0.25
+
+                    end
                     local _, bitFurtherAheadSegment = self:GetNextPathArea( myArea, 1 )
                     if not bitFurtherAheadSegment then
                         bitFurtherAheadSegment = aheadSegment
@@ -2219,6 +2225,10 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                     myTbl.jumpBlockClearPos = jumpBlockClearPos
 
                     self:Jump( jumpingHeight )
+                    if nextPathArea:HasAttributes( NAV_MESH_CROUCH ) then
+                        self.overrideCrouch = CurTime() + 0.25
+
+                    end
                     doPathUpdate = true
 
                 end
@@ -2270,7 +2280,6 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                 myNav = currSegment.area
 
             end
-            local nextPathArea = myTbl.GetNextPathArea( self, myNav )
 
             local smallJumpEnd = nil
             local desiredSegmentPos = nil
@@ -2309,7 +2318,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
                         closestPointForgiving = closestPoint + vector25Z
                     end
                     if big and ( nextAreaCenter.z - 20 ) < myPos.z then
-                        destinationRelativeToBot = Vector( nextAreaCenter.x, nextAreaCenter.y, myPos.z + 20 )
+                        destinationRelativeToBot = Vector( nextAreaCenter.x, nextAreaCenter.y, myPos.z + 15 )
 
                     end
                 end
@@ -2405,7 +2414,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
             myTbl.DemandPathUpdates( self, myTbl ) -- tell behaviouroverrides to update our path
 
             -- detect when bot falls down and we need to repath
-            local aheadSegPos = IsValid( aheadSegment.area ) and aheadSegment.area:GetClosestPointOnArea( myPos ) or aheadSegment.pos
+            local aheadSegPos = IsValid( nextPathArea ) and nextPathArea:GetClosestPointOnArea( myPos ) or aheadSegment.pos
             local maxHeightChange = math.max( math.abs( currSegment.pos.z - aheadSegPos.z ), myTbl.loco:GetMaxJumpHeight() * 1.5 )
             local changeToSegment = currSegment.pos.z - myPos.z
 
@@ -3867,7 +3876,7 @@ function ENT:InitializeCollisionBounds( mdlScale )
         local mins = normalCollisions[1]
         local maxs = normalCollisions[2]
         self.CrouchCollisionBounds = { Vector( mins.x, mins.y, mins.z ), Vector( maxs.x, maxs.y, maxs.z ) } -- i loveeee vectors!!!
-        self.CrouchCollisionBounds[2].z = self.CrouchCollisionBounds[2].z * 0.6 -- dont make this too smal, it breaks headshots!
+        self.CrouchCollisionBounds[2].z = self.CrouchCollisionBounds[2].z * 0.59 -- dont make this too smal, it breaks headshots!
 
     elseif mdlScale ~= 1 then
         local normalCollisions = self.CrouchCollisionBounds
@@ -3895,4 +3904,25 @@ function ENT:InitializeCollisionBounds( mdlScale )
     local minWidth = math.floor( self.MinPathingAreaWidth or self.CrouchCollisionBounds[2].x * mdlScale * 0.5 )
     self.MinPathingAreaWidth = minWidth
 
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:SetupCollisionBounds
+    Desc: (INTERNAL) Sets collision bounds сonsidering crouch status. Also recreating physics object using new bounds
+    Arg1: 
+    Ret1: 
+--]]------------------------------------
+
+function ENT:SetupCollisionBounds( myTbl )
+    myTbl = myTbl or entMeta.GetTable( self )
+    local data = myTbl.GetCrouching( self ) and myTbl.CrouchCollisionBounds or myTbl.CollisionBounds
+
+    entMeta.SetCollisionBounds( self, data[1], data[2] )
+
+    if entMeta.PhysicsInitShadow( self, false, false ) then
+        local mass = myTbl.MyPhysicsMass
+
+        entMeta.GetPhysicsObject( self ):SetMass( mass )
+
+    end
 end
