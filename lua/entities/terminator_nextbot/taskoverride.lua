@@ -1,6 +1,8 @@
 local entMeta = FindMetaTable( "Entity" )
 local isstring = isstring
 local string_find = string.find
+local coroutine_running = coroutine.running
+local coroutine_yield = coroutine.yield
 
 --[[------------------------------------
     Name: NEXTBOT:RunTask
@@ -21,6 +23,11 @@ function ENT:RunTask( event, ... )
 
     local m_TaskList = myTbl.m_TaskList
     local passedTasks = {}
+    local yieldable
+    if not myTbl.IsFodder then
+        yieldable = false
+
+    end
 
     local wasCallback
     local k = 1
@@ -44,7 +51,16 @@ function ENT:RunTask( event, ... )
 
         if callback then
             wasCallback = true
-            -- always yields every 2 'k'
+
+            if yieldable == nil then
+                yieldable = coroutine_running() or false
+
+            end
+            if yieldable then
+                coroutine_yield()
+
+            end
+
             local data = currTask[2] -- task data
             local beforeCalledCount = #m_ActiveTasksNum
             local args = { callback( self, data, ... ) }

@@ -1350,7 +1350,7 @@ end
 -- returns 1 when its blocked but it can jump over
 -- returns 2 when there's an obstacle that can't be jumped over, bot should respond by stepping back
 function ENT:GetJumpBlockState( myTbl, dir, goal )
-
+    local yieldable = coroutine_running()
     local enemy = myTbl.GetEnemy( self )
     local b1, b2 = myTbl.BoundsAdjusted( self, scalar )
     local step = myTbl.loco:GetStepHeight() * scalar
@@ -1360,6 +1360,11 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
 
     local distToTrace = vecMeta.Length2D( pos - goal )
     distToTrace = math.Clamp( distToTrace, 32, 64 )
+
+    if myTbl.IsFodder and yieldable then
+        coroutine_yield()
+
+    end
 
     local defEndPos = pos + dir * distToTrace
 
@@ -1378,6 +1383,10 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
     }
 
     local dirResult = util.TraceHull( dirConfig )
+    if yieldable then
+        coroutine_yield()
+
+    end
 
     local didSight
     local sightResult
@@ -1398,6 +1407,10 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
 
         sightResult = util.TraceHull( sightConfig )
 
+        if yieldable then
+            coroutine_yield()
+
+        end
     end
 
     local checksThatHit = 0
@@ -1445,17 +1458,12 @@ function ENT:GetJumpBlockState( myTbl, dir, goal )
         local offset = Vector( 0, 0, height )
         local goalWithOverriddenZ = Vector( goal.x, goal.y, 0 )
 
-        local yieldable = coroutine_running()
         if not yieldable then -- dont create lagspikes
             maxJump = maxJump / 4
 
         end
 
         while height <= maxJump do
-            if yieldable then
-                coroutine_yield()
-
-            end
 
             offset.z = height
             height = math.Round( height + step )
@@ -1828,7 +1836,6 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
 
     end
 
-    coroutine_yield()
     local doPathUpdate = nil
     local obstacleAvoid = myTbl.m_PathObstacleAvoidPos
     if obstacleAvoid then
@@ -2411,7 +2418,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
         else
             myTbl.term_LastApproachPos = currSegment.pos
 
-            myTbl.DemandPathUpdates( self, myTbl ) -- tell behaviouroverrides to update our path
+            myTbl.DemandPathUpdates( self, myTbl ) -- tell aicore to update our path
 
             -- detect when bot falls down and we need to repath
             local aheadSegPos = IsValid( nextPathArea ) and nextPathArea:GetClosestPointOnArea( myPos ) or aheadSegment.pos
@@ -2644,10 +2651,6 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
     end
 
     if vecMeta.DistToSqr( entMeta.NearestPoint( self, pos ), pos ) > distance^2 then
-        if yieldable then
-            coroutine_yield()
-
-        end
         local zToPos = ( pos.z - myPos.z )
 
         local overrideCrouch = myTbl.overrideCrouch or 0
@@ -2719,6 +2722,10 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
             local jumpstate, jumpingHeight, jumpBlockClearPos = 0, nil, nil
 
             if not isFodder or math.random( 1, 100 ) > 75 then
+                if yieldable then
+                    coroutine_yield()
+
+                end
                 jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( myTbl, dir, pos )
 
             end

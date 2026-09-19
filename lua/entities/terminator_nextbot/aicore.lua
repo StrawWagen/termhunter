@@ -34,7 +34,7 @@ local BOT_COROUTINE_RESULTS = {
     DONE = 1, -- this thread is done for now
     WAIT = 2, -- wait until next think
     PATHING = 4, -- let us get put in the pathing budget queue
-    PATHING_DONTWAIT = 8, -- still a pathing yield, but dont count towards the budget, added for debugging
+    PATHING_DONTWAIT = 8, -- still a pathing yield, but dont count towards the budget, added for debugging pathing yields
     DONE_CLEANUP = 16, -- end and teardown this thread
 
 }
@@ -45,7 +45,7 @@ if GetConVar( "term_debugtasks" ) then
     printTasks = GetConVar( "term_debugtasks" ):GetBool()
 
 end
-hook.Add( "InitPostEntity", "getprinttasks_behaviouroverrides", function()
+hook.Add( "InitPostEntity", "getprinttasks_aicore", function()
     printTasks = GetConVar( "term_debugtasks" ):GetBool()
 
 end )
@@ -91,6 +91,7 @@ function ENT:RestartMotionCoroutine( myTbl )
 end
 
 local pathUpdateIntervalFodder = 0.1
+local pathUpdateInterval = 0.025
 
 function ENT:BehaveUpdate( interval )
     local myTbl = entMeta.GetTable( self )
@@ -194,16 +195,19 @@ function ENT:BehaveUpdate( interval )
                     local demanded = myTbl.m_PathUpdatesDemanded
                     if demanded <= 0 then return end
 
-                    if myTbl.IsFodder then -- ratelimit fodder path updates
-                        local nextUpdate = myTbl.m_NextPathUpdate or 0
-                        local cur = CurTime()
-                        if nextUpdate > cur then return end
+                    local nextUpdate = myTbl.m_NextPathUpdate or 0
+                    local cur = CurTime()
+                    if nextUpdate > cur then return end
 
+                    if myTbl.isFodder then
                         myTbl.m_NextPathUpdate = cur + pathUpdateIntervalFodder
+
+                    else
+                        myTbl.m_NextPathUpdate = cur + pathUpdateInterval
 
                     end
 
-                    local path = myTbl.GetPath( self )
+                    local path = myTbl.GetPath( self, myTbl )
                     if not path or not pathMeta.IsValid( path ) then return end
 
                     local currSegment = pathMeta.GetCurrentGoal( path )
@@ -244,212 +248,183 @@ end
 
 
 -- debuggers for finding yields that need TLC
-local yieldDebugTotalCosts
-local yieldDebugWorstCosts
-local yieldDebugPathCosts
-local yieldDebugLuaMemCosts
-local debugging = false
+-- every tracker feeds this one table, keyed by yield site
+-- [key] = { total, worst, count, pathTotal, pathCount, mem, stack }
+local yieldStats
+local trackerOn = {} -- convar name -> bool, several can watch at once
+local profiling = false -- any tracker, so the hot loop needs one check
+local profilingMem = false -- the only tracker allowed to touch the collector
+local yieldStatFor -- assigned below, called from ENT:Think
 
 do
-    local function onToggleDebugging()
-        if debugging then
-            yieldDebugTotalCosts = {}
-            yieldDebugWorstCosts = {}
-            yieldDebugPathCosts = {}
-            yieldDebugLuaMemCosts = {}
+    local function refreshProfilingFlags()
+        profiling = false
+        for _, on in pairs( trackerOn ) do
+            if on then
+                profiling = true
+                break
+
+            end
+        end
+
+        profilingMem = trackerOn["term_debug_luamem"] or false
+
+        if profiling then
+            yieldStats = yieldStats or {} -- shared, so turning one tracker off doesnt wipe another
 
         else
-            yieldDebugTotalCosts = nil
-            yieldDebugWorstCosts = nil
-            yieldDebugPathCosts = nil
-            yieldDebugLuaMemCosts = nil
+            yieldStats = nil
 
         end
     end
 
-    CreateConVar( "term_debug_totaloverbudgetyields", "0", FCVAR_NONE, "Prints the yields that are collectively draining FPS" )
-    cvars.AddChangeCallback( "term_debug_totaloverbudgetyields", function( _, _, newVal )
-        debugging = tobool( newVal )
-        if debugging then
-            permaPrint( "Starting overbudget yield finder.\nRun term_debug_totaloverbudgetyields 0 to see results" )
+    function yieldStatFor( thread )
+        local here = debug.getinfo( thread, 2, "Sl" ) -- 1 is the C coroutine.yield, 2 is the lua that called it
+        if not here then return end -- thread finished, no stack left to read
 
-        else
-            if not yieldDebugTotalCosts then permaPrint( "ERR: File was autorefreshed." ) return end
-
-            local totalCostsCount = table.Count( yieldDebugTotalCosts )
-            if totalCostsCount <= 0 then
-                permaPrint( "No overbudget yields found." )
-                return
-
-            else
-                local i = 0
-                local max = 20
-                local wasOverMax = false
-                permaPrint( "Found " .. totalCostsCount .. " overbudget yields. Displaying the " .. math.min( totalCostsCount, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
-                permaPrint( "Top " .. math.min( totalCostsCount, max ) .. " results:" )
-                for currStack, value in SortedPairsByValue( yieldDebugTotalCosts, true ) do
-                    i = i + 1
-                    if i > max then
-                        wasOverMax = true
-                        break
-
-                    end
-                    permaPrint( "-------------------------" )
-                    permaPrint( "Added costs: " .. value .. "\n", currStack )
-
-                end
-                permaPrint( "-------------------------" )
-                if wasOverMax then
-                    local excludedCount = totalCostsCount - max
-                    permaPrint( excludedCount .. " results excluded..." )
-                    permaPrint( "-------------------------" )
-
-                end
-            end
-            yieldDebugTotalCosts = nil
+        local key = here.short_src .. ":" .. here.currentline
+        local from = debug.getinfo( thread, 3, "Sl" )
+        if from then -- keyed by caller too, so a shared helper doesnt collapse into one row
+            key = key .. "  <- " .. from.short_src .. ":" .. from.currentline
 
         end
-        onToggleDebugging()
 
-    end, "maindebugthinker_totaloverbudgetyields" )
+        local stat = yieldStats[key]
+        if not stat then
+            stat = {
+                total = 0,
+                worst = 0,
+                count = 0,
+                overTotal = 0, -- ms past thresh this site is responsible for, not time spent
+                overCount = 0,
+                overWorst = 0,
+                pathTotal = 0,
+                pathCount = 0,
+                mem = 0,
+                stack = debug.traceback( thread ), -- printed only, so once per site instead of once per resume
 
-    CreateConVar( "term_debug_worstoverbudgetyields", "0", FCVAR_NONE, "Prints the yields spiking performance, causing tiny freezes" )
-    cvars.AddChangeCallback( "term_debug_worstoverbudgetyields", function( _, _, newVal )
-        debugging = tobool( newVal )
-        if debugging then
-            permaPrint( "Starting worst overbudget yield finder.\nRun term_debug_worstoverbudgetyields 0 to see results" )
-
-        else
-            if not yieldDebugWorstCosts then permaPrint( "ERR: File was autorefreshed." ) return end
-
-            local overbudgetFoundCount = table.Count( yieldDebugWorstCosts )
-            if overbudgetFoundCount <= 0 then
-                permaPrint( "No overbudget yields found." )
-                return
-
-            else
-                local i = 0
-                local max = 20
-                local wasOverMax = false
-                permaPrint( "Found " .. overbudgetFoundCount .. " worst overbudget yields. Displaying the " .. math.min( overbudgetFoundCount, max ) .. " worst results.\nAdd more yields BEFORE these lines:" )
-                permaPrint( "Top " .. math.min( overbudgetFoundCount, max ) .. " results:" )
-                for currStack, value in SortedPairsByValue( yieldDebugWorstCosts, true ) do
-                    i = i + 1
-                    if i > max then
-                        wasOverMax = true
-                        break
-
-                    end
-                    permaPrint( "-------------------------" )
-                    permaPrint( "Worst cost: " .. value .. "\n", currStack )
-
-                end
-                permaPrint( "-------------------------" )
-                if wasOverMax then
-                    local excludedCount = overbudgetFoundCount - max
-                    permaPrint( excludedCount .. " results excluded..." )
-                    permaPrint( "-------------------------" )
-
-                end
-            end
-            yieldDebugWorstCosts = nil
+            }
+            yieldStats[key] = stat
 
         end
-        onToggleDebugging()
+        return stat
 
-    end, "maindebugthinker_worstoverbudgetyields" )
+    end
 
-    CreateConVar( "term_debug_pathbudget", "0", FCVAR_NONE, "Prints the total costs of every pathing yield" )
-    cvars.AddChangeCallback( "term_debug_pathbudget", function( _, _, newVal )
-        debugging = tobool( newVal )
-        if debugging then
-            permaPrint( "Starting pathing yield cost tracker.\nRun term_debug_pathbudget 0 to see results" )
+    local reportMax = 20
 
-        else
-            if not yieldDebugPathCosts then permaPrint( "ERR: File was autorefreshed." ) return end
+    local function printYieldReport( heading, valueOf, describe )
+        if not yieldStats then permaPrint( "ERR: File was autorefreshed." ) return end
 
-            local yieldCostsCount = table.Count( yieldDebugPathCosts )
-            if yieldCostsCount <= 0 then
-                permaPrint( "No pathing yields found." )
-                return
+        local rows = {}
+        for _, stat in pairs( yieldStats ) do
+            if valueOf( stat ) > 0 then
+                rows[#rows + 1] = stat
 
-            else
-                local i = 0
-                local max = 20
-                local wasOverMax = false
-                permaPrint( "Found " .. yieldCostsCount .. " pathing yields.\nOptimize the code BEFORE these lines." )
-                permaPrint( "Top " .. math.min( yieldCostsCount, max ) .. " results:" )
-                for currStack, value in SortedPairsByValue( yieldDebugPathCosts, true ) do
-                    i = i + 1
-                    if i > max then
-                        wasOverMax = true
-                        break
-
-                    end
-                    permaPrint( "-------------------------" )
-                    permaPrint( "Total cost: " .. value .. "\n", currStack )
-
-                end
-                permaPrint( "-------------------------" )
-                if wasOverMax then
-                    local excludedCount = yieldCostsCount - max
-                    permaPrint( excludedCount .. " results excluded..." )
-                    permaPrint( "-------------------------" )
-
-                end
             end
-            yieldDebugPathCosts = nil
+        end
+
+        if #rows <= 0 then permaPrint( "No results found." ) return end
+
+        table.sort( rows, function( a, b ) return valueOf( a ) > valueOf( b ) end )
+
+        local shown = math.min( #rows, reportMax )
+        permaPrint( "Found " .. #rows .. " yield sites. Showing the top " .. shown .. "." )
+        permaPrint( heading )
+
+        for i = 1, shown do
+            local stat = rows[i]
+            permaPrint( "-------------------------" )
+            permaPrint( describe( stat ) .. "\n", stat.stack )
 
         end
-        onToggleDebugging()
+        permaPrint( "-------------------------" )
 
-    end, "maindebugthinker_pathbudget" )
-
-    CreateConVar( "term_debug_luamem", "0", FCVAR_NONE, "Prints the yields taking up the most lua memory" )
-    cvars.AddChangeCallback( "term_debug_luamem", function( _, _, newVal )
-        debugging = tobool( newVal )
-        if debugging then
-            permaPrint( "Starting term luamem tracker.\nRun term_debug_luamem 0 to see results" )
-
-        else
-            if not yieldDebugLuaMemCosts then permaPrint( "ERR: File was autorefreshed." ) return end
-
-            local yieldDebugLuaMemCostsCount = table.Count( yieldDebugLuaMemCosts )
-            if yieldDebugLuaMemCostsCount <= 0 then
-                permaPrint( "No yields found." )
-                return
-
-            else
-                local i = 0
-                local max = 20
-                local wasOverMax = false
-                permaPrint( "Found " .. yieldDebugLuaMemCostsCount .. " yields creating garbage.\nOptimize the code BEFORE these worst yields." )
-                permaPrint( "Top " .. math.min( yieldDebugLuaMemCostsCount, max ) .. " results:" )
-                for currStack, value in SortedPairsByValue( yieldDebugLuaMemCosts, true ) do
-                    i = i + 1
-                    if i > max then
-                        wasOverMax = true
-                        break
-
-                    end
-                    permaPrint( "-------------------------" )
-                    permaPrint( "Total cost: " .. value .. "\n", currStack )
-
-                end
-                permaPrint( "-------------------------" )
-                if wasOverMax then
-                    local excludedCount = yieldDebugLuaMemCostsCount - max
-                    permaPrint( excludedCount .. " results excluded..." )
-                    permaPrint( "-------------------------" )
-
-                end
-            end
-            yieldDebugLuaMemCosts = nil
+        if #rows > reportMax then
+            permaPrint( ( #rows - reportMax ) .. " results excluded..." )
+            permaPrint( "-------------------------" )
 
         end
-        onToggleDebugging()
+    end
 
-    end, "maindebugthinker_luamem" )
+    local function ms( seconds )
+        return string.format( "%.3f ms", seconds * 1000 )
+
+    end
+
+    local function addTracker( convar, blurb, heading, valueOf, describe )
+        CreateConVar( convar, "0", FCVAR_NONE, blurb )
+        cvars.AddChangeCallback( convar, function( _, _, newVal )
+            local on = tobool( newVal )
+            trackerOn[convar] = on
+
+            if on then
+                refreshProfilingFlags()
+                permaPrint( "Starting " .. convar .. ".\nRun " .. convar .. " 0 to see results" )
+
+            else
+                printYieldReport( heading, valueOf, describe )
+                refreshProfilingFlags() -- drops yieldStats once the last tracker is off
+
+            end
+        end, "maindebugthinker_" .. convar )
+
+    end
+
+    addTracker(
+        "term_debug_overbudgetyields",
+        "Prints the yields whose work took a bot over its tick budget",
+        "Ranked by how far past CoroutineThresh each site pushed a bot. ADD MORE YIELDS inside the work BEFORE these lines.",
+        function( stat ) return stat.overTotal end,
+        function( stat )
+            return string.format( "overshoot %10s   times %7d   avg %10s   worst %10s   segment avg %10s", ms( stat.overTotal ), stat.overCount, ms( stat.overTotal / stat.overCount ), ms( stat.overWorst ), ms( stat.total / stat.count ) )
+
+        end
+    )
+
+    addTracker(
+        "term_debug_uselessyields",
+        "Prints the yields firing constantly for almost no work",
+        "Ranked by how often they fire. A huge count next to a tiny avg is a yield earning nothing, DELETE it or hoist it out of its loop.",
+        function( stat ) return stat.count end,
+        function( stat )
+            return string.format( "count %7d   avg %10s   total %10s   worst %10s", stat.count, ms( stat.total / stat.count ), ms( stat.total ), ms( stat.worst ) )
+
+        end
+    )
+
+    addTracker(
+        "term_debug_worstyieldcosts",
+        "Prints the yields spiking performance, causing tiny freezes",
+        "Ranked by the single worst segment. These are the stutters.",
+        function( stat ) return stat.worst end,
+        function( stat )
+            return string.format( "worst %10s   total %10s   count %7d", ms( stat.worst ), ms( stat.total ), stat.count )
+
+        end
+    )
+
+    addTracker(
+        "term_debug_pathbudget",
+        "Prints the total costs of every pathing yield",
+        "Ranked by time spent under pathing yields.",
+        function( stat ) return stat.pathTotal end,
+        function( stat )
+            return string.format( "pathing %10s   yields %7d   avg %10s", ms( stat.pathTotal ), stat.pathCount, ms( stat.pathTotal / stat.pathCount ) )
+
+        end
+    )
+
+    addTracker(
+        "term_debug_luamem",
+        "Prints the yields taking up the most lua memory",
+        "Ranked by lua garbage created.",
+        function( stat ) return stat.mem end,
+        function( stat )
+            return string.format( "garbage %9.1f KB   count %7d   avg %8.3f KB", stat.mem, stat.count, stat.mem / stat.count )
+
+        end
+    )
 
 end
 
@@ -521,77 +496,89 @@ function ENT:Think()
         local oldTime = SysTime()
         local myPathingCostThisTick = 0
         local wasBusy
-        local oldTimePathDebug
         local oldLuaMemDebug
-
-        if debugging then
-            oldLuaMemDebug = collectgarbage( "count" )
-
-        end
+        local profilerOverhead = 0
 
         local done
 
         while thread and not done do
-            local cost = SysTime() - oldTime
-            local overbudget = cost > thresh
-            local stackBefore
-            if debugging or printTasks then
-                stackBefore = debug.traceback( thread )
+            -- the budget is deliberately cumulative for the whole tick. profilerOverhead
+            -- comes back off it so a bot runs the same code whether or not youre watching
+            if ( SysTime() - oldTime ) - profilerOverhead > thresh then break end
 
-            end
-            if overbudget then
-                if debugging then
-                    yieldDebugTotalCosts[stackBefore] = ( yieldDebugTotalCosts[stackBefore] or 0 ) + cost
-                    yieldDebugWorstCosts[stackBefore] = math.max( yieldDebugWorstCosts[stackBefore] or 0, cost )
-
-                end
-                break
-
-            end
             if printTasks and index ~= "disabledCor" then
-                myTbl.lastYieldLocation = stackBefore
+                myTbl.lastYieldLocation = debug.traceback( thread )
 
             end
             doneSomething = true
             wasBusy = true -- did we have at least 1 normal yield?
 
-            if debugging then
+            if profilingMem then
                 collectgarbage( "stop" )
                 oldLuaMemDebug = collectgarbage( "count" )
 
             end
+
+            -- timed tight around the resume, so the profiler never charges itself
+            local segmentStart = SysTime()
             local noErrors, result = coroutine_resume( thread, self, myTbl )
+            local segmentCost = SysTime() - segmentStart
 
-            local stackAfter
-            if debugging then
-                stackAfter = debug.traceback( thread )
+            if profiling then
+                local overheadStart = SysTime()
 
-            end
-
-            if debugging then
-                local newLuaMemDebug = collectgarbage( "count" )
-                collectgarbage( "restart" )
-
-                local luaMemUsed = newLuaMemDebug - oldLuaMemDebug
-                yieldDebugLuaMemCosts[stackAfter] = ( yieldDebugLuaMemCosts[stackAfter] or 0 ) + luaMemUsed
-
-                if result and ( result == BOT_COROUTINE_RESULTS.PATHING or result == BOT_COROUTINE_RESULTS.PATHING_DONTWAIT ) then
-                    if not oldTimePathDebug then
-                        oldTimePathDebug = SysTime()
-
-                    else
-                        yieldDebugPathCosts[stackAfter] = ( yieldDebugPathCosts[stackAfter] or 0 ) + ( SysTime() - oldTimePathDebug )
-                        oldTimePathDebug = SysTime()
-
-                    end
-                else
-                    oldTimePathDebug = nil
+                local luaMemUsed
+                if profilingMem then
+                    luaMemUsed = collectgarbage( "count" ) - oldLuaMemDebug
+                    collectgarbage( "restart" )
 
                 end
+
+                -- overheadStart was taken right after the resume, so this is the tick total
+                -- as of this segment ending, for free. profilerOverhead is still last
+                -- iteration's, which is what we want, this segment hasnt added to it yet
+                local overshoot = ( overheadStart - oldTime ) - profilerOverhead - thresh
+
+                -- charged to the site it yielded AT, so a row reads as "the work ending here"
+                local stat = yieldStatFor( thread )
+                if stat then
+                    stat.total = stat.total + segmentCost
+                    stat.count = stat.count + 1
+                    if segmentCost > stat.worst then
+                        stat.worst = segmentCost
+
+                    end
+                    if overshoot > 0 then
+                        -- how far past thresh this segment pushed us, not how long it was.
+                        -- a cheap segment that merely happened to cross the line scores
+                        -- near zero, which is what keeps landing spots off the report
+                        if overshoot > segmentCost then -- cant be blamed for more than its own length
+                            overshoot = segmentCost
+
+                        end
+                        stat.overTotal = stat.overTotal + overshoot
+                        stat.overCount = stat.overCount + 1
+                        if overshoot > stat.overWorst then
+                            stat.overWorst = overshoot
+
+                        end
+                    end
+                    if luaMemUsed then
+                        stat.mem = stat.mem + luaMemUsed
+
+                    end
+                    if result == BOT_COROUTINE_RESULTS.PATHING or result == BOT_COROUTINE_RESULTS.PATHING_DONTWAIT then
+                        stat.pathTotal = stat.pathTotal + segmentCost
+                        stat.pathCount = stat.pathCount + 1
+
+                    end
+                end
+                profilerOverhead = profilerOverhead + ( SysTime() - overheadStart )
+
             end
 
             if noErrors == false then -- something errored in there
-                stackAfter = stackAfter or debug.traceback( thread )
+                local stackAfter = debug.traceback( thread )
                 threads[index] = nil
                 result = result or "unknown error"
                 ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " in " .. index .. "\n" .. result .. "\n" .. stackAfter .. "\n" )
@@ -648,7 +635,7 @@ function ENT:Think()
                 break
 
             elseif isstring( result ) then -- invalid yield, needs to be BOT_COROUTINE_RESULTS
-                stackAfter = stackAfter or debug.traceback( thread )
+                local stackAfter = debug.traceback( thread )
                 ErrorNoHalt( "TERM ERROR: " .. tostring( self ) .. " for " .. index .. "\nUnknown yield result: " .. tostring( result ) .. "\n" .. stackAfter .. "\n" )
 
             end
@@ -670,11 +657,9 @@ function ENT:BehaviourPriorityCoroutine( myTbl )
     while true do
         -- update drowning, speaking, etc
         myTbl.TermThink( self, myTbl )
-        coroutine_yield()
 
         -- stub, for your convenience!
         myTbl.AdditionalThink( self, myTbl )
-        coroutine_yield()
 
         local nextBlockerCheck = myTbl.m_NextShootBlockerCheck or 0
         if nextBlockerCheck < CurTime() then
@@ -689,6 +674,8 @@ function ENT:BehaviourPriorityCoroutine( myTbl )
             myTbl.ShootblockerThink( self, myTbl )
 
         end
+
+        coroutine_yield()
 
         -- Calling task callbacks
         myTbl.RunTask( self, "BehaveUpdatePriority" )
@@ -706,6 +693,8 @@ function ENT:BehaviourMotionCoroutine( myTbl )
 
         myTbl.StuckCheck( self, myTbl ) -- check if we are intersecting stuff
         myTbl.WalkArea( self, myTbl ) -- mark nearby areas as walked, used for searching new unwalked areas
+
+        coroutine_yield()
 
         -- Calling task callbacks
         myTbl.RunTask( self, "BehaveUpdateMotion" )

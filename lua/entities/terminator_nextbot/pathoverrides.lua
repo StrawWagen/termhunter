@@ -6,6 +6,8 @@ local entMeta = FindMetaTable( "Entity" )
 local pathMeta = FindMetaTable( "PathFollower" )
 local locoMeta  = FindMetaTable( "CLuaLocomotion" )
 
+local terminator_Extras = terminator_Extras
+
 local function yieldIfWeCan( reason )
     if not coroutine_running() then return end
     coroutine_yield( reason )
@@ -303,9 +305,12 @@ local lastSuperBadFlags = {}
 local normalBadTimeout = 120
 local superBadTimeout = 520
 
+-- worst case product is 2^48, still exact
+local CONN_ID_STRIDE = 2 ^ 24
+
 local function getConnId( fromAreaId, toAreaId )
     -- this needs to have directionality
-    return fromAreaId + ( toAreaId / 2 )
+    return fromAreaId * CONN_ID_STRIDE + toAreaId
 
 end
 
@@ -327,8 +332,8 @@ function ENT:flagConnectionAsShit( area1, area2 )
         local lastFlag = lastBadFlags[connectionsId]
 
         if not lastFlag then return end -- ???
-        -- dont obliterate new ones!
-        if lastFlag + ( normalBadTimeout + -10 ) < CurTime() then return end
+        -- dont obliterate new ones! the reflag scheduled its own timer, let that one clear it
+        if lastFlag + ( normalBadTimeout + -10 ) > CurTime() then return end
 
         badConnections[connectionsId] = nil
         lastBadFlags[connectionsId] = nil
@@ -344,7 +349,7 @@ function ENT:flagConnectionAsShit( area1, area2 )
         local lastSuperFlag = lastSuperBadFlags[connectionsId]
 
         if not lastSuperFlag then return end
-        if lastSuperFlag + ( normalBadTimeout + -10 ) < CurTime() then return end
+        if lastSuperFlag + ( superBadTimeout + -10 ) > CurTime() then return end
 
         superBadConnections[connectionsId] = nil
         lastSuperBadFlags[connectionsId] = nil
@@ -367,21 +372,19 @@ local function badConnectionCost( connectionsId, dist )
 
 end
 
-hook.Add( "PostCleanupMap", "terminator_clear_connectionflags", function()
-    badConnections = {}
-    lastBadFlags = {}
-    superBadConnections = {}
-    lastSuperBadFlags = {}
+local function clearConnectionFlags()
+    -- emptied rather than reassigned, so the pending timer closures keep clearing the
+    -- same tables the cost generator reads
+    table.Empty( badConnections )
+    table.Empty( lastBadFlags )
+    table.Empty( superBadConnections )
+    table.Empty( lastSuperBadFlags )
 
-end )
+end
 
-hook.Add( "terminator_nextbot_noterms_exist", "clear_connectionflags_on_term_removal", function()
-    badConnections = {}
-    lastBadFlags = {}
-    superBadConnections = {}
-    lastSuperBadFlags = {}
+hook.Add( "PostCleanupMap", "terminator_clear_connectionflags", clearConnectionFlags )
 
-end )
+hook.Add( "terminator_nextbot_noterms_exist", "clear_connectionflags_on_term_removal", clearConnectionFlags )
 
 function ENT:AddAreasToAvoid( areas, mul )
     local myTbl = entMeta.GetTable( self )
@@ -564,10 +567,6 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
 
     end
 
-    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT ) -- dont yield as pathing in here
-    if not IsValid( fromArea ) then return -1 end
-    if not IsValid( toArea ) then return -1 end
-
     cost = badConnectionCost( getConnId( GetID( fromArea ), toAreasId ), cost )
 
     if laddering then return cost end
@@ -581,11 +580,16 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
     local attributes = navMeta.GetAttributes( toArea )
     local crouching
 
-    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 and not transientAreaPathable( nil, toArea, toAreasId ) then return -1 end
+    if band( attributes, NAV_MESH_TRANSIENT ) ~= 0 then
+        if not transientAreaPathable( nil, toArea, toAreasId ) then
+            return -1
 
-    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
-    if not IsValid( fromArea ) then return -1 end
-    if not IsValid( toArea ) then return -1 end
+        end
+        coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
+        if not IsValid( fromArea ) then return -1 end
+        if not IsValid( toArea ) then return -1 end
+
+    end
 
     local hunterIsFlanking = locoData.hunterIsFlanking
     local flankingIsReallyAngry = locoData.flankingIsReallyAngry
@@ -618,10 +622,6 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
 
     end
 
-    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
-    if not IsValid( fromArea ) then return -1 end
-    if not IsValid( toArea ) then return -1 end
-
     local sizeX = navMeta.GetSizeX( toArea )
     local sizeY = navMeta.GetSizeY( toArea )
     local smallestSize = sizeX < sizeY and sizeX or sizeY
@@ -643,10 +643,6 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
         cost = cost * 0.7
 
     end
-
-    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
-    if not IsValid( fromArea ) then return -1 end
-    if not IsValid( toArea ) then return -1 end
 
     if navMeta.IsUnderwater( toArea ) then
         if not locoData.canSwim then
@@ -670,16 +666,10 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
         end
     end
 
-    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
-    if not IsValid( fromArea ) then return -1 end
-    if not IsValid( toArea ) then return -1 end
-
     local deltaZ = navMeta.ComputeAdjacentConnectionHeightChange( fromArea, toArea )
 
     local stepHeight = locoData.stepHeight
     local jumpHeight = locoData.jumpHeight
-
-    coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
 
     if deltaZ >= stepHeight then
         if deltaZ >= jumpHeight then return -1 end
@@ -975,6 +965,7 @@ local inf = math.huge
 local ipairs = ipairs
 local isnumber = isnumber
 local table_Random = table.Random
+local floor = math.floor
 
 local function addTo( idToAdd, seqTbl, maskTbl, posTbl )
     if not maskTbl[idToAdd] then
@@ -1005,6 +996,101 @@ local function removeFrom( idToRemove, seqTbl, maskTbl, posTbl )
     end
     seqTbl[n] = nil         -- pop tail
     return true
+
+end
+
+-- addToSorted and takeLowestFrom are the same three tables again, but seqTbl is kept as a
+-- binary min heap on costs1[id] + costs2[id], so the cheapest id is always seqTbl[1].
+-- posTbl is what makes that affordable, it says where an id sits without searching for it.
+-- the cost tables are read live on every compare, so a queued id's cost must never rise
+
+local function siftUp( seqTbl, posTbl, i, costs1, costs2 )
+    local id = seqTbl[i]
+    local cost = costs1[id] + costs2[id]
+
+    while i > 1 do
+        local parent = floor( i * 0.5 )
+        local parentId = seqTbl[parent]
+        if costs1[parentId] + costs2[parentId] <= cost then break end
+
+        seqTbl[i] = parentId    -- parent is dearer, so it sinks into our slot
+        posTbl[parentId] = i
+        i = parent
+
+    end
+    seqTbl[i] = id
+    posTbl[id] = i
+
+end
+
+local function siftDown( seqTbl, posTbl, i, n, costs1, costs2 )
+    local id = seqTbl[i]
+    local cost = costs1[id] + costs2[id]
+
+    while true do
+        local child = i * 2
+        if child > n then break end
+
+        local childId = seqTbl[child]
+        local childCost = costs1[childId] + costs2[childId]
+
+        if child < n then -- there's a right child too, take whichever is cheaper
+            local rightId = seqTbl[child + 1]
+            local rightCost = costs1[rightId] + costs2[rightId]
+            if rightCost < childCost then
+                child = child + 1
+                childId = rightId
+                childCost = rightCost
+
+            end
+        end
+        if cost <= childCost then break end
+
+        seqTbl[i] = childId     -- child is cheaper, so it rises into our slot
+        posTbl[childId] = i
+        i = child
+
+    end
+    seqTbl[i] = id
+    posTbl[id] = i
+
+end
+
+local function addToSorted( idToAdd, seqTbl, maskTbl, posTbl, costs1, costs2 )
+    local at = posTbl[idToAdd]
+    if at then
+        -- already queued. callers only requeue an id after lowering its cost, so it can
+        -- only need to move up. requeue one that got dearer and the heap goes wrong
+        siftUp( seqTbl, posTbl, at, costs1, costs2 )
+        return false
+
+    end
+    local n = #seqTbl + 1
+    seqTbl[n] = idToAdd
+    maskTbl[idToAdd] = true
+    posTbl[idToAdd] = n
+    siftUp( seqTbl, posTbl, n, costs1, costs2 )
+    return true
+
+end
+
+local function takeLowestFrom( seqTbl, maskTbl, posTbl, costs1, costs2 )
+    local n = #seqTbl
+    if n == 0 then return nil end
+
+    local bestId = seqTbl[1]
+    maskTbl[bestId] = nil
+    posTbl[bestId] = nil
+
+    local last = seqTbl[n]
+    seqTbl[n] = nil             -- pop tail
+    if n > 1 then
+        seqTbl[1] = last        -- move tail to the root and let it settle
+        posTbl[last] = 1
+        siftDown( seqTbl, posTbl, 1, n + -1, costs1, costs2 )
+
+    end
+    return bestId
 
 end
 
@@ -1097,10 +1183,6 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
     local yieldable = coroutine_running()
 
     while not table_IsEmpty( opened ) do
-        if yieldable then
-            coroutine_yield()
-
-        end
         local bestScore = 0
         local bestArea = nil
 
@@ -1192,7 +1274,7 @@ function ENT:findValidNavResult( data, start, radius, scoreFunc, noMoreOptionsMi
 
                 end
                 if theScore <= 0 then
-                    addTo( areaId, closedSequential, closed, closedPositions )
+                    addTo( adjID, closedSequential, closed, closedPositions )
                     continue
 
                 end
@@ -1269,7 +1351,7 @@ local function adjacentAreasSkippingLadders( area, canUseLadders )
 end
 
 -- return "path" of navareas that get us where we're going
-local function reconstruct_path( cameFrom, goalArea )
+local function reconstruct_path( cameFromId, cameFromArea, goalArea )
     local total_path_reverse = { goalArea }
     local noCircles = {}
 
@@ -1277,32 +1359,32 @@ local function reconstruct_path( cameFrom, goalArea )
 
     local count = 0
     local currId = GetID( goalArea )
-    while cameFrom[currId] do
+    while cameFromId[currId] do
         count = count + 1
         if count >= 25 and count % 15 == 14 then -- only yield for long paths
-            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
 
         end
-        local current = cameFrom[currId]
-        currId = current.id
+        local fromArea = cameFromArea[currId]
+        currId = cameFromId[currId]
 
         if noCircles[currId] then -- rare, happened when navmesh was being actively edited, also when the astar was giving invalid camefroms
-            --debugoverlay.Line( last, current.area:GetCenter(), 15, Color( 255, 0, 0 ), true )
+            --debugoverlay.Line( last, fromArea:GetCenter(), 15, Color( 255, 0, 0 ), true )
             --debugoverlay.Cross( last, 15, 15, Color( 255, 0, 0 ), true )
             return false
 
         --else
-            --debugoverlay.Line( last, current.area:GetCenter(), 5, color_white, true )
+            --debugoverlay.Line( last, fromArea:GetCenter(), 5, color_white, true )
 
         end
-        if not IsValid( current.area ) then -- outdated
+        if not IsValid( fromArea ) then -- outdated
             return false
 
         end
-        --last = current.area:GetCenter()
+        --last = fromArea:GetCenter()
         noCircles[currId] = true
 
-        total_path_reverse[#total_path_reverse + 1] = current.area
+        total_path_reverse[#total_path_reverse + 1] = fromArea
 
     end
 
@@ -1310,6 +1392,10 @@ local function reconstruct_path( cameFrom, goalArea )
     if #total_path_reverse > 0 then
         total_path = {}
         for i = #total_path_reverse, 1, -1 do
+            if i >= 25 and i % 15 == 14 then -- only yield for long paths
+                coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
+
+            end
             total_path[#total_path + 1] = total_path_reverse[i]
 
         end
@@ -1339,12 +1425,20 @@ do
     end
 end
 
-local function getLowestScoring( seqSearchTbl, costs1, costs2 )
+-- fallback goal for when the search runs out of iterations. closed areas are the ones we
+-- actually expanded, so we know a route to each, and the nearest to the goal is as far as
+-- we got. areas the cost generator refused get closed with no costsToEnd entry, and those
+-- are skipped, we never confirmed a way into them
+local function getClosestToGoal( seqSearchTbl, costsToEnd )
     local smallestCost = inf
     local bestId
-    for _, id in ipairs( seqSearchTbl ) do
-        local cost = costs1[id] + costs2[id]
-        if cost < smallestCost then
+    for i, id in ipairs( seqSearchTbl ) do
+        if i % 25 == 24 then
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
+
+        end
+        local cost = costsToEnd[id]
+        if cost and cost < smallestCost then
             smallestCost = cost
             bestId = id
 
@@ -1374,15 +1468,19 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
     local currExtent = 0
 
     local startAreasId = GetID( startArea )
-    local opened = { [startAreasId] = true }
-    local openedSequential = { startAreasId }
-    local openedPositions = { [startAreasId] = 1 }
+    local opened = {}
+    local openedSequential = {}
+    local openedPositions = {}
     local closed = {}
     local closedSequential = {}
     local closedPositions = {}
-    local cameFrom = {}
+    local cameFromId = {}
+    local cameFromArea = {}
     local costsSoFar = { [startAreasId] = 0 }
     local costsToEnd = { [startAreasId] = areaDistToPos( startArea, goal ) }
+    local areasById = { [startAreasId] = startArea } -- every area we touch arrives as an object, no need to look it up again
+
+    addToSorted( startAreasId, openedSequential, opened, openedPositions, costsSoFar, costsToEnd )
 
     NavMeshPathCostGenerator = NavMeshPathCostGenerator or myTbl.NavMeshPathCostGenerator
 
@@ -1401,7 +1499,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
     }
 
     while #openedSequential > 0 do
-        if myTbl.term_cancelPathGen then return goalArea, nil, false, "fail2.5" end
+        if myTbl.term_cancelPathGen then return goalArea, nil, false, "fail2.5" end -- another part of us says CANCEL THIS!
 
         -- fodder enems share unreachable areas, so check if a buddy marked this as unreachable
         if fodder and lastNewUnreachables ~= newUnreachables then
@@ -1411,18 +1509,16 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
             end
         end
-        coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING ) -- so corotine manager knows we're pathing
 
-        local bestId = getLowestScoring( openedSequential, costsSoFar, costsToEnd )
+        local bestId = takeLowestFrom( openedSequential, opened, openedPositions, costsSoFar, costsToEnd )
 
         local costSoFar = costsSoFar[bestId]
-        local ourCameFrom = cameFrom[bestId]
-        removeFrom( bestId, openedSequential, opened, openedPositions )
+        local ourCameFromId = cameFromId[bestId]
         addTo( bestId, closedSequential, closed, closedPositions )
 
         coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
-        local bestArea = navmesh.GetNavAreaByID( bestId )
+        local bestArea = areasById[bestId]
         if not IsValid( bestArea ) then -- we are in a coroutine, this can happen
             continue
 
@@ -1431,10 +1527,12 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
         --debugoverlay.Text( bestArea:GetCenter(), "A* " .. tostring( math.Round( costSoFar ) ), 1, color_white, true )
 
         if maxPathingIterations and currExtent > maxPathingIterations then -- all out :( guess the goal is whatever got closest
-            local bestCompromiseId = getLowestScoring( openedSequential, costsToEnd, costsSoFar ) -- reverse the costs to get the best compromise of "got close to the goal" and "we know how to get here cheaply"
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
+
+            local bestCompromiseId = getClosestToGoal( closedSequential, costsToEnd )
             if bestCompromiseId then
-                local bestCompromiseArea = navmesh.GetNavAreaByID( bestCompromiseId )
-                local areaCorridor = reconstruct_path( cameFrom, bestCompromiseArea )
+                local bestCompromiseArea = areasById[bestCompromiseId]
+                local areaCorridor = reconstruct_path( cameFromId, cameFromArea, bestCompromiseArea )
                 if not areaCorridor then
                     return bestCompromiseArea, nil, false, "fail4"
 
@@ -1446,7 +1544,9 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
             end
         elseif bestArea == goalArea then -- got there!
-            return goalArea, reconstruct_path( cameFrom, goalArea ), true, "succeed1"
+            coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
+
+            return goalArea, reconstruct_path( cameFromId, cameFromArea, goalArea ), true, "succeed1"
 
         end
 
@@ -1463,11 +1563,6 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
             local neighborsId = GetID( neighbor )
             -- NavMeshPathCostGenerator
             local neighborsCost = NavMeshPathCostGenerator( me, locoData, neighbor, bestArea, neighborDat.ladder, neighborDat.dist )
-            if fodder then
-                coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
-                if not IsValid( neighbor ) then continue end
-
-            end
 
             local neighborsCostSoFar = costSoFar + neighborsCost
 
@@ -1486,7 +1581,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
             end
 
-            local goodRetrace = wasTackled and ourCameFrom and ourCameFrom.id ~= neighborsId and neighborsCostSoFar <= costsSoFar[neighborsId]
+            local goodRetrace = wasTackled and ourCameFromId and ourCameFromId ~= neighborsId and neighborsCostSoFar <= costsSoFar[neighborsId]
 
             if wasTackled and not goodRetrace then
                 coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
@@ -1494,11 +1589,18 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
             else
                 costsSoFar[neighborsId] = neighborsCostSoFar
-                costsToEnd[neighborsId] = areaDistToPos( neighbor, goal )
+                if not costsToEnd[neighborsId] then
+                    -- the heuristic only reads the area and the goal, neither of which move,
+                    -- so a requeued area already has the answer from last time
+                    costsToEnd[neighborsId] = areaDistToPos( neighbor, goal )
+
+                end
+                areasById[neighborsId] = neighbor
 
                 removeFrom( neighborsId, closedSequential, closed, closedPositions )
-                addTo( neighborsId, openedSequential, opened, openedPositions )
-                cameFrom[neighborsId] = { id = bestId, ladder = neighborDat.ladder, area = bestArea }
+                addToSorted( neighborsId, openedSequential, opened, openedPositions, costsSoFar, costsToEnd )
+                cameFromId[neighborsId] = bestId
+                cameFromArea[neighborsId] = bestArea
                 coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
             end
@@ -1563,7 +1665,7 @@ local function generatorHack( area, fromArea, _ladder, _elevator, _length ) -- u
 end
 
 local function AstarCompute( path, me, myTbl, goal, goalArea )
-    local startArea = me:GetCurrentNavArea()
+    local startArea = myTbl.GetCurrentNavArea( me )
     --debugoverlay.Line( startArea:GetCenter(), goal, 5, Color( 0, 255, 0 ), true )
 
     local start = SysTime()
@@ -1577,6 +1679,8 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
         return nil, false, "noCorridor"
 
     end
+
+    coroutine_yield()
 
     if not IsValid( startArea ) or not IsValid( newGoalArea ) then -- outdated!
         path:Invalidate() -- outdated, happens when the navmesh is being edited
@@ -1616,7 +1720,7 @@ local function AstarCompute( path, me, myTbl, goal, goalArea )
         --[[
         coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.WAIT )
         local thisCenter = navMeta.GetCenter( curr )
-        debugoverlay.Line( last, thisCenter, 5, color_white, true )
+        --debugoverlay.Line( last, thisCenter, 5, color_white, true )
         last = thisCenter
         --]]
 
@@ -1712,8 +1816,15 @@ function ENT:SetupPath( pos, endArea )
     local path = Path( "Follow" )
     myTbl.m_Path = path
 
+    coroutine_yield()
+
     path:SetMinLookAheadDistance( myTbl.PathMinLookAheadDistance )
+
+    coroutine_yield()
+
     path:SetGoalTolerance( myTbl.PathGoalTolerance )
+
+    coroutine_yield()
 
     local computed, wasGood, _status = AstarCompute( path, self, myTbl, pos, endArea )
     --print( self:GetCreationID(), "AstarCompute", computed, wasGood, _status )

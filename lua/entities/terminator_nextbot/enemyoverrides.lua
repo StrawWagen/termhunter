@@ -1,6 +1,8 @@
 
 local MEMORY_WEAPONIZEDNPC = 32
 
+local coroutine = coroutine
+
 local IsValid = IsValid
 local LocalToWorld = LocalToWorld
 local entMeta = FindMetaTable( "Entity" )
@@ -1630,6 +1632,12 @@ function ENT:GetNearbyAllies()
     local cache = self.term_NearbyAlliesCache
     if cache then return cache end
 
+    local yieldable = coroutine.running()
+    if yieldable then
+        coroutine.yield()
+
+    end
+
     local myTbl = entMeta.GetTable( self )
 
     local allies = {}
@@ -1641,7 +1649,11 @@ function ENT:GetNearbyAllies()
         -- for stuff based off this with stuff that doesnt start with terminator_
         -- pals() does the real filtering, this only narrows the ents scan
         local classNameStart = string.match( self:GetClass(), "^(.-)_" )
-        for _, ent in ipairs( ents.FindByClass( classNameStart .. "*" ) ) do
+        for i, ent in ipairs( ents.FindByClass( classNameStart .. "*" ) ) do
+            if yieldable and i % 25 == 24 then
+                coroutine.yield()
+
+            end
             if ent == self or not pals( self, ent ) or myPos:DistToSqr( ent:GetPos() ) > informRad^2 then continue end
             table.insert( allies, ent )
 
@@ -1740,8 +1752,6 @@ function ENT:Term_LookAround( myTbl )
 
     end
 
-    coroutine_yield()
-
     local laddering = myTbl.terminator_HandlingLadder
 
     local lookAtGoalTime = myTbl.term_LookAtPathGoal or 0
@@ -1764,8 +1774,6 @@ function ENT:Term_LookAround( myTbl )
         disrespecting = nil
 
     end
-
-    coroutine_yield()
 
     local lookAtPos
     local looksForwardWhenRunning = myTbl.LooksForwardWhenRunning

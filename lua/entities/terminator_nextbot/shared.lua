@@ -85,7 +85,7 @@ end
 
 -- config vars
 -- see sh_terminator_funcs.lua for terminator_Extras.baseCoroutineThresh
-ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh -- how much processing time this bot is allowed to take up per tick, check behaviouroverrides.lua 
+ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh -- how much processing time this bot is allowed to take up per tick, check aicore.lua 
 
 ENT.ThreshMulIfDueling = nil -- thresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = nil -- if we're closer than DuelEnemyDist * 2
@@ -211,7 +211,7 @@ if CLIENT then
     return
 
 elseif SERVER then
-    include( "behaviouroverrides.lua" )
+    include( "aicore.lua" )
     -- gun stuff
     include( "weapons.lua" )
     include( "weapholstering.lua" )
@@ -1090,8 +1090,6 @@ function ENT:ShootblockerThink( myTbl )
 
     local pos = myTbl.GetShootPos( self )
     local aimVec = myTbl.GetAimVector( self, myTbl )
-
-    coroutine_yield()
 
     local endpos1 = pos + aimVec * 150
     local blocker, blockerTrace = myTbl.ShootBlocker( self, myTbl, pos, endpos1, filter )
@@ -2002,10 +2000,8 @@ end
 function ENT:ControlPath2( AimMode )
     local myTbl = self:GetTable()
     local result = nil
-    local fodder = myTbl.IsFodder
 
     if myTbl.blockControlPath and myTbl.blockControlPath > CurTime() then return end
-    coroutine_yield()
 
     local validPath = myTbl.PathIsValid( self )
     local badPathAndStuck = myTbl.isUnstucking and not validPath
@@ -2015,11 +2011,7 @@ function ENT:ControlPath2( AimMode )
     local doUnstuckPath = blockUnstuckRetrace < CurTime()
     myTbl.blockUnstuckRetrace = nil
 
-    if fodder then coroutine_yield() end
-
     local posBasedStuck = HunterIsStuck( self, myTbl )
-
-    coroutine_yield()
 
     if badPathAndStuck or posBasedStuck then -- new unstuck
         local myPos = self:GetPos()
@@ -2147,7 +2139,6 @@ function ENT:ControlPath2( AimMode )
 
     end
 
-    coroutine_yield()
     validPath = myTbl.PathIsValid( self )
 
     if myTbl.tryToHitUnstuck then
@@ -2876,13 +2867,7 @@ end
 
 function ENT:TermThink( myTbl ) -- inside coroutine :)
     local fodder = myTbl.IsFodder
-    if fodder then
-        coroutine_yield()
-    end
     if myTbl.CanSpeak then
-        if fodder then
-            coroutine_yield()
-        end
         myTbl.SpokenLinesThink( self, myTbl )
 
     end
@@ -3484,10 +3469,13 @@ function ENT:DoDefaultTasks()
             StartsOnInitialize = true,
             StopsWhenPlayerControlled = true,
             BehaveUpdatePriority = function( self, data, interval )
-                coroutine_yield()
-
                 local myTbl  = entMeta.GetTable( self )
                 local enemy = myTbl.GetEnemy( self )
+
+                if myTbl.IsFodder then
+                    coroutine_yield()
+
+                end
 
                 local wep = myTbl.GetActiveLuaWeapon( self, myTbl ) or myTbl.GetActiveWeapon( self )
                 -- edge case
@@ -3508,7 +3496,10 @@ function ENT:DoDefaultTasks()
                     end
                 end
 
-                coroutine_yield()
+                if myTbl.IsFodder then
+                    coroutine_yield()
+
+                end
 
                 -- handle looking around while pathing, with and without an enemy
                 local forcedToLook = myTbl.Term_LookAround( self, myTbl )
@@ -3970,12 +3961,15 @@ function ENT:DoDefaultTasks()
             end,
             BehaveUpdatePriority = function( self, data, interval )
                 if data.GarboInformCount >= data.MaxGarboInforms then return end
-                coroutine_yield()
+                if data.EnemyPosInform and data.EnemyPosInform > CurTime() then return end
 
-                local myTbl  = entMeta.GetTable( self )
+                local myTbl = entMeta.GetTable( self )
+                if not myTbl.IsSeeEnemy then return end
+
                 local enemy = myTbl.GetEnemy( self )
                 if not IsValid( enemy ) then return end
-                if not myTbl.IsSeeEnemy then return end
+
+                coroutine_yield()
 
                 if data.NeedsToDoInform then -- do this within the coroutine
                     if not IsValid( data.NeedsToDoInform.enemy ) then return end -- outdated
@@ -3991,7 +3985,6 @@ function ENT:DoDefaultTasks()
                     return
 
                 end
-                if data.EnemyPosInform and data.EnemyPosInform > CurTime() then return end
 
                 local add
                 if myTbl.isFodder then
@@ -6134,6 +6127,8 @@ function ENT:DoDefaultTasks()
 
                 end
 
+                coroutine_yield()
+
                 local beingFooled = IsValid( enemy.terminator_crouchingbaited ) and enemy.terminator_crouchingbaited ~= self and enemy.terminator_crouchingbaited.IsSeeEnemy
                 -- and and and and and and
                 local canFool = goodEnemy
@@ -6170,6 +6165,8 @@ function ENT:DoDefaultTasks()
                 end
 
                 self:HandleFakeCrouching( data, enemy )
+
+                coroutine_yield()
 
                 -- don't watch too much
                 local maxWatches = 4 -- should be 4!
@@ -6238,6 +6235,8 @@ function ENT:DoDefaultTasks()
                     local canShoot = not canShootTr.Hit or canShootTr.Entity == enemy
 
                     local myTbl = entMeta.GetTable( self )
+
+                    coroutine_yield()
 
                     if not canShoot or myTbl.terminator_HandlingLadder or myTbl.IsSwimming( self, myTbl ) or ( data.timeNeededToMove and data.timeNeededToMove > CurTime() ) then
                         if self:primaryPathInvalidOrOutdated( enemyPos ) then
