@@ -1091,6 +1091,8 @@ function ENT:ShootblockerThink( myTbl )
     local pos = myTbl.GetShootPos( self )
     local aimVec = myTbl.GetAimVector( self, myTbl )
 
+    coroutine_yield()
+
     local endpos1 = pos + aimVec * 150
     local blocker, blockerTrace = myTbl.ShootBlocker( self, myTbl, pos, endpos1, filter )
     local worldBlocker
