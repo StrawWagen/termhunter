@@ -1,7 +1,7 @@
 local entMeta = FindMetaTable( "Entity" )
 local isstring = isstring
 local string_find = string.find
-local coroutine_running = coroutine.running
+local coroutine_isyieldable = coroutine.isyieldable
 local coroutine_yield = coroutine.yield
 
 --[[------------------------------------
@@ -53,7 +53,7 @@ function ENT:RunTask( event, ... )
             wasCallback = true
 
             if yieldable == nil then
-                yieldable = coroutine_running() or false
+                yieldable = coroutine_isyieldable() or false
 
             end
             if yieldable then
