@@ -24,7 +24,7 @@ function ENT:RunTask( event, ... )
     local m_TaskList = myTbl.m_TaskList
     local passedTasks = {}
     local yieldable
-    if not myTbl.IsFodder then
+    if not coroutine_isyieldable or not myTbl.IsFodder then
         yieldable = false
 
     end
