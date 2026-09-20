@@ -8,12 +8,6 @@ local locoMeta  = FindMetaTable( "CLuaLocomotion" )
 
 local terminator_Extras = terminator_Extras
 
-local function yieldIfWeCan( reason )
-    if not coroutine_running() then return end
-    coroutine_yield( reason )
-
-end
-
 local cheatsVar = GetConVar( "sv_cheats" )
 local function isCheats()
     return cheatsVar:GetBool()
@@ -793,7 +787,7 @@ function ENT:FloodMarkAsUnreachable( startArea )
     end
     self:findValidNavResult( scoreData, startArea, 2000, scoreFunction )
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     -- ok remember the areas as unreachable so we dont go through this again
     -- unless there was a locked door!
@@ -881,7 +875,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         end
     end
 
-    yieldIfWeCan()
+    coroutine_yield()
 
     -- only get to here if the path failed
 

@@ -199,7 +199,7 @@ function ENT:BehaveUpdate( interval )
                     local cur = CurTime()
                     if nextUpdate > cur then return end
 
-                    if myTbl.isFodder then
+                    if myTbl.IsFodder then
                         myTbl.m_NextPathUpdate = cur + pathUpdateIntervalFodder
 
                     else

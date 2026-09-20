@@ -3989,7 +3989,7 @@ function ENT:DoDefaultTasks()
                 end
 
                 local add
-                if myTbl.isFodder then
+                if myTbl.IsFodder then
                     add = math.Rand( 5, 10 )
 
                 else
@@ -4028,7 +4028,7 @@ function ENT:DoDefaultTasks()
                 local reachable = myTbl.areaIsReachable( self, terminator_Extras.getNearestNav( pos ) )
                 if not reachable then -- cant reach?
                     if not IsValid( sender ) then return end -- outdated
-                    if not sender.isFodder then return end -- they're smart, maybe will have good data later
+                    if not sender.IsFodder then return end -- they're smart, maybe will have good data later
 
                     sender:RunTask( "GaveGarboInform", self ) -- tell the sender to stop telling me stuff!
                     return
