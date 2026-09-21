@@ -1552,7 +1552,8 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
             coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING )
 
             local neighbor = neighborDat.area
-            if not IsValid( neighbor ) then continue end -- can happen when navmesh is being edited
+            if not IsValid( neighbor ) then continue end -- areapatcher!!!
+            if not IsValid( bestArea ) then break end
 
             local neighborsId = GetID( neighbor )
             -- NavMeshPathCostGenerator
