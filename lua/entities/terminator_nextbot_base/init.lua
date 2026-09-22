@@ -113,6 +113,7 @@ function ENT:Initialize()
 	local spawnHealth = myTbl.SpawnHealth
 	if isfunction( spawnHealth ) then
 		spawnHealth = spawnHealth()
+		myTbl.SpawnHealth = spawnHealth -- de-function it
 
 	end
 	entMeta.SetMaxHealth( self, spawnHealth )

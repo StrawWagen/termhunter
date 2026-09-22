@@ -873,16 +873,22 @@ end
 function ENT:OnFirstRelationWithPlayer( ply ) -- for boss npcs, etc
     local extraHpPerPly = self.ExtraSpawnHealthPerPlayer
     if not extraHpPerPly then return end
-    if ply:IsFlagSet( FL_NOTARGET ) then return end
+    if ply:IsFlagSet( FL_NOTARGET ) then return end -- small bug here, since this is only ever ran inside GetDesiredEnemyRelationship, can miss players
 
     local plysDone = self.ExtraSpawnHealthPlayersDone or 0
     self.ExtraSpawnHealthPlayersDone = plysDone + 1
     if plysDone <= 0 then return end -- ignore first ply
 
-    self.SpawnHealth = self.SpawnHealth + extraHpPerPly
-    self:SetMaxHealth( self:GetMaxHealth() + extraHpPerPly )
-    self:SetHealth( self:GetMaxHealth() )
+    local oldMaxHealth = self:GetMaxHealth()
+    local wasMaxHealth = self:Health() == oldMaxHealth
 
+    self.SpawnHealth = self.SpawnHealth + extraHpPerPly
+
+    self:SetMaxHealth( self.SpawnHealth )
+    if wasMaxHealth then
+        self:SetHealth( self.SpawnHealth )
+
+    end
 end
 
 

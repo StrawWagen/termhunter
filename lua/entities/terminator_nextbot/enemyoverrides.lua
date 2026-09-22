@@ -842,7 +842,7 @@ end
 
 hook.Add( "terminator_nextbot_oneterm_exists", "setup_postentitycreated_hook", function()
     hook.Add( "OnEntityCreated", "terminator_postentitycreated", function( ent )
-        if not ( isPlayer( ent ) or isNextbotOrNpcEnt( ent ) ) then return end
+        if not ( isPlayer( ent ) or isNextbotOrNpcEnt( ent ) ) then return end -- super fast funcs
 
         timer.Simple( 0, function()
             if not IsValid( ent ) then return end
