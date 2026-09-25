@@ -193,6 +193,10 @@ ENT.NotSolidWhenCloaked = true
 --]]
 
 
+local LineOfSightMask = MASK_BLOCKLOS
+terminator_Extras.LineOfSightMask = LineOfSightMask
+
+
 if CLIENT then
     language.Add( "terminator_nextbot", ENT.PrintName )
 
@@ -237,9 +241,6 @@ elseif SERVER then
     AddCSLuaFile( "cl_ragdolldeaths.lua" )
 
 end
-
-local LineOfSightMask = MASK_BLOCKLOS
-terminator_Extras.LineOfSightMask = LineOfSightMask
 
 -- dont try to bash locked doors that have timed out
 -- this is wiped whenever any bot's fists hit a locked door
