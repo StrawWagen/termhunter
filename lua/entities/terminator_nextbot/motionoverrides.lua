@@ -2630,6 +2630,8 @@ end
 
 -- easy alias for approach
 function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
+    if vecMeta.DistToSqr( entMeta.NearestPoint( self, pos ), pos ) < distance^2 then return end
+
     myTbl = myTbl or self:GetTable()
 
     if myTbl.m_JumpingToPos then return end
@@ -2650,213 +2652,210 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
     end
 
-    if vecMeta.DistToSqr( entMeta.NearestPoint( self, pos ), pos ) > distance^2 then
-        local zToPos = ( pos.z - myPos.z )
+    local zToPos = pos.z - myPos.z
 
-        local overrideCrouch = myTbl.overrideCrouch or 0
-        if overrideCrouch < CurTime() and entMeta.GetModelScale( self ) >= MDLSCALE_LARGE and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + dir * 5 ) then
-            myTbl.overrideCrouch = CurTime() + 0.5
+    local overrideCrouch = myTbl.overrideCrouch or 0
+    if overrideCrouch < CurTime() and entMeta.GetModelScale( self ) >= MDLSCALE_LARGE and not myTbl.CanStandAtPos( self, myTbl, myPos, myPos + dir * 5 ) then
+        myTbl.overrideCrouch = CurTime() + 0.5
 
-        end
-        if yieldable then
-            coroutine_yield()
+    end
+    if yieldable then
+        coroutine_yield()
 
-        end
+    end
 
-        local aboveUs
-        local doJumpTowards
-        local simpleClearPos
-        local aboveUsJumpHeight
+    local aboveUs
+    local doJumpTowards
+    local simpleClearPos
+    local aboveUsJumpHeight
 
-        local onGround = myTbl.loco:IsOnGround()
-        local leaps = myTbl.Term_Leaps
+    local onGround = myTbl.loco:IsOnGround()
+    local leaps = myTbl.Term_Leaps
 
-        if onGround then
-            local heightDiffNeededToJump = simpleJumpMinHeight + 20
+    if onGround then
+        local heightDiffNeededToJump = simpleJumpMinHeight + 20
 
-            -- simple jump up to the pos if it's directly above us
-            if zToPos > heightDiffNeededToJump and myTbl.IsAngry( self ) then
-                if yieldable then
-                    coroutine_yield()
-
-                end
-                local dist2d = pos - myPos
-                dist2d.z = 0
-                dist2d = dist2d:Length()
-                local scaledDiffNeededToJump = heightDiffNeededToJump * 2
-                local distExp = dist2d^1.3
-                local jumpUpDiffNeeded = distExp - scaledDiffNeededToJump
-
-                if zToPos > jumpUpDiffNeeded then
-                    aboveUs = true
-                    aboveUsJumpHeight = zToPos
-                    pos = pos + dir * simpleJumpMinHeight
-                    simpleClearPos = pos
-
-                    -- if we're really angry, mess up the jump a bit in case it's getting stuck here
-                    if myTbl.IsReallyAngry( self ) then
-                        aboveUsJumpHeight = aboveUsJumpHeight + self.loco:GetJumpHeight() * math.Rand( 0.1, 0.2 )
-                        pos = pos + dir * 50
-
-                    end
-
-                elseif leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos and dist2d < myTbl.JumpHeight then
-                    doJumpTowards = "towards1"
-
-                end
-            elseif leaps and not doJumpTowards and not myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy ) and myTbl.CanJumpToPos( self, myTbl, pos ) then
-                doJumpTowards = "towards2"
-                zToPos = zToPos + myTbl.JumpHeight
-
-            end
+        -- simple jump up to the pos if it's directly above us
+        if zToPos > heightDiffNeededToJump and myTbl.IsAngry( self ) then
             if yieldable then
                 coroutine_yield()
 
             end
+            local dist2d = pos - myPos
+            dist2d.z = 0
+            dist2d = dist2d:Length()
+            local scaledDiffNeededToJump = heightDiffNeededToJump * 2
+            local distExp = dist2d^1.3
+            local jumpUpDiffNeeded = distExp - scaledDiffNeededToJump
 
-            if myTbl.CanSwim and entMeta.WaterLevel( self ) >= 3 then
-                myTbl.StartSwimming( self )
-                return
+            if zToPos > jumpUpDiffNeeded then
+                aboveUs = true
+                aboveUsJumpHeight = zToPos
+                pos = pos + dir * simpleJumpMinHeight
+                simpleClearPos = pos
+
+                -- if we're really angry, mess up the jump a bit in case it's getting stuck here
+                if myTbl.IsReallyAngry( self ) then
+                    aboveUsJumpHeight = aboveUsJumpHeight + self.loco:GetJumpHeight() * math.Rand( 0.1, 0.2 )
+                    pos = pos + dir * 50
+
+                end
+            elseif leaps and zToPos > heightDiffNeededToJump and dist2d > zToPos and dist2d < myTbl.JumpHeight then
+                doJumpTowards = "towards1"
 
             end
-            local jumpstate, jumpingHeight, jumpBlockClearPos = 0, nil, nil
-
-            if not isFodder or math.random( 1, 100 ) > 75 then
-                if yieldable then
-                    coroutine_yield()
-
-                end
-                jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( myTbl, dir, pos )
-
-            end
-
-            local goalBasedJump = jumpstate ~= 2 and aboveUs
-            local readyToJump = not myTbl.nextPathJump or myTbl.nextPathJump < CurTime()
-            --print( jumpstate, jumpingHeight )
-            local adaptBlock = noAdapt
-            if myTbl.IsFodder then
-                local hasCached = myTbl.nextBringUsTowardsCache and myTbl.nextBringUsTowardsCache > CurTime()
-                adaptBlock = not hasCached or ( myTbl.IsFodder and math.random( 1, 100 ) > 90 )
-
-            end
-            local jump = readyToJump and ( jumpstate == 1 or goalBasedJump or doJumpTowards )
-            -- jump if the jumpblock says we should, or if the simple jump up says we should
-            if jump then
-                if yieldable then
-                    coroutine_yield()
-
-                end
-                local stepAside, asidePos
-                if not goalBasedJump and not doJumpTowards then
-                    stepAside, asidePos = myTbl.CanStepAside( self, dir, pos )
-
-                end
-                if stepAside then
-                    pos = asidePos
-
-                elseif doJumpTowards then
-                    myTbl.JumpToPos( self, pos, zToPos )
-                    return
-
-                else
-                    jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
-                    myTbl.Jump( self, jumpingHeight + 20 )
-                    myTbl.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
-                    myTbl.moveAlongPathJumpingHeight = jumpingHeight
-                    return
-
-                end
-            -- adapt if the jumpstate says we need to
-            elseif jumpstate == 2 and not adaptBlock then
-                if yieldable then
-                    coroutine_yield()
-
-                end
-                local goodPosToGoto = myTbl.PosThatWillBringUsTowards( self, myPos + vec_up15, pos, 50 )
-                if not goodPosToGoto then return end
-                myTbl.term_LastApproachPos = goodPosToGoto
-                myTbl.loco:Approach( goodPosToGoto, 10000 )
-                --debugoverlay.Cross( pos, 10, 1, Color( 255, 0, 0 ), true )
-                return
-
-            end
-        elseif not onGround then
-            if myTbl.IsJumping( self, myTbl ) then
-                if yieldable then
-                    coroutine_yield()
-
-                end
-                local toChoose = {
-                    pos,
-                    pos + vec_up25,
-                    myTbl.jumpBlockClearPos,
-                    myPos + Vector( 0, 0, myTbl.moveAlongPathJumpingHeight ),
-
-                }
-
-                -- in air, try to move towards pos
-                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then
-                    return
-
-                end
-
-            elseif myTbl.IsSwimming( self, myTbl ) then
-                if yieldable then
-                    coroutine_yield()
-
-                end
-                local swimmingExitPos
-                local swimmingExitPosHigher
-                local swimmingExitPosHigherForward
-                if swimming then
-                    swimmingExitPos = Vector( myPos.x, myPos.y, pos.z ) + dir * 10
-                    swimmingExitPosHigher = swimmingExitPos + vector_up * 50
-                    swimmingExitPosHigherForward = swimmingExitPosHigher + dir * 100
-
-                end
-                local toChoose = {
-                    pos,
-                    swimmingExitPosHigherForward,
-                    swimmingExitPosHigher,
-                    swimmingExitPos,
-
-                }
-                -- handle swimming!
-                if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then
-                    myTbl.term_LastApproachPos = pos
-                    return
-
-                end
-
-                if yieldable then
-                    coroutine_yield()
-
-                end
-            end
-        end
-
-        if yieldable then
-            coroutine_yield()
+        elseif leaps and not doJumpTowards and not myTbl.GetIsFlatGroundToEnemy( self, myTbl, enemy ) and myTbl.CanJumpToPos( self, myTbl, pos ) then
+            doJumpTowards = "towards2"
+            zToPos = zToPos + myTbl.JumpHeight
 
         end
-        myTbl.term_LastApproachPos = pos
-        myTbl.loco:Approach( pos, 10000 )
-
-        --debugoverlay.Cross( pos, 10, 1, color_white, true )
-
         if yieldable then
             coroutine_yield()
 
         end
 
-        if not myTbl.TERM_FISTS then return end -- only look towards goal if we have fists
-
-        local currentSpeed = vecMeta.Length2DSqr( locoMeta.GetVelocity( myTbl.loco ) )
-        if currentSpeed < terminator_Extras.term_DefaultSpeedToAimAtProps then
-            local towardsPos = myTbl.GetShootPos( self ) + dir * 50
-            myTbl.justLookAt( self, towardsPos )
+        if myTbl.CanSwim and entMeta.WaterLevel( self ) >= 3 then
+            myTbl.StartSwimming( self )
+            return
 
         end
+        local jumpstate, jumpingHeight, jumpBlockClearPos = 0, nil, nil
+
+        if not isFodder or math.random( 1, 100 ) > 75 then
+            if yieldable then
+                coroutine_yield()
+
+            end
+            jumpstate, jumpingHeight, jumpBlockClearPos = self:GetJumpBlockState( myTbl, dir, pos )
+
+        end
+
+        local goalBasedJump = jumpstate ~= 2 and aboveUs
+        local readyToJump = not myTbl.nextPathJump or myTbl.nextPathJump < CurTime()
+        --print( jumpstate, jumpingHeight )
+        local adaptBlock = noAdapt
+        if myTbl.IsFodder then
+            local hasCached = myTbl.nextBringUsTowardsCache and myTbl.nextBringUsTowardsCache > CurTime()
+            adaptBlock = not hasCached or ( myTbl.IsFodder and math.random( 1, 100 ) > 90 )
+
+        end
+        local jump = readyToJump and ( jumpstate == 1 or goalBasedJump or doJumpTowards )
+        -- jump if the jumpblock says we should, or if the simple jump up says we should
+        if jump then
+            if yieldable then
+                coroutine_yield()
+
+            end
+            local stepAside, asidePos
+            if not goalBasedJump and not doJumpTowards then
+                stepAside, asidePos = myTbl.CanStepAside( self, dir, pos )
+
+            end
+            if stepAside then
+                pos = asidePos
+
+            elseif doJumpTowards then
+                myTbl.JumpToPos( self, pos, zToPos )
+                return
+
+            else
+                jumpingHeight = jumpingHeight or aboveUsJumpHeight or simpleJumpMinHeight
+                myTbl.Jump( self, jumpingHeight + 20 )
+                myTbl.jumpBlockClearPos = simpleClearPos or jumpBlockClearPos
+                myTbl.moveAlongPathJumpingHeight = jumpingHeight
+                return
+
+            end
+        -- adapt if the jumpstate says we need to
+        elseif jumpstate == 2 and not adaptBlock then
+            if yieldable then
+                coroutine_yield()
+
+            end
+            local goodPosToGoto = myTbl.PosThatWillBringUsTowards( self, myPos + vec_up15, pos, 50 )
+            if not goodPosToGoto then return end
+            myTbl.term_LastApproachPos = goodPosToGoto
+            myTbl.loco:Approach( goodPosToGoto, 10000 )
+            --debugoverlay.Cross( pos, 10, 1, Color( 255, 0, 0 ), true )
+            return
+
+        end
+    elseif not onGround then
+        if myTbl.IsJumping( self, myTbl ) then
+            if yieldable then
+                coroutine_yield()
+
+            end
+            local toChoose = {
+                pos,
+                pos + vec_up25,
+                myTbl.jumpBlockClearPos,
+                myPos + Vector( 0, 0, myTbl.moveAlongPathJumpingHeight ),
+
+            }
+
+            -- in air, try to move towards pos
+            if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then
+                return
+
+            end
+
+        elseif myTbl.IsSwimming( self, myTbl ) then
+            if yieldable then
+                coroutine_yield()
+
+            end
+            local swimmingExitPos
+            local swimmingExitPosHigher
+            local swimmingExitPosHigherForward
+            if swimming then
+                swimmingExitPos = Vector( myPos.x, myPos.y, pos.z ) + dir * 10
+                swimmingExitPosHigher = swimmingExitPos + vector_up * 50
+                swimmingExitPosHigherForward = swimmingExitPosHigher + dir * 100
+
+            end
+            local toChoose = {
+                pos,
+                swimmingExitPosHigherForward,
+                swimmingExitPosHigher,
+                swimmingExitPos,
+
+            }
+            -- handle swimming!
+            if myTbl.MoveOffGroundTowardsVisible( self, myTbl, toChoose ) == true then
+                myTbl.term_LastApproachPos = pos
+                return
+
+            end
+
+            if yieldable then
+                coroutine_yield()
+
+            end
+        end
+    end
+
+    if yieldable then
+        coroutine_yield()
+
+    end
+    myTbl.term_LastApproachPos = pos
+    myTbl.loco:Approach( pos, 10000 )
+
+    --debugoverlay.Cross( pos, 10, 1, color_white, true )
+
+    if yieldable then
+        coroutine_yield()
+
+    end
+
+    if not myTbl.TERM_FISTS then return end -- only look towards goal if we have fists
+
+    local currentSpeed = vecMeta.Length2DSqr( locoMeta.GetVelocity( myTbl.loco ) )
+    if currentSpeed < terminator_Extras.term_DefaultSpeedToAimAtProps then
+        local towardsPos = myTbl.GetShootPos( self ) + dir * 50
+        myTbl.justLookAt( self, towardsPos )
+
     end
 end
 

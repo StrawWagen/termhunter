@@ -1621,6 +1621,9 @@ function ENT:HandleFakeCrouching( data, enemy )
     end
 end
 
+local coroutine_isyieldable = coroutine.isyieldable
+local coroutine_yield = coroutine.yield
+
 --[[------------------------------------
     Name: ENT:GetNearbyAllies
     Desc: Living bots on our team within InformRadius, excluding ourselves.
@@ -1632,9 +1635,11 @@ function ENT:GetNearbyAllies()
     local cache = self.term_NearbyAlliesCache
     if cache then return cache end
 
-    local yieldable = coroutine.running()
+    -- more optimized on x64
+    local yieldable = coroutine_isyieldable and coroutine_isyieldable() or false
+
     if yieldable then
-        coroutine.yield()
+        coroutine_yield()
 
     end
 
@@ -1650,8 +1655,8 @@ function ENT:GetNearbyAllies()
         -- pals() does the real filtering, this only narrows the ents scan
         local classNameStart = string.match( self:GetClass(), "^(.-)_" )
         for i, ent in ipairs( ents.FindByClass( classNameStart .. "*" ) ) do
-            if yieldable and i % 25 == 24 then
-                coroutine.yield()
+            if yieldable and i % 20 == 19 then
+                coroutine_yield()
 
             end
             if ent == self or not pals( self, ent ) or myPos:DistToSqr( ent:GetPos() ) > informRad^2 then continue end

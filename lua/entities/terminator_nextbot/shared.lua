@@ -1408,7 +1408,7 @@ function ENT:tryToOpen( myTbl, blocker, blockerTrace )
             end
         end
     end
-    if string.find( class, "door" ) and reallyAngry then
+    if ( string.find( class, "door" ) or class == "func_movelinear" ) and reallyAngry then
         if isFists then
             attack = true
             myTbl.ReallyAnger( self, 10 )

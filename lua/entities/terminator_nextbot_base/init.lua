@@ -2,6 +2,7 @@ AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 include("shared.lua")
 
+local developer = GetConVar( "developer" )
 local entMeta = FindMetaTable("Entity")
 
 --[[-------------------------------------------------------
@@ -120,6 +121,16 @@ function ENT:Initialize()
 	entMeta.SetHealth( self, spawnHealth )
 
 	entMeta.AddFlags( self, FL_OBJECT ) -- make npcs see us
+
+	if myTbl.DefaultStepHeight ~= 18 then
+		if developer:GetBool() then
+			ErrorNoHaltWithStack( self:GetClass() .. " myTbl.DefaultStepHeight is not 18. You need to multiply StandingStepHeight and CrouchingStepHeight off of DefaultStepHeight. Otherwise the bot sticks to ceilings." )
+
+		else
+			permaPrint( self:GetClass() .. " myTbl.DefaultStepHeight is not 18, developer 1 for full error" )
+
+		end
+	end
 
 	local ct = CurTime()
 	local pos = entMeta.GetPos( self )
