@@ -23,8 +23,84 @@ function ENT:GetPlayerColor()
 
 end
 
+function ENT:Team()
+    local disguisedAs = self:GetNWEntity( "disguisedterminatorsmimictarget", nil )
+    if not IsValid( disguisedAs ) then return end
+    return disguisedAs:Team()
 
-if CLIENT then return end
+end
+
+ENT.WalkSpeed = 75
+ENT.MoveSpeed = 200
+ENT.RunSpeed = 360
+ENT.AccelerationSpeed = 1500
+ENT.JumpHeight = 70 * 2.5
+ENT.FistDamageMul = 1
+ENT.ThrowingForceMul = 1
+
+if SERVER then
+
+    ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_GOOD
+
+    ENT.duelEnemyTimeoutMul = 5
+
+    ENT.Term_FootstepMsReductionPerUnitSpeed = 0.8
+
+    function ENT:AdditionalInitialize()
+
+        if IsValid( self.MimicTarget ) then return end
+
+        local stuffWeCanMimic = {}
+        local someoneDead
+        local plys = player.GetAll()
+        for _, ply in ipairs( plys ) do
+            if ply:Health() <= 0 then
+                someoneDead = true
+                break
+
+            end
+        end
+        if someoneDead then
+            for _, ply in ipairs( plys ) do
+                if ply:Health() <= 0 then
+                    table.insert( stuffWeCanMimic, ply )
+
+                end
+            end
+        else
+            stuffWeCanMimic = plys
+
+        end
+
+        local randomPlayerToMimic = table.Random( stuffWeCanMimic )
+        self:MimicPlayer( randomPlayerToMimic )
+
+    end
+
+    function ENT:MimicPlayer( toMimic )
+        self:SetModel( toMimic:GetModel() )
+
+        local plysBodyGroups = toMimic:GetBodyGroups()
+
+        for _, bGroup in pairs( plysBodyGroups ) do
+            self:SetBodygroup( bGroup["id"], toMimic:GetBodygroup( bGroup["id"] ) )
+
+        end
+
+        self:SetNWEntity( "disguisedterminatorsmimictarget", toMimic )
+        self.MimicTarget = toMimic
+
+    end
+
+    function ENT:AdditionalThink( myTbl )
+        if not IsValid( myTbl.MimicTarget ) then return end
+        if myTbl.MimicTarget.IsTyping and myTbl.MimicTarget:IsTyping() then
+            self:AddGesture( ACT_GMOD_IN_CHAT, 1 )
+
+        end
+    end
+end
+if not CLIENT then return end
 
 local isADoppelGanger
 
@@ -38,20 +114,6 @@ local function checkIfThereIsADoppelganger()
     end
 end
 
-ENT.WalkSpeed = 75
-ENT.MoveSpeed = 200
-ENT.RunSpeed = 360
-ENT.AccelerationSpeed = 1500
-ENT.JumpHeight = 70 * 2.5
-ENT.FistDamageMul = 1
-ENT.ThrowingForceMul = 1
-
-ENT.TERM_WEAPON_PROFICIENCY = WEAPON_PROFICIENCY_GOOD
-
-ENT.duelEnemyTimeoutMul = 5
-
-ENT.Term_FootstepMsReductionPerUnitSpeed = 0.8
-
 function ENT:AdditionalClientInitialize()
     timer.Simple( 0, checkIfThereIsADoppelganger )
     self:CallOnRemove( "checkiftheresdoppelganger", function()
@@ -59,69 +121,6 @@ function ENT:AdditionalClientInitialize()
 
     end )
 end
-
-function ENT:AdditionalInitialize()
-
-    if IsValid( self.MimicTarget ) then return end
-
-    local stuffWeCanMimic = {}
-    local someoneDead
-    local plys = player.GetAll()
-    for _, ply in ipairs( plys ) do
-        if ply:Health() <= 0 then
-            someoneDead = true
-            break
-
-        end
-    end
-    if someoneDead then
-        for _, ply in ipairs( plys ) do
-            if ply:Health() <= 0 then
-                table.insert( stuffWeCanMimic, ply )
-
-            end
-        end
-    else
-        stuffWeCanMimic = plys
-
-    end
-
-    local randomPlayerToMimic = table.Random( stuffWeCanMimic )
-    self:MimicPlayer( randomPlayerToMimic )
-
-end
-
-function ENT:MimicPlayer( toMimic )
-    self:SetModel( toMimic:GetModel() )
-
-    local plysBodyGroups = toMimic:GetBodyGroups()
-
-    for _, bGroup in pairs( plysBodyGroups ) do
-        self:SetBodygroup( bGroup["id"], toMimic:GetBodygroup( bGroup["id"] ) )
-
-    end
-
-    self:SetNWEntity( "disguisedterminatorsmimictarget", toMimic )
-    self.MimicTarget = toMimic
-
-end
-
-function ENT:AdditionalThink( myTbl )
-    if not IsValid( myTbl.MimicTarget ) then return end
-    if myTbl.MimicTarget.IsTyping and myTbl.MimicTarget:IsTyping() then
-        self:AddGesture( ACT_GMOD_IN_CHAT, 1 )
-
-    end
-end
-
-function ENT:Team()
-    local disguisedAs = self:GetNWEntity( "disguisedterminatorsmimictarget", nil )
-    if not IsValid( disguisedAs ) then return end
-    return disguisedAs:Team()
-
-end
-
-if not CLIENT then return end
 
 local function paintNameAndHealth( toPaint )
 
