@@ -7,6 +7,23 @@ terminator_Extras.RegisterNPC( "terminator_nextbot_snail_disguised", ENT, {
     Weapons = { "weapon_terminatorfists_term" },
 } )
 
+function ENT:Nick()
+    local disguisedAs = self:GetNWEntity( "disguisedterminatorsmimictarget", nil )
+    if not IsValid( disguisedAs ) then return end
+    return disguisedAs:Nick()
+
+end
+
+--https://github.com/Facepunch/garrysmod/blob/master/garrysmod/lua/matproxy/player_color.lua
+function ENT:GetPlayerColor()
+    local mimicing = self:GetNWEntity( "disguisedterminatorsmimictarget", nil )
+    if not IsValid( mimicing ) then return vector_origin end
+
+    return mimicing:GetPlayerColor()
+
+end
+
+
 if CLIENT then return end
 
 local isADoppelGanger
@@ -74,15 +91,6 @@ function ENT:AdditionalInitialize()
 
 end
 
---https://github.com/Facepunch/garrysmod/blob/master/garrysmod/lua/matproxy/player_color.lua
-function ENT:GetPlayerColor()
-    local mimicing = self:GetNWEntity( "disguisedterminatorsmimictarget", nil )
-    if not IsValid( mimicing ) then return vector_origin end
-
-    return mimicing:GetPlayerColor()
-
-end
-
 function ENT:MimicPlayer( toMimic )
     self:SetModel( toMimic:GetModel() )
 
@@ -104,13 +112,6 @@ function ENT:AdditionalThink( myTbl )
         self:AddGesture( ACT_GMOD_IN_CHAT, 1 )
 
     end
-end
-
-function ENT:Nick()
-    local disguisedAs = self:GetNWEntity( "disguisedterminatorsmimictarget", nil )
-    if not IsValid( disguisedAs ) then return end
-    return disguisedAs:Nick()
-
 end
 
 function ENT:Team()
