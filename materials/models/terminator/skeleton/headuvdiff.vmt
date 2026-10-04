@@ -1,0 +1,25 @@
+"vertexlitgeneric"
+{
+	"$baseTexture" "models/terminator/skeleton/headuvdiff_eyes_1"
+	"$bumpmap"	"models/terminator/skeleton/headuv_n"
+  
+	"$envmap" "env_cubemap"
+	"$envmaptint" "[ 0.2 0.2 0.2 ]" 
+	"$envmapcontrast" .5
+	"$normalmapalphaenvmapmask"	"1"
+	"$envmapsaturation" .35
+$selfillum 1
+$nocull 1
+
+  	"$phong" "1"
+	"$phongexponent" "20"
+	"$phongboost"	"20"
+	"$phongfresnelranges"	"[.05 .5 1.5]"
+
+
+
+
+
+$lightwarp 1
+$lightwarptexture "models/terminator/skeleton/phongwarp"
+}

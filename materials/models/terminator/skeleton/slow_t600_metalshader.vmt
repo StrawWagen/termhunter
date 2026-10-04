@@ -1,0 +1,21 @@
+"VertexlitGeneric"
+{
+	"$basetexture" "models/terminator/skeleton/slow_t600"
+	"$bumpmap" "models/terminator/skeleton/slow_t600_bump"
+
+	"$envmap" "env_cubemap"
+	"$envmaptint" "[ 0.2 0.2 0.2 ]" 
+	"$envmapcontrast" .50
+	"$normalmapalphaenvmapmask"	"1"
+	"$envmapsaturation" .35
+
+$nocull 1
+
+  	"$phong" "1"
+	"$phongexponent" "20"
+	"$phongboost"	"10"
+	"$phongfresnelranges"	"[.05 .25 1]"
+
+$phongwarptexture "models/terminator/skeleton/phongwarp"
+}
+
