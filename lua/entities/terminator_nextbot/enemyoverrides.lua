@@ -2030,3 +2030,233 @@ function ENT:GetRealDuelEnemyDist( myTbl )
     return duelDist
 
 end
+
+
+
+local function resetBoxedIn( self )
+    timer.Simple( 0.25, function()
+        if not IsValid( self ) then return end
+        self.term_CachedIsBoxedIn = nil
+
+    end )
+end
+
+function ENT:EnemyIsBoxedIn()
+    local enemy = self:GetEnemy()
+    if not IsValid( enemy ) then return end
+
+    local cachedBoxedIn = self.term_CachedIsBoxedIn
+    if cachedBoxedIn ~= nil then return cachedBoxedIn end
+
+    local enemysNavArea = terminator_Extras.getNearestPosOnNav( enemy:GetPos() ).area
+    if not IsValid( enemysNavArea ) then
+        resetBoxedIn( self )
+        self.term_CachedIsBoxedIn = false
+        return false
+
+    end
+    local stepH = self.loco:GetStepHeight()
+
+    local dangerAreas = {}
+    local allies = { self }
+    terminator_Extras.tableAdd( allies, self:GetNearbyAllies() )
+
+    for _, ally in ipairs( allies ) do
+        if not IsValid( ally ) then continue end
+        terminator_Extras.tableAdd( dangerAreas, navmesh.Find( ally:GetPos(), 350, stepH, stepH ) )
+
+    end
+
+    local areasThatAreEntrance = {}
+    for _, entranceArea in ipairs( dangerAreas ) do
+        areasThatAreEntrance[entranceArea] = true
+
+    end
+    -- not boxed in, we're just close
+    if areasThatAreEntrance[entranceArea] then
+        resetBoxedIn( self )
+        return false
+
+    end
+
+    local scoreData = {}
+    scoreData.hasEscape = nil
+    scoreData.decreasingScores = {}
+    scoreData.hasEscape = nil
+
+    local scoreFunction = function( scoreData, area1, area2 )
+        if area2:IsBlocked() then return 0 end
+        if #area2:GetLadders() >= 1 then scoreData.hasEscape = true return math.huge end
+
+        local area1Id = area1:GetID()
+        local area2Id = area2:GetID()
+        local score = scoreData.decreasingScores[area1Id] or 10000
+
+        if areasThatAreEntrance[ area2 ] then
+            return 0
+
+        end
+        scoreData.decreasingScores[area2Id] = score + -1
+
+        --debugoverlay.Text( area2:GetCenter() + Vector( 0,0,10 ), tostring( score ), 8 )
+
+        return score
+
+    end
+
+    local checkRadius = 1350
+    local _, _, escaped = self:findValidNavResult( scoreData, enemy:GetPos(), checkRadius, scoreFunction, 10 )
+
+    local boxedIn = not escaped and not scoreData.hasEscape
+
+    self.term_CachedIsBoxedIn = boxedIn
+    resetBoxedIn( self )
+    return boxedIn
+
+end
+
+
+
+function ENT:inSeriousDanger()
+    if self:getLostHealth() > 100 then return true end
+    if sound.GetLoudestSoundHint( SOUND_DANGER, self:GetPos() ) then return true end
+    if self.DistToEnemy < 800 and self:EnemyIsLethalInMelee() then return true end
+
+end
+
+function ENT:EnemyIsUnkillable( enemy )
+    if not enemy then
+        enemy = self:GetEnemy()
+
+    end
+    if not IsValid( enemy ) then return end
+
+    local unkillable = ( entMeta.Health( enemy ) > 10000 ) or ( enemy.HasGodMode and enemy:HasGodMode() )
+
+    local increasedPriorities = self.terminator_IncreasedPriorities or {}
+
+    if unkillable and not increasedPriorities[enemy] then
+        self.terminator_IncreasedPriorities = increasedPriorities
+        self:Term_SetEntityRelationship( enemy, D_HT, 2000 )
+
+    end
+    return unkillable
+
+end
+
+function ENT:EnemyIsLethalInMelee( enemy )
+    enemy = enemy or self:GetEnemy()
+    if not IsValid( enemy ) then return end
+
+    if self.IsEldritch then return end -- im the lethal one
+
+    if enemy.IsEldritch then return true end
+
+    local isLethalInMelee = enemy.terminator_IsLethalInMelee
+    local isLethal = ( isLethalInMelee and isLethalInMelee >= 2 ) or self:EnemyIsUnkillable( enemy )
+
+    if isLethal then return true end
+
+end
+
+function ENT:DistAddedByKillerEnemy( enemy )
+    if not enemy or not IsValid( enemy ) then return 0 end
+    if not enemy.isTerminatorHunterKiller then return 0 end
+
+    local add = enemy.isTerminatorHunterKiller -- this num is how much health of terms this enemy has killed
+
+    local min = 0
+    if self:EnemyIsUnkillable( enemy ) then
+        min = 500
+
+    end
+
+    local dist = math.Clamp( add / 4, min, 1500 )
+    return dist
+
+end
+
+hook.Add( "OnNPCKilled", "terminator_markkillers", function( npc, attacker, inflictor )
+    if not npc.isTerminatorHunterBased then return end
+    if not attacker then return end
+    if not inflictor then return end
+
+    if attacker.isTerminatorHunterChummy == npc.isTerminatorHunterChummy then return end
+
+    if npc:IgnoringPlayers() and attacker:IsPlayer() then return end
+
+    local maxHp = npc:GetMaxHealth()
+    local value = math.Clamp( maxHp / 500, 0, 1 )
+
+    -- if someone has killed terminators, make them react
+    local old = attacker.isTerminatorHunterKiller or 0
+    if old <= 0 and value < 0.5 then return end
+
+    attacker.isTerminatorHunterKiller = old + value
+
+    if maxHp < 500 then return end
+
+    if inflictor:IsWeapon() then
+        local weapsWeightToTerm = npc:GetWeightOfWeapon( inflictor )
+        terminator_Extras.OverrideWeaponWeight( inflictor:GetClass(), weapsWeightToTerm + 15 )
+
+    end
+
+    if attacker:GetPos():Distance( npc:GetPos() ) < 350^2 then
+        local isLethalInMelee = attacker.terminator_IsLethalInMelee or 0
+        attacker.terminator_IsLethalInMelee = isLethalInMelee + 1
+
+    end
+
+    local timerId = "terminator_undokillerstatus_" .. attacker:GetCreationID()
+
+    local timeToForget = 60 * 15 -- 15 mins!!!
+    timer.Remove( timerId )
+    timer.Create( timerId, timeToForget, 1, function()
+        if not IsValid( attacker ) then return end
+        attacker.isTerminatorHunterKiller = nil
+
+    end )
+end )
+
+hook.Add( "PlayerDeath", "terminator_unmark_killers", function( plyDied, _, attacker )
+    if not attacker.isTerminatorHunterChummy then return end
+    if not attacker.isTerminatorHunterBased then return end
+
+    local isLethalInMelee = plyDied.terminator_IsLethalInMelee or 0
+    plyDied.terminator_IsLethalInMelee = math.Clamp( isLethalInMelee + -1, 0, math.huge )
+
+    local oldKillerWeight = plyDied.isTerminatorHunterKiller
+    if oldKillerWeight then
+        plyDied.isTerminatorHunterKiller = math.Clamp( oldKillerWeight + -0.25, 0, math.huge )
+
+        if plyDied.isTerminatorHunterKiller <= 0 then
+            plyDied.isTerminatorHunterKiller = nil
+
+        end
+    end
+end )
+
+local function resetPlysKillerStatus( ply )
+    ply.terminator_CantConvinceImFriendly = nil
+    ply.terminator_IsLethalInMelee = nil
+    ply.terminator_endFirstWatch = nil
+
+    ply.isTerminatorHunterKiller = nil
+    timer.Remove( "terminator_undokillerstatus_" .. ply:GetCreationID() )
+
+end
+
+
+hook.Add( "PostCleanupMap", "terminator_clear_playerstatuses", function()
+    for _, ply in ipairs( player.GetAll() ) do
+        resetPlysKillerStatus( ply )
+
+    end
+end )
+hook.Add( "terminator_nextbot_noterms_exist", "terminator_clear_playerstatuses", function()
+    for _, ply in player.Iterator() do
+        resetPlysKillerStatus( ply )
+
+    end
+end )

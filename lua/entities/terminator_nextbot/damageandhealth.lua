@@ -1043,6 +1043,19 @@ function ENT:InitializeDrowning( myTbl )
     end
 end
 
+
+function ENT:resetLostHealth()
+    self.VisibilityStartingHealth = nil
+
+end
+
+function ENT:getLostHealth()
+    if not self.VisibilityStartingHealth then return 0 end
+    return math.abs( self:Health() - self.VisibilityStartingHealth )
+
+end
+
+
 --[[
 -- stub, make sure you add this shared, this is called for client ragdolls too
 function ENT:AdditionalRagdollDeathEffects( ragdoll )

@@ -847,7 +847,7 @@ function ENT:SetupPathShell( endpos, isUnstuck )
         -- good path, escape here
         if computed or self:PathIsValid() then
             self.setupPath2NoNavs = nil
-            self:delayNewPaths( math.Clamp( cost * 4, 0.1, 1 ) )
+            self.nextNewPath = CurTime() + math.Clamp( cost * 4, 0.1, 1 )
 
             if not wasGood then
                 self:FloodMarkAsUnreachable( endArea.area )
@@ -1887,5 +1887,545 @@ function ENT:IsBusyBuildingPath( myTbl )
 
     end
     return false
+
+end
+
+
+
+-- did we already try, and fail, to path there?
+function ENT:areaIsReachable( area )
+    if not area then return end
+    if not IsValid( area ) then return end
+    if self.unreachableAreas[area:GetID()] then return end
+    return true
+
+end
+
+-- don't build paths to these areas!
+function ENT:rememberAsUnreachable( area, areasId )
+    if not IsValid( area ) then return end
+    areasId = areasId or area:GetID()
+    self.unreachableAreas[areasId] = true
+    if self.IsFodder then
+        hook.Run( "term_updateunreachableareas", self:GetClass(), area )
+
+    end
+
+    --debugoverlay.Cross( area:GetCenter(), 20, 20, Color( 255, 0, 0 ), true )
+
+    timer.Simple( 60, function()
+        if not IsValid( self ) then return end
+        self:rememberAsReachable( area, areasId )
+
+    end )
+    return true
+end
+
+-- undo the above
+function ENT:rememberAsReachable( area, areasId )
+    if not IsValid( area ) then return end
+    areasId = areasId or area:GetID()
+
+    self.unreachableAreas[areasId] = nil
+    return true
+
+end
+
+
+
+function ENT:ResetUnstuckInfo()
+    self.StuckPos5 = vec_zero
+    self.StuckPos4 = vec_zero
+    self.StuckPos3 = vec_zero
+    self.StuckPos2 = vec_zero
+
+    self.StuckEnt3 = nil
+    self.StuckEnt2 = nil
+    self.StuckEnt1 = nil
+
+    --print( "reset" )
+
+end
+
+function ENT:TryGeneratingAreas()
+    local oldArea = self.term_OldAreaWeTriedGeneratingAt
+    if oldArea then
+        local currArea = self:GetTrueCurrentNavArea()
+        if oldArea == currArea then return end
+
+        self.term_OldAreaWeTriedGeneratingAt = currArea
+
+    end
+
+    if self:IsUnderDisplacement() then return end -- dont generate areas down here!
+
+    terminator_Extras.dynamicallyPatchPos( self:GetPos() )
+
+end
+
+-- MoveAlongPath found this segment to be impossible to cross 
+function ENT:OnHardBlocked()
+    --print( "hardblocked" )
+    self:Anger( 1 )
+    -- check FAST
+    self.nextUnstuckCheck = CurTime()
+    self.nextPosUpdate = CurTime()
+    self.blockUnstuckRetrace = CurTime() + 1
+
+    self:TryGeneratingAreas()
+
+end
+
+local function DistToSqr2D( pos1, pos2 )
+    if not pos1 or not pos2 then return math.huge end
+    local product = pos1 - pos2
+    return product:Length2DSqr()
+end
+
+-- unstuck that flags a connection as bad, then the bot will bash anything nearby, then it will back up.
+-- there are 2 more unstucks.
+-- one that first makes the bot walk somewhere random, then if that fails and the bot is REALLY stuck, teleports/removes it ( reallystuck_handler task )
+-- the base one ( in motionoverrides ) that teleports it to a clear spot next to it, if it's intersecting anything
+local function HunterIsStuck( self, myTbl )
+    local nextUnstuck = myTbl.nextUnstuckCheck or 0
+    if nextUnstuck > CurTime() then return end
+
+    if IsValid( myTbl.terminatorStucker ) then return true end
+
+    if myTbl.overrideMiniStuck then myTbl.overrideMiniStuck = nil return true end
+
+    if not myTbl.nextUnstuckCheck then
+        myTbl.nextUnstuckCheck = CurTime() + 0.1
+        myTbl.ResetUnstuckInfo( self )
+
+    end
+    local add = 0.2
+    if myTbl.term_ExpensivePath then -- i really like this path :(
+        add = add * 10
+
+    end
+    myTbl.nextUnstuckCheck = CurTime() + add
+
+    local HasAcceleration = myTbl.loco:GetAcceleration()
+    if HasAcceleration <= 0 then return end -- we aren't trying to move rn
+
+    local myPos = self:GetPos()
+    local startPos = myTbl.m_LastPathStartPos
+    local goalPos = myTbl.m_PathPos
+    local notMoving = myTbl.StuckPos3 and myTbl.StuckPos5
+    -- laddering? check 3d dist, not 2d dist!
+    if notMoving and myTbl.terminator_HandlingLadder then
+        notMoving = myPos:DistToSqr( myTbl.StuckPos3 ) < 20^2 and myPos:DistToSqr( myTbl.StuckPos5 ) < 20^2 
+
+    elseif notMoving then
+        notMoving = DistToSqr2D( myPos, myTbl.StuckPos5 ) < 20^2 and DistToSqr2D( myPos, myTbl.StuckPos3 ) < 20^2
+
+    end
+
+    --[[if self.StuckPos3 and self.StuckPos5 then
+        --debugoverlay.Sphere( self.StuckPos3, 20, 2, color_white, true )
+        --debugoverlay.Sphere( self.StuckPos5, 20, 2, color_white, true )
+
+    end--]]
+
+    local blocker = myTbl.LastShootBlocker
+    if not IsValid( blocker ) then
+        blocker = myTbl.GetCachedDisrespector( self, myTbl )
+
+    end
+    if IsValid( blocker ) and ( blocker:IsNPC() or blocker:IsPlayer() ) then
+        blocker = nil
+
+    end
+
+    local farFromStart = DistToSqr2D( myPos, startPos ) > 15^2
+    local farFromStartAndNew = farFromStart or ( myTbl.m_LastPathStartTime and ( myTbl.m_LastPathStartTime + 1 < CurTime() ) )
+    local farFromEnd = DistToSqr2D( myPos, goalPos ) > 15^2
+    local isPath = myTbl.PathIsValid( self )
+
+    local notMovingAndSameBlocker = myTbl.StuckEnt1 and ( myTbl.StuckEnt1 == myTbl.StuckEnt2 ) and ( myTbl.StuckEnt1 == myTbl.StuckEnt3 ) and notMoving
+
+    local nextPosUpdate = myTbl.nextPosUpdate or 0
+
+    if nextPosUpdate < CurTime() and isPath then
+        if myTbl.canDoRun( self ) and not myTbl.IsJumping( self, myTbl ) then
+            myTbl.nextPosUpdate = CurTime() + 0.25
+
+        else
+            myTbl.nextPosUpdate = CurTime() + 0.55
+
+        end
+        myTbl.StuckPos5 = myTbl.StuckPos4
+        myTbl.StuckPos4 = myTbl.StuckPos3
+        myTbl.StuckPos3 = myTbl.StuckPos2
+        myTbl.StuckPos2 = myTbl.StuckPos1
+        myTbl.StuckPos1 = myPos
+
+        myTbl.StuckEnt3 = myTbl.StuckEnt2
+        myTbl.StuckEnt2 = myTbl.StuckEnt1
+        myTbl.StuckEnt1 = blocker
+
+    end
+
+    --print( ( notMoving or notMovingAndSameBlocker ), farFromStartAndNew, farFromEnd, isPath )
+    local stuck = ( notMoving or notMovingAndSameBlocker ) and farFromStartAndNew and farFromEnd and isPath
+    if stuck then -- reset so chains of stuck events happen less
+        myTbl.ResetUnstuckInfo( self )
+
+    end
+
+    return stuck
+
+end
+
+local vec_up = Vector( 0, 0, 1 )
+
+function ENT:IsUnderDisplacement()
+    local myPos = self:GetShootPos()
+    local nearestArea = terminator_Extras.getNearestNav( myPos )
+    local checkDir
+    if IsValid( nearestArea ) then -- handle being outside caves, where there won't be a displacement upwards, but will be a bit sideways
+        checkDir = terminator_Extras.dirToPos( myPos, nearestArea:GetCenter() )
+    else
+        checkDir = vec_up
+    end
+    return terminator_Extras.posIsUnderDisplacement( myPos, checkDir )
+
+end
+
+--do this so we can override the nextbot's current path
+function ENT:ControlPath2( AimMode )
+    local myTbl = self:GetTable()
+    local result = nil
+
+    if myTbl.blockControlPath and myTbl.blockControlPath > CurTime() then return end
+
+    local validPath = myTbl.PathIsValid( self )
+    local badPathAndStuck = myTbl.isUnstucking and not validPath
+    local bashableWithinReasonableRange = myTbl.GetCachedBashableWithinReasonableRange( self )
+
+    local blockUnstuckRetrace = myTbl.blockUnstuckRetrace or 0 -- allow this to be blocked
+    local doUnstuckPath = blockUnstuckRetrace < CurTime()
+    myTbl.blockUnstuckRetrace = nil
+
+    local posBasedStuck = HunterIsStuck( self, myTbl )
+
+    if badPathAndStuck or posBasedStuck then -- new unstuck
+        local myPos = self:GetPos()
+        myTbl.startUnstuckDestination = myTbl.m_PathPos -- save where we were going
+        myTbl.startUnstuckPos = myPos
+        myTbl.lastUnstuckStart = CurTime()
+
+        if validPath and not terminator_Extras.IsLivePatching then
+            self:TryGeneratingAreas()
+
+        end
+
+        coroutine_yield()
+
+        local myNav = myTbl.GetTrueCurrentNavArea( self ) or self:GetCurrentNavArea()
+        if not IsValid( myNav ) then return end --- AAAAH
+
+        local scoreData = {}
+
+        scoreData.canDoUnderWater = self:isUnderWater()
+        scoreData.self = self
+        scoreData.dirToEnd = self:GetForward()
+        scoreData.bearingPos = myTbl.startUnstuckPos
+
+        coroutine_yield()
+
+        if validPath then -- we were pathing, time to flag this connection
+            local path = self:GetPath()
+            local _, aheadSegment = myTbl.GetNextPathArea( self, myNav ) -- top of the jump
+            local currSegment = path:GetCurrentGoal() -- maybe bottom of the jump, paths are stupid
+            local dirPathGoes
+            local areasInDir
+
+            if not aheadSegment then goto skipTheShitConnectionFlag end
+
+            scoreData.dirToEnd = terminator_Extras.dirToPos( myPos, path:GetEnd() )
+            if not aheadSegment or not currSegment then goto skipTheShitConnectionFlag end
+            if not IsValid( aheadSegment.area ) then goto skipTheShitConnectionFlag end
+
+            dirPathGoes = myNav:ComputeDirection( aheadSegment.pos )
+            areasInDir = myNav:GetAdjacentAreasAtSide( dirPathGoes )
+
+            for _, area in ipairs( areasInDir ) do
+                --debugoverlay.Line( myNav:GetCenter(), area:GetCenter(), 5, Color( 255, 255, 0 ), true )
+                myTbl.flagConnectionAsShit( self, myNav, area )
+
+            end
+            myTbl.flagConnectionAsShit( self, currSegment.area, aheadSegment.area )
+
+            --debugoverlay.Line( currSegment.area:GetCenter(), aheadSegment.area:GetCenter(), 5, Color( 255, 255, 0 ), true )
+
+            ::skipTheShitConnectionFlag::
+
+            coroutine_yield()
+
+            myTbl.InvalidatePath( self, "connection was flagged, killing my path for a new one!" )
+
+        end
+
+        if doUnstuckPath then -- get OUTTA here
+            for _ = 1, 4 do
+                coroutine_yield()
+                local randOffset = math.random( -40, 40 )
+
+                -- find an area that is at least in the opposite direction of our current path
+                local scoreFunction = function( scoreData, area1, area2 )
+                    local dirToEnd = scoreData.dirToEnd:Angle()
+                    local bearing = terminator_Extras.BearingToPos( scoreData.bearingPos, dirToEnd, area2:GetCenter(), dirToEnd )
+                    bearing = math.abs( bearing )
+                    bearing = bearing + randOffset
+                    local dropToArea = math.abs( area1:ComputeAdjacentConnectionHeightChange( area2 ) )
+                    local score = 5
+                    if area2:HasAttributes( NAV_MESH_TRANSIENT ) then
+                        score = 0.1
+                    elseif bearing < 45 then
+                        score = score * 15
+                    elseif bearing < 135 then
+                        score = score * 5
+                    elseif bearing > 135 then
+                        score = 0.1
+                    else
+                        local dist = scoreData.bearingPos:Distance( area2:GetCenter() )
+                        local removed = dist * 0.01
+                        score = math.Clamp( 1 - removed, 0, 1 )
+                    end
+                    if not scoreData.canDoUnderWater and area2:IsUnderwater() then
+                        score = score * 0.001
+                    end
+                    if dropToArea > self.loco:GetStepHeight() then
+                        score = score * 0.01
+                    end
+
+                    --debugoverlay.Text( area2:GetCenter(), tostring( math.Round( bearing ) ), 4 )
+
+                    return score
+
+                end
+
+                coroutine_yield()
+
+                local _, escapeArea = self:findValidNavResult( scoreData, myPos, 1000, scoreFunction )
+                if not IsValid( escapeArea ) then continue end
+                --debugoverlay.Cross( escapeArea:GetCenter(), 50, 100, Color( 255, 255, 0 ), true )
+                self:SetupPathShell( escapeArea:GetRandomPoint(), true )
+
+                coroutine_yield()
+
+                if self:PathIsValid() and IsValid( myNav ) then
+                    self.initArea = myNav
+                    self.initAreaId = self.initArea:GetID()
+                    break
+
+                end
+            end
+            if not self:PathIsValid() then return false end
+            self.isUnstucking = true
+
+        end
+
+        coroutine_yield()
+
+        myTbl.tryToHitUnstuck = isstring( myTbl.TERM_FISTS )
+        myTbl.unstuckingTimeout = CurTime() + 10
+        myTbl.ReallyAnger( self, 10 )
+
+    end
+
+    validPath = myTbl.PathIsValid( self )
+
+    if myTbl.tryToHitUnstuck then
+        local done = nil
+        local toBeat = myTbl.entToBeatUp
+        local lastShootBlocker = myTbl.LastShootBlocker
+
+        local disrespector = lastShootBlocker or bashableWithinReasonableRange[1]
+        if not disrespector then
+            disrespector = myTbl.GetCachedDisrespector( self, myTbl )
+
+        end
+
+        if myTbl.hitTimeout then -- randomly attack stuff around the spot where we got stuck
+            if not toBeat or not IsValid( toBeat ) then -- find something to attack
+                -- something new to break
+                local somethingNewToBeatup = bashableWithinReasonableRange[1]
+                local newWithinBashRange = IsValid( somethingNewToBeatup ) and myTbl.lastBeatUpEnt ~= somethingNewToBeatup
+                local newDisrespector = IsValid( disrespector ) and myTbl.lastBeatUpEnt ~= disrespector
+                if newWithinBashRange or newDisrespector then
+                    toBeat = bashableWithinReasonableRange[1] or disrespector
+                    myTbl.entToBeatUp = toBeat
+                    myTbl.hitTimeout = CurTime() + 3
+
+                else
+                    done = true
+
+                end
+            elseif toBeat and IsValid( toBeat ) then -- attack the thing!
+                local valid, attacked, nearAndCanHit, closeAndCanHit, _, isClose, visible = myTbl.beatUpEnt( self, myTbl, toBeat, true )
+                local isNailed = istable( toBeat.huntersglee_breakablenails )
+                local isInDanger = myTbl.getLostHealth( self ) >= 20
+                local dangerAndNotNailed = isInDanger and not isNailed
+                -- door was bashed or we are bored, or scared
+                if myTbl.hitTimeout < CurTime() or not toBeat:IsSolid() or dangerAndNotNailed then
+                    done = true
+                    myTbl.lastBeatUpEnt = toBeat
+
+                end
+                if not closeAndCanHit or not visible then
+                    myTbl.entToBeatUp = nil
+                    myTbl.lastBeatUpEnt = toBeat
+
+                end
+                -- BEAT UP THE NAILED THING!
+                if isNailed and visible and nearAndCanHit and closeAndCanHit and valid and attacked then
+                    myTbl.GetTheBestWeapon( self )
+                    myTbl.hitTimeout = CurTime() + 3
+
+                -- shoot the nailed thing
+                elseif isNailed and not isClose and visible and myTbl.IsRangedWeapon( self ) then
+                    myTbl.shootAt( self, myTbl.getBestPos( self, toBeat ) )
+                    myTbl.lastShootingType = "controlPath2_toBeat"
+
+                end
+            end
+        -- keep attacking, we're doing something!
+        elseif ( IsValid( lastShootBlocker ) and lastShootBlocker ~= myTbl.lastBeatUpEnt ) or ( IsValid( disrespector ) and disrespector ~= myTbl.lastBeatUpEnt ) then
+            myTbl.hitTimeout = CurTime() + 3
+
+        else
+            done = true
+
+        end
+        if done or myTbl.hitTimeout < CurTime() then
+            myTbl.entToBeatUp = nil
+            myTbl.hitTimeout = nil
+            myTbl.tryToHitUnstuck = nil
+
+        end
+    elseif myTbl.isUnstucking then
+        if not validPath then
+            myTbl.isUnstucking = false
+            return false
+
+        end
+        result = myTbl.ControlPath( self, AimMode )
+        local DistToStart = self:GetPos():Distance( myTbl.startUnstuckPos )
+        local FarEnough = DistToStart > 200
+        local myNavArea = myTbl.GetTrueCurrentNavArea( self ) or self:GetCurrentNavArea()
+
+        if not IsValid( myNavArea ) then return end
+        local NotStart = myTbl.initAreaId ~= myNavArea:GetID()
+
+        local Escaped = nil
+
+        if FarEnough and NotStart then
+            Escaped = true
+
+        elseif result then
+            Escaped = true
+
+        end
+        if Escaped or myTbl.unstuckingTimeout < CurTime() then
+            myTbl.isUnstucking = nil
+            if myTbl.startUnstuckDestination then
+                myTbl.SetupPathShell( self, myTbl.startUnstuckDestination )
+
+            end
+        end
+    else
+        if not validPath then return false end
+        local wep = myTbl.GetWeapon( self, myTbl )
+        if wep and wep.worksWithoutSightline and IsValid( myTbl.GetEnemy( self ) ) and AimMode == true then
+            AimMode = nil
+
+        end
+        result = myTbl.ControlPath( self, AimMode )
+
+    end
+    return result
+
+end
+
+-- override this to remove path recalculating, we already do that
+function ENT:ControlPath( lookatgoal, myTbl )
+    myTbl = myTbl or self:GetTable()
+    if not myTbl.PathIsValid( self ) then return false end
+
+    local pos = myTbl.GetPathPos( self )
+
+    local range = self:GetRangeTo( pos )
+
+    if range < myTbl.PathGoalToleranceFinal then
+        myTbl.InvalidatePath( self, "i reached the end of my path!" )
+        return true
+
+    end
+
+    -- beartrap
+    if IsValid( myTbl.terminatorStucker ) then
+        return false
+
+    end
+
+    if myTbl.MoveAlongPath( self, lookatgoal, myTbl ) then
+        return true
+
+    end
+end
+
+function ENT:nextNewPathIsGood()
+    local nextNewPath = self.nextNewPath or 0
+    if nextNewPath > CurTime() then return end
+    if self.terminator_HandlingLadder then self:TermHandleLadder() return end
+    if self.isHoppingOffLadder then
+        self.isHoppingOffLadderCount = ( self.isHoppingOffLadderCount or 0 ) + 1
+        if self.isHoppingOffLadderCount > 20 then
+            self.isHoppingOffLadder = false
+            self.isHoppingOffLadderCount = nil
+
+        end
+        return
+
+    end
+
+    return true
+end
+
+function ENT:CanDoNewPath( pathTarget )
+    if not isvector( pathTarget ) then return false end
+    local myTbl = entMeta.GetTable( self )
+    if not myTbl.nextNewPathIsGood( self ) then return false end
+    if myTbl.isUnstucking and myTbl.PathIsValid( self ) then return false end -- dont rebuild the path if we're handling an unstuck
+    if myTbl.primaryPathIsValid( self ) and myTbl.terminator_HandlingLadder then myTbl.TermHandleLadder( self ) return false end
+    local newPathDist = 1
+    local mul = 1
+    if myTbl.term_ExpensivePath then
+        mul = 3
+
+    end
+    local pathLeng = myTbl.GetPathDistanceToGoal( self ) or 0
+    local pathPos = myTbl.m_PathPos
+
+    if pathLeng > 10000 then
+        newPathDist = 4000 -- dont do pathing as often if the target is far away from me!
+    elseif pathLeng > 5000 then
+        newPathDist = 3000
+    elseif pathLeng > 500 then
+        newPathDist = 400
+    elseif pathLeng > 100 then
+        newPathDist = 90
+    end
+
+    newPathDist = newPathDist * mul
+
+    local targsDistToPos = pathTarget:DistToSqr( pathPos )
+
+    local needsNew = targsDistToPos > newPathDist^2 or myTbl.needsPathRecalculate
+    myTbl.needsPathRecalculate = nil
+    return needsNew
 
 end
