@@ -163,12 +163,12 @@ end
 function ENT:SetupActivity()
 	local curact = self:GetActivity()
 	local act = self:RunTask("GetDesiredActivity")
-	
+
 	if !act then
 		act = self.MotionTypeActivities[self:GetMotionType()]
 		act = self:TranslateActivity(act)
 	end
-	
+
 	if act and curact != act then
 		self:StartActivity(act)
 	end

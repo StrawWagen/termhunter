@@ -3759,10 +3759,13 @@ function ENT:SetupMotionType( myTbl ) -- override this to allow some npcs to mor
 
     if myTbl.IsSwimming( self, myTbl ) then
         moType = TERMINATOR_NEXTBOT_MOTIONTYPE_SWIMMING
+
     elseif myTbl.IsJumping( self, myTbl ) then
         moType = TERMINATOR_NEXTBOT_MOTIONTYPE_JUMPING
+
     elseif myTbl.IsCrouching( self ) then
         moType = moving and TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCHWALK or TERMINATOR_NEXTBOT_MOTIONTYPE_CROUCH
+
     elseif moving then
         local speed = myTbl.GetCurrentSpeed( self )
         local runCheck
@@ -3778,10 +3781,13 @@ function ENT:SetupMotionType( myTbl ) -- override this to allow some npcs to mor
 
         if speed > runCheck then
             moType = TERMINATOR_NEXTBOT_MOTIONTYPE_RUN
+
         elseif speed < myTbl.MoveSpeed / 2 + 1 then
             moType = TERMINATOR_NEXTBOT_MOTIONTYPE_WALK
+
         else
             moType = TERMINATOR_NEXTBOT_MOTIONTYPE_MOVE
+
         end
     end
 

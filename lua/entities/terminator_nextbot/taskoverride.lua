@@ -362,6 +362,10 @@ function ENT:DoClassTasks( myTbl )
 
     for _, sentTbl in ipairs( sentsToDo ) do
         local classTask = sentTbl.MyClassTask
+        if sentTbl.MyClassTasks then
+            ErrorNoHaltWithStack( sentTbl.ClassName, " has .MyClassTasks as non-nil, Correct is .MyClassTask, each class can only have one task!" )
+
+        end
 
         if classTask then
             if table.Count( classTask ) == 0 then continue end

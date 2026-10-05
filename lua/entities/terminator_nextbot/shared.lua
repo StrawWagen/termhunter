@@ -2959,11 +2959,12 @@ function ENT:Initialize()
     end
 
     -- defaults to ENT.Models
-    -- if ENT.Models is nil, or false, uses ENT.Model
+    -- if ENT.Models is false, uses ENT.Model
+    -- cannot do ENT.Models = nil, has to be = false, ( setting it to nil makes it use parent ent's variable! )
     local models = myTbl.Models
     local model
     if models then
-        model = models[ math.random( #models ) ]
+        model = models[math.random( #models )]
 
     end
     if not model then
@@ -2991,7 +2992,7 @@ function ENT:Initialize()
     self:SetModelScale( scale )
     self:SetModelScale( scale, .0000001 )
 
-    -- "config" stuff, ONLY edit if you DONT know what you're doing!
+    -- set Term_FOV on an ent if you want it to use anything other than the convar
     myTbl.Term_FOV = myTbl.Term_FOV or fovCached
 
     myTbl.SetCurrentWeaponProficiency( self, myTbl.TERM_WEAPON_PROFICIENCY )
@@ -3071,8 +3072,8 @@ function ENT:Initialize()
         if myTbl.IsFodder then
             local ourClass = self:GetClass()
             terminator_Extras.unreachableAreasForClasses = terminator_Extras.unreachableAreasForClasses or {}
-            terminator_Extras.unreachableAreasForClasses[ ourClass ] = terminator_Extras.unreachableAreasForClasses[ ourClass ] or {}
-            myTbl.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ ourClass ]
+            terminator_Extras.unreachableAreasForClasses[ourClass] = terminator_Extras.unreachableAreasForClasses[ourClass] or {}
+            myTbl.unreachableAreas = terminator_Extras.unreachableAreasForClasses[ourClass]
 
         end
     end )
@@ -7539,6 +7540,8 @@ function ENT:DoDefaultTasks()
                 data.killCount = 0
                 data.lastEnemyKill = 0
 
+                data.nextWalkingGestureCheck = CurTime() + math.Rand( 1, 2 )
+
             end,
             OnDamaged = function( self, data, dmg )
                 data.marchingOnDamagedNumber = data.marchingOnDamagedNumber + dmg:GetDamage()
@@ -7980,7 +7983,31 @@ function ENT:DoDefaultTasks()
 
             end,
             ShouldWalk = function( self, data )
-                return self:shouldDoWalk()
+                local shouldWalk = self:shouldDoWalk()
+                if shouldWalk and self.IsSeeEnemy then
+                    local nextGesture = data.nextWalkingGestureCheck or 0
+                    if nextGesture < CurTime() then
+                        data.nextWalkingGestureCheck = CurTime() + math.Rand( 10, 20 )
+                        local enemy = self:GetEnemy()
+                        if not self:IsReallyAngry() and enemy:GetEyeTrace().Entity == self then
+                            local gestures = {
+                                ACT_GMOD_GESTURE_WAVE,
+                                ACT_GMOD_GESTURE_BECON,
+                                ACT_SIGNAL_HALT,
+                                ACT_SIGNAL_FORWARD,
+                                ACT_SIGNAL_GROUP,
+                                ACT_GMOD_GESTURE_DISAGREE,
+                            }
+
+                            local gesture = gestures[math.random( 1, #gestures )]
+
+                            self:DoGesture( gesture, 1.25, false )
+
+                        end
+                    end
+                end
+
+                return shouldWalk
             end,
         },
         -- simple wander

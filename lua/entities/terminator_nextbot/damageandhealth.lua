@@ -1,5 +1,6 @@
 
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
+local SKELETON_MODEL = "models/terminator/player/skeleton/t800nw.mdl"
 
 local isnumber = isnumber
 local CurTime = CurTime
@@ -17,6 +18,19 @@ local function ImmuneCheck( self, dmg )
 
 end
 
+-- fire damage, needs to support vfire...
+local function isFireDamage( dmg )
+    if dmg:IsDamageType( DMG_BURN ) then return true end
+    if dmg:IsDamageType( DMG_SLOWBURN ) then return true end
+    if dmg:IsDamageType( DMG_DIRECT ) then
+        local attacker = dmg:GetAttacker()
+        if IsValid( attacker ) and string.find( attacker:GetClass(), "fire" ) then return true end
+
+    end
+    return false
+
+end
+
 --[[------------------------------------
     THIS MANAGES THE BODYGROUP DAMAGE
     it's very hardcoded, some of the oldest code in the repo
@@ -25,6 +39,8 @@ ENT.BGrpHealth = {}
 ENT.OldBGrpSteps = {}
 ENT.MedCal = 4
 ENT.HighCal = 80
+-- ENT.FleshCasingHealth
+ENT.FleshCasingMaxHealth = 200 --100
 
 ENT.BGrpMaxHealth = {
     [0] = 10,
@@ -104,7 +120,8 @@ local function BodyGroupDamageThink( self, Group, Damage, Pos, Silent ) -- on 1 
 
     end
 
-    self.BGrpHealth[Group] = math.Clamp( self.BGrpHealth[Group] + -Damage, 1, math.huge )
+    local newHealth = math.Clamp( self.BGrpHealth[Group] + -Damage, 1, math.huge )
+    self.BGrpHealth[Group] = newHealth
 
     local Steps = table.Count( self.GroupSteps[Group] )
     local CurrStep = math.ceil( ( self.BGrpHealth[Group] / self.BGrpMaxHealth[Group] ) * Steps )
@@ -141,6 +158,57 @@ local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent ) -- on mu
         BodyGroupDamageThink( self, BGroup, BgDamage, Damage:GetDamagePosition(), Silent )
 
     end
+
+    local isFleshRemovalDamage = isFireDamage( Damage ) or Damage:IsDamageType( DMG_DISSOLVE ) or Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) or Damage:IsDamageType( DMG_BLAST )
+    if not isFleshRemovalDamage then return end
+
+    -- t posing ragdoll if we do switchover in the killing blow
+    local isKillingBlow = Damage:GetDamage() >= self:Health()
+    if isKillingBlow then return end
+
+    local damagedAllOver = table.Count( self.BGrpHealth ) > table.Count( self.BGrpMaxHealth ) * 0.75
+    local damageScale = damagedAllOver and 1 or 0.25
+
+    local fleshHp = self.FleshCasingHealth or self.FleshCasingMaxHealth
+    local newFleshHP = fleshHp - ( BgDamage * damageScale )
+    self.FleshCasingHealth = newFleshHP
+
+    if newFleshHP > 0 then return end
+
+    if not Silent then
+        self:EmitSound( table.Random( self.Whaps ), 75, math.random( 85, 90 ) )
+        self:EmitSound( table.Random( self.Chunks ), 75, math.random( 115, 120 ) )
+
+    end
+    terminator_Extras.becomeEndoskeleton( self )
+
+    timer.Simple( 0, function()
+        if not IsValid( self ) then return end
+
+        self.overrideCrouch = math.max( CurTime() + 0.5, self.overrideCrouch or 0 )
+
+        local hitboxSet = self:GetHitboxSet()
+        for hitbox = 0, self:GetHitBoxCount( hitboxSet ) - 1 do
+            local bone = self:GetHitBoxBone( hitbox, hitboxSet )
+            local boneMatrix = bone and self:GetBoneMatrix( bone )
+            local mins, maxs = self:GetHitBoxBounds( hitbox, hitboxSet )
+            if boneMatrix and mins then
+                local Data = EffectData()
+                local pos = LocalToWorld( ( mins + maxs ) / 2, angle_zero, boneMatrix:GetTranslation(), boneMatrix:GetAngles() )
+                Data:SetOrigin( pos )
+                Data:SetColor( 0 )
+                Data:SetScale( 1 )
+                Data:SetRadius( 1 )
+                Data:SetMagnitude( 1 )
+                util.Effect( "BloodImpact", Data )
+
+                for _ = 1, 2 do
+                    util.Decal( "Blood", pos + VectorRand() * 25, pos + VectorRand() * 150 )
+
+                end
+            end
+        end
+    end )
 end
 
 local function MedCalRics( self ) -- medium caliber ricochet sound
@@ -185,6 +253,9 @@ local function OnDamaged( damaged, Hitgroup, Damage )
     -- damage hook with hitgroup data
     if damaged:PostTookBulletDamage( Damage, Hitgroup ) then return true end
 
+    -- ouch
+    damaged:HandleFlinching( Damage, Hitgroup )
+
     -- metal skeleton damage resist and sounds
     if damaged.DoMetallicDamage then
         local ToBGs
@@ -226,9 +297,6 @@ local function OnDamaged( damaged, Hitgroup, Damage )
 
         end
     end
-
-    -- ouch
-    damaged:HandleFlinching( Damage, Hitgroup )
 
 end
 
@@ -332,11 +400,10 @@ function ENT:OnTakeDamage( Damage )
             self:CatDamage()
             self:EmitSound( "weapons/physcannon/energy_disintegrate4.wav", 90, math.random( 90, 100 ), 1, CHAN_AUTO )
 
-        -- fire damage, needs to support vfire...
-        elseif Damage:IsDamageType( DMG_BURN ) or Damage:IsDamageType( DMG_SLOWBURN ) or ( Damage:IsDamageType( DMG_DIRECT ) and ( IsValid( attacker ) and string.find( attacker:GetClass(), "fire" ) ) ) then
+        elseif isFireDamage( Damage ) then
             Damage:ScaleDamage( 0.05 ) -- dont ignore instakill damage, eg, lava
 
-            BgDamage = 1
+            BgDamage = 4
             ToBGs = { 0, 1, 2, 3, 4, 5, 6 }
 
             table.remove( ToBGs, math.random( 0, 6 ) )
@@ -384,7 +451,7 @@ function ENT:OnTakeDamage( Damage )
             SilentBgDmg = DamageDamage < 40
 
         end
-        if ToBGs and BgDamage then
+        if ToBGs and BgDamage and self:GetModel() == ARNOLD_MODEL then -- only this model has the correct bodygroups
             BodyGroupDamage( self, ToBGs, BgDamage, Damage, SilentBgDmg )
 
         end
@@ -587,9 +654,16 @@ local flinchesForGroups = {
     [HITGROUP_STOMACH] = ACT_FLINCH_STOMACH,
     [HITGROUP_LEFTARM] = ACT_FLINCH_LEFTARM,
     [HITGROUP_RIGHTARM] = ACT_FLINCH_RIGHTARM,
-    [HITGROUP_LEFTLEG] = ACT_FLINCH_LEFTLEG,
-    [HITGROUP_RIGHTLEG] = ACT_FLINCH_RIGHTLEG,
+    [HITGROUP_LEFTLEG] = ACT_MP_GESTURE_FLINCH_LEFTLEG,
+    [HITGROUP_RIGHTLEG] = ACT_MP_GESTURE_FLINCH_RIGHTLEG,
 }
+
+local invalidFlinches = {}
+
+hook.Add( "terminator_nextbot_noterms_exist", "reset_invalid_flinches", function()
+    invalidFlinches = {}
+
+end )
 
 -- it's very subtle, but yes this works ( on most models... )
 function ENT:HandleFlinching( dmg, hitGroup )
@@ -598,10 +672,19 @@ function ENT:HandleFlinching( dmg, hitGroup )
 
     local gesture = nil
 
+    local ourModel = self:GetModel()
+
     if hitGroup then
+        local ourInvalids = invalidFlinches[ourModel]
+        if ourInvalids and ourInvalids[hitGroup] then
+            if hitGroup == HITGROUP_GENERIC then return end -- :(
+            hitGroup = HITGROUP_GENERIC
+
+        end
         gesture = flinchesForGroups[hitGroup]
 
     end
+
     if not gesture then return end
     if istable( gesture ) then
         gesture = gesture[math.random( 1, #gesture )]
@@ -629,6 +712,19 @@ function ENT:HandleFlinching( dmg, hitGroup )
     end
 
     local layer = self:AddGesture( gesture )
+
+    if layer == -1 then -- invalid :(
+        local ourInvalids = invalidFlinches[ourModel]
+        if not ourInvalids then
+            ourInvalids = {}
+            invalidFlinches[ourModel] = ourInvalids
+
+        end
+        ourInvalids[hitGroup] = true
+        return
+
+    end
+
     self:SetLayerPlaybackRate( layer, playRate )
     self:SetLayerWeight( layer, weight )
 
@@ -708,6 +804,8 @@ function ENT:OnKilled( dmg )
             self:DoGesture( deathAct, rate, true )
 
             local duration = self:SequenceDuration( deathSeq ) / rate
+            duration = duration * 0.9 -- kill the bot a bit before the sequence ends, blending always gets them otherwise
+
             self.Term_DyingUntil = CurTime() + duration
             timer.Simple( duration, function()
                 if not IsValid( self ) then return end
@@ -921,28 +1019,26 @@ function ENT:InitializeDrowning( myTbl )
         if breathing then
             myTbl2.term_BreathCount = math.max( old + 10, lungSize )
 
+        elseif old < 0 then
+            local world = game.GetWorld()
+            local dmg = DamageInfo()
+            dmg:SetDamage( math.min( self:GetMaxHealth() * 0.15, 100 ) )
+            dmg:SetAttacker( world )
+            dmg:SetInflictor( world )
+            dmg:SetDamagePosition( self:GetPos() )
+            dmg:SetDamageType( DMG_DROWN )
+            self:TakeDamageInfo( dmg )
+
+            self:Term_SpeakSoundNow( "player/pl_drown" .. math.random( 2, 3 ) .. ".wav" )
+
+            self.NextRegenHeal = CurTime() + 5
+            self:RunTask( "OnDrown" )
+            self:ReallyAnger( 30 )
+            self:StartSwimming()
+
         else
-            if old < 0 then
-                local world = game.GetWorld()
-                local dmg = DamageInfo()
-                dmg:SetDamage( math.min( self:GetMaxHealth() * 0.15, 100 ) )
-                dmg:SetAttacker( world )
-                dmg:SetInflictor( world )
-                dmg:SetDamagePosition( self:GetPos() )
-                dmg:SetDamageType( DMG_DROWN )
-                self:TakeDamageInfo( dmg )
+            myTbl2.term_BreathCount = old + -1
 
-                self:Term_SpeakSoundNow( "player/pl_drown" .. math.random( 2, 3 ) .. ".wav" )
-
-                self.NextRegenHeal = CurTime() + 5
-                self:RunTask( "OnDrown" )
-                self:ReallyAnger( 30 )
-                self:StartSwimming()
-
-            else
-                myTbl2.term_BreathCount = old + -1
-
-            end
         end
     end
 end
