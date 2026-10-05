@@ -292,6 +292,11 @@ function SWEP:HoldTypeThink()
 
     elseif owner:GetCurrentSpeed() > ( owner.RunSpeed * 0.75 ) then
         holdType = "fist"
+        doFistsTime = math.max( doFistsTime, CurTime() + 1 )
+
+    elseif IsValid( owner.LastShootBlocker ) and owner:IsAngry() then
+        holdType = "fist"
+        doFistsTime = math.max( doFistsTime, CurTime() + 2 )
 
     end
 
