@@ -159,7 +159,8 @@ local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent ) -- on mu
 
     end
 
-    local isFleshRemovalDamage = isFireDamage( Damage ) or Damage:IsDamageType( DMG_DISSOLVE ) or Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) or Damage:IsDamageType( DMG_BLAST )
+    local fireDamage = isFireDamage( Damage )
+    local isFleshRemovalDamage = fireDamage or Damage:IsDamageType( DMG_DISSOLVE ) or Damage:IsDamageType( DMG_ACID ) or Damage:IsDamageType( DMG_POISON ) or Damage:IsDamageType( DMG_BLAST )
     if not isFleshRemovalDamage then return end
 
     -- t posing ragdoll if we do switchover in the killing blow
@@ -180,21 +181,55 @@ local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent ) -- on mu
         self:EmitSound( table.Random( self.Chunks ), 75, math.random( 115, 120 ) )
 
     end
+
     terminator_Extras.becomeEndoskeleton( self )
 
-    timer.Simple( 0, function()
-        if not IsValid( self ) then return end
+    if fireDamage then -- all the blood burned away...
+        self:Extinguish()
+        return -- don't bleed
 
-        self.overrideCrouch = math.max( CurTime() + 0.5, self.overrideCrouch or 0 )
+    else
+        for i, matName in ipairs( self:GetMaterials() ) do
+            self:SetSubMaterial( i - 1, matName .. "_bloody" )
 
-        local hitboxSet = self:GetHitboxSet()
-        for hitbox = 0, self:GetHitBoxCount( hitboxSet ) - 1 do
-            local bone = self:GetHitBoxBone( hitbox, hitboxSet )
-            local boneMatrix = bone and self:GetBoneMatrix( bone )
-            local mins, maxs = self:GetHitBoxBounds( hitbox, hitboxSet )
-            if boneMatrix and mins then
+        end
+    end
+
+    local startBleedingTime = CurTime()
+    local bleedDuration = 10
+    local bleedInterval = 0.1
+    local bleedDecay = 2 -- higher front-loads more of the bleeding into the first few seconds
+    local bleedFloor = math.exp( -bleedDecay * bleedDuration )
+    local timerName = "glee_postskinloss_bleed_" .. self:GetCreationID()
+    local firstTick = true
+
+    timer.Create( timerName, 0, 0, function()
+        if not IsValid( self ) or self:Health() <= 0 then timer.Remove( timerName ) return end
+
+        local elapsed = CurTime() - startBleedingTime
+        if elapsed >= bleedDuration then timer.Remove( timerName ) return end
+
+        if firstTick then
+            firstTick = false
+            timer.Adjust( timerName, bleedInterval )
+            self.overrideCrouch = math.max( CurTime() + 0.5, self.overrideCrouch or 0 )
+
+        end
+
+        local hitboxSetCount = self:GetHitboxSetCount()
+        if not hitboxSetCount then return end
+
+        -- exp decay rescaled so it's exactly 1 at the start and 0 at bleedDuration
+        local bleedChance = ( math.exp( -bleedDecay * elapsed ) - bleedFloor ) / ( 1 - bleedFloor )
+
+        for set = 0, hitboxSetCount - 1 do
+            for hitbox = 0, self:GetHitBoxCount( set ) - 1 do
+                if math.random() > bleedChance then continue end
+
+                local bone = self:GetHitBoxBone( hitbox, set )
+                local pos = self:GetBonePosition( bone ) or self:WorldSpaceCenter()
+
                 local Data = EffectData()
-                local pos = LocalToWorld( ( mins + maxs ) / 2, angle_zero, boneMatrix:GetTranslation(), boneMatrix:GetAngles() )
                 Data:SetOrigin( pos )
                 Data:SetColor( 0 )
                 Data:SetScale( 1 )

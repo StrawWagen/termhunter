@@ -439,7 +439,8 @@ end
 
 
 function SWEP:GetNPCBulletSpread(prof)
-    return 1
+    local spread = {22.5,3,1.5,0.75,0.25}
+    return spread[prof+1]
 end
 
 function SWEP:GetNPCBurstSettings()

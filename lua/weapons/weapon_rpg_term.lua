@@ -96,6 +96,8 @@ function SWEP:CreateMissile( _, owner )
     missile:Spawn()
     missile:AddEffects( EF_NOSHADOW )
 
+    if owner:GetCurrentWeaponProficiency() <= WEAPON_PROFICIENCY_POOR then return missile end
+
     missile.doFastTurnExpires = CurTime() + 0.2
     missile.traceFilter = owner
 

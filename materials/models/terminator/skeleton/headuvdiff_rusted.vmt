@@ -1,0 +1,22 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/terminator/skeleton/headuvdiff_eyes_1"
+	"$bumpmap" "models/terminator/skeleton/headuv_n"
+
+	// mod2x: mid-grey in the detail leaves the base alone, the gutter's oranges and browns stain it
+	"$detail" "models/props_pipes/guttermetal01a"
+	"$detailblendmode" "0"
+	"$detailscale" "3"
+	"$detailblendfactor" "1"
+
+	"$color2" "[ 0.85 0.75 0.65 ]"
+
+	"$phong" "1"
+	"$phongexponent" "3"
+	"$phongboost" "0.5"
+	"$phongtint" "[ 0.9 0.6 0.4 ]"
+	"$phongfresnelranges" "[ 0.2 0.4 0.6 ]"
+	"$lightwarptexture" "models/terminator/skeleton/phongwarp"
+	"$selfillum" "1"
+	"$nocull" "1"
+}

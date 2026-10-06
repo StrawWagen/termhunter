@@ -3676,20 +3676,19 @@ end
 
 
 -- custom anim translation support
-IdleActivity = ACT_HL2MP_IDLE
-ENT.IdleActivity = IdleActivity
-ENT.IdleActivityTranslations = {
-    [ACT_MP_STAND_IDLE]                 = IdleActivity,
-    [ACT_MP_WALK]                       = IdleActivity + 1,
-    [ACT_MP_RUN]                        = IdleActivity + 2,
-    [ACT_MP_CROUCH_IDLE]                = IdleActivity + 3,
-    [ACT_MP_CROUCHWALK]                 = IdleActivity + 4,
-    [ACT_MP_ATTACK_STAND_PRIMARYFIRE]   = IdleActivity + 5,
-    [ACT_MP_ATTACK_CROUCH_PRIMARYFIRE]  = IdleActivity + 5,
-    [ACT_MP_RELOAD_STAND]               = IdleActivity + 6,
-    [ACT_MP_RELOAD_CROUCH]              = IdleActivity + 7,
+local baseIdleActivity = ACT_HL2MP_IDLE
+local baseIdleActivityTranslations = {
+    [ACT_MP_STAND_IDLE]                 = baseIdleActivity,
+    [ACT_MP_WALK]                       = baseIdleActivity + 1,
+    [ACT_MP_RUN]                        = baseIdleActivity + 2,
+    [ACT_MP_CROUCH_IDLE]                = baseIdleActivity + 3,
+    [ACT_MP_CROUCHWALK]                 = baseIdleActivity + 4,
+    [ACT_MP_ATTACK_STAND_PRIMARYFIRE]   = baseIdleActivity + 5,
+    [ACT_MP_ATTACK_CROUCH_PRIMARYFIRE]  = baseIdleActivity + 5,
+    [ACT_MP_RELOAD_STAND]               = baseIdleActivity + 6,
+    [ACT_MP_RELOAD_CROUCH]              = baseIdleActivity + 7,
     [ACT_MP_JUMP]                       = ACT_HL2MP_JUMP_SLAM, -- no normal jump anim
-    [ACT_MP_SWIM]                       = IdleActivity + 9,
+    [ACT_MP_SWIM]                       = baseIdleActivity + 9,
     [ACT_LAND]                          = ACT_LAND,
 }
 
@@ -3704,28 +3703,26 @@ function ENT:TranslateActivity( act )
 
     end
 
+    -- get it from our ENT.IdleActivityTranslations table
+    translated = not translated and myTbl.IdleActivityTranslations and myTbl.IdleActivityTranslations[act] or nil
+
     -- way #2, get it from our weapon
     if not translated and myTbl.HasWeapon( self, myTbl ) then
         myTbl.DontRegisterAsNpc( self ) -- ask for player animations by not registering as IsNPC()
-        local newact
         local luaWep = myTbl.GetActiveLuaWeapon( self, myTbl )
         ProtectedCall( function() -- ?????
-            newact = luaWep:TranslateActivity( act )
+            translated = luaWep:TranslateActivity( act )
 
         end )
         myTbl.ReRegisterAsNpc( self )
 
-        if newact then
-            return newact
-
-        end
     end
 
-    -- get it from our ENT.IdleActivityTranslations table
     if not translated then
-        translated = myTbl.IdleActivityTranslations[act]
+        translated = baseIdleActivityTranslations[act]
 
     end
+
     if isfunction( translated ) then -- yes, the translations can be functions!
         translated = translated( self )
 

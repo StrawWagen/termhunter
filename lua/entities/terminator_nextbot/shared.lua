@@ -6580,7 +6580,12 @@ function ENT:DoDefaultTasks()
                 data.killCount = 0
                 data.lastEnemyKill = 0
 
-                data.nextWalkingGestureCheck = CurTime() + math.Rand( 1, 2 )
+                local add = math.huge
+                if self.HasBrains then
+                    add = math.Rand( 1, 40 )
+
+                end
+                data.nextWalkingGestureCheck = CurTime() + add
 
             end,
             OnDamaged = function( self, data, dmg )

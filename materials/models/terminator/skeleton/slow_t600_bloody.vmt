@@ -1,0 +1,25 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/terminator/skeleton/slow_t600"
+	"$bumpmap" "models/terminator/skeleton/slow_t600_bump"
+
+	// mod2x: mid-grey in the detail leaves the base alone, the flesh's reds stain it
+	"$detail" "models/flesh"
+	"$detailblendmode" "0"
+	"$detailscale" "2"
+	"$detailblendfactor" "0.25"
+
+	"$color2" "[ 0.9 0.72 0.72 ]"
+
+	"$envmap" "env_cubemap"
+	"$envmaptint" "[ 0.05 0.015 0.015 ]"
+	"$normalmapalphaenvmapmask" "1"
+
+	"$phong" "1"
+	"$phongexponent" "18"
+	"$phongboost" "3"
+	"$phongtint" "[ 1 0.45 0.4 ]"
+	"$phongfresnelranges" "[ 0.3 0.6 1 ]"
+	"$phongwarptexture" "models/terminator/skeleton/phongwarp"
+	"$nocull" "1"
+}

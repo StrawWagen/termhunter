@@ -1775,6 +1775,8 @@ do
 
             end
 
+            deg = myTbl.AdditionalSpreadOverride and myTbl.AdditionalSpreadOverride( self, deg ) or deg
+
             if myTbl.terminator_FiringIsAllowed then
                 local dmgTracker = getDamageTrackerOf( self, myTbl, active )
 

@@ -1,5 +1,7 @@
 AddCSLuaFile()
 
+SWEP.Base = "weapon_base"
+DEFINE_BASECLASS( SWEP.Base )
 SWEP.PrintName = "Terminator Fists"
 SWEP.Spawnable = false
 SWEP.Author = "StrawWagen"
