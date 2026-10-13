@@ -14,6 +14,18 @@ local SKELETON_MODEL = "models/terminator/player/skeleton/t800nw.mdl"
 
 if CLIENT then return end
 
+local endoSkeletonTask = {
+    StartsOnInitialize = true,
+    OnIgnite = function( self, data )
+        local time = self.term_isBloodyEndoskeleton and math.Rand( 2, 3 ) or 0
+        timer.Simple( time, function()
+            if not IsValid( self ) then return end
+            self:Extinguish()
+
+        end )
+    end,
+}
+
 function terminator_Extras.becomeEndoskeleton( ent )
     ent.Models = { SKELETON_MODEL }
     ent.Term_BloodColor = BLOOD_COLOR_MECH
@@ -30,10 +42,16 @@ function terminator_Extras.becomeEndoskeleton( ent )
         "physics/metal/metal_box_strain4.wav",
     }
 
+    ent:AddTaskLazy( "terminator_endoskeleton_task", endoSkeletonTask )
+
     if CurTime() - ent:GetCreationTime() < 0.1 then return end -- new ent, we are in OnPreCreated
 
     ent:SetModel( SKELETON_MODEL )
     ent:SetBloodColor( BLOOD_COLOR_MECH )
+
+    ent:EmitSound( "npc/barnacle/neck_snap2.wav", 78, math.random( 50, 60 ), 1, CHAN_STATIC )
+    ent:EmitSound( "physics/flesh/flesh_bloody_break.wav", 78, math.random( 30, 40 ), 1, CHAN_STATIC )
+    ent:EmitSound( "npc/barnacle/barnacle_die2.wav", 78, math.random( 120, 140 ), 1, CHAN_STATIC )
 
 end
 

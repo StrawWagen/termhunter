@@ -69,6 +69,14 @@ terminator_areapatching_debugging 0/1 "Enable areapatcher debug-prints/visualize
 ```
 
 
+## Making Your Own Bot
+
+Start by copying [the example nextbot](lua/entities/terminator_nextbot_examplenextbot.lua), it's a plain human bot with every variable you're likely to change, explained.
+
+Register your bot with `terminator_Extras.RegisterNPC( class, ENT, overrides )` instead of `list.Set( "NPC", ... )`.  
+Same idea, but it lets `.Category` and `.SubCategory` be inherited, so they just have to be changed in one place.
+
+
 ## Overriding Animations
 
 The terminator base expects player animations by default. To use custom animations (like zombie animations), override `ENT.IdleActivityTranslations`.
@@ -94,7 +102,7 @@ ENT.IdleActivityTranslations = {
 }
 ```
 
-These entries can also be a function, eg 
+`ENT.IdleActivity`, and every entry in the table, can also be a function, eg 
 ```lua
 ENT.IdleActivity = function( self ) 
     return ACT_HL2MP_IDLE_ZOMBIE
@@ -117,6 +125,16 @@ You'll see expanded examples of this in the MySpecialActions section below.
 
 ## ENT.MyClassTask System
 
+### What's a task?
+
+A task is a named table of callbacks. Bots run lots of them at once, `enemy_handler` finds enemies, `shooting_handler` aims and shoots, and a `movement_` task decides where to go.  
+Tasks are started and stopped as the bot's situation changes, and only active tasks get their callbacks called.  
+Callbacks only run on the server.
+
+A MyClassTask is a task that's started when your bot spawns.
+
+### MyClassTask
+
 Simple way to add entity-class behaviour to your custom nextbot based on termhunter.  
 Interacts uniquely with baseclassing, every single class in the baseclass hierarchy gets their MyClassTask and callbacks created.
 
@@ -124,6 +142,49 @@ Interacts uniquely with baseclassing, every single class in the baseclass hierar
 Use `ENT:DoCustomTasks` instead for complex movement behavior. (more info below)
 
 ### Usage Example
+
+```lua
+ENT.MyClassTask = {
+    -- every bot gets a name
+    OnCreated = function( self, data )
+        data.name = table.Random( { "Donnelly", "Fat Larry", "Sheckley", "Jimmy Gibbs", "Lazlo" } )
+
+    end,
+
+    -- introduce yourself to new enemies
+    EnemyFound = function( self, data, newEnemy )
+        PrintMessage( HUD_PRINTTALK, data.name .. ": Hi! I'm " .. data.name .. "!" )
+        self:EmitSound( "vo/npc/male01/hi01.wav" )
+        self:DoGesture( ACT_GMOD_GESTURE_WAVE )
+
+    end,
+
+    -- and cheer when they're dead
+    OnKillEnemy = function( self, data, victim )
+        self:DoGesture( ACT_GMOD_TAUNT_CHEER )
+
+    end,
+}
+```
+
+**Notes:** 
+1. All callbacks receive `data` as the second parameter - this is the task's data table where you can store state between calls.  
+   Like storing variables on self, but for the task only.
+2. Every class in the heirarchy has their classtask & callbacks created.
+   
+   Say you make your npc play... A laughing sound in OnDamaged, all npcs based off it will laugh.
+   
+   Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh! (and scream...)
+
+### Blocking a base class's task, ENT.MyBlockedClassTasks
+
+Say you base a grumpy bot off the friendly one above. It'd still say hi to every enemy it finds!  
+`ENT.MyBlockedClassTasks` is keyed by the base class's name. Set it to `true` to block that class's whole MyClassTask, or to a list of callback names, like `{ "EnemyFound" }`, to block just those. (no more hi, still cheers)  
+Only the grumpy bot, and bots based on it, are affected. The friendly one keeps saying hi.
+
+### Callbacks
+
+(almost) Every callback a task can have. The uncommented ones are the ones you'll probably use most.
 
 ```lua
 ENT.MyClassTask = {
@@ -138,7 +199,7 @@ ENT.MyClassTask = {
     end,
     
     -- OnPostCreated = function( self, data )
-        -- Called 1 tick after creation, after weapon/relationship setup
+        -- Called 1 tick after creation, after weapons are given, before relationships are set up
         -- Good for logic that needs everything else ready
     -- end,
     
@@ -199,6 +260,10 @@ ENT.MyClassTask = {
     
     -- OnDrown = function( self, data )
         -- Called when bot is actively drowning
+    -- end,
+    
+    -- OnIgnite = function( self, data )
+        -- Called when bot is set on fire
     -- end,
     
     -- PreventBecomeRagdollOnKilled = function( self, data, dmg )
@@ -323,7 +388,7 @@ ENT.MyClassTask = {
         -- Called when bot's WaterLevel changes, while it's in the air/falling
     -- end,
     
-    -- DealtGoobmaDamage = function( self, data, damage, fallHeight, dealt )
+    -- DealtGoombaDamage = function( self, data, damage, fallHeight, dealt )
         -- Called when self.ReallyHeavy bots fall far,
         -- and dealt 'goomba' damage to stuff they landed on, or landed next to. 
     -- end,
@@ -399,14 +464,47 @@ ENT.MyClassTask = {
 }
 ```
 
-**Notes:** 
-1. All callbacks receive `data` as the second parameter - this is the task's data table where you can store state between calls.  
-   Like storing variables on self, but for the task only.
-2. Every class in the heirarchy has their classtask & callbacks created.
-   
-   Say you make your npc play... A laughing sound in OnDamaged, all npcs based off it will laugh.
-   
-   Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh! (and scream...)
+### Adding tasks mid-life, ENT:AddTaskLazy( taskName, task )
+
+Think of it as `hook.Add`, for one bot.  
+MyClassTask is like defining `ENT:` functions, every bot of the class gets them, from spawn, forever.  
+`self:AddTaskLazy` hooks a set of callbacks onto a single bot, from anywhere, at any time.
+
+Like `hook.Add`, the name is the identifier. Unlike `hook.Add`, adding the same name again does nothing, so it's safe to call every time your state change happens.  
+`self:TaskComplete( taskName )` is your `hook.Remove`. Bring it back with `self:StartTask( taskName, reason )`, not another add.
+
+**Use it for...**
+- State changes. Eg, a terminator that loses its skin no longer stays on fire. Only that bot, only from then on.
+- Running logic in the Think callback. See wraithcloaking.lua
+
+**Use something else when...**
+- Every bot of the class should have it from spawn. That's just a MyClassTask.
+- It's a movement task. Same as MyClassTask, use `ENT:DoCustomTasks` instead. (more info below)
+
+The task table takes all the same callbacks as a MyClassTask.
+
+```lua
+-- Laugh off being set on fire!
+local laughOffFireTask = {
+    StartsOnInitialize = true, -- start the moment it's added
+    OnIgnite = function( self, data )
+        PrintMessage( HUD_PRINTTALK, "That tickles!" )
+        self:DoGesture( ACT_GMOD_TAUNT_LAUGH )
+
+    end,
+}
+
+-- only this bot laughs, the rest of its class still burns like normal
+bot:AddTaskLazy( "mybot_laughofffire", laughOffFireTask )
+```
+
+**Notes:**
+1. Without `StartsOnInitialize`, the task just sits there until you call `self:StartTask( taskName, reason )`
+2. The task table is shared by every bot you add it to, so keep per-bot state in `data`, not in the table.
+3. `self:AddTask` is for more advanced behaviour, like swapping a task's callbacks out for new ones.  
+   It doesn't check if the task's already running, re-adding a running task errors with `term_debugtasks 1`.
+4. Callbacks only hear about events from *after* the task was added.  
+   Add the task above to a bot that's already burning, and it never laughs at that fire. Check `self:IsOnFire()` yourself when you add it.
 
 
 ## ENT.MySpecialActions System
@@ -558,20 +656,14 @@ ENT.MyClassTask = {
 
 ## Overridable Functions
 
+(.MyClassTask does not exist on client!) 
+
 **`ENT:AdditionalClientInitialize()`** — *client* — end of client realm :Initialize. Good for visual setup.
 ```lua
 local mySpecialColor = Color( 255, 0, 0 )
 
 function ENT:AdditionalClientInitialize()
     self:SetColor( mySpecialColor )
-
-end
-```
-
-**`ENT:AdditionalInitialize( myTbl )`** — *server* — end of server realm :Initialize, weapons and relationships are already set up.
-```lua
-function ENT:AdditionalInitialize( myTbl )
-    self.MyCustomState = true
 
 end
 ```
@@ -586,7 +678,7 @@ function ENT:Draw()
 end
 ```
 
-**`ENT:Think()`** — *client* — not defined by the base, freely override for per-frame effects.
+**`ENT:Think()`** — *client* — not defined by the base, freely override for per-frame effects. For server logic, use the MyClassTask `Think` callback.
 ```lua
 function ENT:Think()
     -- particles, looping sounds, etc.
@@ -595,6 +687,7 @@ end
 ```
 
 The following are deprecated — use `MyClassTask` callbacks instead:
+- `ENT:AdditionalInitialize( myTbl )` → `OnCreated` (runs just before `OnCreated`, after the model is set, before weapons and relationships)
 - `ENT:AdditionalThink( myTbl )` → `Think`
 - `ENT:AdditionalOnLandOnGround( ent, fallHeight )` → `OnLandOnGround`
 - `ENT:AdditionalFootstep( ... )` → check the `ENT.` variables in `footsteps.lua` first, use the `AdditionalFootstep` callback if your usecase is too complex
@@ -731,6 +824,7 @@ All the desired tasks are copied over into the bot's new self.TaskList, and the 
 
 These other projects make great use of all terminator systems aswell.
 See the [Nextbot Zambies](https://github.com/StrawWagen/nextbot_zambies) repo
+The [Hunter's Glee](https://github.com/StrawWagen/hunters_glee) repo
 And the `terminator_nextbot_csoldier` NPCs inside this base
 
 When you're reverse engineering the above examples

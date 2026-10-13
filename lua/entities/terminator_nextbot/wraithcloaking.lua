@@ -1,33 +1,45 @@
 
 local entMeta = FindMetaTable( "Entity" )
 
---[[ 
-ENT.IsWraith = true -- set to true on any bot to enable this file's logic
-ENT.NotSolidWhenCloaked = true -- if we're a wraith, we become non-solid when cloaked
+--[[
+Wraith cloaking, lets any bot turn invisible
+While cloaked, it can't be targeted, can't shoot, casts no shadow, and flickers every now and then
+By default it cloaks when it has an enemy or is moving, and uncloaks when it stops, or gets within 120u of its enemy
+Players driving it toggle it with sprint + reload
+See terminator_nextbot_wraith.lua for a full example
 
-ENT.FlickerBarelyVisibleMat = "effects/combineshield/comshieldwall3"
-ENT.FlickerInvisibleMat = "effects/combineshield/comshieldwall"
+ENT.IsWraith = true
 
-function self:PlayHideFX()
+-- REQUIRED, there's no default, cloaking errors without these
+function ENT:PlayHideFX()
     self:EmitSound( "ambient/levels/citadel/pod_open1.wav", 74, math.random( 115, 125 ) )
 
 end
 
-function self:PlayUnhideFX()
+function ENT:PlayUnhideFX()
     self:EmitSound( "ambient/levels/citadel/pod_close1.wav", 74, math.random( 115, 125 ) )
 
 end
 
-ENT.wraithTerm_IsCloaked = false -- are we currently cloaked?
+-- optional
+ENT.NotSolidWhenCloaked = false -- defaults to true, passes through everything but the world while cloaked
+ENT.FlickerBarelyVisibleMat = "effects/combineshield/comshieldwall3"
+ENT.FlickerInvisibleMat = "effects/combineshield/comshieldwall"
 
-ENT.wraithTerm_CloakDecidingTask = function( self, data ) end -- override the default cloaking deciding func 
+-- replaces the default cloaking logic above, runs in BehaveUpdatePriority, so not while driven
+-- call self:DoHiding( true/false ), it ignores calls while on cooldown
+ENT.wraithTerm_CloakDecidingTask = function( self, data )
+    -- blah
+
+end
 
 --]]
 
+-- this is called in base Initialize, if we're .IsWraith
 function ENT:InitializeWraith( myTbl )
     myTbl.wraithTerm_NextHidingSwap = 0
     myTbl.wraithTerm_NextAttack = 0
-    myTbl.wraithTerm_IsCloaked = false
+    myTbl.wraithTerm_IsCloaked = false -- are we cloaked? ( no )
 
     myTbl.SpecialActions = myTbl.SpecialActions or {}
     myTbl.SpecialActions["wraithcloaking"] = {
@@ -72,7 +84,7 @@ function ENT:InitializeWraith( myTbl )
         BehaveUpdatePriority = cloakDecidingFunc,
     }
 
-    self:AddTask( "wraithcloaking_handler", cloakTask )
+    self:AddTaskLazy( "wraithcloaking_handler", cloakTask )
 
     -- set as false to disable non-solid when cloaked
     if myTbl.NotSolidWhenCloaked == nil then myTbl.NotSolidWhenCloaked = true end

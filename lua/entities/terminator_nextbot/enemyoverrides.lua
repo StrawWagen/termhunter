@@ -1033,11 +1033,31 @@ function ENT:IsManiacTerm() -- (very) rare infighting
 
 end
 
+local returnToMyChummyTask = {
+    StartsOnInitialize = true,
+    StopControlByPlayer = function( self, data )
+        timer.Simple( 0.5, function()
+            if not IsValid( self ) then return end
+            if not self.IsSeeEnemy then return end
+
+            local enemy = self:GetEnemy()
+            if not IsValid( enemy ) then return end
+            if not pals( self, enemy ) then return end
+
+            if not self:HasTask( "movement_backthehellup" ) then return end
+
+            self:KillAllTasksWith( "movement" )
+            local quitDist = self.DistToEnemy + ( self:GetRealDuelEnemyDist() * 2 )
+            self:StartTask( "movement_backthehellup", { DistToQuit = quitDist }, "AAAH IM SORRY THAT WASNT ME!" )
+
+        end )
+    end,
+}
+
 function ENT:MakeFeud( enemy )
     if not IsValid( enemy ) then return end
     if enemy == self then return end
     if entMeta.Health( enemy ) <= 0 then return end -- they already dead, not gonna worry about it
-
     local class = entMeta.GetClass( enemy )
     if class == "rpg_missile" then return false end -- crazy fuckin bug
     if class == "env_flare" then return false end -- just as crazy
@@ -1045,14 +1065,23 @@ function ENT:MakeFeud( enemy )
     local myTbl = entMeta.GetTable( self )
     if not myTbl then return end
 
-    if pals( self, enemy ) then -- infighting logic
-        if blockAllInfighting:GetBool() then return end
-        local imManiac = myTbl.IsManiacTerm and myTbl.IsManiacTerm( self )
-        local maniacFight = imManiac or ( enemy.IsManiacTerm and enemy:IsManiacTerm() )
-        if not maniacFight then return end
-        if imManiac then
-            myTbl.isTerminatorHunterChummy = myTbl.isTerminatorHunterChummy .. "_manaic_" .. tostring( entMeta.GetCreationID( self ) )
+    local dontMakeEnemyHateMe
 
+    if pals( self, enemy ) then -- infighting logic 
+        if enemy:IsControlledByPlayer() then
+            -- don't return in this path, get to the disp setting below
+            enemy:AddTaskLazy( "enemyoverrides_returntonormalchummy", returnToMyChummyTask )
+            dontMakeEnemyHateMe = true
+
+        else
+            if blockAllInfighting:GetBool() then return end
+            local imManiac = myTbl.IsManiacTerm and myTbl.IsManiacTerm( self )
+            local maniacFight = imManiac or ( enemy.IsManiacTerm and enemy:IsManiacTerm() )
+            if not maniacFight then return end
+            if imManiac then
+                myTbl.isTerminatorHunterChummy = myTbl.isTerminatorHunterChummy .. "_manaic_" .. tostring( entMeta.GetCreationID( self ) )
+
+            end
         end
     end
 
@@ -1923,13 +1952,13 @@ do
 
     function ENT:InitializeLagCompensation( myTbl )
         if game.SinglePlayer() then return end
-        if myTbl.IsFodder then
-            dynamicallyLagCompensating[self] = false
+        if myTbl.IsFodder then -- fodder enemies only get lag compensation while they have a valid enemy
+            dynamicallyLagCompensating[self] = false -- register them for the system
             entMeta.CallOnRemove( self, "term_cleanupdynamic_lagcomp", function()
                 dynamicallyLagCompensating[self] = nil
 
             end )
-        else
+        else -- always lag compensated
             entMeta.SetLagCompensated( self, true )
 
         end

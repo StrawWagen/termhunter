@@ -28,7 +28,6 @@ ENT.DeathDropHeight = 4000
 ENT.SpawnHealth = 50000
 ENT.ExtraSpawnHealthPerPlayer = 2500
 
-ENT.AlwaysAngry = true
 ENT.MimicPlayer = true -- make fist stance use player stance mimicking
 
 ENT.Term_FootstepTiming = "perfect"

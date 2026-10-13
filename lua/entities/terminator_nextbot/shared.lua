@@ -1911,7 +1911,15 @@ end
 function ENT:TermThink( myTbl ) -- inside coroutine :)
     local fodder = myTbl.IsFodder
     if myTbl.CanSpeak then
+        if fodder then
+            coroutine_yield()
+
+        end
         myTbl.SpokenLinesThink( self, myTbl )
+        if fodder then
+            coroutine_yield()
+
+        end
 
     end
     if myTbl.DrowningThink then
@@ -2050,7 +2058,7 @@ function ENT:Initialize()
 
     myTbl.DoHardcodedRelations( self )
 
-    if myTbl.IsReallyHeavy and myTbl.MyPhysicsMass == 85 then
+    if myTbl.ReallyHeavy and myTbl.MyPhysicsMass == 85 then
         myTbl.MyPhysicsMass = 5000
 
     end

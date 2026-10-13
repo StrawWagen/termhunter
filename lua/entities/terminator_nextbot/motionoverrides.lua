@@ -704,13 +704,14 @@ function ENT:IsAngry()
             self.terminator_AngryNotSeeing = angrynotseeing_Increment + 1
 
         end
-        if angryTime ~= oldAngryTime and oldAngryTime <= CurTime() then
+        local becamePermaAngry = self.terminator_PermanentAngry
+        if ( angryTime ~= oldAngryTime or becamePermaAngry ) and oldAngryTime <= CurTime() then
             self:RunTask( "OnAnger" )
 
         end
     end
 
-    local angry = angryTime > CurTime()
+    local angry = angryTime > CurTime() or self.terminator_PermanentAngry == true
     self.terminator_AngryTime = math.max( angryTime, CurTime() )
 
     return angry
@@ -3552,8 +3553,7 @@ function ENT:OnLandOnGround( ent )
 
         end
 
-        self:RunTask( "DealtGoobmaDamage", damage, fallHeight, dealt )
-
+        self:RunTask( "DealtGoombaDamage", damage, fallHeight, dealt )
         -- useful! keeping it!
         --debugoverlay.Box( myPos + vecDown * killScale, mins, maxs, 1, color_white )
 
@@ -3704,7 +3704,8 @@ function ENT:TranslateActivity( act )
     end
 
     -- get it from our ENT.IdleActivityTranslations table
-    translated = not translated and myTbl.IdleActivityTranslations and myTbl.IdleActivityTranslations[act] or nil
+    local wantsTranslation = not translated and myTbl.IdleActivityTranslations
+    translated = wantsTranslation and myTbl.IdleActivityTranslations[act] or translated
 
     -- way #2, get it from our weapon
     if not translated and myTbl.HasWeapon( self, myTbl ) then
@@ -3896,6 +3897,7 @@ function ENT:InitializeCollisionBounds( mdlScale )
     end
 
     -- proper view offsets for GetShootPos
+    -- CollisionBounds are already scaled above, scaling again is intentional, every scaled bot's bounds are tuned around it
     local maxsZ = self.CollisionBounds[2].z * mdlScale
     local viewOffsetFromMaxs = ( maxsZ / defaultHeight ) * ( defaultViewOffsetNudge / mdlScale )
     local viewOffset = math.Round( maxsZ + -viewOffsetFromMaxs )

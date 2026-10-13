@@ -66,6 +66,7 @@ ENT.alwaysManiac = true
 ENT.isTerminatorHunterChummy = "paparazzi"
 ENT.MetallicMoveSounds = false
 ENT.ReallyStrong = false
+ENT.ReallyHeavy = false
 ENT.FootstepClomping = false
 
 -- a table is getting in here, maybe this fixes it?

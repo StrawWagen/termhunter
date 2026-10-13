@@ -20,6 +20,9 @@ ENT.AimSpeed = 100
 ENT.WalkSpeed = 50
 ENT.MoveSpeed = 75
 ENT.RunSpeed = 100
+ENT.JumpHeight = 70 * 1.25
+
+ENT.SpawnHealth = terminator_Extras.healthDefault * 0.75
 
 if CLIENT then return end
 

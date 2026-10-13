@@ -149,6 +149,23 @@ local function BodyGroupDamageThink( self, Group, Damage, Pos, Silent ) -- on 1 
 
 end
 
+local bloodBurnOffTask = {
+    StartsOnInitialize = true,
+    OnIgnite = function( self, data )
+        if not self.term_isBloodyEndoskeleton then return end
+        self.term_isBloodyEndoskeleton = nil
+        timer.Simple( math.Rand( 0.75, 1.75 ), function()
+            if not IsValid( self ) then return end
+            self:RemoveAllDecals()
+            self:EmitSound( "ambient/levels/canals/toxic_slime_sizzle3.wav", 78, math.random( 60, 70 ), 0.5, CHAN_STATIC )
+            for i, _ in ipairs( self:GetMaterials() ) do
+                self:SetSubMaterial( i - 1, "" )
+
+            end
+        end )
+    end,
+}
+
 local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent ) -- on multiple bodygroups!
     local var = 0
     local Count = table.Count( ToBGs )
@@ -189,10 +206,13 @@ local function BodyGroupDamage( self, ToBGs, BgDamage, Damage, Silent ) -- on mu
         return -- don't bleed
 
     else
+        self.term_isBloodyEndoskeleton = true
         for i, matName in ipairs( self:GetMaterials() ) do
             self:SetSubMaterial( i - 1, matName .. "_bloody" )
 
         end
+        self:AddTaskLazy( "terminator_bloodyexoskeleton_loseblood", bloodBurnOffTask )
+
     end
 
     local startBleedingTime = CurTime()
@@ -548,6 +568,7 @@ function ENT:PostTookDamage( dmg )
 
     end
 
+    -- muls damage RECIEVED from friendly ents
     local friendlyFireMul = myTbl.FriendlyFireMul
     if friendlyFireMul and friendlyFireMul ~= 1 then
         local attackerDisp = myTbl.TERM_GetRelationship( self, myTbl, attacker )

@@ -282,7 +282,7 @@ function SWEP:HoldTypeThink()
     if doFistsTime > CurTime() then
         holdType = "fist"
 
-    elseif owner:IsReallyAngry() and not owner.AlwaysAngry then
+    elseif owner:IsReallyAngry() then
         holdType = "fist"
 
     elseif IsValid( enemy ) and enemy.isTerminatorHunterKiller then
@@ -464,7 +464,6 @@ function SWEP:DealDamage()
             local dmgMul = strength
 
             if friendly then
-                dmgMul = 0.1
                 hitEnt.overrideMiniStuck = true
 
             -- break props really fast

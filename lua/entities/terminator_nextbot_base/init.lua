@@ -132,6 +132,16 @@ function ENT:Initialize()
 		end
 	end
 
+	if myTbl.TERM_FOV then
+		if developer:GetBool() then
+			ErrorNoHaltWithStack( self:GetClass() .. " myTbl.TERM_FOV does nothing. Correct is .Term_FOV" )
+
+		else
+			permaPrint( self:GetClass() .. " myTbl.TERM_FOV does nothing, use .Term_FOV, developer 1 for full error" )
+
+		end
+	end
+
 	local ct = CurTime()
 	local pos = entMeta.GetPos( self )
 
@@ -202,7 +212,15 @@ end
 	Call task hooks
 --]]------------------------------------
 function ENT:OnRemove()
-	self:RunTask("OnRemoved")
+	self:RunTask( "OnRemoved" )
+end
+
+--[[------------------------------------
+	NEXTBOT:OnIgnite
+	Call task hooks
+--]]------------------------------------
+function ENT:OnIgnite()
+	self:RunTask( "OnIgnite" )
 end
 
 --[[------------------------------------

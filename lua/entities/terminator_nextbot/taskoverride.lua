@@ -359,6 +359,7 @@ ENT.MyBlockedClassTasks = nil
 -- DO NOT OVERRIDE THESE
 function ENT:DoClassTasks( myTbl )
     local sentsToDo = myTbl.GetAllBaseClasses( self, myTbl )
+    local allBlocked = {}
 
     for _, sentTbl in ipairs( sentsToDo ) do
         local classTask = sentTbl.MyClassTask
@@ -380,24 +381,35 @@ function ENT:DoClassTasks( myTbl )
 
         local blocked = sentTbl.MyBlockedClassTasks
         if blocked then
-            for toBlockClass, blocker in ipairs( blocked ) do
-                -- if blocker is true, block that entire class's task
-                if isbool( blocker ) and blocker then
-                    local className = toBlockClass .. "_handler"
-                    self.TaskList[className] = nil
+            for toBlockClass, blocker in pairs( blocked ) do
+                if allBlocked[toBlockClass] == nil then -- most derived class gets the final say
+                    allBlocked[toBlockClass] = blocker
 
-                -- it's a table of callbacks to block!
-                elseif istable( blocker ) then
-                    local className = toBlockClass .. "_handler"
-                    local blockingClassTask = self.TaskList[className]
-                    if not blockingClassTask then continue end
-
-                    for _, callback in ipairs( blocker ) do
-                        blockingClassTask[callback] = nil
-
-                    end
                 end
             end
+        end
+    end
+
+    -- do this after, or base classes would just re-add what we blocked
+    for toBlockClass, blocker in pairs( allBlocked ) do
+        local className = toBlockClass .. "_handler"
+        local blockingClassTask = self.TaskList[className]
+        if not blockingClassTask then continue end
+
+        -- if blocker is true, block that entire class's task
+        if blocker == true then
+            self.TaskList[className] = nil
+
+        -- it's a table of callbacks to block!
+        elseif istable( blocker ) then
+            -- don't edit the base's task directly, every bot of that class shares it!
+            local filtered = setmetatable( {}, { __index = blockingClassTask } )
+            for _, callback in ipairs( blocker ) do
+                filtered[callback] = false -- nil would fall through to the base's callback
+
+            end
+            self.TaskList[className] = filtered
+
         end
     end
 end
@@ -451,4 +463,19 @@ function ENT:AddTask( taskName, task )
         self:StartTask( taskName, nil, "AddTask-StartsOnInitialize" )
 
     end
+end
+
+--[[------------------------------------
+    Name: NEXTBOT:AddTaskLazy
+    Desc: AddTask, but does nothing if this bot was ever given a task with this name. Safe to call repeatedly.
+        A task stopped with TaskComplete/TaskFail still counts as given, restart it with StartTask instead.
+    Arg1: string | taskName | Task name.
+    Arg2: table  | task | Task callbacks, same shape as a MyClassTask.
+    Ret1:
+--]]------------------------------------
+function ENT:AddTaskLazy( taskName, task )
+    if self:HasTask( taskName ) then return end
+
+    self:AddTask( taskName, task )
+
 end
