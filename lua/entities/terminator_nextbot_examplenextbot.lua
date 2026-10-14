@@ -9,7 +9,7 @@ ENT.Base = "terminator_nextbot"
 
 DEFINE_BASECLASS( ENT.Base )
 ENT.PrintName = "Example Human"
-ENT.Spawnable = true
+ENT.Spawnable = false -- keeps it out of Entities
 ENT.SubCategory = "Other" -- .Category is inherited from terminator_nextbot
 
 -- puts us in the spawnmenu's NPC tab
