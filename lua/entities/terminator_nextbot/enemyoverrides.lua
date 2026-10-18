@@ -850,6 +850,15 @@ hook.Add( "terminator_nextbot_oneterm_exists", "setup_postentitycreated_hook", f
             local entsTbl = entMeta.GetTable( ent )
             hook.Run( "terminator_postentitycreated", ent, entsTbl )
 
+            local ourClass = entMeta.GetClass( ent )
+            if ourClass == "npc_bullseye" then -- someone could be using this to fake relationships with an ent
+                local ourParent = entMeta.GetParent( ent )
+                if IsValid( ourParent ) and entMeta.IsFlagSet( ourParent, FL_OBJECT ) and ourParent:GetPos():DistToSqr( ent:GetPos() ) < 150^2 then
+                    local parentsTbl = entMeta.GetTable( ourParent )
+                    hook.Run( "terminator_postentitycreated", ourParent, parentsTbl )
+
+                end
+            end
         end )
     end )
 end )
@@ -859,6 +868,8 @@ hook.Add( "terminator_nextbot_noterms_exist", "teardown_postentitycreated_hook",
 
 end )
 
+-- sets up our relationships with every other npc on the map
+-- also sets up our hook that manages our relationship with stuff that spawns after us
 function ENT:SetupRelationships( myTbl )
     local SetupEntityRelationship = myTbl.SetupEntityRelationship
     for _, ent in ents.Iterator() do

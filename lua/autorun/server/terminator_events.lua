@@ -218,7 +218,10 @@ function terminator_Extras.eventRollThink()
         if activeEvents[name] then debugPrint( name, " already active" ) continue end
 
         local rand = math.Rand( 0, 100 )
-        local chance = event.eventChance + chanceBoost
+        local chance = event.eventChance
+        if chance == 0 then continue end
+        chance = chance + chanceBoost
+
         if not freebies[name] and rand > chance then debugPrint( chance, rand, name, " fail random " ) continue end
         freebies[name] = nil
 
