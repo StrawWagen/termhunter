@@ -50,7 +50,7 @@ terminator_cleanupdroppedweps 0/1 "Cleanup weapons dropped by term bots after so
 
 Event system
 terminator_event_enabled 0/1 "Enable/disable all dynamic terminator events?"
-terminator_event_globalchanceboost -100/100 "Boosts the chance of ALL events happening."
+terminator_event_globalchanceboost -100/100 "Adds to the chance of ALL events happening. (If you set globalchanceboost to 7 a event that had a 0.5% chance would become a 7.5% chance)."
 terminator_event_debug 0/1 "Debug the terminator event system"
 cl_termevent_resetallprogress "Requests the cvars for every event, then resets them all to 0"
 cl_termevent_getallprogress "Requests the cvars for every event"
