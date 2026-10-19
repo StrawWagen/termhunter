@@ -303,14 +303,20 @@ do
 
 
     -- massive savings with lots of enemies ( like, 40+ enemies )
-    local function cacheShouldNotSee( ent, seen )
-        ent.term_CachedShouldNotSee = seen
-        timer.Simple( 0.02, function()
-            if not IsValid( ent ) then return end
-            ent.term_CachedShouldNotSee = nil
+    -- shared between all bots on purpose, one bot's answer is close enough for the rest
+    local cacheLifetime = 0.02
+    local function cacheShouldNotSee( enemy, notSeen )
+        enemy.term_CachedShouldNotSee = notSeen
+        enemy.term_CachedShouldNotSeeExpiry = CurTime() + cacheLifetime
+        return notSeen
 
-        end )
-        return seen
+    end
+
+    local function getCachedShouldNotSee( enemy )
+        local expiry = enemy.term_CachedShouldNotSeeExpiry
+        if not expiry or expiry < CurTime() then return end
+
+        return enemy.term_CachedShouldNotSee
 
     end
 
@@ -318,90 +324,72 @@ do
     -- if alpha is below this, start the seeing calcs
     local maxSeen = 150
 
+    local holdingWeaponGiveaway = 80
+    local flashlightGiveaway = 80
+    local hearingSpotScale = 0.25 -- hearing mostly feeds hints, only nudges actually spotting them
+
+    local hearingMemory = 0.75 -- seconds a sound still counts as just heard
+    local heardBumpBase = 20
+    local heardBumpRangeDivisor = 150 -- footstep ( 650 range ) +24, ar2 ( 12000 ) +100
+    local hintRadiusMax = 500 -- also used when we didn't hear them
+    local hintRadiusMin = 100
+    local hintRadiusRangeDivisor = 20 -- footstep -> 467, pistol ( 7000 ) -> 150
+
     -- handles transparent enemy seeing ( and not seeing )
     local function shouldNotSeeEnemy( me, enemy )
-        if enemy.term_CachedShouldNotSee then
-            return enemy.term_CachedShouldNotSee
+        local cached = getCachedShouldNotSee( enemy )
+        if cached ~= nil then return cached end
 
-        end
-        if not enemy.GetColor then return end
+        if not enemy.GetColor then return false end
 
-        local color = enemy:GetColor()
-        local a = color.a
-        if not a then cacheShouldNotSee( enemy, false ) return end
-        if a >= maxSeen then cacheShouldNotSee( enemy, false ) return end -- dont waste any more performance
-        if enemy:IsOnFire() then cacheShouldNotSee( enemy, false ) return end -- they are visible!
+        local a = enemy:GetColor().a
+        if not a then return cacheShouldNotSee( enemy, false ) end
+        if a >= maxSeen then return cacheShouldNotSee( enemy, false ) end -- dont waste any more performance
+        if enemy:IsOnFire() then return cacheShouldNotSee( enemy, false ) end -- they are visible!
         if isPlayer( enemy ) then
-            if enemy:InVehicle() then cacheShouldNotSee( enemy, false ) return end -- that car is moving by itself!
-            if IsValid( enemy:GetEntityInUse() ) then cacheShouldNotSee( enemy, false ) return end -- damn hows that thing floating???
+            if enemy:InVehicle() then return cacheShouldNotSee( enemy, false ) end -- that car is moving by itself!
+            if IsValid( enemy:GetEntityInUse() ) then return cacheShouldNotSee( enemy, false ) end -- damn hows that thing floating???
 
         end
 
-        -- seen threshold
-        -- if alpha is 125, seen is 25, if 50, seen is 100
-        -- the more transparent, the more likely random nums are gonna fall under this threshold
-        -- bigger seen means harder to see
-        local seen = math.abs( a - maxSeen )
+        -- alpha 125 -> 25, alpha 50 -> 100
+        local stealth = maxSeen - a
+        local trulyInvisible = a < 15
         local enemDistSqr = me:GetPos():DistToSqr( enemy:GetPos() )
 
-        local weapBite = 0
-        local weap = nil
-        if enemy.GetActiveWeapon then
-            weap = enemy:GetActiveWeapon()
-
-        end
-
-        -- weapon in hand, bump
+        local giveaway = 0
+        local weap = enemy.GetActiveWeapon and enemy:GetActiveWeapon()
         if weap and weap.GetHoldType and weap:GetHoldType() ~= "normal" then
-            weapBite = 80
+            giveaway = giveaway + holdingWeaponGiveaway
 
         end
-
-        -- flashlight is on, bump
         if enemy:FlashlightIsOn() or enemy.glee_Thirdperson_Flashlight then
-            weapBite = weapBite + 80
+            giveaway = giveaway + flashlightGiveaway
 
         end
 
-        local getEnemyResult = me:GetEnemy()
-        local isAnOldEnemy = getEnemyResult == enemy
-        local oldEnemyThatISee = isAnOldEnemy and me.IsSeeEnemy
-
-        local investigateRadius = nil
-
-        local trulyInvisible = a < 15
-        local randomSeed = math.random( 0, maxSeen ) + weapBite
+        local spotRoll = math.random( 0, maxSeen ) + giveaway
 
         -- i see enemy, make the chance of losing them really small
-        local obviousEnemy = oldEnemyThatISee and randomSeed > seen * 0.01
-
-        -- seen
-        if obviousEnemy then cacheShouldNotSee( enemy, false ) return end
+        local alreadySeeingThem = me:GetEnemy() == enemy and me.IsSeeEnemy
+        if alreadySeeingThem and spotRoll > stealth * 0.01 then return cacheShouldNotSee( enemy, false ) end
 
         local heardBump = 0
+        local investigateRadius = hintRadiusMax
 
-        -- if we can hear and the enemy just made sound, bump
         local lastEmit = enemy.term_LastSoundEmit
-        if me.CanHearStuff and lastEmit and lastEmit.time < CurTime() + 1 then
-            local sndDist = lastEmit.range
-            local sndDistSqr = sndDist^2
-
-            investigateRadius = 500 - sndDist -- the louder, the closer the hint gets to target
-
-            if sndDistSqr > enemDistSqr then
-                heardBump = 20 + sndDist / 150
-
-            end
+        local heardThem = me.CanHearStuff and lastEmit and lastEmit.time > CurTime() - hearingMemory and lastEmit.range^2 > enemDistSqr
+        if heardThem then
+            local sndRange = lastEmit.range
+            heardBump = heardBumpBase + sndRange / heardBumpRangeDivisor
+            investigateRadius = math.Clamp( hintRadiusMax - sndRange / hintRadiusRangeDivisor, hintRadiusMin, hintRadiusMax ) -- the louder, the closer the hint gets to target
 
         end
 
-        local seedIsGreater = ( math.random( 0, maxSeen ) + heardBump ) > seen * 0.9
+        local hintRoll = math.random( 0, maxSeen ) + heardBump
+        local shouldHint = enemDistSqr < 3000^2 and hintRoll > stealth * 0.9
 
-        local investigateNearby = enemDistSqr < 3000^2 and seedIsGreater
-
-        if investigateNearby then
-            investigateRadius = investigateRadius or 500
-
+        if shouldHint then
             local randNoZ = VectorRand()
             randNoZ.z = 0
 
@@ -415,19 +403,14 @@ do
             end
         end
 
-        -- REALLY close, see
-        if enemDistSqr < 100^2 then
-            return cacheShouldNotSee( enemy, false )
+        local reallyClose = enemDistSqr < 100^2
+        if reallyClose then return cacheShouldNotSee( enemy, false ) end
 
-        -- NOT visible
-        elseif randomSeed < seen or trulyInvisible then
-            return cacheShouldNotSee( enemy, true )
+        if trulyInvisible then return cacheShouldNotSee( enemy, true ) end
 
-        -- failed seen check, visible
-        else
-            return cacheShouldNotSee( enemy, false )
+        local spotted = spotRoll + heardBump * hearingSpotScale >= stealth
+        return cacheShouldNotSee( enemy, not spotted )
 
-        end
     end
 
     local FL_NOTARGET = FL_NOTARGET
