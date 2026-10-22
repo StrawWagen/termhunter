@@ -3580,10 +3580,8 @@ function ENT:FallIntoTheVoid()
         end )
     end
 
-    if self.TakesFallDamage then
-        self:TakeDamage( math.huge )
+    self:TakeDamage( math.huge )
 
-    end
 end
 
 

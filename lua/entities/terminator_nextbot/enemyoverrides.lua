@@ -325,7 +325,8 @@ do
     local maxSeen = 150
 
     local holdingWeaponGiveaway = 80
-    local flashlightGiveaway = 80
+    local flashlightGiveaway = 65
+    local carryingGiveaway = 90
     local hearingSpotScale = 0.25 -- hearing mostly feeds hints, only nudges actually spotting them
 
     local hearingMemory = 0.75 -- seconds a sound still counts as just heard
@@ -365,6 +366,10 @@ do
         end
         if enemy:FlashlightIsOn() or enemy.glee_Thirdperson_Flashlight then
             giveaway = giveaway + flashlightGiveaway
+
+        end
+        if enemy.glee_IsCarrying then
+            giveaway = giveaway + carryingGiveaway
 
         end
 

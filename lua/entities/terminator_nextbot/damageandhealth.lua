@@ -1000,7 +1000,7 @@ function ENT:InitializeHealthRegen()
         local myTbl = entMeta.GetTable( self )
 
         local regenAmnt = myTbl.HealthRegen
-        if regenAmnt == 0 then return end
+        if regenAmnt and regenAmnt == 0 then return end
 
         local regenInterval = myTbl.HealthRegenInterval
         if regenInterval and regenInterval ~= currRegenInterval then
@@ -1012,8 +1012,10 @@ function ENT:InitializeHealthRegen()
         local oldHealth = self:Health()
         if oldHealth <= 0 then return end -- dont cause resurrect issues
 
+        if self:RunTask( "BlockHealthRegen", regenAmnt ) then return end
+
         if regenAmnt < 0 then -- negative, waste away
-            self:TakeDamage( regenAmnt, self, self )
+            self:TakeDamage( -regenAmnt, self, self )
 
         else -- positive, heal
             local newHealth = math.Clamp( oldHealth + regenAmnt, 0, self:GetMaxHealth() )

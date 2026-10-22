@@ -266,6 +266,13 @@ ENT.MyClassTask = {
         -- Called when bot is set on fire
     -- end,
     
+    -- BlockHealthRegen = function( self, data, regenAmnt )
+        -- Called every ENT.HealthRegenInterval, right before regen is applied
+        -- Return true to skip this tick's regen
+        -- regenAmnt: ENT.HealthRegen, negative means the bot is wasting away, blocking stops that too
+        -- Never called unless ENT.HealthRegen was a number at spawn, or while it's 0, or while the bot is dead
+    -- end,
+    
     -- PreventBecomeRagdollOnKilled = function( self, data, dmg )
         -- Return true to prevent ragdoll creation on death
         -- Return second value true to prevent bot removal
