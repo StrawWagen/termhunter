@@ -106,7 +106,7 @@ function ENT:Give( wepname )
 
     local holsteredWeps = self:GetHolsteredWeapons()
     for currHolstered, _ in pairs( holsteredWeps ) do
-        if entMeta.GetClass( currHolstered ) == wepname then
+        if IsValid( currHolstered ) and entMeta.GetClass( currHolstered ) == wepname then
             wep = currHolstered
 
         end

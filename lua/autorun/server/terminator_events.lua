@@ -114,6 +114,12 @@ function terminator_Extras.RegisterEvent( event, name )
     local defaultChance = event.defaultPercentChancePerMin
     if not isnumber( defaultChance ) then ErrorNoHaltWithStack( name .. ": Invalid .defaultPercentChancePerMin" ) return end
 
+    local secret = event.secret
+    if secret ~= nil and ( not istable( secret ) or not isstring( secret.keyword ) or not isnumber( secret.chanceIncrease ) ) then
+        ErrorNoHaltWithStack( name .. ": Invalid .secret, needs { keyword = string, chanceIncrease = number }" ) return
+
+    end
+
     -- above, validate event
     -- below, setup helpers and parse it
 
@@ -198,6 +204,30 @@ end
 
 startEventRollTimer()
 
+-- event name -> { [steamID64] = true }, keyed by steamid so rejoining doesn't count twice
+local secretSayers = {}
+
+local function secretChanceBoost( event )
+    local sayers = secretSayers[event.eventName]
+    if not sayers then return 0 end
+
+    return table.Count( sayers ) * event.secret.chanceIncrease
+
+end
+
+hook.Add( "PlayerSay", "terminator_event_secrets", function( sender, text )
+    for name, event in pairs( terminator_Extras.events ) do
+        local secret = event.secret
+        if not secret or text ~= secret.keyword then continue end
+
+        local sayers = secretSayers[name] or {}
+        secretSayers[name] = sayers
+        sayers[sender:SteamID64()] = true
+        debugPrint( sender, " said secret for ", name )
+
+    end
+end )
+
 function terminator_Extras.eventRollThink()
     if not enabledVar:GetBool() then return end
     if not aPlyIsLoaded() then return end
@@ -221,6 +251,10 @@ function terminator_Extras.eventRollThink()
         local chance = event.eventChance
         if chance == 0 then continue end
         chance = chance + chanceBoost
+        if event.secret then
+            chance = chance + secretChanceBoost( event )
+
+        end
 
         if not freebies[name] and rand > chance then debugPrint( chance, rand, name, " fail random " ) continue end
         freebies[name] = nil
@@ -274,7 +308,7 @@ function terminator_Extras.eventRollThink()
 
     if thinkInterval ~= 30 then
         thinkInterval = 30
-        timer.Adjust( thinkInterval, thinkInterval )
+        timer.Adjust( eventRollTimerName, thinkInterval )
 
     end
 

@@ -7,6 +7,11 @@ end
 local newEvent = {
     -- chance for this to happen, rolled every minute
     defaultPercentChancePerMin = 0.05,
+    -- each player who says the keyword this session adds chanceIncrease % to the chance
+    secret = {
+        keyword = "im famous",
+        chanceIncrease = 1,
+    },
 
     -- does this event progress through a "dedication" cvar?
     doesDedicationProgression = true,
