@@ -1229,6 +1229,7 @@ end
 do
     local betweenPosVec = Vector( 0, 0, 0 )
     local bottomPosVec = Vector( 0, 0, 0 )
+    local aheadPosOffsetMul = 2 -- 2x runspeed 
     local resultTbl = {}
 
     local posIsDisplacement = terminator_Extras.posIsDisplacement
@@ -1237,7 +1238,8 @@ do
     --[[------------------------------------
         Name: ENT:GetIsFlatGroundToEnemy
         Desc: Is there ground under the point halfway to the enemy, or a drop we'd fall into?
-            Traces down one StepHeight from that single midpoint, so it only samples that one spot, not the whole path.
+            Enemy pos is clamped to RunSpeed * aheadPosOffsetMul away first, so far-off pits we won't reach soon don't count.
+            Traces down 2x StepHeight from that single midpoint, so it only samples that one spot, not the whole path.
             Cached per caller for 0.5s.
             Cache persists if enemy changes, very lazy check.
             NOTE: use CanMoveRightUpToEnemy instead for bots that might have children classes that can .Term_Leaps
@@ -1265,17 +1267,25 @@ do
 
         local enemyPos = entMeta.GetPos( enemy )
         local myPos = entMeta.GetPos( self )
-        betweenPosVec.x = enemyPos.x + myPos.x
-        betweenPosVec.y = enemyPos.y + myPos.y
-        betweenPosVec.z = enemyPos.z + myPos.z
+        local offsX = enemyPos.x - myPos.x
+        local offsY = enemyPos.y - myPos.y
+        local offsZ = enemyPos.z - myPos.z
 
-        betweenPosVec.x = betweenPosVec.x / 2
-        betweenPosVec.y = betweenPosVec.y / 2
-        betweenPosVec.z = betweenPosVec.z / 2
+        local dist = math.sqrt( offsX * offsX + offsY * offsY + offsZ * offsZ )
+        local maxDist = myTbl.RunSpeed * aheadPosOffsetMul
+        local halfScale = 0.5
+        if dist > maxDist then
+            halfScale = halfScale * ( maxDist / dist )
+
+        end
+
+        betweenPosVec.x = myPos.x + offsX * halfScale
+        betweenPosVec.y = myPos.y + offsY * halfScale
+        betweenPosVec.z = myPos.z + offsZ * halfScale
 
         bottomPosVec.x = betweenPosVec.x
         bottomPosVec.y = betweenPosVec.y
-        bottomPosVec.z = betweenPosVec.z + -myTbl.StepHeight
+        bottomPosVec.z = betweenPosVec.z + -( myTbl.StepHeight * 2 )
 
         local traceDat = {
             mask = bit.bor( MASK_SOLID_BRUSHONLY, CONTENTS_MONSTERCLIP ),
