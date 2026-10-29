@@ -122,6 +122,18 @@ ENT.MySpecialActions = {
 
         end,
     },
+    ["ToggleFirstPerson"] = { -- by boomertaters
+        commandName = "impulse 201",
+        drawHint = true,
+        name = "Toggle first person",
+        desc = "Switch between first and third person",
+
+        clAction = function( bot, _ply, pressed )
+            if not pressed then return end
+            bot.term_FirstPerson = not bot.term_FirstPerson
+
+        end,
+    },
     ["Use"] = {
         commandName = "+use",
         drawHint = function( bot )
@@ -362,6 +374,25 @@ function ENT:ModifyControlPlayerButtons( btns )
 
 end
 
+if CLIENT then
+    local baseDraw = ENT.Draw
+    local hiddenScale = Vector( 0, 0, 0 )
+    local normalScale = Vector( 1, 1, 1 )
+
+    function ENT:Draw()
+        if not self.term_FirstPerson or self:GetControlPlayer() ~= LocalPlayer() then return baseDraw( self ) end
+
+        local headBone = self:LookupBone( self.Term_FirstPersonHeadBone or "ValveBiped.Bip01_Head1" )
+        if not headBone then return baseDraw( self ) end
+
+        self:ManipulateBoneScale( headBone, hiddenScale )
+        self:SetupBones()
+        baseDraw( self )
+        self:ManipulateBoneScale( headBone, normalScale )
+
+    end
+end
+
 drive.Register( "drive_terminator_nextbot", {
     Init = function( self )
 
@@ -393,6 +424,9 @@ drive.Register( "drive_terminator_nextbot", {
 
         if SERVER then
             self.Entity:StopControlByPlayer()
+
+        else
+            self.Entity.term_FirstPerson = nil
 
         end
     end,
@@ -429,10 +463,26 @@ drive.Register( "drive_terminator_nextbot", {
     end,
 
     CalcView = function( self, view )
+        local bot = self.Entity
         local angles = self.Player:EyeAngles()
+        local botpos = bot:GetShootPos()
 
-        local botpos = self.Entity:GetShootPos()
-        local campos = LocalToWorld( self.Entity:GetControlCameraOffset(), angle_zero, botpos, angles )
+        if bot.term_FirstPerson then
+            local eyes = bot:GetAttachment( bot:LookupAttachment( "eyes" ) )
+            local pos = eyes and eyes.Pos or botpos
+
+            local flat = angles:Forward()
+            flat.z = 0
+            flat:Normalize()
+
+            view.origin = pos + flat * ( 3 + math.Clamp( angles.p * 0.1, 0, 5 ) )
+            view.angles = angles
+            view.znear = 0.5
+            return
+
+        end
+
+        local campos = LocalToWorld( bot:GetControlCameraOffset(), angle_zero, botpos, angles )
 
         local tr = util.TraceHull( {
             start = botpos,
@@ -440,7 +490,7 @@ drive.Register( "drive_terminator_nextbot", {
             mins = Vector( view.znear, view.znear, view.znear ) * -3,
             maxs = Vector( view.znear, view.znear, view.znear ) * 3,
             mask = MASK_BLOCKLOS,
-            filter = self.Entity,
+            filter = bot,
         } )
 
         view.origin = tr.HitPos
