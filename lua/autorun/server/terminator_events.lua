@@ -100,9 +100,10 @@ net.Receive( "terminator_event_askforallcvars", function( _, ply )
         timer.Simple( time, function()
             if not IsValid( ply ) then return end
             makeSureTheyGotDedi( ply, event.dedicationInfoNum )
-            time = time + 0.01
 
         end )
+        time = time + 0.01
+
     end
 end )
 
@@ -152,11 +153,14 @@ function terminator_Extras.RegisterEvent( event, name )
     end
 
     function event:OnStart()
+        debugPrint( "event started ", self.eventName )
         local onStartFunc = self.onStartFunc
         if isfunction( onStartFunc ) then
             ProtectedCall( function( eventProtected ) eventProtected.onStartFunc( eventProtected ) end, self )
 
         end
+        hook.Run( "terminator_event_started", self )
+
     end
     function event:OnStop( reason )
         debugPrint( "event stopped ", self.eventName, reason )
@@ -165,6 +169,8 @@ function terminator_Extras.RegisterEvent( event, name )
             ProtectedCall( function( eventProtected ) eventProtected.onStopFunc( eventProtected ) end, self )
 
         end
+        hook.Run( "terminator_event_stopped", self, reason )
+
     end
 
     local refreshed = istable( terminator_Extras.events[name] )
@@ -244,8 +250,8 @@ function terminator_Extras.eventRollThink()
     for name, event in pairs( terminator_Extras.events ) do
         if aiDisabled and not event.worksWhenAIDisabled then continue end
         if event.navmeshEvent and not haveNav then debugPrint( name, " no nav" ) continue end
-        if aiDisabled and not event.ignoreAiDisabled then continue end
         if activeEvents[name] then debugPrint( name, " already active" ) continue end
+        if hook.Run( "terminator_event_canstart", event ) == false then debugPrint( name, " blocked by hook" ) continue end
 
         local rand = math.Rand( 0, 100 )
         local chance = event.eventChance
@@ -276,7 +282,7 @@ function terminator_Extras.eventRollThink()
         end
 
         for variantInd, variant in ipairs( event.variants ) do
-            if variant.getIsReadyFunc and not event.getIsReadyFunc( event ) then debugPrint( name, " fail getIsReady" ) continue end
+            if variant.getIsReadyFunc and not variant.getIsReadyFunc( event ) then debugPrint( name, " fail getIsReady" ) continue end
             if dedication then
                 if variant.minDedication and dedication < variant.minDedication then
                     --debugPrint( name, " too early" )
@@ -289,6 +295,8 @@ function terminator_Extras.eventRollThink()
 
                 end
             end
+            if hook.Run( "terminator_event_canstartvariant", event, variant, variantInd ) == false then debugPrint( name, " ", variant.variantName, " blocked by hook" ) continue end
+
             if not pickedVariantInd then
                 pickedVariant = variant
                 pickedEventName = name
@@ -332,6 +340,7 @@ function terminator_Extras.startEvent( eventName, pickedVariantInd )
     terminator_Extras.activeEvents[eventName] = eventCopy
 
     debugPrint( eventName, "EVENT STARTING" )
+    eventCopy:OnStart()
 
     if oldCount > 0 then return end -- dont setup this hook if it's already running!
     hook.Add( "Think", "terminator_manageactiveevents", function()
@@ -457,7 +466,8 @@ local function eventManage( event )
             spawnPos = steppedRandomRadius( currToSpawn, plyCount, allAreas, 4000 )
 
         elseif algo == "teammateSpawn" then
-            local teammate = event.spawnedAlive[math.random( 1, #event.spawnedAlive )]
+            local spawnedAlive = event.spawnedAlive
+            local teammate = #spawnedAlive >= 1 and spawnedAlive[math.random( 1, #spawnedAlive )]
             if IsValid( teammate ) and teammate.GetShootPos then
                 local stepHeight = teammate.loco:GetStepHeight()
                 local teammateAreas = navmesh.Find( teammate:GetPos(), math.random( 2000, 6000 ), stepHeight, stepHeight )
@@ -481,15 +491,18 @@ local function eventManage( event )
 
             local curr = ents.Create( toSpawn.class )
             if not IsValid( curr ) then return "SPAWNFAIL" end -- :(
+
+            if toSpawn.preSpawnedFunc then
+                toSpawn.preSpawnedFunc( curr, toSpawn )
+
+            end
+            -- hooks can move the spawn by editing spawnPos in place, it's the vector passed to SetPos
+            hook.Run( "terminator_event_prespawn", event, curr, toSpawn, spawnPos )
+
             if debugging then
                 local color = Color( 255, 255, 255 )
                 debugoverlay.Line( getActivePly():GetShootPos() + getActivePly():GetAimVector() * 50, spawnPos, 5, color, true )
                 debugoverlay.Box( spawnPos, Vector( -25, -25, 0 ), Vector( 25, 25, 0 ), 5, ColorAlpha( color, 50 ) )
-
-            end
-
-            if toSpawn.preSpawnedFunc then
-                toSpawn.preSpawnedFunc( curr, toSpawn )
 
             end
             debugPrint( "EVENT spawned", curr )
@@ -523,6 +536,8 @@ local function eventManage( event )
                 curr.termEvent_TimeoutWhen = CurTime() + toSpawn.timeout
 
             end
+            hook.Run( "terminator_event_spawned", event, curr, toSpawn )
+
             return "spawnedsomething"
 
         else
@@ -531,6 +546,7 @@ local function eventManage( event )
         end
     else -- manage ALIVE
         for ind, curr in pairs( event.spawned ) do
+            -- removing mid-loop skips the next entry, it's caught next think
             if not IsValid( curr ) then table.remove( event.spawned, ind ) continue end
 
             local enemy = curr.IsSeeEnemy and curr:GetEnemy() or nil
@@ -539,11 +555,20 @@ local function eventManage( event )
                 if not isParticipating then
                     isParticipating = true
                     event.participatingPlayers[enemy] = isParticipating
-                    makeSureTheyGotDedi( enemy, event.dedicationInfoNum ) -- get em ready!
+                    if event.dedicationInfoNum then
+                        makeSureTheyGotDedi( enemy, event.dedicationInfoNum ) -- get em ready!
+
+                    end
                     if not IsValid( activePly ) then
                         theActivePlyIs( enemy )
 
                     end
+                    hook.Run( "terminator_event_playerjoined", event, enemy, curr )
+
+                end
+                if not curr.termEvent_HasMet then
+                    hook.Run( "terminator_event_met", event, curr, enemy )
+
                 end
                 curr.termEvent_HasMet = true
                 curr.termEvent_MetRememberance = 200
@@ -557,8 +582,13 @@ local function eventManage( event )
                 end
             elseif curr.termEvent_HasMet then
                 if curr.termEvent_DeleteAfterMeet and curr.termEvent_MetRememberance <= 0 then
-                    SafeRemoveEntity( curr )
+                    if hook.Run( "terminator_event_forgotten", event, curr ) == false then
+                        curr.termEvent_DeleteAfterMeet = nil
 
+                    else
+                        SafeRemoveEntity( curr )
+
+                    end
                 else
                     curr.termEvent_MetRememberance = curr.termEvent_MetRememberance + -1
 
@@ -569,6 +599,10 @@ local function eventManage( event )
                     if terminator_Extras.posIsInterrupting( curr:WorldSpaceCenter(), false ) then -- reset timeout, they're right there!
                         curr.termEvent_TimeoutWhen = CurTime() + curr.termEvent_TimeoutTime
                         debugPrint( curr, " timeout INTERRUPT!" )
+
+                    elseif hook.Run( "terminator_event_timeout", event, curr ) == false then
+                        curr.termEvent_TimeoutWhen = CurTime() + curr.termEvent_TimeoutTime
+                        debugPrint( curr, " timeout blocked by hook" )
 
                     else
                         debugPrint( curr, " TIMEOUT!" )
@@ -586,6 +620,8 @@ local function eventManage( event )
 end
 
 local function onConcluded( event )
+    hook.Run( "terminator_event_concluded", event )
+
     local participatorCount = table.Count( event.participatingPlayers )
     if event.dedicationInfoNum and participatorCount > 0 then
         local bestDedication = 0
@@ -597,7 +633,7 @@ local function onConcluded( event )
             local theirDedication = ply:GetInfoNum( event.dedicationInfoNum, 0 )
             dedications[ply] = theirDedication
 
-            if theirDedication > bestDedication then
+            if theirDedication >= bestDedication then
                 bestDedication = theirDedication
                 bestDedicationPly = ply
 

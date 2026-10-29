@@ -1445,12 +1445,29 @@ end
 local newUnreachableClass
 local newUnreachables = 0
 
+-- what the cost generator knows about whoever is pathing
+local function buildLocoData( myTbl )
+    return {
+        canUseLadders = myTbl.CanUseLadders,
+        pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost,
+        hunterIsFlanking = myTbl.hunterIsFlanking,
+        flankingIsReallyAngry = myTbl.flankingIsReallyAngry,
+        minPathingAreaWidth = myTbl.MinPathingAreaWidth,
+        stepHeight = locoMeta.GetStepHeight( myTbl.loco ),
+        jumpHeight = locoMeta.GetJumpHeight( myTbl.loco ),
+        deathDropHeight = locoMeta.GetDeathDropHeight( myTbl.loco ),
+        canSwim = myTbl.CanSwim,
+        isFodder = myTbl.IsFodder,
+
+    }
+end
+
 -- actually finds the paths, on coroutine
--- theoretically possible to use this without a term, but you will need to supply a NavMeshPathCostGenerator, see ENT:NavMeshPathCostGenerator
+-- to use this without a term, supply a NavMeshPathCostGenerator ( see ENT:NavMeshPathCostGenerator ) and a locoData for it to read
 
 -- returns... | area, final goal | table, area corridor | bool, if we got there | string, debug status
 
-function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshPathCostGenerator )
+function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshPathCostGenerator, locoData )
     if not IsValid( startArea ) or not IsValid( goalArea ) then return nil, nil, false, "fail1" end -- FAIL
     if startArea == goalArea then return goalArea, { startArea, goalArea }, true, "succeed3" end -- already there
 
@@ -1478,19 +1495,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
     NavMeshPathCostGenerator = NavMeshPathCostGenerator or myTbl.NavMeshPathCostGenerator
 
-    local locoData = {
-        canUseLadders = myTbl.CanUseLadders,
-        pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost,
-        hunterIsFlanking = myTbl.hunterIsFlanking,
-        flankingIsReallyAngry = myTbl.flankingIsReallyAngry,
-        minPathingAreaWidth = myTbl.MinPathingAreaWidth,
-        stepHeight = locoMeta.GetStepHeight( myTbl.loco ),
-        jumpHeight = locoMeta.GetJumpHeight( myTbl.loco ),
-        deathDropHeight = locoMeta.GetDeathDropHeight( myTbl.loco ),
-        canSwim = myTbl.CanSwim,
-        isFodder = fodder,
-
-    }
+    locoData = locoData or buildLocoData( myTbl )
 
     while #openedSequential > 0 do
         if myTbl.term_cancelPathGen then return goalArea, nil, false, "fail2.5" end -- another part of us says CANCEL THIS!
@@ -1534,7 +1539,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
                 return bestCompromiseArea, areaCorridor, false, "succeed2"
 
             else
-                return nil, false, "fail5"
+                return nil, nil, false, "fail5"
 
             end
         elseif bestArea == goalArea then -- got there!

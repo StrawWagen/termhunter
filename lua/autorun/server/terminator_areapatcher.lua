@@ -98,7 +98,7 @@ local function updateGridSize( newSize )
 
     patchTbl.trMins = Vector( -patchTbl.gridSmaller, -patchTbl.gridSmaller, -1 )
     patchTbl.trMaxs = Vector( patchTbl.gridSmaller, patchTbl.gridSmaller, 1 )
-    local collideXY = math_max( 15, patchTbl.gridSize * 0.65 )
+    local collideXY = math_max( 12.5, patchTbl.gridSize * 0.65 )
     patchTbl.collideTrMins = Vector( -collideXY, -collideXY, -1 )
     patchTbl.collideTrMaxs = Vector( collideXY, collideXY, collideXY )
 
@@ -596,6 +596,11 @@ end
 terminator_Extras.regionsQueue = {}
 local regionsQueue = terminator_Extras.regionsQueue
 
+hook.Add( "PreCleanupMap", "terminator_areapatcher_clearqueue", function()
+    table.Empty( regionsQueue )
+
+end )
+
 -- Flag to indicate if a patching process is currently running
 local isPatching = false
 hook.Remove( "Think", "PatchThinkHook" )
@@ -606,6 +611,12 @@ local noNavTextures = {
     ["tools/toolsblack"] = true,
 
 }
+
+local function rejectCell( pos, reason )
+    if not debugging then return end
+    debugoverlay.Text( pos, reason, 10, false )
+
+end
 
 local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
     local voxelsKey = vecAsKey( voxel )
@@ -664,12 +675,11 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     closedVoxels[vecAsKey( voxel )] = true
 
     local hitTexLower = string.lower( patchTbl.initialResult.HitTexture )
-    if noNavTextures[hitTexLower] then return end -- dont place outside of maps
-    if patchTbl.initialResult.HitSky then return end -- dont place on skybox, probably an "endless" pit
+    if noNavTextures[hitTexLower] then return rejectCell( hitPos, "texture" ) end -- dont place outside of maps
+    if patchTbl.initialResult.HitSky then return rejectCell( hitPos, "sky" ) end -- dont place on skybox, probably an "endless" pit
 
-    -- slope check
     local hitNormal = patchTbl.initialResult.HitNormal
-    if hitNormal:Dot( up ) < 0.5 then return end
+    if hitNormal:Dot( up ) < 0.5 then return rejectCell( hitPos, "slope" ) end
 
 
     -- if this is a massive overhang, skip it
@@ -683,7 +693,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     }
 
     local floorResult = util.TraceLine( trStrucFindFloor )
-    if not floorResult.Hit then return end
+    if not floorResult.Hit then return rejectCell( hitPos, "overhang" ) end
 
 
     -- is this inside a wall?
@@ -698,16 +708,16 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
     }
 
     local collideResult = util.TraceHull( trStrucCollide )
-    if collideResult.StartSolid then return end
+    if collideResult.StartSolid then return rejectCell( hitPos, "wall" ) end
 
     local defUnder, probUnder, upTrResult = patchTbl.posIsUnderDisplacement( hitPos )
-    if defUnder or probUnder then return end
+    if defUnder or probUnder then return rejectCell( hitPos, "under displacement" ) end
 
     local finalHeadroomDist = upTrResult.HitPos:Distance( hitPos )
-    if finalHeadroomDist < patchTbl.headroomCrouchRaw then return end -- really tiny space
+    if finalHeadroomDist < patchTbl.headroomCrouchRaw then return rejectCell( hitPos, "ceiling" ) end -- really tiny space
 
     local existingArea = navmesh.GetNearestNavArea( hitPos, false, patchTbl.halfGrid, false, true, -2 )
-    if IsValid( existingArea ) then return end
+    if IsValid( existingArea ) then return rejectCell( hitPos, "area here" ) end
 
     local existingAreas = navmesh.FindInBox( hitPos + patchTbl.finalAreaCheckMins, hitPos + patchTbl.finalAreaCheckMaxs )
     if existingAreas and #existingAreas >= 1 then
@@ -718,7 +728,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
                     debugoverlay.Line( hitPos, areasNearestToHit, 10, Color( 255, 0, 0 ), true )
 
                 end
-                return -- area is too close to an existing area
+                return rejectCell( hitPos, "area near" )
 
             end
         end
@@ -954,6 +964,23 @@ local function patchCoroutine()
         coroutine_yield( "waitlong" )
 
         local areaCreatedCount = #validatedAreas
+        if areaCreatedCount <= 0 then
+            -- callers queue raw positions, so duplicates only show once snapped
+            local doneKey = vecAsKey( pos1 ) .. vecAsKey( pos2 )
+            for ind = #regionsQueue, 1, -1 do
+                local queued = regionsQueue[ind]
+                if queued.gridSize ~= region.gridSize then continue end
+
+                local queuedPos1 = VectorMin( queued.pos1, queued.pos2 )
+                local queuedPos2 = VectorMax( queued.pos1, queued.pos2 )
+                SnapToGrid( queuedPos1 )
+                SnapToGrid( queuedPos2 )
+                if vecAsKey( queuedPos1 ) .. vecAsKey( queuedPos2 ) == doneKey then
+                    table.remove( regionsQueue, ind )
+
+                end
+            end
+        end
         hook.Run( "terminator_areapatcher_doneapatch", validatedAreas, areaCreatedCount )
 
     end
@@ -1014,7 +1041,7 @@ function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
                     terminator_Extras.IsLivePatching = nil
                     hook.Remove( "Think", "PatchThinkHook" )
                     timer.Simple( 30, function() -- clean this up if patching stops
-                        if terminator_Extras.IsLivePatching then return end
+                        if isPatching then return end
                         patchCleanup()
 
                     end )
