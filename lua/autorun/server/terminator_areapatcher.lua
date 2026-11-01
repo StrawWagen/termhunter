@@ -124,6 +124,14 @@ local function updateGridSize( newSize )
 
     }
 
+    patchTbl.trStrucSpace = {
+        mask = bit.bor( MASK_SOLID, CONTENTS_MONSTERCLIP ),
+        filter = filterFunc,
+        mins = patchTbl.trMins,
+        maxs = patchTbl.trMaxs,
+
+    }
+
     patchTbl.tempVectors = {}
 
     patchTbl.posIsUnderDisplacement = terminator_Extras.posIsUnderDisplacement
@@ -514,6 +522,20 @@ local function greedyMergeCells( vecsToPlace )
 
 end
 
+local function spaceTraceHits( start, endpos )
+    local trStruc = patchTbl.trStrucSpace
+    trStruc.start = start
+    trStruc.endpos = endpos
+    local result = util.TraceHull( trStruc )
+    if result.Hit and debugging then
+        debugoverlay.Line( start, result.HitPos, 10, Color( 255, 0, 0 ), true )
+        coroutine_yield( "wait" )
+
+    end
+    return result.Hit
+
+end
+
 local roundDec = 2
 
 local function navGetBounds( area )
@@ -618,7 +640,151 @@ local function rejectCell( pos, reason )
 
 end
 
-local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
+-- must do the same float math as the scan loop, or the keys won't line up
+local function voxelAt( pos1, i, j, k )
+    local gridSize = patchTbl.gridSize
+    return pos1.x + i * gridSize, pos1.y + j * gridSize, pos1.z + k * gridSize
+
+end
+
+-- The run of air voxel sits in, a stretch of its column one floor trace proved open, so
+-- the flood never has to trace up or down. Extends it over the voxelsBelow that trace passed.
+local function claimRun( spaceRuns, voxelsKey, voxel, mins, voxelsBelow )
+    local gridSize = patchTbl.gridSize
+    local k = math_Round( ( voxel.z - mins.z ) / gridSize )
+    local run = spaceRuns.runOf[voxelsKey]
+    if not run then
+        local ix = math_Round( ( voxel.x - mins.x ) / gridSize )
+        local iy = math_Round( ( voxel.y - mins.y ) / gridSize )
+        run = { ix = ix, iy = iy, top = k, bottom = k }
+
+        local column = spaceRuns.columns[ix]
+        if not column then
+            column = {}
+            spaceRuns.columns[ix] = column
+
+        end
+        local stack = column[iy]
+        if not stack then
+            stack = {}
+            column[iy] = stack
+
+        end
+        stack[#stack + 1] = run
+        spaceRuns.runOf[voxelsKey] = run
+
+    end
+
+    -- the trace ends a step under the region, so this can reach past its bottom
+    local bottom = math_max( k - voxelsBelow, 0 )
+    for belowK = bottom, k - 1 do
+        spaceRuns.runOf[vecAsKeyUnpacked( voxel.x, voxel.y, mins.z + belowK * gridSize )] = run
+
+    end
+    run.bottom = math_min( run.bottom, bottom )
+
+    return run
+
+end
+
+-- Whether air joins two runs in neighbouring columns, tracing across every stride'th height
+-- they share. Runs with no height in common never join.
+local function runsJoin( a, b, pos1, stride )
+    for k = math_max( a.bottom, b.bottom ), math_min( a.top, b.top ), stride do
+        coroutine_yield()
+        if not spaceTraceHits( Vector( voxelAt( pos1, a.ix, a.iy, k ) ), Vector( voxelAt( pos1, b.ix, b.iy, k ) ) ) then return true end
+
+    end
+    return false
+
+end
+
+local seedLift = Vector( 0, 0, 10 )
+local seedSearchRadius = 2
+local columnNeighbours = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+-- regions up to this many voxels trace at every height two runs share. Past it the spacing
+-- widens in proportion, so a huge region costs about what this one does
+local denseVoxelCount = 2000
+
+-- Only the cells whose air joins origin's. Hands vecsToPlace back whole if origin can't see
+-- an air voxel within seedSearchRadius.
+local function cullOtherSpaces( vecsToPlace, spaceRuns, origin, pos1, maxI, maxJ, maxK )
+    local gridSize = patchTbl.gridSize
+    local originI = math_min( math_max( math_Round( ( origin.x - pos1.x ) / gridSize ), 0 ), maxI )
+    local originJ = math_min( math_max( math_Round( ( origin.y - pos1.y ) / gridSize ), 0 ), maxJ )
+    local originK = math_min( math_max( math_Round( ( origin.z - pos1.z ) / gridSize ), 0 ), maxK )
+
+    local candidates = {}
+    for i = math_max( originI - seedSearchRadius, 0 ), math_min( originI + seedSearchRadius, maxI ) do
+        for j = math_max( originJ - seedSearchRadius, 0 ), math_min( originJ + seedSearchRadius, maxJ ) do
+            for k = math_max( originK - seedSearchRadius, 0 ), math_min( originK + seedSearchRadius, maxK ) do
+                local x, y, z = voxelAt( pos1, i, j, k )
+                local run = spaceRuns.runOf[vecAsKeyUnpacked( x, y, z )]
+                if not run then continue end
+
+                local pos = Vector( x, y, z )
+                candidates[#candidates + 1] = { run = run, pos = pos, distSqr = pos:DistToSqr( origin ) }
+
+            end
+        end
+    end
+    table.sort( candidates, function( a, b ) return a.distSqr < b.distSqr end )
+
+    -- origin is usually a bot or player's feet, right on the floor
+    local seedStart = origin + seedLift
+    local seedRun
+    for _, cand in ipairs( candidates ) do
+        coroutine_yield()
+        if not spaceTraceHits( seedStart, cand.pos ) then
+            seedRun = cand.run
+            break
+
+        end
+    end
+    if not seedRun then
+        debugPrint( "No air voxel visible from origin, not culling", origin )
+        return vecsToPlace
+
+    end
+
+    local voxelCount = ( maxI + 1 ) * ( maxJ + 1 ) * ( maxK + 1 )
+    local stride = math_max( 1, math.ceil( voxelCount / denseVoxelCount ) )
+
+    local reached = { [seedRun] = true }
+    local open = { seedRun }
+    while #open > 0 do
+        local run = table.remove( open )
+        for _, offset in ipairs( columnNeighbours ) do
+            local column = spaceRuns.columns[run.ix + offset[1]]
+            local stack = column and column[run.iy + offset[2]]
+            if not stack then continue end
+
+            for _, other in ipairs( stack ) do
+                if reached[other] then continue end
+                if not runsJoin( run, other, pos1, stride ) then continue end
+
+                reached[other] = true
+                open[#open + 1] = other
+
+            end
+        end
+    end
+
+    local kept = {}
+    for key, cell in pairs( vecsToPlace ) do
+        if reached[cell.run] then
+            kept[key] = cell
+
+        elseif debugging then
+            debugoverlay.Text( cell.truePos, "other space", 10, false )
+
+        end
+    end
+    return kept
+
+end
+
+local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, headroomTbl, solidVoxels, spaceRuns )
     local voxelsKey = vecAsKey( voxel )
     if not util_IsInWorld( voxel ) then
         solidVoxels[voxelsKey] = true
@@ -643,6 +809,11 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     end
 
+    local hitPos = patchTbl.initialResult.HitPos
+    local voxelsToToss = math.floor( voxel:Distance( hitPos ) / patchTbl.gridSize )
+    -- claimed before the headroom check, cramped air still carries the flood
+    local run = claimRun( spaceRuns, voxelsKey, voxel, mins, voxelsToToss )
+
     local voxelsHeadroom = getHeadroom( voxel, solidVoxels )
     headroomTbl[voxelsKey] = voxelsHeadroom
     if debugging then
@@ -656,11 +827,8 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
 
     end
 
-    local hitPos = patchTbl.initialResult.HitPos
     local snapped = GetSnappedToGrid( hitPos )
 
-    local dist = voxel:Distance( hitPos )
-    local voxelsToToss = math.floor( dist / patchTbl.gridSize )
     if voxelsToToss >= 1 then -- skip voxels early if floor trace passed through them no issue
         if debugging then
             debugoverlay.Line( voxel, hitPos, 10, Color( 255, 0, 0 ), true )
@@ -751,6 +919,7 @@ local function processVoxel( voxel, mins, _maxs, vecsToPlace, closedVoxels, head
         z = corner1.z,
         -- initialResult is reused by every trace, this has to be our own copy
         normal = Vector( hitNormal.x, hitNormal.y, hitNormal.z ),
+        run = run,
 
     }
 
@@ -811,6 +980,7 @@ local function patchCoroutine()
         -- if below is clear, close all voxels until the floor
         -- and add floor to vecsToPlace with headroom info
         local zSteps = math.floor( sizeInZ / patchTbl.gridSize )
+        local spaceRuns = { columns = {}, runOf = {} }
         for zInd = zSteps, 0, -1 do
             local z = zInd * patchTbl.gridSize
             coroutine_yield()
@@ -827,13 +997,21 @@ local function patchCoroutine()
 
                     local voxel = Vector( vx, vy, vz )
                     coroutine_yield()
-                    processVoxel( voxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels )
+                    processVoxel( voxel, pos1, pos2, vecsToPlace, closedVoxels, headroomTbl, solidVoxels, spaceRuns )
                     if debugging and IsValid( Entity( 1 ) ) and voxel:Distance( Entity( 1 ):GetPos() ) < 250 then
                         coroutine_yield( "wait" )
 
                     end
                 end
             end
+        end
+
+        if region.origin and next( vecsToPlace ) then
+            debugPrint( "Culling other spaces..." )
+            local maxI = math.floor( sizeInX / patchTbl.gridSize )
+            local maxJ = math.floor( sizeInY / patchTbl.gridSize )
+            vecsToPlace = cullOtherSpaces( vecsToPlace, spaceRuns, region.origin, pos1, maxI, maxJ, zSteps )
+
         end
 
         debugPrint( "Placing!" )
@@ -1001,10 +1179,11 @@ local nextThink = 0
 terminator_Extras.IsLivePatching = nil
 
 -- The main function to add a region to the patch queue
-function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize )
+-- origin is optional. Given one, only the space open to it gets patched
+function terminator_Extras.AddRegionToPatch( pos1, pos2, currGridSize, origin )
     if not doAreaPatching then return end
     -- Add the new region to the queue
-    table.insert( regionsQueue, { pos1 = pos1, pos2 = pos2, gridSize = currGridSize } )
+    table.insert( regionsQueue, { pos1 = pos1, pos2 = pos2, gridSize = currGridSize, origin = origin } )
     debugPrint( "Added region to queue:", pos1, pos2 )
 
     -- If not already patching, start the coroutine and add the Think hook
@@ -1073,7 +1252,7 @@ local bigSize = Vector( 175, 175, 100 )
 local hugeSize = Vector( 500, 500, 150 )
 
 -- add 1 region to patch queue around pos, choosing size and resolution based on existing nav areas nearby
-function terminator_Extras.dynamicallyPatchPos( pos )
+function terminator_Extras.dynamicallyPatchPos( pos, minGridSize )
     if not doAreaPatching then return end
     if #regionsQueue >= 100 then return end -- don't let this blow up!
 
@@ -1083,7 +1262,7 @@ function terminator_Extras.dynamicallyPatchPos( pos )
         local pos2 = pos + smallSize
         pos1 = snapToNavmeshCornerIfFurther( pos1, pos, smallGridSize * 8 )
         pos2 = snapToNavmeshCornerIfFurther( pos2, pos, smallGridSize * 8 )
-        terminator_Extras.AddRegionToPatch( pos1, pos2, smallGridSize )
+        terminator_Extras.AddRegionToPatch( pos1, pos2, smallGridSize, pos )
 
     else
         local areasInBigSize = navmesh.FindInBox( pos + -bigSize * 1.5, pos + bigSize * 1.5 )
@@ -1092,14 +1271,14 @@ function terminator_Extras.dynamicallyPatchPos( pos )
             local pos2 = pos + bigSize
             pos1 = snapToNavmeshCornerIfFurther( pos1, pos, 25 * 4 )
             pos2 = snapToNavmeshCornerIfFurther( pos2, pos, 25 * 4 )
-            terminator_Extras.AddRegionToPatch( pos1, pos2, 25 )
+            terminator_Extras.AddRegionToPatch( pos1, pos2, 25, pos )
 
         else
             local pos1 = pos + -hugeSize
             local pos2 = pos + hugeSize
             pos1 = snapToNavmeshCornerIfFurther( pos1, pos, 25 * 6 )
             pos2 = snapToNavmeshCornerIfFurther( pos2, pos, 25 * 6 )
-            terminator_Extras.AddRegionToPatch( pos1, pos2, 25 )
+            terminator_Extras.AddRegionToPatch( pos1, pos2, 25, pos )
 
         end
     end
@@ -1135,7 +1314,7 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
     local pos2 = pos + smallSize
     pos1 = snapToNavmeshCornerIfFurther( pos1, pos, gridSize * 8 )
     pos2 = snapToNavmeshCornerIfFurther( pos2, pos, gridSize * 8 )
-    terminator_Extras.AddRegionToPatch( pos1, pos2, gridSize )
+    terminator_Extras.AddRegionToPatch( pos1, pos2, gridSize, pos )
 
     -- always show region being queued with a debug box
     local boxMins = -smallSize
@@ -1148,3 +1327,46 @@ concommand.Add( "terminator_areapatch_here", function( ply, _, args )
     end
 
 end, nil, "Patch a nav region centered at your crosshair using smallSize and specified grid size (default " .. smallGridSize .. ", superadmin only)" )
+
+-- first corner each player marked, waiting on their second
+local volumeCorners = setmetatable( {}, { __mode = "k" } )
+
+concommand.Add( "terminator_areapatch_volume", function( ply, _, args )
+    if not IsValid( ply ) then return end
+    if not ply:IsSuperAdmin() then
+        if ply.ChatPrint then ply:ChatPrint( "Superadmin only." ) end
+        return
+
+    end
+
+    local tr = ply:GetEyeTrace()
+    if not tr or not tr.HitPos then return end
+
+    local pos = tr.HitPos
+    local corner1 = volumeCorners[ply]
+    if not corner1 then
+        volumeCorners[ply] = pos
+        debugoverlay.Cross( pos, 10, 10, Color( 0, 255, 0 ), true )
+        ply:ChatPrint( "Marked corner 1, run again to mark corner 2." )
+        return
+
+    end
+    volumeCorners[ply] = nil
+
+    local gridSize = tonumber( args[1] ) or smallGridSize
+
+    -- rounded to the grid, then one gridsize bigger than what was selected
+    local function paddedHalf( a, b )
+        return ( math_Round( math_abs( a - b ) / gridSize ) * gridSize + gridSize ) / 2
+
+    end
+    local halfSize = Vector( paddedHalf( corner1.x, pos.x ), paddedHalf( corner1.y, pos.y ), paddedHalf( corner1.z, pos.z ) )
+    local center = ( corner1 + pos ) / 2
+
+    -- no origin, the whole selection gets patched rather than just what one spot can see
+    terminator_Extras.AddRegionToPatch( center + -halfSize, center + halfSize, gridSize )
+
+    debugoverlay.Box( center, -halfSize, halfSize, 10, Color( 0, 255, 0, 10 ) )
+    ply:ChatPrint( "Queued nav patch volume (grid " .. gridSize .. ")." )
+
+end, nil, "Run once to mark corner 1 at your crosshair, again to mark corner 2 and patch the volume between. Optional grid size (default " .. smallGridSize .. ", superadmin only)" )

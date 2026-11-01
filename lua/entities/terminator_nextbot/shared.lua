@@ -192,6 +192,30 @@ ENT.IsWraith = nil -- enable wraith cloaking logic
 ENT.NotSolidWhenCloaked = true
 --]]
 
+ENT.MyExtraModels = nil -- clientside models stuck onto the bot, see autorun/client/terminator_cl_extramodels.lua.
+--[[
+ENT.MyExtraModels = {
+    {
+        model = "models/props_combine/combine_mine01.mdl",
+        bone = "ValveBiped.Bip01_Head1", -- OR attachment = "eyes", neither for the bot's origin
+        pos = Vector( 0, 0, 5 ), -- local to the bone/attachment/origin
+        ang = Angle( 0, 0, 180 ),
+        scale = 0.5, -- times the bot's model scale
+        material = "models/debug/debugwhite", -- overrides every material on the model
+        color = Color( 255, 0, 0, 128 ), -- alpha under 255 makes it see-through
+        hideWhenDead = true, -- extras move onto the death ragdoll, this keeps it off. callbacks there get the ragdoll as bot
+        fallOffOnDeath = true, -- OR this, drops off the bot as a physics prop when it ragdolls. no callbacks run on it
+        initialize = function( bot, prop, realBot ) prop:SetSkin( 1 ) end, -- once, when the model is made. skins, bodygroups, etc
+        think = function( bot, prop, realBot ) end, -- on a timer, eg pose params. pos/ang get reapplied every draw, move it in draw instead
+        thinkInterval = 0.01, -- seconds between thinks
+        draw = function( bot, prop, realBot, flags ) prop:DrawModel( flags ) end, -- replaces the default draw, skip DrawModel to hide it
+        -- realBot is only different from bot for extras drawn with terminator_Extras.DrawMyExtraModels
+    },
+}
+-- they hide with the bot when it's NoDraw. hiding it any other way, eg cloaking? hide them with the ShouldDrawMyExtraModels hook too
+
+--]]
+
 
 local LineOfSightMask = MASK_BLOCKLOS
 terminator_Extras.LineOfSightMask = LineOfSightMask
@@ -202,10 +226,30 @@ if CLIENT then
 
     function ENT:AdditionalClientInitialize() end
 
+    local function attachMyExtraModels( self )
+        local extras = self.MyExtraModels
+        -- SENT inheritance deep-merges a derived bot's list into its parent's, entry by entry, take the class's own list instead
+        if istable( extras ) and extras.BaseClass then
+            extras = scripted_ents.GetMember( self:GetClass(), "MyExtraModels" )
+
+        end
+        if extras then
+            terminator_Extras.AttachMyExtraModels( self, extras )
+
+        end
+    end
+
     function ENT:Initialize()
         BaseClass.Initialize( self )
         self.PlayerColorVec = self.PlayerColorVec or VectorRand()
         self:AdditionalClientInitialize()
+        attachMyExtraModels( self )
+
+    end
+
+    -- autorefresh makes a new class list, the extras would keep reading the old one
+    function ENT:OnReloaded()
+        attachMyExtraModels( self )
 
     end
 

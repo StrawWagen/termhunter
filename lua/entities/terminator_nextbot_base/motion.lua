@@ -174,6 +174,12 @@ function ENT:SetupActivity()
 	end
 end
 
+-- call after SetModel()-ing a live bot, fixes it T-posing.
+function ENT:RestartActivity()
+	if self:IsPostureActive() then return end -- StopPosture restarts it once the posture's done
+	self:StartActivity( self:GetActivity() )
+end
+
 --[[------------------------------------
 	Name: NEXTBOT:DoGesture
 	Desc: Plays an animation (e.g. reload animation). Removes previous animation.

@@ -1,7 +1,6 @@
 
 local entMeta = FindMetaTable( "Entity" )
 local locoMeta = FindMetaTable( "CLuaLocomotion" )
-local physMeta = FindMetaTable( "PhysObj" )
 local pathMeta = FindMetaTable( "PathFollower" )
 
 local coroutine_yield = coroutine.yield
@@ -230,11 +229,6 @@ function ENT:BehaveUpdate( interval )
 
                     locoMeta.SetMaxYawRate( loco, oldYawRate )
 
-                    local phys = entMeta.GetPhysicsObject( self )
-                    if IsValid( phys ) then
-                        physMeta.SetAngles( phys, angle_zero )
-
-                    end
                 end
             }
         end
@@ -452,10 +446,9 @@ function ENT:Think()
     -- always pass this beautiful table, else reckon the fps-draining scourge of the _index call....
     local myTbl = entMeta.GetTable( self )
 
-    myTbl.UpdatePhysicsObject( self, myTbl )
-
     local threads = myTbl.BehaviourThreads
     if not threads then
+        myTbl.UpdatePhysicsObject( self, myTbl )
         entMeta.NextThink( self, cur + 0.02 )
         return true
 
@@ -645,6 +638,10 @@ function ENT:Think()
 
         end
     end
+
+    -- after the threads, path:Update in motionCor's whenBusy re-rotates the physobj
+    myTbl.UpdatePhysicsObject( self, myTbl )
+
     if doneSomething then
         entMeta.NextThink( self, CurTime() ) -- think fast if we have threads to process
         return true

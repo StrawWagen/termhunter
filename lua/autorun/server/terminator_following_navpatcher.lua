@@ -322,7 +322,7 @@ local function onNoArea( ply, plyTbl, beingChased, someoneWasChased ) -- ply is 
         plyTbl.term_LastPatchPos = plyPos
 
         if ply:Crouching() and ply:GetVelocity():LengthSqr() < 225^2 then -- always patch in vents etc
-            terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 12.5 )
+            terminator_Extras.AddRegionToPatch( plyPos + -smallSize, plyPos + smallSize, 12.5, plyPos )
             return
 
         end
@@ -354,7 +354,7 @@ local function onSameArea( _ply, plyTbl, beingChased, someoneWasChased ) -- ply 
     local crumbsArea = navmesh.GetNearestNavArea( currCrumb, false, 50, false, true, -2 )
     if IsValid( crumbsArea ) then return end
 
-    terminator_Extras.AddRegionToPatch( currCrumb + -hugeSize, currCrumb + hugeSize, 50 )
+    terminator_Extras.AddRegionToPatch( currCrumb + -hugeSize, currCrumb + hugeSize, 50, currCrumb )
 
 end
 
@@ -426,7 +426,7 @@ do
                 local aheadArea = navmesh.GetNearestNavArea( aheadPos, true, 150, false, true, -2 )
 
                 if not IsValid( aheadArea ) then
-                    terminator_Extras.dynamicallyPatchPos( aheadPos, 50 )
+                    terminator_Extras.dynamicallyPatchPos( aheadPos )
 
                 end
             elseif debugging then

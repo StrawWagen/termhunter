@@ -47,6 +47,7 @@ function terminator_Extras.becomeEndoskeleton( ent )
     if CurTime() - ent:GetCreationTime() < 0.1 then return end -- new ent, we are in OnPreCreated
 
     ent:SetModel( SKELETON_MODEL )
+    ent:RestartActivity()
     ent:SetBloodColor( BLOOD_COLOR_MECH )
 
     ent:EmitSound( "npc/barnacle/neck_snap2.wav", 78, math.random( 50, 60 ), 1, CHAN_STATIC )

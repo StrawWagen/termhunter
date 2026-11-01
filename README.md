@@ -123,6 +123,150 @@ You can also play animation layers (gestures) over the bot's current animation u
 You'll see expanded examples of this in the MySpecialActions section below.
 
 
+## ENT.MyExtraModels
+
+Clientside models stuck onto the bot. Harpoons, helmets, backpacks, glowy bits.  
+They're made and moved entirely on the client, so they cost the server nothing.
+
+### Example: Harpooned Terminator
+
+```lua
+ENT.MyExtraModels = {
+    {
+        model = "models/props_junk/harpoon002a.mdl",
+        bone = "ValveBiped.Bip01_Spine2", -- in the chest, moves with it
+        pos = Vector( 4, 0, 0 ),
+        ang = Angle( 0, 90, 10 ), -- straight through, front to back, a bit crooked
+        fallOffOnDeath = true, -- clatters to the floor when the bot dies
+    },
+}
+```
+
+`pos` and `ang` are local to the bone, so expect to tweak them in game.  
+Autorefresh works, save the file and the harpoon moves.
+
+### Entry Fields
+
+**Required:**
+- `.model` (string) - Model path
+
+**Placement:**
+- `.bone` (string) - Bone to stick it to, eg `"ValveBiped.Bip01_Head1"`
+- `.attachment` (string) - OR an attachment, eg `"eyes"`. Neither puts it on the bot's origin
+- `.pos` (Vector) - Offset, local to the bone/attachment/origin
+- `.ang` (Angle) - Angle, same
+- `.scale` (number) - Times the bot's model scale
+
+**Looks:**
+- `.material` (string) - Overrides every material on the model
+- `.color` (Color) - Alpha under 255 makes it see-through
+
+**Callbacks:**  
+`realBot` is only different from `bot` for extras drawn with `terminator_Extras.DrawMyExtraModels`. (more info below)
+- `.initialize` (function) - `function( bot, prop, realBot )` once, when the model is made. Skins, bodygroups, etc
+- `.think` (function) - `function( bot, prop, realBot )` on a timer, eg pose params
+- `.thinkInterval` (number) - Seconds between thinks
+- `.draw` (function) - `function( bot, prop, realBot, flags )` replaces the default draw, skip `prop:DrawModel( flags )` to hide it
+
+**Death:**
+- `.hideWhenDead` (bool) - Keep it off the death ragdoll
+- `.fallOffOnDeath` (bool) - Drop it off as a physics prop when the bot ragdolls
+
+### Example: Callbacks
+
+A combine mine strapped to the bot's back, pulsing red, with a dodgy connection.
+
+```lua
+ENT.MyExtraModels = {
+    {
+        model = "models/props_combine/combine_mine01.mdl",
+        bone = "ValveBiped.Bip01_Spine2",
+        pos = Vector( 0, -8, 0 ),
+        ang = Angle( 0, 0, 90 ),
+        scale = 0.6,
+        initialize = function( bot, prop )
+            prop:SetSkin( 1 )
+
+        end,
+        think = function( bot, prop )
+            local pulse = 155 + math.sin( CurTime() * 6 ) * 100
+            prop:SetColor( Color( 255, pulse, pulse ) )
+
+        end,
+        thinkInterval = 0.05,
+        draw = function( bot, prop, realBot, flags )
+            if math.random() < 0.05 then return end -- flicker
+            prop:DrawModel( flags )
+
+        end,
+    },
+}
+```
+
+`pos` and `ang` get reapplied every draw, so to move an extra around, do it in `draw`, not `think`.
+
+### Death
+
+By default, extras carry over onto the bot's death ragdoll.  
+They're made fresh for the ragdoll, so `initialize` runs again, and the callbacks get the ragdoll as `bot`.  
+If a callback calls bot-only functions, like `bot:GetActiveWeapon()`, give it `hideWhenDead`.
+
+`fallOffOnDeath` extras drop off as physics props instead, and get cleaned up after about 30 seconds.
+
+**Dropping them during a death animation:**  
+`terminator_Extras.DropMyExtraModels( ent, lifetime )` knocks every extra off right away, as physics props.  
+It's client only, and the client doesn't know when a death animation starts, so the server has to tell it.
+
+```lua
+if SERVER then
+    util.AddNetworkString( "mybot_dropextras" )
+
+end
+
+ENT.Term_DeathAnim = {
+    act = ACT_GMOD_GESTURE_TAUNT_ZOMBIE,
+    rate = 0.75,
+    startFunc = function( self )
+        net.Start( "mybot_dropextras" )
+        net.WriteEntity( self )
+        net.Broadcast()
+
+    end,
+}
+
+if CLIENT then
+    net.Receive( "mybot_dropextras", function()
+        local bot = net.ReadEntity()
+        if not IsValid( bot ) then return end -- not in the player's PVS
+
+        terminator_Extras.DropMyExtraModels( bot, 20 ) -- props vanish after about 20 seconds
+
+    end )
+end
+```
+
+After dropping, the bot has no extras, so nothing carries onto its ragdoll.
+
+### Hiding them
+
+Extras hide with the bot when it's NoDraw.  
+Hiding the bot any other way, eg cloaking? Hide its extras too, or a floating harpoon gives it away.
+
+```lua
+hook.Add( "ShouldDrawMyExtraModels", "mybot_cloaking", function( bot )
+    if bot:GetNWBool( "mybot_cloaked" ) then return false end
+
+end )
+```
+
+**Notes:**
+1. A derived bot's `ENT.MyExtraModels` replaces its base class's list, it doesn't add to it.  
+   Want the base's extras too? Copy them into your list.
+2. Missing models and bones are usually missing content on the player's end, so they only warn loudly with `developer 1`.
+3. Drawing a bot by hand, eg a NoDraw copy in a viewmodel? Call `terminator_Extras.DrawMyExtraModels( ent, entries, flags, realEnt )` every frame after drawing it.  
+   See [terminator_cl_extramodels.lua](lua/autorun/client/terminator_cl_extramodels.lua).
+
+
 ## ENT.MyClassTask System
 
 ### What's a task?
