@@ -28,6 +28,11 @@ ENT.MySpecialActions = {
         inBind = IN_USE,
         drawHint = true,
         ratelimit = 2,
+        -- false means "not right now", skips svAction without eating the ratelimit
+        svCanAct = function( bot, driver )
+            return IsValid( bot:GetEnemy() )
+
+        end,
         svAction = function( driveController, driver, bot )
             bot:DoGesture( ACT_GMOD_GESTURE_WAVE )
 
@@ -139,6 +144,9 @@ ENT.InformRadius = 0 -- how far it shares enemy info with allies
 -- SOUNDS/FEEL --
 ENT.ReallyStrong = false -- terminator strength, throws crowbars 5x harder
 ENT.ReallyHeavy = false -- heavy landings, goomba damage
+-- ENT.ChargeCrushes = true -- running into anything much shorter or lighter hurts it, allies too
+-- ENT.ChargeCrushDmgPerSpeed = 0.1 -- 1000 speed does 100 damage
+-- ENT.ChargeCrushDmgMinSpeed = 300 -- defaults to MoveSpeed
 ENT.MetallicMoveSounds = false
 ENT.FootstepClomping = false -- second, heavier sound on every step
 -- ENT.Term_FootstepShake = { amplitude = 1, frequency = 100, duration = 0.25, radius = 100 } -- a big guy

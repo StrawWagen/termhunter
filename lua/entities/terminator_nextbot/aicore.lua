@@ -113,6 +113,7 @@ function ENT:BehaveUpdate( interval )
 
     myTbl.SetupSpeed( self, myTbl )
     myTbl.SetupMotionType( self, myTbl )
+    myTbl.ChargeCrushThink( self, myTbl )
     myTbl.m_FallSpeed = -myTbl.loco:GetVelocity().z
 
     myTbl.SetupGesturePosture( self )

@@ -23,6 +23,7 @@ local specialActionsRequiredTypes = {
     ["desc"] = { TYPE_STRING },
     ["svAction"] = { TYPE_FUNCTION, TYPE_NIL },
     ["clAction"] = { TYPE_FUNCTION, TYPE_NIL },
+    ["svCanAct"] = { TYPE_FUNCTION, TYPE_NIL },
     ["ratelimit"] = { TYPE_NUMBER },
     ["uses"] = { TYPE_NUMBER },
     ["drawHint"] = { TYPE_BOOL, TYPE_FUNCTION },
@@ -267,9 +268,10 @@ end
     NEXTBOT:CanTakeAction
     Check if bot can take the specified action right now
     arg1: string | actionName | Name of action to check
+    arg2: Player | driver | Optional, player driving the bot, handed to svCanAct
     ret1: bool | canTake | True if bot can take the action
 --]]------------------------------------
-function ENT:CanTakeAction( actionName )
+function ENT:CanTakeAction( actionName, driver )
     local specialActions = self.SpecialActions
     if not specialActions then return end -- too early, called inside Initialize
 
@@ -292,6 +294,11 @@ function ENT:CanTakeAction( actionName )
         if usesLeft <= 0 then return end
 
     end
+
+    -- server only, client never has the state these check
+    local svCanAct = actionData.svCanAct
+    if SERVER and svCanAct and not svCanAct( self, driver ) then return end
+
     return true
 
 end
@@ -306,15 +313,15 @@ function ENT:TakeAction( actionName, driveController )
     local specialActions = self.SpecialActions
     if not specialActions then ErrorNoHaltWithStack( "BOT:TakeAction called before bot finished setting up..." ) return end -- called inside Initialize...
 
-    if not self:CanTakeAction( actionName ) then return end
-    local actionData = specialActions[actionName]
-
     driveController = driveController or self.Term_PlayerDriveController
     local driver
     if driveController then
         driver = driveController.Player
 
     end
+
+    if not self:CanTakeAction( actionName, driver ) then return end
+    local actionData = specialActions[actionName]
 
     if actionData.ratelimit then
         self.m_LastActionTimes = self.m_LastActionTimes or {}

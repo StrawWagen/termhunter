@@ -59,6 +59,9 @@ function ENT:RunTask( event, ... )
             if yieldable then
                 coroutine_yield()
 
+                -- the other coroutine can end or start tasks while we're yielded, dont run a dead task's callback
+                if m_ActiveTasksNum[k] ~= currTask then continue end
+
             end
 
             local data = currTask[2] -- task data
@@ -156,7 +159,8 @@ end
 
 --[[------------------------------------
     Name: NEXTBOT:HasTask
-    Desc: Checks if a task with the given name is in the tasklist.
+    Desc: Checks if a bot posesses a given task.
+        For checking if a task is running use IsTaskActive.
     Arg1: string | taskName | Task name.
     Ret1: bool | Does the task exist?
 --]]------------------------------------

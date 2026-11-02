@@ -536,6 +536,10 @@ function SWEP:DealDamage()
                 owner:PostHitObject( hitEnt, damageThisTime )
 
             end
+            if owner.RunTask then
+                owner:RunTask( "OnDealtFistDamage", hitEnt, dmginfo )
+
+            end
 
             if owner:IsOnFire() then
                 hitEnt:Ignite( damageThisTime / 20 )

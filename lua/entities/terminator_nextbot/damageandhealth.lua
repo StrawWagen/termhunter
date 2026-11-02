@@ -569,8 +569,9 @@ function ENT:PostTookDamage( dmg )
     end
 
     -- muls damage RECIEVED from friendly ents
+    -- not charge crushes, a big ally trampling us is the point
     local friendlyFireMul = myTbl.FriendlyFireMul
-    if friendlyFireMul and friendlyFireMul ~= 1 then
+    if friendlyFireMul and friendlyFireMul ~= 1 and not myTbl.term_TakingChargeCrush then
         local attackerDisp = myTbl.TERM_GetRelationship( self, myTbl, attacker )
         if attackerDisp == D_LI then -- buddies with attacker, scale the damage down
             dmg:ScaleDamage( friendlyFireMul )

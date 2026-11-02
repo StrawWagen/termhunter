@@ -259,6 +259,24 @@ hook.Add( "ShouldDrawMyExtraModels", "mybot_cloaking", function( bot )
 end )
 ```
 
+They also hide on whoever the camera's inside, eg the local player in first person, so a helmet doesn't block the view.
+
+### Adding extras from elsewhere
+
+Got extras to put on an ent that aren't its own, eg a hat from a powerup? Attach them under your own key.
+
+```lua
+local hat = { model = "models/props_junk/MetalBucket01a.mdl", bone = "ValveBiped.Bip01_Head1", pos = Vector( 6, 0, 0 ) }
+
+terminator_Extras.AttachMyExtraModels( ply, { hat }, "mypowerup_hat" )
+
+-- later, takes off just the hat
+terminator_Extras.RemoveMyExtraModels( ply, "mypowerup_hat" )
+```
+
+Each key's list is separate, so it won't touch the ent's `ENT.MyExtraModels`, or anyone else's.  
+Works on any ent with a model, players included. Client only.
+
 **Notes:**
 1. A derived bot's `ENT.MyExtraModels` replaces its base class's list, it doesn't add to it.  
    Want the base's extras too? Copy them into your list.
@@ -694,7 +712,7 @@ ENT.MySpecialActions = {
 self:TakeAction( "Dance" )
 ```
 
-You can also check if an action can be taken (it might be on ratelimit?):
+You can also check if an action can be taken (it might be on ratelimit, or its `svCanAct` said no):
 ```lua
 if self:CanTakeAction( "Dance" ) then
     self:TakeAction( "Dance" )
@@ -717,6 +735,9 @@ end
 - `.uses` (number) - Maximum number of times action can be used (<=0 means unlimited)
 - `.svAction` (function) - Server-side action logic: `function( driveController, driver, bot )`
 - `.clAction` (function) - Client-side action logic: `function( driveController, driver, bot )`
+- `.svCanAct` (function) - Return false for "can't do this right now": `function( bot, driver )`
+  - Checked by `CanTakeAction`, so a false doesn't eat the ratelimit or spend a use
+  - Server only. `driver` is nil when the AI is the one acting
 
 ### Action Override System
 

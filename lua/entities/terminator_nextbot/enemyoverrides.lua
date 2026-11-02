@@ -893,6 +893,8 @@ end
     Ret1:
 --]]------------------------------------
 function ENT:SetupEntityRelationship( myTbl, ent, entsTbl )
+    -- liking ourselves would scale our own damage by FriendlyFireMul
+    if ent == self then return end
     if notEnemyCache[ent] then return end
     local disp, priority, theirDisp = myTbl.GetDesiredEnemyRelationship( self, myTbl, ent, entsTbl )
     myTbl.Term_SetEntityRelationship( self, ent, disp, priority )

@@ -4,7 +4,11 @@
 -- AttachMyExtraModels, for ents drawn normally. extras get parented to the ent, the engine carries them around and draws them
 -- DrawMyExtraModels, for ents you draw by hand, eg a NoDraw copy in a viewmodel. call it every frame, it places and draws the extras itself
 -- DropMyExtraModels knocks attached extras off as physics props, eg mid death animation
--- attached extras hide when the ent's dormant or NoDraw. anything that hides an ent its own way, eg cloaking, has to hide its extras too:
+-- attached extras come in lists, by key. each thing adding extras to an ent attaches its own list, and removes just that one
+--     terminator_Extras.AttachMyExtraModels( ply, { hatEntry }, "myaddon_hat" )
+--     terminator_Extras.RemoveMyExtraModels( ply, "myaddon_hat" )
+-- attached extras hide when the ent's dormant or NoDraw, or seen from inside, eg the local player in first person
+-- anything that hides an ent its own way, eg cloaking, has to hide its extras too:
 --     hook.Add( "ShouldDrawMyExtraModels", "myaddon", function( ent ) if ent.myaddon_Cloaked then return false end end )
 -- drawn extras ignore that hook, just don't call DrawMyExtraModels
 
@@ -21,13 +25,20 @@ local angle_zero = Angle( 0, 0, 0 )
 local knownFields = { model = true, pos = true, ang = true, bone = true, attachment = true, scale = true, material = true, color = true, hideWhenDead = true, fallOffOnDeath = true, initialize = true, think = true, thinkInterval = true, draw = true }
 local developerVar = GetConVar( "developer" )
 
+-- the list an AttachMyExtraModels without a key goes in, eg ENT.MyExtraModels
+local defaultKey = "default"
+
 
 -- WARNINGS --
 
-local function warningMessage( ent, index, problem )
+local function warningMessage( ent, key, index, problem )
     local where = "MyExtraModels"
+    if key ~= defaultKey then
+        where = where .. " \"" .. tostring( key ) .. "\""
+
+    end
     if index then
-        where = "MyExtraModels entry " .. index
+        where = where .. " entry " .. index
 
     end
     return "terminator_Extras: " .. ent:GetClass() .. " " .. where .. ", " .. problem .. ". Skipping it.\n"
@@ -35,15 +46,15 @@ local function warningMessage( ent, index, problem )
 end
 
 -- a mistake in the entries themselves
-local function warn( ent, index, problem )
-    ErrorNoHalt( warningMessage( ent, index, problem ) )
+local function warn( ent, key, index, problem )
+    ErrorNoHalt( warningMessage( ent, key, index, problem ) )
 
 end
 
 -- missing models, bones and attachments are usually the player's end, not the dev's. missing content, model replacement addons
 -- so it only gets loud with developer on
-local function warnMissing( ent, index, problem )
-    local msg = warningMessage( ent, index, problem )
+local function warnMissing( ent, key, index, problem )
+    local msg = warningMessage( ent, key, index, problem )
     if developerVar:GetInt() > 0 then
         ErrorNoHalt( msg )
 
@@ -57,35 +68,35 @@ end
 -- MAKING EXTRAS --
 
 -- looks up the entry's bone/attachment onto extra, and makes its prop. returns nil if anything's wrong with the entry
-local function makeProp( ent, index, entry, extra )
+local function makeProp( ent, key, index, entry, extra )
     local model = entry.model
     if not isstring( model ) then
-        warn( ent, index, "missing or non-string model" )
+        warn( ent, key, index, "missing or non-string model" )
         return
 
     end
 
     for field in pairs( entry ) do
         if not knownFields[field] then
-            warn( ent, index, "unknown field \"" .. tostring( field ) .. "\", typo?" )
+            warn( ent, key, index, "unknown field \"" .. tostring( field ) .. "\", typo?" )
             return
 
         end
     end
 
     if entry.material ~= nil and not isstring( entry.material ) then
-        warn( ent, index, "non-string material" )
+        warn( ent, key, index, "non-string material" )
         return
 
     end
     if entry.color ~= nil and not IsColor( entry.color ) then
-        warn( ent, index, "color isn't a Color()" )
+        warn( ent, key, index, "color isn't a Color()" )
         return
 
     end
 
     if entry.hideWhenDead and entry.fallOffOnDeath then
-        warn( ent, index, "has both hideWhenDead and fallOffOnDeath set, pick one" )
+        warn( ent, key, index, "has both hideWhenDead and fallOffOnDeath set, pick one" )
         return
 
     end
@@ -93,7 +104,7 @@ local function makeProp( ent, index, entry, extra )
     local bone = entry.bone
     local attachment = entry.attachment
     if bone and attachment then
-        warn( ent, index, "has both bone and attachment set, pick one" )
+        warn( ent, key, index, "has both bone and attachment set, pick one" )
         return
 
     end
@@ -101,14 +112,14 @@ local function makeProp( ent, index, entry, extra )
     if bone then
         extra.boneId = ent:LookupBone( bone )
         if not extra.boneId then
-            warnMissing( ent, index, "model " .. tostring( ent:GetModel() ) .. " has no bone \"" .. bone .. "\"" )
+            warnMissing( ent, key, index, "model " .. tostring( ent:GetModel() ) .. " has no bone \"" .. bone .. "\"" )
             return
 
         end
     elseif attachment then
         extra.attachId = ent:LookupAttachment( attachment )
         if extra.attachId <= 0 then
-            warnMissing( ent, index, "model " .. tostring( ent:GetModel() ) .. " has no attachment \"" .. attachment .. "\"" )
+            warnMissing( ent, key, index, "model " .. tostring( ent:GetModel() ) .. " has no attachment \"" .. attachment .. "\"" )
             return
 
         end
@@ -116,7 +127,7 @@ local function makeProp( ent, index, entry, extra )
 
     -- not util.IsValidModel, clientside that's false for any model nothing has loaded yet
     if not file.Exists( model, "GAME" ) then
-        warnMissing( ent, index, "model " .. model .. " doesn't exist" )
+        warnMissing( ent, key, index, "model " .. model .. " doesn't exist" )
         return
 
     end
@@ -130,7 +141,7 @@ local function makeProp( ent, index, entry, extra )
 
     local prop = ClientsideModel( model, renderGroup )
     if not IsValid( prop ) then
-        warn( ent, index, "ClientsideModel( \"" .. model .. "\" ) failed" )
+        warn( ent, key, index, "ClientsideModel( \"" .. model .. "\" ) failed" )
         return
 
     end
@@ -140,7 +151,7 @@ local function makeProp( ent, index, entry, extra )
 end
 
 -- broken entries still get an extra, with no prop, so they're only warned about once per ent model
-local function makeExtra( ent, index, entry )
+local function makeExtra( ent, key, index, entry )
     local extra = {
         entry = entry,
         -- what the prop was made from, if any of these change it gets remade
@@ -148,7 +159,7 @@ local function makeExtra( ent, index, entry )
         bone = entry.bone,
         attachment = entry.attachment,
     }
-    extra.prop = makeProp( ent, index, entry, extra )
+    extra.prop = makeProp( ent, key, index, entry, extra )
     return extra
 
 end
@@ -273,12 +284,24 @@ local function drawExtra( ent, prop, realEnt, entry, flags )
     end
 end
 
+-- extras ride the ent's bones, so on whoever the camera's inside they'd sit right in front of it
+local function isSeenFromInside( ent )
+    if not ent:IsPlayer() then return false end
+
+    local viewer = LocalPlayer()
+    if ent == viewer then return not viewer:ShouldDrawLocalPlayer() end
+
+    return viewer:GetObserverMode() == OBS_MODE_IN_EYE and viewer:GetObserverTarget() == ent
+
+end
+
 -- the .RenderOverride, that gets applied on the created extra prop
 local function makeAttachedOverride( ent, extra )
     return function( prop, flags )
         -- :Remove() lands next tick, so a removed ent's extras can still get drawn in between
         if not IsValid( ent ) then return end
         if entMeta.IsDormant( ent ) or entMeta.GetNoDraw( ent ) then return end
+        if isSeenFromInside( ent ) then return end
         if hook_Run( "ShouldDrawMyExtraModels", ent ) == false then return end
 
         if entMeta.GetParent( prop ) ~= ent then
@@ -346,7 +369,7 @@ end
 
 -- KEEPING EXTRAS IN SYNC WITH THE ENTRIES --
 
--- ent -> its attached state, watched for model changes. nothing calls AttachMyExtraModels again when an ent's model changes
+-- ent -> its attached states by key, watched for model changes. nothing calls AttachMyExtraModels again when an ent's model changes
 terminator_Extras.attachedExtrasEnts = terminator_Extras.attachedExtrasEnts or {}
 local attachedEnts = terminator_Extras.attachedExtrasEnts
 
@@ -387,7 +410,7 @@ local function syncExtras( ent, state, realEnt )
 
             end
 
-            extra = makeExtra( ent, index, entry )
+            extra = makeExtra( ent, state.key, index, entry )
             extra.realEnt = realEnt
             extras[index] = extra
 
@@ -432,42 +455,57 @@ local function removeExtras( state )
 
 end
 
-local function onEntRemoved( ent )
-    attachedEnts[ent] = nil
-    if ent.term_AttachedExtras then
-        removeExtras( ent.term_AttachedExtras )
-
-    end
-    if ent.term_DrawnExtras then
-        removeExtras( ent.term_DrawnExtras )
+local function removeAllExtras( states )
+    if not states then return end
+    for _, state in pairs( states ) do
+        removeExtras( state )
 
     end
 end
 
-local function getState( ent, key, entries, isAttached )
-    local state = ent[key]
+local function onEntRemoved( ent )
+    attachedEnts[ent] = nil
+    removeAllExtras( ent.term_AttachedExtras )
+    removeAllExtras( ent.term_DrawnExtras )
+
+end
+
+-- field, term_AttachedExtras or term_DrawnExtras
+local function getStates( ent, field )
+    local states = ent[field]
+    if not states then
+        states = {}
+        ent[field] = states
+
+    end
+    return states
+
+end
+
+local function getState( ent, states, key, entries, isAttached )
+    local state = states[key]
     if state and state.entries == entries then return state end
 
     if not istable( entries ) then
-        warn( ent, nil, "isn't a table" )
+        warn( ent, key, nil, "isn't a table" )
         return
 
     end
     if entries.BaseClass then
-        warn( ent, nil, "was merged into its base class's list by SENT inheritance, pass scripted_ents.GetMember( class, key ) instead" )
+        warn( ent, key, nil, "was merged into its base class's list by SENT inheritance, pass scripted_ents.GetMember( class, key ) instead" )
         return
 
     end
     -- MyExtraModels = { model = ... } has no list part, so it would silently make nothing
     if #entries == 0 and next( entries ) ~= nil then
-        warn( ent, nil, "isn't a list, wrap each entry in its own { }" )
+        warn( ent, key, nil, "isn't a list, wrap each entry in its own { }" )
 
     end
 
     if not state then
         -- isAttached, Attach or Draw. see syncExtras
-        state = { extras = {}, isAttached = isAttached }
-        ent[key] = state
+        state = { extras = {}, isAttached = isAttached, key = key }
+        states[key] = state
         ent:CallOnRemove( "terminator_ExtraModels", onEntRemoved )
 
     end
@@ -480,8 +518,11 @@ end
 -- PUBLIC --
 
 -- call again whenever entries changes, extras made from unchanged entries are kept
-function terminator_Extras.AttachMyExtraModels( ent, entries )
-    local state = getState( ent, "term_AttachedExtras", entries, true )
+-- key, which list on ent this is. other keys' extras are left alone. leave it out for the ent's own, eg ENT.MyExtraModels
+function terminator_Extras.AttachMyExtraModels( ent, entries, key )
+    key = key or defaultKey
+    local states = getStates( ent, "term_AttachedExtras" )
+    local state = getState( ent, states, key, entries, true )
     if not state then return end
 
     if next( attachedEnts ) == nil then
@@ -493,7 +534,7 @@ function terminator_Extras.AttachMyExtraModels( ent, entries )
             end
         end )
     end
-    attachedEnts[ent] = state
+    attachedEnts[ent] = states
     syncExtras( ent, state, ent )
 
     for _, extra in ipairs( state.extras ) do
@@ -509,7 +550,7 @@ end
 -- realEnt is what the entry callbacks get as their 3rd arg. when ent is a stand-in copy, pass the entity it's standing in for
 function terminator_Extras.DrawMyExtraModels( ent, entries, flags, realEnt )
     realEnt = realEnt or ent
-    local state = getState( ent, "term_DrawnExtras", entries, false )
+    local state = getState( ent, getStates( ent, "term_DrawnExtras" ), defaultKey, entries, false )
     if not state then return end
 
     syncExtras( ent, state, realEnt )
@@ -528,12 +569,31 @@ end
 hook.Add( "NotifyShouldTransmit", "terminator_ExtraModels", function( ent, shouldTransmit )
     if not shouldTransmit then return end
     local entTbl = entMeta.GetTable( ent )
-    local state = entTbl and entTbl.term_AttachedExtras
+    local states = entTbl and entTbl.term_AttachedExtras
+    if not states then return end
+
+    for key, state in pairs( states ) do
+        terminator_Extras.AttachMyExtraModels( ent, state.entries, key )
+
+    end
+end )
+
+-- removes ent's extras attached under key, leaving its other keys' alone
+function terminator_Extras.RemoveMyExtraModels( ent, key )
+    key = key or defaultKey
+    local states = ent.term_AttachedExtras
+    local state = states and states[key]
     if not state then return end
 
-    terminator_Extras.AttachMyExtraModels( ent, state.entries )
+    removeExtras( state )
+    states[key] = nil
 
-end )
+    if next( states ) == nil then
+        attachedEnts[ent] = nil
+        ent.term_AttachedExtras = nil
+
+    end
+end
 
 local defaultDropLifetime = 30
 
@@ -576,25 +636,27 @@ local function extrasVisible( ent )
 
 end
 
--- drops ent's attached extras off as physics props, eg at the start of a death animation
+-- drops ent's attached extras off as physics props, every key's, eg at the start of a death animation
 -- the ent stops having extras, so they won't come back, or carry onto its ragdoll
 -- returns the props, they get removed after about lifetime seconds
 function terminator_Extras.DropMyExtraModels( ent, lifetime )
-    local state = ent.term_AttachedExtras
-    if not state then return {} end
+    local states = ent.term_AttachedExtras
+    if not states then return {} end
 
     local dropped = {}
     if not entMeta.IsDormant( ent ) and not entMeta.GetNoDraw( ent ) and extrasVisible( ent ) then
-        for _, extra in ipairs( state.extras ) do
-            if IsValid( extra.prop ) then
-                dropped[#dropped + 1] = dropExtra( ent, extra, lifetime )
+        for _, state in pairs( states ) do
+            for _, extra in ipairs( state.extras ) do
+                if IsValid( extra.prop ) then
+                    dropped[#dropped + 1] = dropExtra( ent, extra, lifetime )
 
+                end
             end
         end
     end
 
     attachedEnts[ent] = nil
-    removeExtras( state )
+    removeAllExtras( states )
     ent.term_AttachedExtras = nil
 
     return dropped
@@ -603,12 +665,8 @@ end
 
 -- attached extras move onto the ent's clientside death ragdoll, minus hideWhenDead ones. fallOffOnDeath ones drop off as props instead
 -- the ragdoll's a fresh ent, so they're made anew, initialize and all, and their callbacks get the ragdoll, not the dead ent
-hook.Add( "CreateClientsideRagdoll", "terminator_ExtraModels", function( died, ragdoll )
-    local state = died.term_AttachedExtras
-    if not state then return end
-
-    local visible = extrasVisible( died )
-
+-- each key's carry over under the same key
+local function carryOntoRagdoll( died, ragdoll, key, state, visible )
     local carried = {}
     for index, entry in ipairs( state.entries ) do
         if entry.fallOffOnDeath then
@@ -628,20 +686,36 @@ hook.Add( "CreateClientsideRagdoll", "terminator_ExtraModels", function( died, r
     end
     if #carried == 0 then return end
 
-    terminator_Extras.AttachMyExtraModels( ragdoll, carried )
+    terminator_Extras.AttachMyExtraModels( ragdoll, carried, key )
 
+end
+
+hook.Add( "CreateClientsideRagdoll", "terminator_ExtraModels", function( died, ragdoll )
+    local states = died.term_AttachedExtras
+    if not states then return end
+
+    local visible = extrasVisible( died )
+    for key, state in pairs( states ) do
+        carryOntoRagdoll( died, ragdoll, key, state, visible )
+
+    end
 end )
 
 -- the Think hook AttachMyExtraModels adds, returns false once there's no ents left to watch
 -- DrawMyExtraModels needs none of this, it syncs every frame anyway
 function terminator_Extras.manageAttachedExtras()
-    for ent, state in pairs( attachedEnts ) do
+    for ent, states in pairs( attachedEnts ) do
         if not IsValid( ent ) then
             attachedEnts[ent] = nil
 
-        elseif ( entMeta.GetModel( ent ) or "" ) ~= state.entModel then
-            terminator_Extras.AttachMyExtraModels( ent, state.entries )
+        else
+            local entModel = entMeta.GetModel( ent ) or ""
+            for key, state in pairs( states ) do
+                if entModel ~= state.entModel then
+                    terminator_Extras.AttachMyExtraModels( ent, state.entries, key )
 
+                end
+            end
         end
     end
 

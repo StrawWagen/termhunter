@@ -162,6 +162,11 @@ ENT.ReallyStrong = true
 ENT.ReallyHeavy = true
 ENT.MetallicMoveSounds = true
 
+-- running into anything much shorter or lighter hurts it, see CanChargeCrush
+ENT.ChargeCrushes = false
+ENT.ChargeCrushDmgPerSpeed = nil -- 1000 speed does 100 damage
+ENT.ChargeCrushDmgMinSpeed = nil -- nil uses MoveSpeed
+
 ENT.Term_FootstepTiming = "timed" -- supported timings, "timed" and "perfect", see footsteps.lua
 ENT.Term_FootstepMode = "human" -- supported modes, "human" and "custom"
 --[[ ENT.Term_FootstepSound = { -- sound that's played if Term_FootstepMode is "custom"
@@ -3050,9 +3055,17 @@ function ENT:DoDefaultTasks()
                 if not ( attacker == enemy or inflictor == enemy ) then -- stealth kill, don't tell enemy, just play a sound
                     sound.EmitHint( SOUND_COMBAT, self:GetPos(), 120, 1, self )
 
-                else
+                elseif IsValid( enemy ) then
+                    -- BehaveUpdatePriority usually sends these, but we're dead, we'll never tick again
                     data.Inform( enemy, myTbl.EntShootPos( self, enemy ), self:GetPos() )
+                    local informData = data.NeedsToDoInform
+                    data.NeedsToDoInform = nil
 
+                    for _, ally in ipairs( self:GetNearbyAllies() ) do
+                        if not IsValid( ally ) then continue end
+                        ally:RunTask( "InformReceive", informData )
+
+                    end
                 end
             end,
             BehaveUpdatePriority = function( self, data, interval )
@@ -3729,6 +3742,103 @@ function ENT:DoDefaultTasks()
             end,
             ShouldRun = function( self, data )
                 return self:canDoRun()
+
+            end,
+        },
+        -- path to an area, then start data.AfterwardsTask
+        -- self:StartTask( "movement_gotoarea", { Area = someArea, GiveUpAfter = 5 }, "i want to go there" )
+        -- caller supplies data.Area ( CNavArea ), or data.Pos ( vector ) for a spot that isn't the area's center
+        -- check self:areaIsReachable( area ) before starting this, it errors on areas we already know we can't reach
+        -- optional data.OnFailTask, started if anything other than arriving happens, falls back to data.AfterwardsTask
+        -- optional data.LookAhead, face along the path even while we can see our enemy
+        -- optional data.LeapAlongPath, .Term_Leaps bots leap ahead down the path when they can, for getting away fast
+        ["movement_gotoarea"] = {
+            OnStart = function( self, data )
+                data.GiveUpTime = CurTime() + ( data.GiveUpAfter or 15 )
+                data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
+                data.AfterwardsTaskData = data.AfterwardsTaskData or nil
+
+                if not data.OnFailTask then
+                    data.OnFailTask = data.AfterwardsTask
+                    data.OnFailTaskData = data.AfterwardsTaskData
+
+                end
+
+                if IsValid( data.Area ) then
+                    data.Pos = data.Pos or data.Area:GetCenter()
+
+                elseif data.Pos then
+                    data.Area = terminator_Extras.getNearestPosOnNav( data.Pos ).area
+
+                end
+
+                if IsValid( data.Area ) and not self:areaIsReachable( data.Area ) then
+                    error( "movement_gotoarea: started towards an area this bot already remembers as unreachable. Check self:areaIsReachable( area ) before starting this task!" )
+
+                end
+
+                if not self.isUnstucking then
+                    self:InvalidatePath( "new gotoarea path" )
+
+                end
+            end,
+            BehaveUpdateMotion = function( self, data )
+                local myTbl = entMeta.GetTable( self )
+                local goal = data.Pos
+                if not goal then
+                    ErrorNoHaltWithStack( "movement_gotoarea: needs data.Area or data.Pos\n" )
+                    myTbl.TaskFail( self, "movement_gotoarea" )
+                    myTbl.StartTask( self, data.OnFailTask, data.OnFailTaskData, "i had nowhere to go" )
+                    return
+
+                end
+
+                -- navmesh can be edited/regenerated under us
+                if data.Area and not IsValid( data.Area ) then
+                    myTbl.TaskFail( self, "movement_gotoarea" )
+                    myTbl.StartTask( self, data.OnFailTask, data.OnFailTaskData, "the area i was going to is gone" )
+                    return
+
+                end
+
+                if data.GiveUpTime < CurTime() then
+                    myTbl.TaskFail( self, "movement_gotoarea" )
+                    myTbl.StartTask( self, data.OnFailTask, data.OnFailTaskData, "ive spent too long trying to get there" )
+                    return
+
+                end
+
+                if myTbl.primaryPathInvalidOrOutdated( self, goal ) then
+                    myTbl.InvalidatePath( self, "gotoarea repath" )
+                    myTbl.SetupPathShell( self, goal )
+
+                    if not myTbl.primaryPathIsValid( self ) then
+                        myTbl.TaskFail( self, "movement_gotoarea" )
+                        myTbl.StartTask( self, data.OnFailTask, data.OnFailTaskData, "my path there failed" )
+                        return
+
+                    end
+                end
+
+                if data.LeapAlongPath and myTbl.TryLeapAlongPath( self, myTbl, data ) then return end
+
+                local result = myTbl.ControlPath2( self, data.LookAhead or not myTbl.IsSeeEnemy )
+                if data.LookAhead then
+                    myTbl.blockAimingAtEnemy = CurTime() + 0.25 -- the aim handler turns us back to the enemy otherwise
+
+                end
+                if result == true then
+                    myTbl.TaskComplete( self, "movement_gotoarea" )
+                    myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "i got there" )
+
+                end
+            end,
+            ShouldRun = function( self, data )
+                return self:canDoRun()
+
+            end,
+            ShouldWalk = function( self, data )
+                return self:shouldDoWalk()
 
             end,
         },
