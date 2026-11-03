@@ -660,16 +660,21 @@ function ENT:IsAngry()
     local permaAngry = self.terminator_PermanentAngry
 
     if permaAngry then return true end
-    local angryTime = self.terminator_AngryTime or CurTime()
+    local cur = CurTime()
+    local angryTime = self.terminator_AngryTime or cur
     local checkIsAngry = self.terminator_CheckIsAngry
 
-    if checkIsAngry < CurTime() then
-        self.terminator_CheckIsAngry = CurTime() + math_Rand( 0.9, 1.1 )
+    if checkIsAngry < cur then
+        self.terminator_CheckIsAngry = cur + math_Rand( 0.9, 1.1 )
         local oldAngryTime = angryTime
         local enemy = self:GetEnemy()
         local validEnemy = IsValid( enemy )
 
-        if validEnemy and ( enemy.isTerminatorHunterKiller or enemy.terminator_CantConvinceImFriendly ) then
+        local reallyAngryTime = self.terminator_ReallyAngryTime
+        if reallyAngryTime and reallyAngryTime > cur then
+            angryTime = self.terminator_ReallyAngryTime
+
+        elseif validEnemy and ( enemy.isTerminatorHunterKiller or enemy.terminator_CantConvinceImFriendly ) then
             self.terminator_PermanentAngry = true
 
         elseif self:Health() < ( self:GetMaxHealth() * 0.9 ) or self:IsOnFire() then
@@ -705,14 +710,14 @@ function ENT:IsAngry()
 
         end
         local becamePermaAngry = self.terminator_PermanentAngry
-        if ( angryTime ~= oldAngryTime or becamePermaAngry ) and oldAngryTime <= CurTime() then
+        if ( angryTime ~= oldAngryTime or becamePermaAngry ) and oldAngryTime <= cur then
             self:RunTask( "OnAnger" )
 
         end
     end
 
-    local angry = angryTime > CurTime() or self.terminator_PermanentAngry == true
-    self.terminator_AngryTime = math.max( angryTime, CurTime() )
+    local angry = angryTime > cur or self.terminator_PermanentAngry == true
+    self.terminator_AngryTime = math.max( angryTime, cur )
 
     return angry
 
@@ -1028,7 +1033,9 @@ function ENT:ChargeCrushThink( myTbl )
         filter = function( ent ) return ent == candidate end,
     }
 
-    local dmgAmount = speed * myTbl.ChargeCrushDmgPerSpeed
+    local perSpeed = myTbl.ChargeCrushDmgPerSpeed or 0.1
+
+    local dmgAmount = speed * perSpeed
     -- FindAlongRay ignores the world, so this sees through walls until the wallCheck below
     for _, ent in ipairs( ents.FindAlongRay( myPos, reach, mins, maxs ) ) do
         if ent == self then continue end

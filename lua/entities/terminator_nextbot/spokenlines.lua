@@ -190,8 +190,9 @@ function ENT:SpokenLinesThink( myTbl )
     end
 end
 
-function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
+function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift, specificLevelShift )
     specificPitchShift = specificPitchShift or 0
+    specificLevelShift = specificLevelShift or 0
 
     local myTbl = self:GetTable()
     local pitShift = asNumber( self, myTbl, myTbl.term_SoundPitchShift )
@@ -205,7 +206,7 @@ function ENT:Term_SpeakSoundNow( pathIn, specificPitchShift )
 
     local pitch = 100 + pitShift + specificPitchShift
 
-    self:EmitSound( pathIn, 76 + lvlShift, pitch, 1, CHAN_VOICE, sndFlags, dsp )
+    self:EmitSound( pathIn, 76 + lvlShift + specificLevelShift, pitch, 1, CHAN_VOICE, sndFlags, dsp )
     return nextSpeakWhenSoundIsOver( self, pathIn, pitch )
 
 end

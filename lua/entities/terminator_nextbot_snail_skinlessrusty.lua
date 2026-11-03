@@ -72,22 +72,7 @@ ENT.MyClassTask = {
         if nextSpark > CurTime() then return end
         data.lastSpark = CurTime()
 
-        local hitboxSetCount = self:GetHitboxSetCount()
-        if not hitboxSetCount then return end -- ???
-
-        local randomSet = math.random( 0, hitboxSetCount - 1 )
-
-        local hitboxCount = self:GetHitBoxCount( randomSet )
-        local randomHitboxId = math.random( 0, hitboxCount - 1 )
-
-        local bone = self:GetHitBoxBone( randomHitboxId, randomSet )
-        local randomBone = self:GetBonePosition( bone )
-
-        local startPos = self:WorldSpaceCenter()
-        if randomBone then
-            startPos = randomBone
-
-        end
+        local startPos = terminator_Extras.GetRandomHitboxPoint( self )
 
         local Data = EffectData()
         Data:SetOrigin( startPos )

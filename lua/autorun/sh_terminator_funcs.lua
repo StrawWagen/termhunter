@@ -26,6 +26,21 @@ function permaPrintTable( ... ) -- ditto
 
 end
 
+-- Somewhere on ent's body, for sparks, blood, arcs.
+-- Falls back to the center when the model has no hitboxes.
+terminator_Extras.GetRandomHitboxPoint = function( ent )
+    local setCount = ent:GetHitboxSetCount()
+    if not setCount or setCount <= 0 then return ent:WorldSpaceCenter() end
+
+    local set = math.random( 0, setCount - 1 )
+    local hitboxCount = ent:GetHitBoxCount( set )
+    if not hitboxCount or hitboxCount <= 0 then return ent:WorldSpaceCenter() end
+
+    local bone = ent:GetHitBoxBone( math.random( 0, hitboxCount - 1 ), set )
+    return bone and ent:GetBonePosition( bone ) or ent:WorldSpaceCenter()
+
+end
+
 local vecUpOff = Vector( 0, 0, 25 )
 
 -- not localizing trace funcs

@@ -570,8 +570,10 @@ function ENT:PostTookDamage( dmg )
 
     -- muls damage RECIEVED from friendly ents
     -- not charge crushes, a big ally trampling us is the point
+    -- nor attackers flagged term_BypassFriendlyFire, eg a bomb going off in the horde
     local friendlyFireMul = myTbl.FriendlyFireMul
-    if friendlyFireMul and friendlyFireMul ~= 1 and not myTbl.term_TakingChargeCrush then
+    local bypass = myTbl.term_TakingChargeCrush or ( validAttacker and attacker.term_BypassFriendlyFire )
+    if friendlyFireMul and friendlyFireMul ~= 1 and not bypass then
         local attackerDisp = myTbl.TERM_GetRelationship( self, myTbl, attacker )
         if attackerDisp == D_LI then -- buddies with attacker, scale the damage down
             dmg:ScaleDamage( friendlyFireMul )
@@ -848,6 +850,11 @@ function ENT:OnKilled( dmg )
             deathAniming = true
             damageForce = Vector( 1, 1, 1 ) -- don't make ragdoll go crazy, the force happened a while ago
 
+            local rate = deathAnimDat.rate or 1
+            local duration = self:GetGestureDuration( deathAct, rate )
+            duration = duration * 0.9 -- kill the bot a bit before the sequence ends, blending always gets them otherwise
+            self.Term_DyingUntil = CurTime() + duration -- before OnStartDying, so it can see how long it's got
+
             local startFunc = deathAnimDat.startFunc
             if startFunc then
                 startFunc( self )
@@ -856,14 +863,8 @@ function ENT:OnKilled( dmg )
 
             self:RunTask( "OnStartDying", dmg )
 
-            local rate = deathAnimDat.rate or 1
             self:StopMoving()
             self:DoGesture( deathAct, rate, true )
-
-            local duration = self:SequenceDuration( deathSeq ) / rate
-            duration = duration * 0.9 -- kill the bot a bit before the sequence ends, blending always gets them otherwise
-
-            self.Term_DyingUntil = CurTime() + duration
             timer.Simple( duration, function()
                 if not IsValid( self ) then return end
 
@@ -957,7 +958,15 @@ function ENT:FinishDying( attacker, inflictor, dmg, damage, damageType, damagePo
         dmg:SetDamageType( damageType )
         dmg:SetDamagePosition( damagePos )
         dmg:SetDamageForce( damageForce )
-        ragdoll = self:BecomeRagdoll( dmg )
+
+        local preventRagdoll, blockRemove = self:RunTask( "PreventBecomeRagdollOnKilled", dmg )
+        if not preventRagdoll then
+            ragdoll = self:BecomeRagdoll( dmg )
+
+        elseif not blockRemove then
+            SafeRemoveEntityDelayed( self, 5 )
+
+        end
 
         hook.Run( "OnTerminatorKilledScripted", self, dmg )
 

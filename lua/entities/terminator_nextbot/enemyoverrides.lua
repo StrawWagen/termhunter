@@ -427,6 +427,7 @@ do
             Addons can veto any target with the terminator_blocktarget hook.
         Arg1: Entity | ent | Entity to judge.
         Arg2: number | fov | Our Term_FOV. Ents outside it are ignored, unless they're within 200 units.
+            false skips the fov check, for enemies we already know about.
         Arg3: table | myTbl | Optimisation, entMeta.GetTable( self )
         Arg4: table | entsTbl | Optimisation, entMeta.GetTable( ent )
         Ret1: bool | Should we treat this entity as an enemy?
@@ -499,13 +500,12 @@ do
         -- this should not be an enemy
         if hook.Run( "terminator_blocktarget", self, ent ) == true then return false end
 
-        local inFov = IsInMyFov( self, ent, fov or myTbl.Term_FOV )
         local rangeTo = self:GetRangeTo( ent )
 
         local maxSeeingDist = myTbl.MaxSeeEnemyDistance
 
         -- ignore fov if really close
-        if not inFov and rangeTo > 200 then return false end
+        if fov ~= false and rangeTo > 200 and not IsInMyFov( self, ent, fov or myTbl.Term_FOV ) then return false end
 
         if isPly then -- ignore maxSeeingDist for plys
             if isBeyondFog( nil, rangeTo ) then -- but dont ignore fog 
@@ -653,7 +653,6 @@ do
     --]]------------------------------------
     function ENT:ForgetOldEnemies( myTbl )
         local cur = CurTime()
-        local myFov = myTbl.Term_FOV
         local forgetEnemyTime = myTbl.ForgetEnemyTime
         local clearEnemyMemory = myTbl.ClearEnemyMemory
         local shouldBeEnemy = myTbl.ShouldBeEnemy
@@ -676,7 +675,7 @@ do
 
             coroutine_yield()
 
-            if ( not IsValid( ent ) ) or ( ( cur - memory.lastupdate ) >= forgetEnemyTime ) or ( not shouldBeEnemy( self, ent, myFov, myTbl, entMeta.GetTable( ent ) ) ) then
+            if ( not IsValid( ent ) ) or ( ( cur - memory.lastupdate ) >= forgetEnemyTime ) or ( not shouldBeEnemy( self, ent, false, myTbl, entMeta.GetTable( ent ) ) ) then
                 clearEnemyMemory( self, ent )
 
             end
@@ -697,7 +696,6 @@ do
     function ENT:FindPriorityEnemy( myTbl )
         myTbl = myTbl or self:GetTable()
         local notsee = {}
-        local myFov = myTbl.Term_FOV
         local closeEnemDistSqr = myTbl.CloseEnemyDistance^2
 
         local nearest, nearestRange
@@ -719,7 +717,7 @@ do
             if not memories[curr] then continue end -- a hook forgot it while we worked
             if not IsValid( curr ) then continue end
             local entsTbl = entMeta.GetTable( curr )
-            if not myTbl.ShouldBeEnemy( self, curr, myFov, myTbl, entsTbl ) then continue end
+            if not myTbl.ShouldBeEnemy( self, curr, false, myTbl, entsTbl ) then continue end
 
             if not myTbl.CanSeePosition( self, curr, myTbl, entsTbl ) then
                 notsee[#notsee + 1] = curr

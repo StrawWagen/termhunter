@@ -51,22 +51,7 @@ local zaps = {
 
 
 function terminator_Extras.EmitWeakLightningArcFrom( ent, scale, hitCallback )
-    local hitboxSetCount = ent:GetHitboxSetCount()
-    if not hitboxSetCount then return end -- ???
-
-    local randomSet = math.random( 0, hitboxSetCount - 1 )
-
-    local hitboxCount = ent:GetHitBoxCount( randomSet )
-    local randomHitboxId = math.random( 0, hitboxCount - 1 )
-
-    local bone = ent:GetHitBoxBone( randomHitboxId, randomSet )
-    local randomBone = ent:GetBonePosition( bone )
-
-    local startPos = ent:WorldSpaceCenter()
-    if randomBone then
-        startPos = randomBone
-
-    end
+    local startPos = terminator_Extras.GetRandomHitboxPoint( ent )
 
     local lightningScale = scale or math.Rand( 0.5, 1.5 )
 

@@ -164,7 +164,7 @@ ENT.MetallicMoveSounds = true
 
 -- running into anything much shorter or lighter hurts it, see CanChargeCrush
 ENT.ChargeCrushes = false
-ENT.ChargeCrushDmgPerSpeed = nil -- 1000 speed does 100 damage
+ENT.ChargeCrushDmgPerSpeed = nil -- default of 0.1, 1000 speed does 100 damage
 ENT.ChargeCrushDmgMinSpeed = nil -- nil uses MoveSpeed
 
 ENT.Term_FootstepTiming = "timed" -- supported timings, "timed" and "perfect", see footsteps.lua
@@ -2367,7 +2367,7 @@ function ENT:DoDefaultTasks()
 
                 coroutine_yield()
 
-                if not IsValid( newEnemy ) and IsValid( prevEnemy ) and myTbl.ShouldBeEnemy( self, prevEnemy, myTbl.Term_FOV, myTbl, entMeta.GetTable( prevEnemy ) ) then
+                if not IsValid( newEnemy ) and IsValid( prevEnemy ) and myTbl.ShouldBeEnemy( self, prevEnemy, false, myTbl, entMeta.GetTable( prevEnemy ) ) then
                     newEnemy = prevEnemy
 
                 end
