@@ -916,6 +916,8 @@ end
     Name: ENT:GetDesiredEnemyRelationship
     Desc: Works out how we should feel about an entity, and how it should feel about us.
         term_HardCodedRelations wins outright.
+            An entry can be a function( self, ent ), for classes split by spawnflags etc.
+            It returns the entry to use, or nil to judge ent like any other.
         Then: isTerminatorHunterChummy teammates like each other.
         other chummy factions hate us.
         players are hated at high priority.
@@ -934,6 +936,10 @@ function ENT:GetDesiredEnemyRelationship( myTbl, ent, entsTbl )
     local priority = 1
 
     local hardCodedRelation = myTbl.term_HardCodedRelations[entMeta.GetClass( ent )]
+    if isfunction( hardCodedRelation ) then
+        hardCodedRelation = hardCodedRelation( self, ent )
+
+    end
     if hardCodedRelation then
         disp = hardCodedRelation[1] or disp
         theirDisp = hardCodedRelation[2] or theirDisp

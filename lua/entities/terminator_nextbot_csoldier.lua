@@ -167,6 +167,13 @@ ENT.TermSoldier_Fearless = nil -- set to true to make bot always just walk up to
 local friendly = { D_LI, D_LI, 1000 }
 local hate = { D_HT, D_HT, 1000 }
 
+-- the Resistance Turret is a floor turret on the rebels' side
+local function floorTurretRelation( _self, turret )
+    if turret:HasSpawnFlags( SF_FLOOR_TURRET_CITIZEN ) then return hate end
+    return friendly
+
+end
+
 function ENT:DoHardcodedRelations()
     self.term_HardCodedRelations = {
         ["npc_breen"] = friendly,
@@ -180,7 +187,7 @@ function ENT:DoHardcodedRelations()
         ["npc_helicopter"] = friendly,
         ["npc_rollermine"] = friendly,
         ["npc_metropolice"] = friendly,
-        ["npc_turret_floor"] = friendly,
+        ["npc_turret_floor"] = floorTurretRelation,
         ["npc_combinegunship"] = friendly,
         ["npc_turret_ceiling"] = friendly,
         ["npc_combine_camera"] = friendly,
