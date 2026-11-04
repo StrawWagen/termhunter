@@ -139,6 +139,7 @@ function terminator_Extras.DehingeDoor( attacker, door, noCollided )
 
     end
 
+    local obj = prop:GetPhysicsObject()
     if IsValid( obj ) then
         local vel = terminator_Extras.dirToPos( attacker:GetPos(), door:WorldSpaceCenter() ) * 30000
         obj:ApplyForceOffset( vel, attacker:GetPos() )

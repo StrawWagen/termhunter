@@ -162,11 +162,6 @@ ENT.ReallyStrong = true
 ENT.ReallyHeavy = true
 ENT.MetallicMoveSounds = true
 
--- running into anything much shorter or lighter hurts it, see CanChargeCrush
-ENT.ChargeCrushes = false
-ENT.ChargeCrushDmgPerSpeed = nil -- default of 0.1, 1000 speed does 100 damage
-ENT.ChargeCrushDmgMinSpeed = nil -- nil uses MoveSpeed
-
 ENT.Term_FootstepTiming = "timed" -- supported timings, "timed" and "perfect", see footsteps.lua
 ENT.Term_FootstepMode = "human" -- supported modes, "human" and "custom"
 --[[ ENT.Term_FootstepSound = { -- sound that's played if Term_FootstepMode is "custom"
@@ -280,6 +275,8 @@ elseif SERVER then
     include( "lookingshooting.lua" )
     -- damage shows on bot's model, also modifies damage amount taken for like cballs.
     include( "damageandhealth.lua" )
+    -- crushing stuff as we run forward
+    include( "chargecrushing.lua" )
     -- glee thing
     include( "overcharging.lua" )
     -- sounds, support for playing queued sounds, sentences, etc

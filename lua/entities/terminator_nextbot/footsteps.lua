@@ -343,19 +343,10 @@ function ENT:MakeFootstepSound( myTbl, volumeMul, soundWeightAdj, footPos, curSp
             clompingLvl = 76
 
         end
-        local lvlShift = self.term_SoundLevelShift
-        if lvlShift then
-            clompingLvl = clompingLvl + lvlShift
-
-        end
+        clompingLvl = clompingLvl + terminator_Extras.asNumber( self, myTbl, myTbl.term_SoundLevelShift )
         clompingLvl = clompingLvl * soundWeightAdj
 
-        local pit = math.random( 20, 30 )
-        local pitShift = self.term_SoundPitchShift
-        if pitShift then
-            pit = pit + pitShift
-
-        end
+        local pit = math.random( 20, 30 ) + terminator_Extras.asNumber( self, myTbl, myTbl.term_SoundPitchShift )
         pit = pit / soundWeightAdj
 
         self:EmitSound( "npc/zombie_poison/pz_left_foot1.wav", clompingLvl, pit, volume / 1.5, CHAN_STATIC )

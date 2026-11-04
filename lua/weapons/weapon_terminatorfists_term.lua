@@ -597,7 +597,7 @@ function SWEP:DealDamage()
 
     end
 
-    local pitchShift = owner.term_SoundPitchShift or 0
+    local pitchShift = terminator_Extras.asNumber( owner, owner:GetTable(), owner.term_SoundPitchShift )
     if hitSomething then
         self:PlayHitSound( owner, pitchShift )
         util.ScreenShake( owner:GetPos(), 10, 10, 0.1, 400 )

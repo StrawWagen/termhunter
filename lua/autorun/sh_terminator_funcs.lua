@@ -332,6 +332,15 @@ function terminator_Extras.tableAdd( dest, source )
     end
 end
 
+-- for fields that can be a number or function( ent, entsTbl ), like term_SoundPitchShift
+function terminator_Extras.asNumber( ent, entsTbl, var )
+    if not var then return 0 end
+    if isfunction( var ) then return var( ent, entsTbl ) end
+
+    return var
+
+end
+
 -- simple, fast sequential table copier
 function terminator_Extras.tableCopySimple( source )
     local new = {}

@@ -1064,13 +1064,10 @@ function ENT:MakeFeud( enemy )
     local myTbl = entMeta.GetTable( self )
     if not myTbl then return end
 
-    local dontMakeEnemyHateMe
-
     if pals( self, enemy ) then -- infighting logic 
-        if enemy:IsControlledByPlayer() then
+        if enemy.IsControlledByPlayer and enemy:IsControlledByPlayer() then
             -- don't return in this path, get to the disp setting below
             enemy:AddTaskLazy( "enemyoverrides_returntonormalchummy", returnToMyChummyTask )
-            dontMakeEnemyHateMe = true
 
         else
             if blockAllInfighting:GetBool() then return end

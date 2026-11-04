@@ -8,14 +8,7 @@
 
 local CurTime = CurTime
 
--- helper function to get a number value from various types
-local function asNumber( ent, entsTbl, var )
-    if not var then return 0 end
-    if isfunction( var ) then return var( ent, entsTbl ) end
-
-    return var
-
-end
+local asNumber = terminator_Extras.asNumber
 
 function ENT:InitializeSpeaking()
     if not self.CanSpeak then return end
