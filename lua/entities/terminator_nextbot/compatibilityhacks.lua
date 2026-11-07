@@ -4,12 +4,6 @@ AddCSLuaFile()
 
 local entMeta = FindMetaTable( "Entity" )
 
--- had some weapon base problems that made this necessary iirc
-function ENT:Classify()
-    return CLASS_NONE
-
-end
-
 -- VJ BASE, connects with weapons.lua
 
 if SERVER then
@@ -393,6 +387,21 @@ if SERVER then
 
     function ENT:GetMovementActivity()
         return self:GetMotionType()
+
+    end
+
+    function ENT:SetNPCClass( npcClass )
+        entMeta.SetSaveValue( self, "m_iClass", npcClass )
+
+    end
+
+    function ENT:Classify()
+        return entMeta.GetSaveTable( self )["m_iClass"]
+
+    end
+
+    function ENT:GetNPCClass()
+        return entMeta.GetSaveTable( self )["m_iClass"]
 
     end
 

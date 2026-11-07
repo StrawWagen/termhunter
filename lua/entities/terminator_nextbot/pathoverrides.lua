@@ -545,6 +545,8 @@ local function addToCorridor( corridor )
     end
 end
 
+local MAX_HEAT_COST = 500 -- even the hottest area stays pathable, just really expensive
+
 function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connDist )
     local toAreasId = GetID( toArea )
     local cost = connDist
@@ -565,10 +567,26 @@ function ENT:NavMeshPathCostGenerator( locoData, toArea, fromArea, ladder, connD
 
     if laddering then return cost end
 
-    local additionalCost = locoData.pathAreasAdditionalCost[ toAreasId ]
+    local additionalCost = locoData.pathAreasAdditionalCost[toAreasId]
     if additionalCost then
         cost = cost * additionalCost
 
+    end
+
+    local heatCosts = locoData.heatCosts
+    if heatCosts then
+        local extra = 0
+        for _, heatCost in ipairs( heatCosts ) do
+            local heat = heatCost.heat[toAreasId]
+            if heat then
+                extra = extra + heat * heatCost.weight
+
+            end
+        end
+        if extra > 0 then
+            cost = cost * ( 1 + math.min( extra, MAX_HEAT_COST ) )
+
+        end
     end
 
     local attributes = navMeta.GetAttributes( toArea )
@@ -1445,11 +1463,35 @@ end
 local newUnreachableClass
 local newUnreachables = 0
 
+-- the heat layers this bot avoids, with its weights already applied
+local function buildHeatCosts( me, myTbl )
+    local avoidance = myTbl.HeatAvoidance
+    if not avoidance or not IsValid( me ) then return end
+
+    local heatCosts = {}
+    for name, weight in pairs( avoidance ) do
+        -- gmod merges subclass tables into their base's and adds a BaseClass key, skip that and zeroed layers
+        if not isnumber( weight ) or weight <= 0 then continue end
+
+        local heat = terminator_Extras.term_Heat.GetHeatTable( name, myTbl.isTerminatorHunterChummy )
+        if not heat then continue end
+
+        local sensitivity = myTbl.GetHeatSensitivity( me, myTbl, name )
+        if sensitivity > 0 then
+            heatCosts[#heatCosts + 1] = { heat = heat, weight = weight * sensitivity }
+
+        end
+    end
+    if #heatCosts > 0 then return heatCosts end
+
+end
+
 -- what the cost generator knows about whoever is pathing
-local function buildLocoData( myTbl )
+local function buildLocoData( me, myTbl )
     return {
         canUseLadders = myTbl.CanUseLadders,
         pathAreasAdditionalCost = myTbl.pathAreasAdditionalCost,
+        heatCosts = buildHeatCosts( me, myTbl ),
         hunterIsFlanking = myTbl.hunterIsFlanking,
         flankingIsReallyAngry = myTbl.flankingIsReallyAngry,
         minPathingAreaWidth = myTbl.MinPathingAreaWidth,
@@ -1495,7 +1537,7 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
 
     NavMeshPathCostGenerator = NavMeshPathCostGenerator or myTbl.NavMeshPathCostGenerator
 
-    locoData = locoData or buildLocoData( myTbl )
+    locoData = locoData or buildLocoData( me, myTbl )
 
     while #openedSequential > 0 do
         if myTbl.term_cancelPathGen then return goalArea, nil, false, "fail2.5" end -- another part of us says CANCEL THIS!
@@ -1752,17 +1794,16 @@ end
 function ENT:AdditionalAvoidAreas()
 end
 
---[[------------------------------------
-    Name: NEXTBOT:SetupPath
-    Desc: Creates new PathFollower object and computes path to goal. Invalidates old path.
-    Arg1: Vector | pos | Goal position.
-    Arg2: (optional) table | options | Table with options:
-        `mindist` - SetMinLookAheadDistance
-        `tolerance` - SetGoalTolerance
-        `generator` - Custom cost generator
-    Ret1: any | PathFollower object if created succesfully, otherwise false
---]]------------------------------------
+-- scales HeatAvoidance's weights, return 0 to ignore the layer
+function ENT:GetHeatSensitivity( _myTbl, _layerName )
+    return 1
+
+end
+
 function ENT:SetupPath( pos, endArea )
+    -- builds a new m_Path to pos, endArea is pos's nav area
+    -- yields, so it runs in the motion coroutine, use SetupPathShell instead
+    -- false when there's no path, wasGood is false when the path only gets close
 
     coroutine_yield()
 
@@ -1822,7 +1863,7 @@ function ENT:SetupPath( pos, endArea )
 
     coroutine_yield()
 
-    path:SetGoalTolerance( myTbl.PathGoalTolerance )
+    path:SetGoalTolerance( myTbl.PathGoalToleranceFinal ) -- tasks that need to get closer can lower it on their path
 
     coroutine_yield()
 
@@ -2364,7 +2405,7 @@ function ENT:ControlPath( lookatgoal, myTbl )
 
     local range = self:GetRangeTo( pos )
 
-    if range < myTbl.PathGoalToleranceFinal then
+    if range < myTbl.GetPath( self ):GetGoalTolerance() then
         myTbl.InvalidatePath( self, "i reached the end of my path!" )
         return true
 

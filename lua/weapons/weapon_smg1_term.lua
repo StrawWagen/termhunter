@@ -35,10 +35,12 @@ function SWEP:Initialize()
 end
 
 function SWEP:CanPrimaryAttack()
+	if self:GetOwner():WaterLevel() == 3 then return false end -- engine smg can't fire underwater
 	return CurTime()>=self:GetNextPrimaryFire() and self:Clip1()>0
 end
 
 function SWEP:CanSecondaryAttack()
+	if self:GetOwner():WaterLevel() == 3 then return false end
 	return CurTime()>=self:GetNextSecondaryFire()
 end
 
@@ -108,12 +110,7 @@ end
 
 function SWEP:SecondaryAttack()
 	if !self:CanSecondaryAttack() then return end
-	
-	if self:WaterLevel()==3 then
-		self:SetNextSecondaryFire(CurTime()+0.5)
-		return
-	end
-	
+
 	self:GetOwner():EmitSound(Sound("Weapon_SMG1.Double"))
 	
 	local pos = self:GetOwner():GetShootPos()

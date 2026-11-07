@@ -36,10 +36,12 @@ function SWEP:Initialize()
 end
 
 function SWEP:CanPrimaryAttack()
+	if self:GetOwner():WaterLevel() == 3 then return false end -- engine ar2 can't fire underwater
 	return CurTime()>=self:GetNextPrimaryFire() and self:Clip1()>0
 end
 
 function SWEP:CanSecondaryAttack()
+	if self:GetOwner():WaterLevel() == 3 then return false end
 	return CurTime()>=self:GetNextSecondaryFire()
 end
 

@@ -2114,7 +2114,7 @@ function ENT:EnemyIsBoxedIn()
 
     end
     -- not boxed in, we're just close
-    if areasThatAreEntrance[entranceArea] then
+    if areasThatAreEntrance[enemysNavArea] then
         resetBoxedIn( self )
         return false
 

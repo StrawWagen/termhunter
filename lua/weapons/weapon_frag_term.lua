@@ -45,6 +45,24 @@ function SWEP:SwingSpawn( spawnPos )
     new.isTerminatorHunterGrenade = true
     new.blockReturnAsWeap = true
 
+    new:AddCallback( "PhysicsCollide", function( grenade, data )
+        local hitEnt = data.HitEntity
+        if not IsValid( hitEnt ) or hitEnt:GetClass() ~= "func_breakable_surf" then return end
+
+        hitEnt:Fire( "Shatter", data.HitPos )
+
+        -- it's already bounced off by now, put it back on course
+        -- next tick, physics changes in here can crash
+        local oldVel = data.OurOldVelocity * 0.8
+        timer.Simple( 0, function()
+            if not IsValid( grenade ) then return end
+            local obj = grenade:GetPhysicsObject()
+            if not IsValid( obj ) then return end
+            obj:SetVelocity( oldVel )
+
+        end )
+    end )
+
     return new
 
 end
@@ -145,6 +163,7 @@ hook.Add( "EntityTakeDamage", "STRAW_terminatorHunter_grenadeCorrectTheAttacker"
     if not IsValid( inflic ) then return end
     if not inflic.isTerminatorHunterGrenade then return end
     if damage:GetDamageType() == DMG_BLAST then return end
+    if target:GetClass() == "func_breakable_surf" then return end -- would stop it dead and eat its one bonk
     for _ = 1, 4 do
         target:EmitSound( "npc/antlion/shell_impact" .. math.random( 1, 4 ) .. ".wav", 90, math.random( 40, 80 ), 1, CHAN_STATIC )
     end

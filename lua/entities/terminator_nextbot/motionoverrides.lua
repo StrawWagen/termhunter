@@ -2476,7 +2476,7 @@ function ENT:MoveAlongPath( lookAtGoal, myTbl )
     local range = self:GetRangeTo( self:GetPathPos() )
     local valid = path:IsValid()
 
-    if ( not valid and range <= path:GetMinLookAheadDistance() ) or range < myTbl.PathGoalToleranceFinal then
+    if ( not valid and range <= path:GetMinLookAheadDistance() ) or range < path:GetGoalTolerance() then
         self:InvalidatePath( "i reached the end of my path!" )
         return true -- reached end
 
@@ -2877,14 +2877,16 @@ function ENT:GotoPosSimple( myTbl, pos, distance, noAdapt )
 
     end
 
-    if not myTbl.TERM_FISTS then return end -- only look towards goal if we have fists
-
     local currentSpeed = vecMeta.Length2DSqr( locoMeta.GetVelocity( myTbl.loco ) )
-    if currentSpeed < terminator_Extras.term_DefaultSpeedToAimAtProps then
-        local towardsPos = myTbl.GetShootPos( self ) + dir * 50
-        myTbl.justLookAt( self, towardsPos )
+    if currentSpeed >= terminator_Extras.term_DefaultSpeedToAimAtProps then return end
 
-    end
+    -- stuck, look at what's in the way so we can bash/shoot/open it
+    -- 1s on it, 0.5s back on the enemy, so we don't turn our back on them
+    if CurTime() % 1.5 > 1 then return end
+    local towardsPos = myTbl.GetShootPos( self ) + dir * 50
+    myTbl.justLookAt( self, towardsPos )
+    myTbl.blockAimingAtEnemy = CurTime() + 0.1 -- the aim handler turns us back to the enemy otherwise
+
 end
 
 function ENT:EnterLadder()
@@ -3969,6 +3971,13 @@ function ENT:SetupCollisionBounds( myTbl )
     local data = myTbl.GetCrouching( self ) and myTbl.CrouchCollisionBounds or myTbl.CollisionBounds
 
     entMeta.SetCollisionBounds( self, data[1], data[2] )
+
+    local modelScale = entMeta.GetModelScale( self )
+
+    local minModelBounds, maxModelBounds = entMeta.GetModelBounds( self )
+    minModelBounds:SetUnpacked( minModelBounds.x * modelScale, minModelBounds.y * modelScale, minModelBounds.z * modelScale )
+    maxModelBounds:SetUnpacked( maxModelBounds.x * modelScale, maxModelBounds.y * modelScale, maxModelBounds.z * modelScale )
+    entMeta.SetSurroundingBounds( self, minModelBounds, maxModelBounds )
 
     if entMeta.PhysicsInitShadow( self, false, false ) then
         local mass = myTbl.MyPhysicsMass

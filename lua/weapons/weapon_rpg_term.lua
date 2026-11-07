@@ -47,6 +47,7 @@ end
 
 function SWEP:CanPrimaryAttack()
     local owner = self:GetOwner()
+    if owner:WaterLevel() == 3 then return false end -- engine rpg can't fire underwater
     if owner:IsControlledByPlayer() then return true end
 
     if not terminator_Extras.PosCanSeeComplex( owner:GetShootPos(), self:GetProjectileOffset(), self, MASK_SOLID ) then return end

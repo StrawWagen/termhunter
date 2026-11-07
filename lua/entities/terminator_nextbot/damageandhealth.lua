@@ -7,6 +7,12 @@ local CurTime = CurTime
 
 local entMeta = FindMetaTable( "Entity" )
 
+-- where our side got hurt and died, see terminator_heatmap.lua
+-- 1 heat is about one bot's worth of health lost there
+local term_Heat = terminator_Extras.term_Heat
+term_Heat.RegisterLayer( "term_hurt", { perFaction = true } )
+term_Heat.RegisterLayer( "term_deaths", { perFaction = true } )
+
 function ENT:IsImmuneToDmg( _dmg ) -- stub, for ents based off this!
 end
 
@@ -592,6 +598,13 @@ function ENT:PostTookDamage( dmg )
     end )
     if blockDamage then return true end
 
+    local avoidance = myTbl.HeatAvoidance
+    local maxHealth = entMeta.GetMaxHealth( self )
+    if avoidance and ( avoidance.term_hurt or 0 ) > 0 and maxHealth > 0 then -- only remember it if our side cares
+        term_Heat.AddToArea( "term_hurt", myTbl.isTerminatorHunterChummy, myTbl.GetCurrentNavArea( self, myTbl ), dmg:GetDamage() / maxHealth )
+
+    end
+
     local cur = CurTime()
     local nextNoticeDamage = myTbl.term_NextNoticeDamage or 0
     if nextNoticeDamage > cur then return end
@@ -806,6 +819,7 @@ function ENT:HandleWeaponOnDeath( wep, dissolving ) -- drop our weapons!
                 if not IsValid( self ) then return end
                 if not IsValid( wep ) then return end
                 self:DropWeapon( true, wep )
+                hook.Run( "TerminatorDropWeaponOnDeath", self, wep )
 
             end )
 
@@ -830,6 +844,12 @@ end
 function ENT:OnKilled( dmg )
     if self.term_Dead then ErrorNoHaltWithStack( "tried to die twice" ) return end
     self.term_Dead = true
+
+    local avoidance = self.HeatAvoidance
+    if avoidance and ( avoidance.term_deaths or 0 ) > 0 then
+        term_Heat.AddAround( "term_deaths", self.isTerminatorHunterChummy, self:GetPos(), 100, 1 )
+
+    end
 
     local attacker = dmg:GetAttacker()
     local inflictor = dmg:GetInflictor()

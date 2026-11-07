@@ -21,6 +21,7 @@ ENT.isTerminatorHunterBased = true -- used to see if ent is an actual terminator
 
 local ARNOLD_MODEL = "models/terminator/player/arnold/arnold.mdl"
 ENT.ARNOLD_MODEL = ARNOLD_MODEL
+local SKELETON_MODEL = "models/terminator/player/skeleton/t800nw.mdl"
 
 local mdlVar = CreateConVar( "termhunter_modeloverride", ARNOLD_MODEL, FCVAR_ARCHIVE, "Override the terminator nextbot's spawned-in model. Model needs to be rigged for player movement" )
 
@@ -99,6 +100,8 @@ ENT.WeaponSearchRange = 1500 -- dynamically increased in below tasks to 32k if t
 ENT.CanFindWeaponsOnTheGround = true -- set to false to force bots to only use weapons they spawn with
 
 ENT.isTerminatorHunterChummy = "terminators" -- are we pals with terminators?
+ENT.Term_NPCCLASS = CLASS_MACHINE
+ENT.HeatAvoidance = { term_deaths = 0.5, term_hurt = 0.25 } -- { layerName = weight }, path around these heat layers, see terminator_heatmap.lua. subclasses merge into this, 0 drops a layer, false drops them all
 
 ENT.SpawnHealth = healthFunc
 ENT.HealthRegen = nil -- health regen per interval
@@ -374,7 +377,7 @@ function ENT:AreaIsOrphan( potentialOrphan, ignoreMyNav )
 
     if potentialOrphan == myNav and not ignoreMyNav then return nil, nil end
 
-    local loopedBackAreas = { myNav = true }
+    local loopedBackAreas = { [myNav] = true }
     for _, area in ipairs( myNav:GetIncomingConnections() ) do
         loopedBackAreas[area] = true
 
@@ -2004,6 +2007,8 @@ function ENT:Initialize()
 
     BaseClass.Initialize( self )
 
+    myTbl.SetNPCClass( self, myTbl.Term_NPCCLASS )
+
     local myPos = self:GetPos()
 
     myTbl.terminator_BlockAttacksUntil = CurTime()
@@ -2070,6 +2075,10 @@ function ENT:Initialize()
 
     end
     self:SetModel( model )
+    if model == ARNOLD_MODEL then -- flesh can get shot off, no hitch when it swaps to the skeleton
+        util.PrecacheModel( SKELETON_MODEL )
+
+    end
 
     if isnumber( myTbl.ModelSkin ) then
         self:SetSkin( myTbl.ModelSkin )
@@ -2177,6 +2186,113 @@ hook.Add( "terminator_nextbot_noterms_exist", "term_cleanup_unreachableareasforc
     terminator_Extras.unreachableAreasForClasses = nil
 
 end )
+
+-- we couldn't get to it, a second strike, or one expensive path, and nobody bothers with it again
+local function markCrapWeapon( self, wep )
+    local fails = ( wep.failedWeaponPaths or 0 ) + ( self.term_ExpensivePath and 5 or 1 )
+    wep.failedWeaponPaths = fails
+    if fails > 1 then
+        wep.terminatorCrappyWeapon = true
+
+    end
+end
+
+-- every way out of movement_getweapon
+-- nextTask overrides the caller's AfterwardsTask
+local function finishGetWeapon( self, data, reason, gotIt, nextTask )
+    local wep = data.Wep
+    if gotIt then
+        local enemy = self:GetEnemy()
+        if IsValid( enemy ) and enemy.isTerminatorHunterKiller then
+            self.PreventShooting = nil
+
+        elseif self.PreventShooting ~= true then -- don't shoot right after we pick up the gun!
+            self.PreventShooting = true
+            timer.Simple( 0.5, function()
+                if not IsValid( self ) then return end
+                self.PreventShooting = nil
+
+            end )
+        end
+    elseif IsValid( wep ) and not IsValid( wep:GetParent() ) then
+        wep.blockWeaponNoticing = CurTime() + 2.5 -- give someone else a look at it
+
+    end
+
+    self:ResetWeaponSearchTimers() -- find the next one now
+    if gotIt then
+        self:TaskComplete( "movement_getweapon" )
+
+    else
+        self:TaskFail( "movement_getweapon" )
+
+    end
+    self:StartTask( nextTask or data.AfterwardsTask, data.AfterwardsTaskData, "getweapon, " .. reason )
+
+end
+
+local PICKUP_RANGE = 50
+
+-- picks it up if we're close enough, true if we did
+local function tryPickupWeapon( self, data, wep )
+    if self:GetRangeTo( wep ) > PICKUP_RANGE then return end
+    self:RunTask( "GetWeapon" )
+    self:SetupWeapon( wep )
+    finishGetWeapon( self, data, "got it", true )
+    return true
+
+end
+
+-- enemies we remember nearby, so dodging one doesn't run us into another
+-- returns positions and their ents, nearest first, plain lists so they're safe to hold across yields
+-- nil for bots too dumb to care
+function ENT:GetNearbyThreats( myTbl, ignore, radius, maxCount )
+    if not myTbl.HasBrains or myTbl.IsStupid then return end
+
+    local myPos = entMeta.GetPos( self )
+    local radiusSqr = radius^2
+    local cur = CurTime()
+    local positions, threatEnts, distSqrs = {}, {}, {}
+    for ent, memory in pairs( myTbl.m_EnemiesMemory ) do
+        if ent == ignore or not IsValid( ent ) then continue end
+        if cur - memory.lastupdate > 5 then continue end -- old positions are a lie
+
+        local pos = memory.pos
+        local distSqr = distToSqr( pos, myPos )
+        if distSqr > radiusSqr then continue end
+
+        local count = #positions
+        if maxCount and count >= maxCount then
+            if distSqr >= distSqrs[count] then continue end
+            count = count - 1 -- bump the farthest
+
+        end
+        local i = count + 1
+        while i > 1 and distSqrs[i - 1] > distSqr do
+            positions[i], threatEnts[i], distSqrs[i] = positions[i - 1], threatEnts[i - 1], distSqrs[i - 1]
+            i = i - 1
+
+        end
+        positions[i], threatEnts[i], distSqrs[i] = pos, ent, distSqr
+
+    end
+    return positions, threatEnts
+
+end
+
+-- shrinks dist down to how close moving start -> endPos takes us to any threat
+local function closestThreatAlong( threats, start, endPos, dist )
+    if not threats then return dist end
+    for _, threatPos in ipairs( threats ) do
+        local distToThreat = util.DistanceToLine( start, endPos, threatPos )
+        if distToThreat < dist then
+            dist = distToThreat
+
+        end
+    end
+    return dist
+
+end
 
 function ENT:DoDefaultTasks()
     self.TaskList = {
@@ -2721,8 +2837,6 @@ function ENT:DoDefaultTasks()
         ["awareness_handler"] = {
             StartsOnInitialize = true,
             BehaveUpdatePriority = function( self, data, interval )
-                coroutine_yield()
-
                 local myTbl  = entMeta.GetTable( self )
                 local nextAware = myTbl.term_NextAwareness or 0
                 if nextAware > CurTime() then return end
@@ -2758,8 +2872,6 @@ function ENT:DoDefaultTasks()
                 end
             end,
             BehaveUpdatePriority = function( self, data )
-                coroutine_yield()
-
                 local myTbl  = entMeta.GetTable( self )
                 local fodder = myTbl.IsFodder
                 if data.freedomGotoPosSimple and data.extremeUnstuckingUntil > CurTime() then -- try and unstuck without teleporting!
@@ -3120,9 +3232,11 @@ function ENT:DoDefaultTasks()
 
                 local realEnemy = myTbl.GetEnemy( self )
 
-                if IsValid( realEnemy ) then
-                    if realEnemy == enemy and myTbl.IsSeeEnemy then return end -- we are already attacking this guy! dont wast perf!
+                if realEnemy == enemy then
+                    if myTbl.IsSeeEnemy then return end -- we are already attacking this guy! dont wast perf!
 
+                elseif IsValid( realEnemy ) then
+                    -- only for someone new, the same enemy ties with itself and the inform would never get through
                     local _, priorityOfCurr = myTbl.TERM_GetRelationship( self, myTbl, realEnemy )
                     local _, priorityOfNew = myTbl.TERM_GetRelationship( self, myTbl, enemy )
                     if priorityOfCurr >= priorityOfNew then return end -- dont care about low priority enemies if we already fighting something decent
@@ -3145,7 +3259,7 @@ function ENT:DoDefaultTasks()
                 myTbl.EnemyLastPos = pos or myTbl.EnemyLastPos
                 myTbl.LastEnemyShootPos = shootPos or myTbl.LastEnemyShootPos
 
-                myTbl.interceptPeekTowardsEnemy  = myTbl.CanSeePosition( self, enemy, myTbl, enemyTbl ) and math.random( 1, 100 ) < 75
+                myTbl.interceptPeekTowardsEnemy  = myTbl.CanSeePosition( self, enemy, myTbl, entMeta.GetTable( enemy ) ) and math.random( 1, 100 ) < 75
                 myTbl.lastInterceptTime          = CurTime()
                 myTbl.lastInterceptPos           = pos
                 myTbl.lastInterceptReachable     = reachable
@@ -3397,6 +3511,24 @@ function ENT:DoDefaultTasks()
                 data.BackedUpAreaCounts = {}
                 myTbl.InvalidatePath( self, "we gotta back the hell up" )
 
+                -- picking a new spot takes a tick per area, call this every tick of it
+                -- standing still while they're in our face is how we lock up
+                data.KeepMoving = function( me, meTbl )
+                    local myPos = entMeta.GetPos( me )
+                    local goal = data.CurrentTaskGoalPos
+                    if not goal or myPos:DistToSqr( goal ) < 25^2 then -- nowhere left to go, just get away
+                        local enemysPos = meTbl.LastEnemyShootPos
+                        if not enemysPos then return end
+                        local away = myPos - enemysPos
+                        away.z = 0
+                        away:Normalize()
+                        goal = myPos + away * 100
+
+                    end
+                    meTbl.GotoPosSimple( me, meTbl, goal, 5 )
+
+                end
+
                 data.StartingEnemy = nil
                 data.StartingEnemyHealth = 0
 
@@ -3428,6 +3560,7 @@ function ENT:DoDefaultTasks()
                 local lastSawFrom = data.LastSawFrom
                 local backupFrom = myTbl.IsSeeEnemy and enemysShoot or lastSawFrom
                 local currEnemysHealth
+                local awayFromScaryEnemy
 
                 if IsValid( enemy ) then
                     currEnemysHealth = entMeta.Health( enemy )
@@ -3435,7 +3568,7 @@ function ENT:DoDefaultTasks()
                     enemysShoot = myTbl.EntShootPos( self, enemy )
 
                     if myTbl.IsSeeEnemy then
-                        data.lastSawFrom = myShoot
+                        data.LastSawFrom = myShoot
 
                     end
 
@@ -3456,12 +3589,13 @@ function ENT:DoDefaultTasks()
                 local needsNewBackupPos = tooCloseToThem or not data.CurrentTaskGoalPos or myPos:Distance( data.CurrentTaskGoalPos ) < 25
                 if goodEnemy and needsNewBackupPos then
                     local areasToCheck = myNav:GetAdjacentAreas()
-                    local areasAlreadyAdded = { myNav = true }
+                    local areasAlreadyAdded = { [myNav] = true }
                     for _, area in ipairs( areasToCheck ) do
                         areasAlreadyAdded[area] = true
 
                     end
                     coroutine_yield()
+                    data.KeepMoving( self, myTbl )
                     local finalAreasToCheck = {}
                     for _, area in ipairs( areasToCheck ) do
                         local areasNeighbors = area:GetAdjacentAreas()
@@ -3474,11 +3608,14 @@ function ENT:DoDefaultTasks()
                     end
                     local backedUpCounts = data.BackedUpAreaCounts
                     local myViewOffset = myTbl.GetViewOffset( self )
+                    local stepHeight = self.loco:GetStepHeight()
+                    local threats = myTbl.GetNearbyThreats( self, myTbl, enemy, data.DistToQuit )
                     local bestBackupPos
                     local bestBackupArea
                     local bestBackupDist
                     for _, area in ipairs( finalAreasToCheck ) do
                         coroutine_yield()
+                        data.KeepMoving( self, myTbl )
                         if area == myNav then continue end
 
                         local smallestSize = math.min( area:GetSizeX(), area:GetSizeY() )
@@ -3495,10 +3632,12 @@ function ENT:DoDefaultTasks()
                         local myShootWhenImThere = backupPos + myViewOffset
                         if not terminator_Extras.PosCanSeeComplex( myShoot, myShootWhenImThere, self ) then continue end
 
-                        local dropoff = myNav:ComputeAdjacentConnectionHeightChange( area )
                         local dirToThere = terminator_Extras.dirToPos( myShoot, myShootWhenImThere )
-                        local distWeGetToEnemy = util.DistanceToLine( myShoot + dirToThere * 10, myShootWhenImThere, backupFrom )
-                        distWeGetToEnemy = distWeGetToEnemy / dropoff
+                        local backupStart = myShoot + dirToThere * 10
+                        local distWeGetToEnemy = util.DistanceToLine( backupStart, myShootWhenImThere, backupFrom )
+                        distWeGetToEnemy = closestThreatAlong( threats, backupStart, myShootWhenImThere, distWeGetToEnemy )
+                        -- every step of height change halves it, these areas are 2 away so it's not an adjacent connection
+                        distWeGetToEnemy = distWeGetToEnemy / ( 1 + math.abs( backupPos.z - myPos.z ) / stepHeight )
 
                         if myTbl.HasBrains and distWeGetToEnemy > distToEnemy and not terminator_Extras.PosCanSeeComplex( myShootWhenImThere, backupFrom, self ) then -- try and break LOS
                             distWeGetToEnemy = distWeGetToEnemy * 2
@@ -3582,12 +3721,29 @@ function ENT:DoDefaultTasks()
                 data.BackupUntil = data.BackupUntil or CurTime() + 2
                 data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
                 data.AfterwardsTaskData = data.AfterwardsTaskData or nil
-                data.NormalBackupIfEnemy = data.NormalBackupIfEnemy or true
+                if data.NormalBackupIfEnemy == nil then data.NormalBackupIfEnemy = true end
 
                 data.WasValidEnt = IsValid( data.BackupFromEnt )
                 data.CurrentTaskGoalPos = nil
                 data.BackedUpAreaCounts = {}
                 myTbl.InvalidatePath( self, "we gotta back the hell up" )
+
+                -- same as movement_backthehellup's, but away from BackupFromPos
+                data.KeepMoving = function( me, meTbl )
+                    local myPos = entMeta.GetPos( me )
+                    local goal = data.CurrentTaskGoalPos
+                    if not goal or myPos:DistToSqr( goal ) < 25^2 then -- nowhere left to go, just get away
+                        local backupFrom = data.BackupFromPos
+                        if not backupFrom then return end
+                        local away = myPos - backupFrom
+                        away.z = 0
+                        away:Normalize()
+                        goal = myPos + away * 100
+
+                    end
+                    meTbl.GotoPosSimple( me, meTbl, goal, 5 )
+
+                end
 
             end,
             BehaveUpdateMotion = function( self, data )
@@ -3605,6 +3761,7 @@ function ENT:DoDefaultTasks()
                 if data.WasValidEnt and not IsValid( data.BackupFromEnt ) then
                     self:TaskComplete( "movement_backthehellup_frompos" )
                     myTbl.StartTask( self, data.AfterwardsTask, data.AfterwardsTaskData, "nothing to back up from anymore" )
+                    return
 
                 end
 
@@ -3635,12 +3792,13 @@ function ENT:DoDefaultTasks()
                 local needsNewBackupPos = not data.CurrentTaskGoalPos or myPos:Distance( data.CurrentTaskGoalPos ) < 25
                 if needsNewBackupPos then
                     local areasToCheck = myNav:GetAdjacentAreas()
-                    local areasAlreadyAdded = { myNav = true }
+                    local areasAlreadyAdded = { [myNav] = true }
                     for _, area in ipairs( areasToCheck ) do
                         areasAlreadyAdded[area] = true
 
                     end
                     coroutine_yield()
+                    data.KeepMoving( self, myTbl )
                     local finalAreasToCheck = {}
                     for _, area in ipairs( areasToCheck ) do
                         local areasNeighbors = area:GetAdjacentAreas()
@@ -3653,11 +3811,14 @@ function ENT:DoDefaultTasks()
                     end
                     local backedUpCounts = data.BackedUpAreaCounts
                     local myViewOffset = myTbl.GetViewOffset( self )
+                    local stepHeight = self.loco:GetStepHeight()
+                    local threats = myTbl.GetNearbyThreats( self, myTbl, data.BackupFromEnt, data.DistToQuit )
                     local bestBackupPos
                     local bestBackupArea
                     local bestBackupDist
                     for _, area in ipairs( finalAreasToCheck ) do
                         coroutine_yield()
+                        data.KeepMoving( self, myTbl )
                         if area == myNav then continue end
 
                         local smallestSize = math.min( area:GetSizeX(), area:GetSizeY() )
@@ -3674,10 +3835,11 @@ function ENT:DoDefaultTasks()
                         local myShootWhenImThere = backupPos + myViewOffset
                         if not terminator_Extras.PosCanSeeComplex( myShoot, myShootWhenImThere, self ) then continue end
 
-                        local dropoff = myNav:ComputeAdjacentConnectionHeightChange( area )
                         local dirToThere = terminator_Extras.dirToPos( myShoot, myShootWhenImThere )
-                        local distWeGet = util.DistanceToLine( myShoot + dirToThere * 10, myShootWhenImThere, backupFrom )
-                        distWeGet = distWeGet / dropoff
+                        local backupStart = myShoot + dirToThere * 10
+                        local distWeGet = util.DistanceToLine( backupStart, myShootWhenImThere, backupFrom )
+                        distWeGet = closestThreatAlong( threats, backupStart, myShootWhenImThere, distWeGet )
+                        distWeGet = distWeGet / ( 1 + math.abs( backupPos.z - myPos.z ) / stepHeight ) -- see movement_backthehellup
 
                         if not terminator_Extras.PosCanSeeComplex( myShootWhenImThere, backupFrom, self ) then -- try and break LOS
                             distWeGet = distWeGet * 2
@@ -3845,226 +4007,86 @@ function ENT:DoDefaultTasks()
                 data.AfterwardsTask = data.AfterwardsTask or "movement_handler"
                 data.AfterwardsTaskData = data.AfterwardsTaskData or {}
 
-                -- data.Wep, if this is true, bot will try and pickup this weapon
-
-                data.validityFailCount = 0
-                data.giveUpTime = CurTime() + 5
-
-                data.crapWep = function()
-                    local wep = data.Wep
-                    local failedWeaponPaths = wep.failedWeaponPaths or 0
-                    local wasExpensivePath = self.term_ExpensivePath
-                    local added = 1
-                    if wasExpensivePath then
-                        added = 5
-
-                    end
-
-                    failedWeaponPaths = failedWeaponPaths + added
-                    wep.failedWeaponPaths = failedWeaponPaths
-
-                    if failedWeaponPaths > 1 then
-                        wep.terminatorCrappyWeapon = true
-
-                    end
-                end
-
-                data.finishAfterwards = function( data2, afterwardsReason )
-                    if data2.taskKilled then return end
-                    data2.taskKilled = true
-                    local killerrrr = self:GetEnemy() and self:GetEnemy().isTerminatorHunterKiller
-                    if killerrrr then
-                        self.PreventShooting = nil
-
-                    -- don't shoot right after we pick up the gun!
-                    elseif self.PreventShooting ~= true then
-                        self.PreventShooting = true
-
-                        timer.Simple( 0.5, function()
-                            if not IsValid( self ) then return end
-                            if not self.PreventShooting then return end
-                            self.PreventShooting = nil
-
-                        end )
-                    end
-
-                    coroutine_yield()
-
-                    if IsValid( data2.Wep ) and not IsValid( data2.Wep:GetParent() ) then
-                        data2.Wep.blockWeaponNoticing = CurTime() + 2.5 -- this wep was invalid!
-
-                    end
-                    if data2.AfterwardsTask == "movement_getweapon" then -- no loops pls
-                        data2.AfterwardsTask = "movement_handler"
-
-                    end
-
-                    -- search for a new weapon NOW!
-                    self:ResetWeaponSearchTimers()
-                    self:TaskFail( "movement_getweapon" )
-                    self:StartTask( data2.AfterwardsTask, data2.AfterwardsTaskData, "finishAfterwards " .. afterwardsReason )
-
-                end
-
-                -- make bots bash crate
-                -- discards AfterwardsTask but w/e
-                data.handleCrate = function()
-                    if not IsValid( data.Wep ) then return end
-                    if not self:HasTask( "movement_bashobject" ) then return end
-                    if data.Wep:GetClass() ~= "item_item_crate" then return end
-                    if self.IsSeeEnemy and self:MyPathLength() > 400 and self.DistToEnemy < self.DuelEnemyDist then
-                        self:EnemyAcquired( "movement_getweapon" )
-                        return true
-
-                    end
-                    if SqrDistLessThan( data.Wep:GetPos():DistToSqr( self:GetPos() ), 200 ) then
-                        self:TaskFail( "movement_getweapon" )
-                        self:StartTask( "movement_bashobject", { ToBash = data.Wep, weaponSearchNow = true }, "the gun was right there" )
-                        return true
-
-                    end
-                end
-
-                data.updateWep = function()
-                    if data.validityFailCount > 3 then
-                        data:finishAfterwards( "wep is invalid" )
-                        return
-
-                    end
-                    if not IsValid( data.Wep ) then
-                        local canGetWeap, findWep = self:canGetWeapon()
-
-                        if canGetWeap == false then
-                            if not IsValid( data.Wep ) then
-                                data.validityFailCount = data.validityFailCount + 1
-
-                            end
-                        else
-                            data.Wep = findWep
-                            data.giveUpTime = CurTime() + 5
-
-                        end
-                    elseif not self:CanPickupWeapon( data.Wep ) then
-                        self:ResetWeaponSearchTimers()
-                        data.Wep = nil
-                        data.validityFailCount = data.validityFailCount + 0.5
-
-                    end
-                    return true
-
-                end
-
+                -- data.Wep is the one weapon we go for, if it's gone we finish and whatever's next finds another
+                data.GiveUpAt = CurTime() + 5
                 self:InvalidatePath( "getting weapon, killing old path" )
-
-                if not data:updateWep() then return end
-                if not IsValid( data.Wep ) then return end
-
-                if data:handleCrate() == true then return end
-
-                if self:GetRangeTo( data.Wep ) < 25 and self:CanPickupWeapon( data.Wep ) then
-                    self:RunTask( "GetWeapon" )
-                    self:SetupWeapon( data.Wep )
-
-                    data:finishAfterwards( "i started the task on top of the wep!" )
-                    return
-
-                end
 
             end,
             BehaveUpdateMotion = function( self, data )
-                if data.taskKilled then return end
+                local wep = data.Wep
+                if not IsValid( wep ) or not self:CanPickupWeapon( wep ) then
+                    finishGetWeapon( self, data, "it's gone, or i dont want it anymore" )
+                    return
 
-                if not data:updateWep() then return end
-                local currWep = data.Wep
-                if not IsValid( currWep ) then return end
-                local wepsPos = currWep:GetPos()
+                end
+                if tryPickupWeapon( self, data, wep ) then return end
 
-                if self:HasTask( "movement_bashobject" ) and self:CanBashLockedDoor( self:GetPos(), 500 ) and self:BashLockedDoor( "movement_getweapon" ) then
+                -- the enemy's too close, or we've been at this a while, unless it's the best one we know of
+                -- any sight of the enemy beats a crate, killing them gets us more weapons than a crate ever will
+                -- the handler, not AfterwardsTask, it decides what to do about the enemy
+                local isCrate = wep:GetClass() == "item_item_crate"
+                local giveUp = data.GiveUpAt < CurTime() and wep ~= self.terminator_BestWeaponIEverFound
+                if self.IsSeeEnemy and ( isCrate or self.DistToEnemy < self.CloseEnemyDistance or giveUp ) then
+                    finishGetWeapon( self, data, "my enemy's right there", false, "movement_handler" )
                     return
 
                 end
 
-                -- if unreachable, bail on the wep early
+                local canBash = self:HasTask( "movement_bashobject" )
+                local myPos = self:GetPos()
+                local wepsPos = wep:GetPos()
+                if canBash and wep:GetClass() == "item_item_crate" and SqrDistLessThan( wepsPos:DistToSqr( myPos ), 200 ) then
+                    self:TaskFail( "movement_getweapon" )
+                    self:StartTask( "movement_bashobject", { ToBash = wep, weaponSearchNow = true }, "the gun was right there" )
+                    return
+
+                end
+                if canBash and self:CanBashLockedDoor( myPos, 500 ) and self:BashLockedDoor( "movement_getweapon" ) then return end
+
                 local wepsNav = terminator_Extras.getNearestPosOnNav( wepsPos )
-                if wepsNav and IsValid( wepsNav.area ) and not self:areaIsReachable( wepsNav.area ) then
-                    data.crapWep()
-                    data:finishAfterwards( "the weapon is somewhere unreachable!" )
+                if not IsValid( wepsNav.area ) or not self:areaIsReachable( wepsNav.area ) then
+                    markCrapWeapon( self, wep )
+                    finishGetWeapon( self, data, "it's somewhere unreachable" )
                     return
 
                 end
 
-                local canNewPath = self:primaryPathInvalidOrOutdated( wepsPos )
-
-                if canNewPath then
+                if self:primaryPathInvalidOrOutdated( wepsPos ) then
                     self:InvalidatePath( "getweapon" )
-
-                    if self:EnemyIsLethalInMelee() then
-                        local result = terminator_Extras.getNearestPosOnNav( self:GetEnemy():GetPos() )
-                        if result and IsValid( result.area ) then
-                            self:SetupFlankingPath( wepsPos, result.area, self.DistToEnemy * 0.8 )
-                            data.wasAValidPath = true
+                    if self:EnemyIsLethalInMelee() then -- go around them
+                        local enemysNav = terminator_Extras.getNearestPosOnNav( self:GetEnemy():GetPos() )
+                        if IsValid( enemysNav.area ) then
+                            self:SetupFlankingPath( wepsPos, enemysNav.area, self.DistToEnemy * 0.8 )
                             coroutine_yield()
 
                         end
                     end
-
                     if not self:primaryPathIsValid() then
-                        local result = terminator_Extras.getNearestPosOnNav( wepsPos )
-                        if result and IsValid( result.area ) and self:areaIsReachable( result.area ) then
-                            self:SetupPathShell( wepsPos )
-                            data.wasAValidPath = true
+                        self:SetupPathShell( wepsPos )
 
-                        end
                     end
-
                     if not self:primaryPathIsValid() then
-                        -- something is wrong, bigger radius 
-                        if self:HasTask( "movement_bashobject" ) and self:CanBashLockedDoor( nil, 1500 ) and self:BashLockedDoor( "movement_getweapon" ) then
-                            return
+                        if canBash and self:CanBashLockedDoor( nil, 1500 ) and self:BashLockedDoor( "movement_getweapon" ) then return end
+                        markCrapWeapon( self, wep )
+                        finishGetWeapon( self, data, "no path to it" )
+                        return
 
-                        else
-                            data.crapWep()
-                            data:finishAfterwards( "path was invalid!" )
-                            return
-
-                        end
                     end
+                    self:GetPath():SetGoalTolerance( PICKUP_RANGE / 2 ) -- end the path where we can actually reach it
                 end
 
                 local result = self:ControlPath2( not self.IsSeeEnemy )
+                if not IsValid( wep ) then return end -- next tick finishes
 
-                if data:handleCrate() == true then return end
-                if not IsValid( currWep ) then return end
-
-                local rangeToWep = self:GetRangeTo( currWep )
-                if rangeToWep < 125 then
-                    self:crouchToGetCloserTo( currWep:GetPos() )
+                if self:GetRangeTo( wep ) < 125 then
+                    self:crouchToGetCloserTo( wep:GetPos() )
 
                 end
+                if tryPickupWeapon( self, data, wep ) then return end
 
-                if rangeToWep < self.PathGoalToleranceFinal + 20 and self:CanPickupWeapon( currWep ) then
-                    self:RunTask( "GetWeapon" )
-                    self:SetupWeapon( currWep )
-                    data:finishAfterwards( "reached the wep" )
-                    return
-
-                end
-
-                local bestFound = self.terminator_BestWeaponIEverFound or NULL
-                -- dont give up if we NEED the weapon!
-                local giveUp = data.giveUpTime < CurTime() and currWep ~= bestFound
-
-                if self.IsSeeEnemy and ( self.DistToEnemy < self.CloseEnemyDistance or giveUp ) and self:HasTask( "movement_bashobject" ) then
-                    self:EnemyAcquired( "movement_getweapon" )
-                    return
-
-                end
-
-                if self.isUnstucking then return end
-
-                if result == true then
-                    data.crapWep()
-                    data:finishAfterwards( "reached the end of my path, no weapon tho" )
+                if result == true and not self.isUnstucking then
+                    markCrapWeapon( self, wep )
+                    finishGetWeapon( self, data, "got to the end of my path, no weapon tho" )
 
                 end
             end,

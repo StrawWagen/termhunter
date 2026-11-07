@@ -1,8 +1,11 @@
 local entMeta = FindMetaTable( "Entity" )
+local SysTime = SysTime
 local isstring = isstring
 local string_find = string.find
 local coroutine_isyieldable = coroutine.isyieldable
 local coroutine_yield = coroutine.yield
+
+local taskYieldThresh = terminator_Extras.baseCoroutineThresh * 0.01 -- most callbacks are way under this, yielding after every one cost more than the callbacks did
 
 --[[------------------------------------
     Name: NEXTBOT:RunTask
@@ -24,10 +27,12 @@ function ENT:RunTask( event, ... )
     local m_TaskList = myTbl.m_TaskList
     local passedTasks = {}
     local yieldable
-    if not coroutine_isyieldable or not myTbl.IsFodder then
+    if not isfunction( coroutine_isyieldable ) or not myTbl.IsFodder then
         yieldable = false
 
     end
+
+    local before
 
     local wasCallback
     local k = 1
@@ -56,17 +61,22 @@ function ENT:RunTask( event, ... )
                 yieldable = coroutine_isyieldable() or false
 
             end
-            if yieldable then
+
+            local data = currTask[2] -- task data
+            local beforeCalledCount = #m_ActiveTasksNum
+            if yieldable and not before then
+                before = SysTime()
+
+            end
+            local args = { callback( self, data, ... ) }
+            if yieldable and ( SysTime() - before ) > taskYieldThresh then
                 coroutine_yield()
+                before = SysTime()
 
                 -- the other coroutine can end or start tasks while we're yielded, dont run a dead task's callback
                 if m_ActiveTasksNum[k] ~= currTask then continue end
 
             end
-
-            local data = currTask[2] -- task data
-            local beforeCalledCount = #m_ActiveTasksNum
-            local args = { callback( self, data, ... ) }
 
             if args[1] ~= nil then -- something was returned
                 if args[2] == nil then -- only one argument returned

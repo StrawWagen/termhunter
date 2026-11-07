@@ -26,7 +26,7 @@ ENT.CoroutineThresh = terminator_Extras.baseCoroutineThresh / 15
 ENT.MaxPathingIterations = 2500
 ENT.ThreshMulIfDueling = 3 -- CoroutineThresh is multiplied by this amount if we're closer than DuelEnemyDist
 ENT.ThreshMulIfClose = 1.5 -- if we're closer than DuelEnemyDist * 2
-ENT.IsFodder = false
+ENT.IsFodder = true
 
 ENT.JumpHeight = 50
 ENT.SpawnHealth = 40
@@ -35,8 +35,6 @@ ENT.AimSpeed = 300
 ENT.WalkSpeed = 75
 ENT.MoveSpeed = 100
 ENT.RunSpeed = 175
-
-ENT.HasBrains = false
 
 ENT.isTerminatorHunterChummy = "combine"
 ENT.DuelEnemyDist = 750

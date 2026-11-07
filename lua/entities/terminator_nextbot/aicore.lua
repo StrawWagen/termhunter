@@ -148,7 +148,7 @@ function ENT:BehaveUpdate( interval )
         -- Sending current weapon clips data
 
         if self:HasWeapon() then
-            local wep = self:GetActiveWeapon()
+            local wep = self:GetWeapon()
 
             self:SetWeaponClip1( wep:Clip1() )
             self:SetWeaponClip2( wep:Clip2() )

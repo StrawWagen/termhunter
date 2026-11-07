@@ -40,7 +40,6 @@ local termCleanupDroppedWeapons = CreateConVar( "terminator_cleanupdroppedweps",
 
 local IsValid = IsValid
 local entMeta = FindMetaTable( "Entity" )
-local wepMeta = FindMetaTable( "Weapon" )
 
 local minute = 60
 
@@ -279,15 +278,7 @@ function ENT:SetupWeapon( wep )
         actwep:SetClip1( math.Clamp( wep:Clip1(), 0, actwep:GetMaxClip1() ) )
         actwep:SetClip2( math.Clamp( wep:Clip2(), 0, actwep:GetMaxClip2() ) )
 
-        hook.Add( "Think", actwep, function()
-            wepMeta.SetClip1( wep, wepMeta.Clip1( actwep ) )
-            wepMeta.SetClip2( wep, wepMeta.Clip2( actwep ) )
-        end )
-        wep:CallOnRemove( "terminator_stopweaponthinkhack", function( _, actwep2 )
-            hook.Remove( "Think", actwep2 )
-
-        end, actwep )
-
+        -- clips live on the analog while held, DropWeapon copies them back
         wep:DeleteOnRemove( actwep )
         actwep:DeleteOnRemove( wep )
 
@@ -381,7 +372,7 @@ end
 
 --[[------------------------------------
     Name: NEXTBOT:DropWeapon
-    Desc: Drops current active weapon.
+    Desc: Drops current active weapon, or droppingOverride if it's active or holstered.
 --]]------------------------------------
 function ENT:DropWeapon( noHolster, droppingOverride )
     local wep
@@ -400,7 +391,14 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
 
     local myTbl = entMeta.GetTable( self )
-    self:SetActiveWeapon( NULL )
+    local droppingActive = wep == realWep
+    if droppingActive then
+        self:SetActiveWeapon( NULL )
+
+    else
+        myTbl.UnHolsterWeap( self, wep )
+
+    end
 
     if entMeta.GetClass( wep ) == myTbl.TERM_FISTS then
         wep:RemoveCallOnRemove( "term_unset_hasweapon" )
@@ -412,7 +410,8 @@ function ENT:DropWeapon( noHolster, droppingOverride )
 
     end
 
-    local actwep = myTbl.GetActiveLuaWeapon( self, myTbl )
+    -- holstered weapons have no analog, this would be the one in our hands
+    local actwep = droppingActive and myTbl.GetActiveLuaWeapon( self, myTbl )
     local velocity = myTbl.GetEyeAngles( self ):Forward() * 10
 
 
@@ -426,7 +425,7 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     wep:SetOwner( NULL )
     wep.Owner = nil
 
-    if myTbl.m_ActualWeapon and myTbl.m_ActualWeapon == wep then
+    if droppingActive then
         myTbl.m_ActualWeapon = nil
 
     end
@@ -509,7 +508,10 @@ function ENT:DropWeapon( noHolster, droppingOverride )
     end
 
     myTbl.terminator_NextWeaponPickup = CurTime() + math.Rand( 1, 2 )
-    myTbl.m_HasWeapon = nil
+    if droppingActive then
+        myTbl.m_HasWeapon = nil
+
+    end
     wep:RemoveCallOnRemove( "term_unset_hasweapon" )
 
     if not termCleanupDroppedWeapons:GetBool() then return end
@@ -876,6 +878,7 @@ end
 --[[------------------------------------
     Name: NEXTBOT:CanPickupWeapon
     Desc: Returns can we pickup this weapon.
+        Tasks can say no to weapons on the ground, return false from a CanPickupWeapon( self, data, wep ) task callback.
     Arg1: Entity | wep | Entity to test. Not necessary Weapon entity.
     Ret1: bool | Can pickup or not.
 --]]------------------------------------
@@ -884,7 +887,7 @@ local DistToSqr = FindMetaTable( "Vector" ).DistToSqr
 
 function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
     if not IsValid( wep ) then boring( wep ) return end
-    wepsTbl = wepsTbl or entMeta.GetTable( self )
+    wepsTbl = wepsTbl or entMeta.GetTable( wep )
 
     if not wepsTbl then boring( wep ) return end -- ????
     local class = entMeta.GetClass( wep )
@@ -909,6 +912,9 @@ function ENT:CanPickupWeapon( wep, doingHolstered, myTbl, wepsTbl )
 
     local blockWeaponNoticing = wep.blockWeaponNoticing or 0
     if blockWeaponNoticing > CurTime() then return end
+
+    -- not cached as boring, the task's reasons can change any time
+    if not doingHolstered and myTbl.RunTask( self, "CanPickupWeapon", wep ) == false then return false end
 
     if isCrate and myTbl.TERM_FISTS then -- CRATE!
         local wepPos = entMeta.GetPos( wep )
@@ -1051,7 +1057,7 @@ function ENT:GiveAmmo()
 end
 
 function ENT:GetAmmoCount()
-    local actWep = self:GetActiveWeapon()
+    local actWep = self:GetWeapon()
     if not IsValid( actWep ) then return 0 end
     return actWep:Clip1() or 0
 
@@ -1236,13 +1242,17 @@ function ENT:canGetWeapon()
 
     local armed = not myTbl.IsFists( self )
     local nextSearch = myTbl.nextWeapSearch or 0
-    if nextSearch < CurTime() then
+    local wepDat = myTbl.cachedNewWeaponDat
+    local searchRange = myTbl.WeaponSearchRange
+    if nextSearch < CurTime() or ( wepDat and wepDat.searchRange ~= searchRange ) then
         myTbl.NextWeapSearch( self, math.Rand( 2, 4 ) )
-        myTbl.cachedNewWeaponDat = myTbl.FindWeapon( self, myTbl ) -- find, cache best weapon
+        wepDat = myTbl.FindWeapon( self, myTbl ) -- find, cache best weapon
+        wepDat.searchRange = searchRange -- search again if it changes
+        myTbl.cachedNewWeaponDat = wepDat
 
     end
 
-    local wepDat = myTbl.cachedNewWeaponDat or {}
+    wepDat = wepDat or {}
     local newWeap = wepDat.wep
 
     if not IsValid( newWeap ) then return false, nil end
@@ -1403,7 +1413,7 @@ function ENT:FindWeapon( myTbl )
 
     local needsAWepNow = myTbl.terminator_NeedsAWeaponNow -- set by movement tasks if the enemy is unreachable
     local bestWep = myTbl.terminator_BestWeaponIEverFound
-    local canPickupBest = IsValid( bestWep ) and CanPickupWeapon( self, bestWep, myTbl )
+    local canPickupBest = IsValid( bestWep ) and CanPickupWeapon( self, bestWep, false, myTbl )
 
     if not canPickupBest and needsAWepNow then
         searchrange = 32000
