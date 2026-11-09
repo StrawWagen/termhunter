@@ -2187,6 +2187,7 @@ function ENT:DoCustomTasks( defaultTasks )
                             local entsChummy = ent.isTerminatorHunterChummy
                             if not entsChummy then continue end
                             if entsChummy ~= myTbl.isTerminatorHunterChummy then continue end
+                            if not ent.isTerminatorHunterBased then continue end -- glee's gunship is a chummy npc
 
                             ent:RunTask( "OnAllyTakingCoverBehindMe" )
 
