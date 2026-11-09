@@ -374,35 +374,6 @@ function ENT:ModifyControlPlayerButtons( btns )
 
 end
 
-if CLIENT then
-    local hiddenScale = Vector( 0, 0, 0 )
-    local normalScale = Vector( 1, 1, 1 )
-    local hiddenBot
-    local hiddenBone
-
-    hook.Add( "PreDrawOpaqueRenderables", "Term_FirstPersonHideHead", function()
-        local bot = LocalPlayer():GetDrivingEntity()
-        if not IsValid( bot ) or not bot.term_FirstPerson then return end
-
-        local headBone = bot:LookupBone( bot.Term_FirstPersonHeadBone or "ValveBiped.Bip01_Head1" )
-        if not headBone then return end
-
-        hiddenBot = bot
-        hiddenBone = headBone
-        bot:ManipulateBoneScale( headBone, hiddenScale )
-        bot:SetupBones()
-
-    end )
-
-    hook.Add( "PostDrawTranslucentRenderables", "Term_FirstPersonRestoreHead", function()
-        if not IsValid( hiddenBot ) then hiddenBot = nil return end
-
-        hiddenBot:ManipulateBoneScale( hiddenBone, normalScale )
-        hiddenBot = nil
-
-    end )
-end
-
 drive.Register( "drive_terminator_nextbot", {
     Init = function( self )
 
