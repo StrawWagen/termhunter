@@ -124,7 +124,7 @@ ENT.MySpecialActions = {
         end,
     },
     ["ToggleFirstPerson"] = { -- by boomertaters
-        commandName = "impulse 201",
+        commandName = "impulse 201", -- spray paint bind
         drawHint = true,
         name = "Toggle first person",
         desc = "Switch between first and third person",
