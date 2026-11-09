@@ -378,6 +378,9 @@ function ENT:GetAssistedHitPos( aimDir, trace )
 
 end
 
+local hiddenScale = Vector( 0, 0, 0 )
+local normalScale = Vector( 1, 1, 1 )
+
 function ENT:SetupCLDrivingHooks()
     local toTeardown = {}
 
@@ -434,6 +437,29 @@ function ENT:SetupCLDrivingHooks()
     toTeardown[#toTeardown + 1] = "HUDShouldDraw"
     hook.Add( "HUDShouldDraw", "Term_CLDriving", function( name )
         if suppressed[name] then return false end
+
+    end )
+
+    local headBone
+
+    toTeardown[#toTeardown + 1] = "PreDrawOpaqueRenderables"
+    hook.Add( "PreDrawOpaqueRenderables", "Term_CLDriving", function()
+        if not self.term_FirstPerson then return end
+
+        headBone = self:LookupBone( self.Term_FirstPersonHeadBone or "ValveBiped.Bip01_Head1" )
+        if not headBone then return end
+
+        self:ManipulateBoneScale( headBone, hiddenScale )
+        self:SetupBones()
+
+    end )
+
+    toTeardown[#toTeardown + 1] = "PostDrawTranslucentRenderables"
+    hook.Add( "PostDrawTranslucentRenderables", "Term_CLDriving", function()
+        if not headBone then return end
+
+        self:ManipulateBoneScale( headBone, normalScale )
+        headBone = nil
 
     end )
 
