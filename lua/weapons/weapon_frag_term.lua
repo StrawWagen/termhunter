@@ -172,7 +172,11 @@ hook.Add( "EntityTakeDamage", "STRAW_terminatorHunter_grenadeCorrectTheAttacker"
     damage:ScaleDamage( 1.25 )
     damage:SetDamage( math.Clamp( damage:GetDamage(), 0, 200 ) )
 
-    inflic:GetPhysicsObject():SetVelocity( vector_origin )
+    local obj = inflic:GetPhysicsObject()
+    if IsValid( obj ) then
+        obj:SetVelocity( vector_origin )
+
+    end
 
     inflic.isTerminatorHunterGrenade = nil
 
