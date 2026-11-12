@@ -461,6 +461,8 @@ ENT.MyClassTask = {
             -- rate = 0.75,
             -- startFunc = function( self ) end -- optional
             -- finishFunc = function( self ) end -- optional
+            -- blendIn = 0.2, -- optional, fraction of the anim spent fading in
+            -- blendOut = 0, -- optional, fraction of the anim spent fading out
         --}
     -- end,
     

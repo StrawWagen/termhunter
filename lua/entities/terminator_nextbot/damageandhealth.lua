@@ -870,6 +870,15 @@ function ENT:OnKilled( dmg )
             deathAniming = true
             damageForce = Vector( 1, 1, 1 ) -- don't make ragdoll go crazy, the force happened a while ago
 
+            -- an act can map to several sequences of different lengths, pick one so the timer and the anim agree
+            if isnumber( deathAct ) then
+                local seq = self:SelectWeightedSequence( deathAct )
+                if seq >= 0 then
+                    deathAct = self:GetSequenceName( seq )
+
+                end
+            end
+
             local rate = deathAnimDat.rate or 1
             local duration = self:GetGestureDuration( deathAct, rate )
             duration = duration * 0.9 -- kill the bot a bit before the sequence ends, blending always gets them otherwise
@@ -884,7 +893,12 @@ function ENT:OnKilled( dmg )
             self:RunTask( "OnStartDying", dmg )
 
             self:StopMoving()
-            self:DoGesture( deathAct, rate, true )
+            -- no blend out by default, a fading death anim shows the bot's normal anims before it ragdolls
+            local blendData = {
+                blendIn = deathAnimDat.blendIn or 0.2,
+                blendOut = deathAnimDat.blendOut or 0,
+            }
+            self:DoGesture( deathAct, rate, true, blendData )
             timer.Simple( duration, function()
                 if not IsValid( self ) then return end
 

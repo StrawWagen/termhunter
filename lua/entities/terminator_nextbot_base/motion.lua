@@ -188,10 +188,12 @@ end
 	Arg3: (optional) bool | wait | Should behaviour be stopped while gesture active (like DoPosture).
 	Arg4: (optional) table | extraData |
 		.onGestureFinishedFunc( self ) - function called when gesture finishes.
-	Ret1: 
+		.blendIn - fraction of the anim spent fading in, default 0.2
+		.blendOut - fraction of the anim spent fading out, default 0.2
+	Ret1:
 --]]------------------------------------
-function ENT:DoGesture(act,speed,wait)
-	self.m_DoGesture = {act,speed or 1,wait}
+function ENT:DoGesture(act,speed,wait,extraData)
+	self.m_DoGesture = {act,speed or 1,wait,extraData}
 end
 
 --[[------------------------------------
@@ -303,6 +305,7 @@ function ENT:SetupGesturePosture()
 		local act = newGesture[1]
 		local spd = newGesture[2]
 		local wait = newGesture[3]
+		local extraData = newGesture[4] or {}
 		self.m_DoGesture = nil
 
 		local oldGesture = self.m_CurGesture
@@ -319,8 +322,8 @@ function ENT:SetupGesturePosture()
 
 		end
 		self:SetLayerPlaybackRate(layer,spd)
-		self:SetLayerBlendIn(layer,0.2)
-		self:SetLayerBlendOut(layer,0.2)
+		self:SetLayerBlendIn(layer,extraData.blendIn or 0.2)
+		self:SetLayerBlendOut(layer,extraData.blendOut or 0.2)
 
 		local duration = self:GetLayerDuration( layer )
 		self.m_CurGesture = { act, CurTime() + duration, wait }
