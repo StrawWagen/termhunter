@@ -439,9 +439,14 @@ function SWEP:DealDamage()
         if hitEnt == owner then continue end -- stop hitting yourself
         if not hitEnt:IsSolid() then continue end -- dont hit non-solid stuff
 
-        local hitEntsOwner = hitEnt:GetOwner()
-        local hitEntsParent = hitEnt:GetParent()
-        if IsValid( hitEntsOwner ) and IsValid( hitEntsParent ) and hitEntsOwner == hitEntsParent then continue end -- just in case
+        -- FindAlongRay's box catches things attached to whoever's in it, like hats
+        -- the trace only finds what's really in the way, like a riot shield held up
+        if hitEnt ~= tr.Entity then
+            local hitEntsOwner = hitEnt:GetOwner()
+            local hitEntsParent = hitEnt:GetParent()
+            if IsValid( hitEntsOwner ) and IsValid( hitEntsParent ) and hitEntsOwner == hitEntsParent then continue end
+
+        end
 
         local vehicle = hitEnt.GetVehicle and hitEnt:GetVehicle() or nil
         if IsValid( vehicle ) then
@@ -459,7 +464,7 @@ function SWEP:DealDamage()
             local obj = hitEnt:GetPhysicsObject()
             local isSignificant = hitEnt:IsNPC() or hitEnt:IsNextBot() or hitEnt:IsPlayer()
             -- teamkilling is funny but also stupid
-            local friendly = isSignificant and hitEnt.isTerminatorHunterChummy == owner.isTerminatorHunterChummy and owner:Disposition( hitEnt ) ~= D_HT
+            local friendly = isSignificant and hitEnt.isTerminatorHunterChummy == owner.isTerminatorHunterChummy and owner.Disposition and owner:Disposition( hitEnt ) ~= D_HT
 
             local dmgMul = strength
 
