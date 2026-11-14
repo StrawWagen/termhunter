@@ -277,6 +277,20 @@ function ENT:SetupSpecialActions( myTbl ) -- same system as ENT:DoClassTasks
 end
 
 --[[------------------------------------
+    NEXTBOT:GetLastActionTime
+    When this bot last took an action, for "hasn't done X in a while" checks
+    arg1: string | actionName | Name of action to check
+    ret1: number | lastTime | CurTime of the last use, 0 if never used
+--]]------------------------------------
+function ENT:GetLastActionTime( actionName )
+    local lastTimes = self.m_LastActionTimes
+    if not lastTimes then return 0 end
+
+    return lastTimes[actionName] or 0
+
+end
+
+--[[------------------------------------
     NEXTBOT:CanTakeAction
     Check if bot can take the specified action right now
     arg1: string | actionName | Name of action to check
@@ -292,12 +306,7 @@ function ENT:CanTakeAction( actionName, driver )
     if not ( actionData.svAction or actionData.clAction ) then return end
 
     local ratelimt = actionData.ratelimit
-    if ratelimt then
-        self.m_LastActionTimes = self.m_LastActionTimes or {}
-        local lastTime = self.m_LastActionTimes[actionName] or 0
-        if CurTime() - lastTime < ratelimt then return end
-
-    end
+    if ratelimt and CurTime() - self:GetLastActionTime( actionName ) < ratelimt then return end
 
     local uses = actionData.uses
     if uses then
@@ -335,11 +344,8 @@ function ENT:TakeAction( actionName, driveController )
     if not self:CanTakeAction( actionName, driver ) then return end
     local actionData = specialActions[actionName]
 
-    if actionData.ratelimit then
-        self.m_LastActionTimes = self.m_LastActionTimes or {}
-        self.m_LastActionTimes[actionName] = CurTime()
-
-    end
+    self.m_LastActionTimes = self.m_LastActionTimes or {}
+    self.m_LastActionTimes[actionName] = CurTime()
 
     local uses = actionData.uses
     if uses then

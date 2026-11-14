@@ -122,6 +122,25 @@ You can also play animation layers (gestures) over the bot's current animation u
 
 You'll see expanded examples of this in the MySpecialActions section below.
 
+### Melee with custom animations
+
+Bots punch with `weapon_terminatorfists_term` by default, player punches and all.  
+Give your bot its own swing animation, and the fists play that instead.
+
+```lua
+ENT.TERM_FISTS = "weapon_terminatorfists_term"
+ENT.FistAttackAnim = ACT_GMOD_GESTURE_RANGE_ZOMBIE -- or a sequence name, eg "attackA"
+ENT.FistAttackSpeedMul = 1.5 -- swings, and lands hits, faster
+ENT.FistAttackAdditionalDelay = 0.2 -- seconds of rest between swings, negative is faster
+ENT.FistHitFrameMul = 1 -- when in the swing the damage lands, lower is earlier
+```
+
+The swing lasts as long as the animation, so a longer animation swings less often.  
+`FistAttackSpeedMul` speeds up the whole swing, the hit included. Tune it by eye in game, then tweak `FistAttackAdditionalDelay` to get the pace right.  
+Nothing checks sequence names, so if the swing looks wrong, check the spelling first.
+
+See the [example nextbot](lua/entities/terminator_nextbot_examplenextbot.lua) for the rest of the `Fist` variables.
+
 
 ## ENT.MyExtraModels
 
@@ -717,6 +736,14 @@ self:TakeAction( "Dance" )
 You can also check if an action can be taken (it might be on ratelimit, or its `svCanAct` said no):
 ```lua
 if self:CanTakeAction( "Dance" ) then
+    self:TakeAction( "Dance" )
+end
+```
+
+Or check when it was last taken, for "hasn't danced in a while" logic.
+It's 0 if never taken:
+```lua
+if CurTime() - self:GetLastActionTime( "Dance" ) > 60 then
     self:TakeAction( "Dance" )
 end
 ```

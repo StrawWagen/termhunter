@@ -82,6 +82,10 @@ ENT.FistDamageMul = 0.1 -- damage mul for weapon_terminatorfists_term
 -- ENT.DontDropPrimary = true -- keep the gun when switching to fists
 -- ENT.DontShootThroughProps = true -- won't fire at enemies behind props
 -- ENT.FistRangeMul = 1
+-- ENT.FistAttackSpeedMul = 1 -- 2 swings twice as often, safe to change at runtime
+-- ENT.FistAttackAnim = ACT_GMOD_GESTURE_RANGE_ZOMBIE -- swing with a gesture instead of punching, act or sequence name
+-- ENT.FistHitFrameMul = 1 -- with FistAttackAnim, scales when in the swing the damage lands
+-- ENT.FistAttackAdditionalDelay = 0 -- with FistAttackAnim, seconds added between swings, negative is faster
 -- ENT.FistForceMul = 1
 -- ENT.FistDamageType = DMG_CLUB
 

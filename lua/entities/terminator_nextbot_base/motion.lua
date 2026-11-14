@@ -313,6 +313,8 @@ function ENT:SetupGesturePosture()
 
 		self:StopGesture()
 
+		local layer
+
 		if isstring( act ) then
 			act = self:LookupSequence( act )
 			layer = self:AddGestureSequence( act )
@@ -321,13 +323,14 @@ function ENT:SetupGesturePosture()
 			layer = self:AddGesture( act, true )
 
 		end
-		self:SetLayerPlaybackRate(layer,spd)
-		self:SetLayerBlendIn(layer,extraData.blendIn or 0.2)
-		self:SetLayerBlendOut(layer,extraData.blendOut or 0.2)
+		self:SetLayerPlaybackRate( layer, spd )
+		self:SetLayerBlendIn( layer, extraData.blendIn or 0.2 )
+		self:SetLayerBlendOut( layer, extraData.blendOut or 0.2 )
 
 		local duration = self:GetLayerDuration( layer )
 		self.m_CurGesture = { act, CurTime() + duration, wait }
 		self.term_CachedCurrentSpeed = nil
+
 	end
 
 	local newPosture = self.m_DoPosture
@@ -339,16 +342,18 @@ function ENT:SetupGesturePosture()
 
 		self:StopPosture()
 
-		local len = self:SetSequence(seq)
+		local len = self:SetSequence( seq )
 		self:ResetSequenceInfo()
-		self:SetCycle(0)
+		self:SetCycle( 0 )
 		self:SetPlaybackRate( math.Clamp( spd, 0, 12 ) )
 
-		self.m_CurPosture = {CurTime()+len/spd,autokill}
+		self.m_CurPosture = { CurTime() + len / spd, autokill }
+
 	end
 
-	if self.m_CurPosture and self.m_CurPosture[2] and CurTime()>self.m_CurPosture[1] then
+	if self.m_CurPosture and self.m_CurPosture[2] and CurTime() > self.m_CurPosture[1] then
 		self:StopPosture()
+
 	end
 end
 

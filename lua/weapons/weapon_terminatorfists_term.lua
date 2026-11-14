@@ -332,13 +332,80 @@ end
 
 function SWEP:PrimaryAttack()
     if not self:CanPrimaryAttack() then return end
+    local owner = self:GetOwner()
+
+    if owner.FistAttackAnim then
+        self:GestureAttack( owner, owner.FistAttackAnim )
+        return
+
+    end
 
     self:ResetHoldTypeCountdown()
     self:DealDamage()
 
+    local speedMul = owner.FistAttackSpeedMul or 1
     self:SetClip1( self:Clip1() - 1 )
-    self:SetNextPrimaryFire( CurTime() + 0.4 )
+    self:SetNextPrimaryFire( CurTime() + 0.4 / speedMul )
     self:SetLastShootTime()
+end
+
+-- for owners with their own swing animation, zombies and the like
+-- plays the gesture, then deals damage partway through it
+function SWEP:GestureAttack( owner, act )
+    local seq
+    if isstring( act ) then
+        seq = owner:LookupSequence( act )
+
+    else
+        seq = owner:SelectWeightedSequence( act )
+        -- an act can map to several sequences of different lengths, play the one the timers use
+        if seq >= 0 then
+            act = owner:GetSequenceName( seq )
+
+        end
+    end
+
+    local speedMul = owner.FistAttackSpeedMul or 1
+    local additionalDelay = owner.FistAttackAdditionalDelay or 0
+    local swingDuration = owner:SequenceDuration( seq ) / speedMul
+    local nextSwingDelay = swingDuration - 0.1 + additionalDelay
+    self:SetNextPrimaryFire( CurTime() + nextSwingDelay )
+
+    -- play anim next tick
+    timer.Simple( 0, function()
+        if not IsValid( self ) then return end
+        if not IsValid( owner ) then return end
+        if not owner.DoGesture then return end
+        owner:DoGesture( act, speedMul, owner.NoAnimLayering or false )
+
+    end )
+
+    -- yes, speed divides in twice
+    -- every bot's FistHitFrameMul is tuned against this, changing it retunes them all
+    local hitFrameMul = owner.FistHitFrameMul or 1
+    local windup = ( swingDuration - 0.7 ) / speedMul
+    local hitDelay = windup * hitFrameMul
+
+    timer.Simple( hitDelay, function()
+        if not IsValid( self ) then return end
+        if not IsValid( owner ) then return end
+        if not owner:IsSolid() then return end
+        if owner:Health() <= 0 then return end
+        if owner.RunTask and owner:RunTask( "BlockClawSwipe" ) then return end
+        self:DealDamage()
+
+        self:SetClip1( self:Clip1() - 1 )
+        self:SetLastShootTime()
+
+    end )
+end
+
+-- gesture swingers animate themselves, our holdtype would override their anim translations
+function SWEP:TranslateActivity( act )
+    local owner = self:GetOwner()
+    if IsValid( owner ) and owner.FistAttackAnim then return end
+    return BaseClass.TranslateActivity( self, act )
+
 end
 
 function SWEP:PlayHitSound( owner, pitchShift )
