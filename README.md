@@ -319,8 +319,10 @@ See [terminator_cl_extramodels.lua](lua/autorun/client/terminator_cl_extramodels
 ## ENT.MyWorkshopContentIds
 
 **Use this instead of resource.AddWorkshop**
+
 Why? It's dynamic.
-Server owners can toggle `terminator_myworkshopcontentids_ondemand`
+
+Server owners can toggle `terminator_myworkshopcontentids_ondemand`.
 To make the content only get shipped on-demand, first time a bot is networked.
 
 ```lua
@@ -333,8 +335,8 @@ ENT.MyWorkshopContentIds = {
 ENT.MyWorkshopContentIds = "2691974423"
 ```
 
-This just wraps resource.AddWorkshop when `_ondemand` is 0
-Otherwise it ships the content when players first see a bot with .MyWorkshopContentIds
+This just wraps resource.AddWorkshop when `_ondemand` is 0.
+if ondemand content is enabled, clients auto-download .MyWorkshopContentIds when a bot with that is first networked
 
 <details>
 <summary><b>Advanced</b> · <i>dynamic content for any addon or gamemode</i></summary>
