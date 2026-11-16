@@ -1441,7 +1441,8 @@ end
 -- actually expanded, so we know a route to each, and the nearest to the goal is as far as
 -- we got. areas the cost generator refused get closed with no costsToEnd entry, and those
 -- are skipped, we never confirmed a way into them
-local function getClosestToGoal( seqSearchTbl, costsToEnd )
+-- areas edited mid search go NULL and get skipped too
+local function getClosestToGoal( seqSearchTbl, costsToEnd, areasById )
     local smallestCost = inf
     local bestId
     for i, id in ipairs( seqSearchTbl ) do
@@ -1450,7 +1451,7 @@ local function getClosestToGoal( seqSearchTbl, costsToEnd )
 
         end
         local cost = costsToEnd[id]
-        if cost and cost < smallestCost then
+        if cost and cost < smallestCost and IsValid( areasById[id] ) then
             smallestCost = cost
             bestId = id
 
@@ -1570,9 +1571,9 @@ function terminator_Extras.Astar( me, myTbl, startArea, goal, goalArea, NavMeshP
         if maxPathingIterations and currExtent > maxPathingIterations then -- all out :( guess the goal is whatever got closest
             coroutine_yield( terminator_Extras.BOT_COROUTINE_RESULTS.PATHING_DONTWAIT )
 
-            local bestCompromiseId = getClosestToGoal( closedSequential, costsToEnd )
-            if bestCompromiseId then
-                local bestCompromiseArea = areasById[bestCompromiseId]
+            local bestCompromiseId = getClosestToGoal( closedSequential, costsToEnd, areasById )
+            local bestCompromiseArea = areasById[bestCompromiseId]
+            if IsValid( bestCompromiseArea ) then -- getClosestToGoal yields, so it can go NULL after being picked
                 local areaCorridor = reconstruct_path( cameFromId, cameFromArea, bestCompromiseArea )
                 if not areaCorridor then
                     return bestCompromiseArea, nil, false, "fail4"

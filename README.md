@@ -66,6 +66,10 @@ Disable this if you have manually curated navmeshes, it's slightly experimental.
 terminator_areapatching_enable 0/1 "Creates new areas if players, bots, end up off the navmesh. Only runs with at least 1 bot spawned."
 terminator_areapatching_rate -1/1 "Max fraction of a second the area patcher can run at, -1 for default"
 terminator_areapatching_debugging 0/1 "Enable areapatcher debug-prints/visualizers."
+
+Workshop content
+terminator_myworkshopcontentids_ondemand 0/1 "Should clients download terminator nextbots' ENT.MyWorkshopContentIds when they first see one, instead of at join? For dedicated servers that don't want everyone downloading everything. Needs a map change."
+terminator_workshopcontent_download 0/1 "Clientside. Download and mount workshop content the server or bots need? Without it some models and materials may be missing."
 ```
 
 
@@ -232,6 +236,9 @@ If a callback calls bot-only functions, like `bot:GetActiveWeapon()`, give it `h
 
 `fallOffOnDeath` extras drop off as physics props instead, and get cleaned up after about 30 seconds.
 
+<details>
+<summary><b>Advanced</b> · <i>death animations, hiding, extras from elsewhere, drawing by hand</i></summary>
+
 **Dropping them during a death animation:**  
 `terminator_Extras.DropMyExtraModels( ent, lifetime )` knocks every extra off right away, as physics props.  
 It's client only, and the client doesn't know when a death animation starts, so the server has to tell it.
@@ -296,12 +303,72 @@ terminator_Extras.RemoveMyExtraModels( ply, "mypowerup_hat" )
 Each key's list is separate, so it won't touch the ent's `ENT.MyExtraModels`, or anyone else's.  
 Works on any ent with a model, players included. Client only.
 
+### Drawing a bot by hand
+
+Eg a NoDraw copy in a viewmodel? Call `terminator_Extras.DrawMyExtraModels( ent, entries, flags, realEnt )` every frame after drawing it.  
+See [terminator_cl_extramodels.lua](lua/autorun/client/terminator_cl_extramodels.lua).
+
+</details>
+
 **Notes:**
 1. A derived bot's `ENT.MyExtraModels` replaces its base class's list, it doesn't add to it.  
    Want the base's extras too? Copy them into your list.
 2. Missing models and bones are usually missing content on the player's end, so they only warn loudly with `developer 1`.
-3. Drawing a bot by hand, eg a NoDraw copy in a viewmodel? Call `terminator_Extras.DrawMyExtraModels( ent, entries, flags, realEnt )` every frame after drawing it.  
-   See [terminator_cl_extramodels.lua](lua/autorun/client/terminator_cl_extramodels.lua).
+
+
+## ENT.MyWorkshopContentIds
+
+**Use this instead of resource.AddWorkshop**
+Why? It's dynamic.
+Server owners can toggle `terminator_myworkshopcontentids_ondemand`
+To make the content only get shipped on-demand, first time a bot is networked.
+
+```lua
+ENT.MyWorkshopContentIds = {
+    "3330585475", -- this shipped addon sounds
+    "2691974423", -- playermodel
+}
+
+-- or just one
+ENT.MyWorkshopContentIds = "2691974423"
+```
+
+This just wraps resource.AddWorkshop when `_ondemand` is 0
+Otherwise it ships the content when players first see a bot with .MyWorkshopContentIds
+
+<details>
+<summary><b>Advanced</b> · <i>dynamic content for any addon or gamemode</i></summary>
+
+### Dynamic content for any addon or gamemode
+
+The base system is always on, ready for you to use.
+An advanced `steamworks.DownloadUGC`, it handles late joiners, the download queue, and fixing materials that were missing before the content mounted.
+
+On one ent, eg a prop with a workshop model. Serverside.
+
+```lua
+terminator_Extras.SetOnDemandWorkshop( prop, "174117071" ) -- or a table of them
+```
+
+Only clients the ent gets sent to download it.
+
+Content every client needs, wherever they are, eg for a whole gamemode round:
+
+```lua
+terminator_Extras.AddOnDemandWorkshop( "174117071" )
+
+-- later, stops sending it to players who join after. Clients can't unmount
+terminator_Extras.RemoveOnDemandWorkshop( "174117071" )
+```
+
+**Notes:**
+1. Don't also `resource.AddWorkshop` an id you get on demand, it'd download at join anyway.  
+   Both get reported, with where they came from. Loudly with `developer 1`.
+2. A derived bot's `ENT.MyWorkshopContentIds` replaces its base class's list, same as `ENT.MyExtraModels`.
+3. Players can opt out with `terminator_workshopcontent_download 0`, then they'll see missing models and materials.  
+   See [terminator_cl_workshopcontent.lua](lua/autorun/client/terminator_cl_workshopcontent.lua).
+
+</details>
 
 
 ## ENT.MyClassTask System
@@ -357,11 +424,14 @@ ENT.MyClassTask = {
    
    Even if those npcs have their own .MyClassTask, with their own OnDamaged callback playing a SCREAMING sound, they will still laugh! (and scream...)
 
-### Blocking a base class's task, ENT.MyBlockedClassTasks
+<details>
+<summary><b>Advanced</b> · <i>blocking a base class's task, ENT.MyBlockedClassTasks</i></summary>
 
 Say you base a grumpy bot off the friendly one above. It'd still say hi to every enemy it finds!  
 `ENT.MyBlockedClassTasks` is keyed by the base class's name. Set it to `true` to block that class's whole MyClassTask, or to a list of callback names, like `{ "EnemyFound" }`, to block just those. (no more hi, still cheers)  
 Only the grumpy bot, and bots based on it, are affected. The friendly one keeps saying hi.
+
+</details>
 
 ### Callbacks
 
@@ -691,10 +761,16 @@ bot:AddTaskLazy( "mybot_laughofffire", laughOffFireTask )
 **Notes:**
 1. Without `StartsOnInitialize`, the task just sits there until you call `self:StartTask( taskName, reason )`
 2. The task table is shared by every bot you add it to, so keep per-bot state in `data`, not in the table.
-3. `self:AddTask` is for more advanced behaviour, like swapping a task's callbacks out for new ones.  
-   It doesn't check if the task's already running, re-adding a running task errors with `term_debugtasks 1`.
-4. Callbacks only hear about events from *after* the task was added.  
+3. Callbacks only hear about events from *after* the task was added.  
    Add the task above to a bot that's already burning, and it never laughs at that fire. Check `self:IsOnFire()` yourself when you add it.
+
+<details>
+<summary><b>Advanced</b> · <i>self:AddTask</i></summary>
+
+`self:AddTask` is for more advanced behaviour, like swapping a task's callbacks out for new ones.  
+It doesn't check if the task's already running, re-adding a running task errors with `term_debugtasks 1`.
+
+</details>
 
 
 ## ENT.MySpecialActions System
@@ -887,11 +963,15 @@ function ENT:Think()
 end
 ```
 
-The following are deprecated — use `MyClassTask` callbacks instead:
+<details>
+<summary><b>Deprecated</b> · <i>use MyClassTask callbacks instead</i></summary>
+
 - `ENT:AdditionalInitialize( myTbl )` → `OnCreated` (runs just before `OnCreated`, after the model is set, before weapons and relationships)
 - `ENT:AdditionalThink( myTbl )` → `Think`
 - `ENT:AdditionalOnLandOnGround( ent, fallHeight )` → `OnLandOnGround`
 - `ENT:AdditionalFootstep( ... )` → check the `ENT.` variables in `footsteps.lua` first, use the `AdditionalFootstep` callback if your usecase is too complex
+
+</details>
 
 ---
 

@@ -195,6 +195,8 @@ ENT.IsWraith = nil -- enable wraith cloaking logic
 ENT.NotSolidWhenCloaked = true
 --]]
 
+ENT.MyWorkshopContentIds = nil -- "workshopid" or { "workshopid", ... } resource.AddWorkshop'd, or with terminator_myworkshopcontentids_ondemand on, clients download it when they first see one of these bots. see autorun/server/terminator_workshopcontent.lua.
+
 ENT.MyExtraModels = nil -- clientside models stuck onto the bot, see autorun/client/terminator_cl_extramodels.lua.
 --[[
 ENT.MyExtraModels = {
@@ -242,9 +244,30 @@ if CLIENT then
         end
     end
 
+    -- off, the server resource.AddWorkshop'd them already, see autorun/server/terminator_workshopcontent.lua
+    local onDemandVar = GetConVar( "terminator_myworkshopcontentids_ondemand" )
+
+    local function requireMyWorkshopContent( self )
+        if not onDemandVar:GetBool() then return end
+        local ids = self.MyWorkshopContentIds
+        -- SENT inheritance deep-merges a derived bot's list into its parent's, entry by entry, take the class's own list instead
+        if istable( ids ) and ids.BaseClass then
+            ids = scripted_ents.GetMember( self:GetClass(), "MyWorkshopContentIds" )
+
+        end
+        if not ids then return end
+        if isstring( ids ) then ids = { ids } end
+
+        for _, id in ipairs( ids ) do
+            terminator_Extras.AddOnDemandWorkshop( id )
+
+        end
+    end
+
     function ENT:Initialize()
         BaseClass.Initialize( self )
         self.PlayerColorVec = self.PlayerColorVec or VectorRand()
+        requireMyWorkshopContent( self )
         self:AdditionalClientInitialize()
         attachMyExtraModels( self )
 
